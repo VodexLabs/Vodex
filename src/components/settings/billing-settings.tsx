@@ -22,6 +22,7 @@ export function BillingSettings() {
   const [events, setEvents] = React.useState<BillingEvent[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [portalLoading, setPortalLoading] = React.useState(false);
+  const [portalError, setPortalError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!profile?.id) return;
@@ -80,12 +81,19 @@ export function BillingSettings() {
               </p>
             )}
           </div>
-          <Button variant={isActive ? "secondary" : "accent"} size="sm" asChild>
-            <Link href="/pricing">
-              {isActive ? "Change plan" : "Upgrade"}
-              <ArrowRight className="ml-1.5 size-3.5" strokeWidth={2} />
-            </Link>
-          </Button>
+          <div className="flex flex-col items-end gap-1.5 shrink-0">
+            <Button variant={isActive ? "secondary" : "accent"} size="sm" asChild>
+              <Link href="/pricing">
+                {isActive ? "Change plan" : "Upgrade"}
+                <ArrowRight className="ml-1.5 size-3.5" strokeWidth={2} />
+              </Link>
+            </Button>
+            {!isActive && (
+              <p className="text-[11px] text-positive font-medium">
+                Upgrade adds credits instantly
+              </p>
+            )}
+          </div>
         </div>
 
         {isActive && (
@@ -120,16 +128,17 @@ export function BillingSettings() {
               disabled={portalLoading}
               onClick={async () => {
                 setPortalLoading(true);
+                setPortalError(null);
                 try {
                   const res = await fetch("/api/billing/portal", { method: "POST" });
                   const d = await res.json();
                   if (d.url) {
                     window.open(d.url, "_blank");
                   } else {
-                    alert(d.error ?? "Billing portal unavailable. Please contact support.");
+                    setPortalError(d.error ?? "Billing portal unavailable. Email support@dreamos86.com for help.");
                   }
                 } catch {
-                  alert("Failed to open billing portal. Please try again.");
+                  setPortalError("Could not open billing portal. Please try again.");
                 }
                 setPortalLoading(false);
               }}
@@ -145,6 +154,12 @@ export function BillingSettings() {
               )}
             </Button>
           </div>
+          {portalError && (
+            <div className="mt-3 flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-[12px] text-destructive ring-1 ring-destructive/20">
+              <AlertCircle className="size-3.5 shrink-0" strokeWidth={1.75} />
+              {portalError}
+            </div>
+          )}
         </motion.div>
       )}
 

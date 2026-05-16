@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { FloatingBackground } from "@/components/create/floating-background";
-import { PromptComposer } from "@/components/create/prompt-composer";
+import { PromptComposer, type AutoMode } from "@/components/create/prompt-composer";
 import { SuggestionChips } from "@/components/create/suggestion-chips";
 import { RecentApps } from "@/components/create/recent-apps";
 import { TemplateShowcase } from "@/components/create/template-showcase";
@@ -18,12 +18,12 @@ export function CreateHome() {
   const [attachments, setAttachments] = React.useState<File[]>([]);
   const [busy, setBusy] = React.useState(false);
 
-  const submit = React.useCallback(() => {
+  const submit = React.useCallback((mode?: AutoMode) => {
     const text = prompt.trim();
     if (!text || busy) return;
     setBusy(true);
-    // Navigate to generation workspace with the prompt and attachment count
     const params = new URLSearchParams({ prompt: text });
+    if (mode && mode !== "balanced") params.set("mode", mode);
     if (attachments.length > 0) {
       params.set("attachments", attachments.length.toString());
     }

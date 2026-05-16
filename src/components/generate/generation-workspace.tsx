@@ -7,7 +7,7 @@ import {
   ArrowLeft, Sparkles, CheckCircle2, Loader2,
   Globe, Database, Box, Cpu, Play, Layers,
   ChevronRight, BrainCircuit, Eye, FileCode2,
-  FolderOpen, Circle, Zap,
+  FolderOpen, Circle, Zap, Timer,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,24 @@ interface Phase {
   duration: number;
   cards: string[];
 }
+
+// ─── Mode-based timing multipliers ───────────────────────────────────────────
+
+const MODE_MULTIPLIERS: Record<string, number> = {
+  fast: 0.45,
+  balanced: 1.0,
+  deep: 1.85,
+  production: 2.4,
+  autonomous: 3.2,
+};
+
+const MODE_LABELS: Record<string, string> = {
+  fast: "Fast",
+  balanced: "Balanced",
+  deep: "Deep Build",
+  production: "Production",
+  autonomous: "Autonomous",
+};
 
 // ─── Generation phases ────────────────────────────────────────────────────────
 
@@ -270,6 +288,9 @@ export function GenerationWorkspace() {
   const searchParams = useSearchParams();
   const prompt = searchParams.get("prompt") ?? "Build a web application";
   const attachmentCount = parseInt(searchParams.get("attachments") ?? "0");
+  const mode = searchParams.get("mode") ?? "balanced";
+  const multiplier = MODE_MULTIPLIERS[mode] ?? 1.0;
+  const modeLabel = MODE_LABELS[mode] ?? "Balanced";
 
   const [currentPhaseIdx, setCurrentPhaseIdx] = React.useState(0);
   const [phaseStatuses, setPhaseStatuses] = React.useState<Record<string, PhaseStatus>>(
@@ -284,7 +305,7 @@ export function GenerationWorkspace() {
 
   const currentPhase = PHASES[currentPhaseIdx];
 
-  // Run phases
+  // Run phases with mode-adaptive timing
   React.useEffect(() => {
     let cancelled = false;
 
@@ -296,11 +317,16 @@ export function GenerationWorkspace() {
         setCurrentPhaseIdx(i);
         setPhaseStatuses((p) => ({ ...p, [phase.id]: "active" }));
 
-        // Reveal cards progressively within this phase
-        const cardInterval = phase.duration / phase.cards.length;
+        // Scale duration by mode multiplier + slight randomization for realism
+        const jitter = 0.85 + Math.random() * 0.3;
+        const scaledDuration = Math.round(phase.duration * multiplier * jitter);
+        const cardInterval = scaledDuration / phase.cards.length;
+
         for (let c = 0; c < phase.cards.length; c++) {
           if (cancelled) return;
-          await new Promise((r) => setTimeout(r, cardInterval));
+          // Add micro-pauses between cards for natural rhythm
+          const cardDelay = cardInterval * (0.8 + Math.random() * 0.4);
+          await new Promise((r) => setTimeout(r, cardDelay));
           setVisibleCards((v) => ({ ...v, [phase.id]: c + 1 }));
         }
 
@@ -312,7 +338,8 @@ export function GenerationWorkspace() {
 
     run();
     return () => { cancelled = true; };
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [multiplier]);
 
   const completedCount = Object.values(phaseStatuses).filter((s) => s === "done").length;
   const progress = (completedCount / PHASES.length) * 100;
@@ -554,15 +581,15 @@ export function GenerationWorkspace() {
                         </div>
                         <div className="hidden shrink-0 flex-col items-end gap-1.5 sm:flex">
                           <div className="text-right">
-                            <p className="text-[11px] text-muted-foreground">Credits used</p>
-                            <p className="text-[13px] font-semibold text-foreground flex items-center gap-1">
-                              <Zap className="size-3 text-accent" strokeWidth={2} />
-                              2.5
-                            </p>
+                            <p className="text-[11px] text-muted-foreground">Mode</p>
+                            <p className="text-[12px] font-medium text-foreground">{modeLabel}</p>
                           </div>
                           <div className="text-right">
-                            <p className="text-[11px] text-muted-foreground">Model</p>
-                            <p className="text-[12px] font-medium text-foreground">Auto</p>
+                            <p className="text-[11px] text-muted-foreground">Phases</p>
+                            <p className="text-[13px] font-semibold text-foreground flex items-center gap-1">
+                              <CheckCircle2 className="size-3 text-positive" strokeWidth={2} />
+                              {PHASES.length}
+                            </p>
                           </div>
                         </div>
                       </div>
@@ -604,10 +631,10 @@ export function GenerationWorkspace() {
           <div className="border-t border-border p-3">
             <div className="space-y-1.5 text-[11px]">
               <div className="flex items-center justify-between text-muted-foreground">
-                <span>Model</span>
+                <span>Mode</span>
                 <span className="font-medium text-foreground flex items-center gap-1">
                   <Cpu className="size-3" strokeWidth={1.75} />
-                  Auto
+                  {modeLabel}
                 </span>
               </div>
               <div className="flex items-center justify-between text-muted-foreground">

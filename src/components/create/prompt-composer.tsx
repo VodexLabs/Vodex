@@ -2,15 +2,165 @@
 
 import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowUp, Paperclip, Sparkles, X, FileText, ImageIcon } from "lucide-react";
+import { ArrowUp, Paperclip, Sparkles, X, FileText, ImageIcon, ChevronDown, Zap, Layers, Globe, Cpu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { transition } from "@/lib/motion";
 
+// ─── Auto Mode System ─────────────────────────────────────────────────────────
+
+export type AutoMode = "fast" | "balanced" | "deep" | "production" | "autonomous";
+
+interface ModeConfig {
+  id: AutoMode;
+  label: string;
+  icon: React.ElementType;
+  description: string;
+  estimate: string;
+  depth: string;
+  color: string;
+}
+
+const MODES: ModeConfig[] = [
+  {
+    id: "fast",
+    label: "Fast",
+    icon: Zap,
+    description: "Quick prototypes and simple UIs. Best for landing pages, forms, and single-screen apps.",
+    estimate: "8–20s",
+    depth: "Shallow",
+    color: "text-amber-500",
+  },
+  {
+    id: "balanced",
+    label: "Balanced",
+    icon: Sparkles,
+    description: "Smart default. Produces multi-page apps with auth, data, and routing fully wired.",
+    estimate: "25–45s",
+    depth: "Standard",
+    color: "text-accent",
+  },
+  {
+    id: "deep",
+    label: "Deep Build",
+    icon: Layers,
+    description: "Full-stack SaaS with integrations, dashboards, and advanced business logic.",
+    estimate: "50–90s",
+    depth: "Deep",
+    color: "text-violet-500",
+  },
+  {
+    id: "production",
+    label: "Production",
+    icon: Globe,
+    description: "Production-hardened output — security pass, SEO, performance budgets, and CI/CD config.",
+    estimate: "80–120s",
+    depth: "Exhaustive",
+    color: "text-emerald-500",
+  },
+  {
+    id: "autonomous",
+    label: "Autonomous",
+    icon: Cpu,
+    description: "AI self-directs architecture decisions, iterates on quality, and validates every system before delivery.",
+    estimate: "90–180s",
+    depth: "Agentic",
+    color: "text-pink-500",
+  },
+];
+
+function AutoModeSelector({
+  mode,
+  onChange,
+  disabled,
+}: {
+  mode: AutoMode;
+  onChange: (m: AutoMode) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+  const current = MODES.find((m) => m.id === mode)!;
+  const Icon = current.icon;
+
+  React.useEffect(() => {
+    if (!open) return;
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "hidden items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-medium ring-1 ring-border/60 transition sm:inline-flex",
+          open ? "bg-surface text-foreground ring-border" : "bg-muted/55 text-muted-foreground hover:text-foreground hover:bg-surface",
+          disabled && "pointer-events-none opacity-50",
+        )}
+      >
+        <Icon className={cn("size-3.5", current.color)} strokeWidth={1.55} />
+        {current.label}
+        <ChevronDown className={cn("size-3 transition-transform", open && "rotate-180")} strokeWidth={2} />
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: 6, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 6, scale: 0.97 }}
+            transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
+            className="absolute bottom-full left-0 z-50 mb-2 w-72 overflow-hidden rounded-[var(--radius-xl)] bg-background shadow-2xl ring-1 ring-border"
+          >
+            <div className="border-b border-border px-4 py-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Orchestration Mode</p>
+            </div>
+            <div className="p-1.5">
+              {MODES.map((m) => {
+                const MIcon = m.icon;
+                const isSelected = m.id === mode;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => { onChange(m.id); setOpen(false); }}
+                    className={cn(
+                      "flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition",
+                      isSelected ? "bg-accent/8 ring-1 ring-accent/20" : "hover:bg-surface",
+                    )}
+                  >
+                    <MIcon className={cn("mt-0.5 size-4 shrink-0", m.color)} strokeWidth={1.65} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[13px] font-semibold text-foreground">{m.label}</p>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[10px] text-muted-foreground">{m.estimate}</span>
+                          <span className="rounded-full bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{m.depth}</span>
+                        </div>
+                      </div>
+                      <p className="mt-0.5 text-[11.5px] text-muted-foreground leading-relaxed">{m.description}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 type PromptComposerProps = {
   value: string;
   onChange: (value: string) => void;
-  onSubmit: () => void;
+  onSubmit: (mode?: AutoMode) => void;
   busy?: boolean;
   attachments?: File[];
   onAttachmentsChange?: (files: File[]) => void;
@@ -31,6 +181,7 @@ export function PromptComposer({
 }: PromptComposerProps) {
   const ta = React.useRef<HTMLTextAreaElement>(null);
   const fileRef = React.useRef<HTMLInputElement>(null);
+  const [autoMode, setAutoMode] = React.useState<AutoMode>("balanced");
 
   React.useEffect(() => {
     const el = ta.current;
@@ -169,11 +320,8 @@ export function PromptComposer({
                 <Paperclip className="size-[17px]" strokeWidth={1.55} />
               </button>
 
-              {/* Auto mode indicator */}
-              <span className="hidden items-center gap-1.5 rounded-full bg-muted/55 px-3 py-1 text-[12px] font-medium text-muted-foreground ring-1 ring-border/60 sm:inline-flex">
-                <Sparkles className="size-3.5 text-accent" strokeWidth={1.55} />
-                Auto
-              </span>
+              {/* Auto mode selector */}
+              <AutoModeSelector mode={autoMode} onChange={setAutoMode} disabled={busy} />
 
               {attachments.length > 0 && (
                 <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent">
@@ -192,7 +340,7 @@ export function PromptComposer({
                 size="lg"
                 className="gap-2 rounded-[var(--radius-md)] px-4"
                 disabled={busy || !value.trim()}
-                onClick={onSubmit}
+                onClick={() => onSubmit(autoMode)}
               >
                 {busy ? "Launching…" : "Create"}
                 <ArrowUp className="size-4" strokeWidth={1.75} />

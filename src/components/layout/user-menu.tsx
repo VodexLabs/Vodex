@@ -6,7 +6,8 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   User, Settings, CreditCard, Bell, HelpCircle,
-  LogOut, Moon, Sun, Gift, ChevronRight, Loader2, Zap,
+  LogOut, Moon, Sun, Gift, ChevronRight, Loader2, Zap, ArrowUpRight,
+  CalendarClock,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -114,6 +115,10 @@ export function UserMenu() {
   const planLabel = profile
     ? (profile.plan_id === "free" ? "Free Plan" : `${profile.plan_id.charAt(0).toUpperCase() + profile.plan_id.slice(1)} Plan`)
     : "";
+  const isFree = !profile || profile.plan_id === "free";
+  const resetDate = useCreditsStore.getState().resetAt
+    ? new Date(useCreditsStore.getState().resetAt!).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    : null;
 
   // Close on outside click
   React.useEffect(() => {
@@ -216,8 +221,8 @@ export function UserMenu() {
               </div>
             </div>
 
-            {/* Credits usage row */}
-            <div className="border-b border-border px-4 py-2.5">
+            {/* Credits + plan info */}
+            <div className="border-b border-border px-4 py-2.5 space-y-1.5">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
                   <Zap className="size-3.5 shrink-0 text-accent" strokeWidth={1.75} />
@@ -236,6 +241,22 @@ export function UserMenu() {
                   </Link>
                 </div>
               </div>
+              {resetDate && (
+                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <CalendarClock className="size-3 shrink-0" strokeWidth={1.75} />
+                  Resets {resetDate}
+                </div>
+              )}
+              {isFree && (
+                <Link
+                  href="/pricing"
+                  onClick={() => setOpen(false)}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-accent/90 mt-1"
+                >
+                  <ArrowUpRight className="size-3.5" strokeWidth={2.5} />
+                  Upgrade plan
+                </Link>
+              )}
             </div>
 
             {/* Menu items */}

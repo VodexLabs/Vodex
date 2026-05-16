@@ -172,13 +172,23 @@ export function ProjectsView() {
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={<Sparkles className="size-8 text-muted-foreground/30" strokeWidth={1.25} />}
-          title={search ? "No matching projects" : "No projects yet"}
-          description={search ? "Try a different search term" : "Create your first project to get started"}
-          action={
+          title={search ? "No matching projects" : "Nothing here yet"}
+          description={
+            search
+              ? "Try a different search term or clear the filter."
+              : "Describe what you want to build and DreamOS86 will generate it — with full UI, database, and auth."
+          }
+          hints={
             !search
-              ? { label: "Create project" }
+              ? [
+                  "Describe your app in plain English",
+                  "Choose a stack and orchestration mode",
+                  "AI generates a full working codebase",
+                ]
               : undefined
           }
+          action={!search ? { label: "Create your first app", href: "/create" } : undefined}
+          secondaryAction={!search ? { label: "Browse templates", href: "/templates" } : undefined}
         />
       ) : (
         <div className={cn(

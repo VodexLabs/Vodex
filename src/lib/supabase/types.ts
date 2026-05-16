@@ -536,6 +536,60 @@ export interface Database {
         Relationships: [];
       };
 
+      discussions: {
+        Row: {
+          id: string;
+          created_at: string;
+          updated_at: string;
+          user_id: string;
+          title: string;
+          body: string;
+          category: "General" | "Tips" | "Guide" | "Feedback" | "Showcase" | "Question" | "Announcement";
+          reply_count: number;
+          like_count: number;
+          is_pinned: boolean;
+          is_deleted: boolean;
+        };
+        Insert: Omit<Database["public"]["Tables"]["discussions"]["Row"], "id" | "created_at" | "updated_at" | "reply_count" | "like_count" | "is_pinned" | "is_deleted"> & {
+          reply_count?: number;
+          like_count?: number;
+          is_pinned?: boolean;
+          is_deleted?: boolean;
+        };
+        Update: Partial<Database["public"]["Tables"]["discussions"]["Row"]>;
+        Relationships: [];
+      };
+
+      discussion_replies: {
+        Row: {
+          id: string;
+          created_at: string;
+          updated_at: string;
+          discussion_id: string;
+          user_id: string;
+          body: string;
+          like_count: number;
+          is_deleted: boolean;
+        };
+        Insert: Omit<Database["public"]["Tables"]["discussion_replies"]["Row"], "id" | "created_at" | "updated_at" | "like_count" | "is_deleted"> & {
+          like_count?: number;
+          is_deleted?: boolean;
+        };
+        Update: Partial<Database["public"]["Tables"]["discussion_replies"]["Row"]>;
+        Relationships: [];
+      };
+
+      discussion_likes: {
+        Row: {
+          user_id: string;
+          discussion_id: string;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["discussion_likes"]["Row"], "created_at">;
+        Update: never;
+        Relationships: [];
+      };
+
       audit_logs: {
         Row: {
           id: string;
@@ -641,3 +695,6 @@ export type Referral = Tables<"referrals">;
 export type BillingEvent = Tables<"billing_events">;
 export type AuditLog = Tables<"audit_logs">;
 export type AdminAction = Tables<"admin_actions">;
+export type Discussion = Tables<"discussions">;
+export type DiscussionReply = Tables<"discussion_replies">;
+export type DiscussionLike = Tables<"discussion_likes">;

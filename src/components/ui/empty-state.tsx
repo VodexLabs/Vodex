@@ -5,11 +5,15 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
+type EmptyStateAction = { label: string; onClick?: () => void; href?: string };
+
 type EmptyStateProps = {
   icon: React.ReactNode;
   title: string;
   description: string;
-  action?: { label: string; onClick?: () => void };
+  action?: EmptyStateAction;
+  secondaryAction?: EmptyStateAction;
+  hints?: string[];
   className?: string;
 };
 
@@ -18,6 +22,8 @@ export function EmptyState({
   title,
   description,
   action,
+  secondaryAction,
+  hints,
   className,
 }: EmptyStateProps) {
   return (
@@ -39,17 +45,42 @@ export function EmptyState({
       <p className="mt-2 max-w-sm text-[14px] leading-relaxed text-muted-foreground">
         {description}
       </p>
-      {action ? (
-        <Button
-          variant="accent"
-          size="lg"
-          className="mt-8"
-          type="button"
-          onClick={action.onClick}
-        >
-          {action.label}
-        </Button>
-      ) : null}
+      {hints && hints.length > 0 && (
+        <ul className="mt-4 space-y-1.5 text-left max-w-xs">
+          {hints.map((hint) => (
+            <li key={hint} className="flex items-start gap-2 text-[12.5px] text-muted-foreground">
+              <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-accent/60" />
+              {hint}
+            </li>
+          ))}
+        </ul>
+      )}
+      {(action || secondaryAction) && (
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+          {action && (
+            action.href ? (
+              <a href={action.href} className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition hover:bg-accent/90">
+                {action.label}
+              </a>
+            ) : (
+              <Button variant="accent" size="lg" type="button" onClick={action.onClick}>
+                {action.label}
+              </Button>
+            )
+          )}
+          {secondaryAction && (
+            secondaryAction.href ? (
+              <a href={secondaryAction.href} className="inline-flex items-center gap-1.5 rounded-lg bg-muted px-4 py-2 text-[13px] font-medium text-foreground transition hover:bg-muted/70">
+                {secondaryAction.label}
+              </a>
+            ) : (
+              <Button variant="secondary" size="lg" type="button" onClick={secondaryAction.onClick}>
+                {secondaryAction.label}
+              </Button>
+            )
+          )}
+        </div>
+      )}
     </motion.div>
   );
 }

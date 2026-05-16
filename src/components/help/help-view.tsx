@@ -18,49 +18,49 @@ const DOC_CATEGORIES = [
     label: "Getting Started",
     articles: [
       { title: "Getting started", href: "/help/docs/getting-started" },
-      { title: "Understanding credits & billing", href: "/help/docs/billing-credits" },
       { title: "How AI Chat works", href: "/help/docs/how-ai-chat-works" },
-      { title: "Deploying your app", href: "/deploy" },
+      { title: "Deploying your app", href: "/help/docs/deployment" },
+      { title: "Understanding credits & billing", href: "/help/docs/how-credits-work" },
     ],
   },
   {
     icon: Zap,
     label: "AI Modes",
     articles: [
-      { title: "How AI Chat works", href: "/help/docs/how-ai-chat-works" },
-      { title: "Discuss, Edit, Agent, Build", href: "/help/docs/how-ai-chat-works" },
-      { title: "Reducing AI costs", href: "/help/docs/how-ai-chat-works" },
-      { title: "Credit costs per model", href: "/help/docs/billing-credits" },
+      { title: "AI mode overview", href: "/help/docs/how-ai-chat-works" },
+      { title: "Model routing & selection", href: "/help/docs/model-routing" },
+      { title: "Orchestration modes explained", href: "/help/docs/model-routing" },
+      { title: "How credits are calculated", href: "/help/docs/how-credits-work" },
     ],
   },
   {
     icon: Code2,
     label: "Integrations",
     articles: [
+      { title: "Google & GitHub OAuth setup", href: "/help/docs/oauth-setup" },
       { title: "Supabase setup", href: "/help/docs/supabase-setup" },
       { title: "GitHub integration", href: "/help/docs/github-integration" },
       { title: "Environment variables", href: "/help/docs/environment-variables" },
-      { title: "API key management", href: "/settings/api-keys" },
     ],
   },
   {
     icon: CreditCard,
     label: "Billing",
     articles: [
-      { title: "How credits work", href: "/help/docs/billing-credits" },
+      { title: "How credits work", href: "/help/docs/how-credits-work" },
       { title: "Plans and pricing", href: "/pricing" },
       { title: "Manage subscription", href: "/settings/billing" },
-      { title: "Usage history", href: "/settings/billing" },
+      { title: "Billing overview", href: "/help/docs/billing-credits" },
     ],
   },
   {
     icon: Shield,
-    label: "Mobile Publishing",
+    label: "Deployment",
     articles: [
-      { title: "Play Store setup", href: "/help/docs/play-store-setup" },
-      { title: "SHA256 fingerprints", href: "/help/docs/play-store-setup" },
+      { title: "Deploying to Vercel", href: "/help/docs/deployment" },
+      { title: "Custom domains", href: "/help/docs/deployment" },
       { title: "ZIP import & restoration", href: "/help/docs/zip-import" },
-      { title: "Team permissions", href: "/settings/team" },
+      { title: "Play Store setup", href: "/help/docs/play-store-setup" },
     ],
   },
 ];
@@ -275,7 +275,12 @@ export function HelpView() {
           <MessageSquare className="size-4 text-muted-foreground" strokeWidth={1.75} />
           <div>
             <h3 className="text-[14px] font-semibold text-foreground">Contact Support</h3>
-            <p className="text-[12px] text-muted-foreground">We typically respond within 24 hours</p>
+            <p className="text-[12px] text-muted-foreground">
+              We typically respond within 24 hours ·{" "}
+              <a href="mailto:support@dreamos86.com" className="text-accent hover:underline underline-offset-2">
+                support@dreamos86.com
+              </a>
+            </p>
           </div>
         </div>
         <div className="p-5">

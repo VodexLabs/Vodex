@@ -14,11 +14,13 @@ import {
   textareaCls,
 } from "@/components/settings/shared";
 import { cn } from "@/lib/utils";
-import { Sun, Moon, Monitor, ImagePlus, Trash2, AlertTriangle } from "lucide-react";
+import { Sun, Moon, Monitor, ImagePlus, Trash2, AlertTriangle, Droplets } from "lucide-react";
+import { useAuthStore } from "@/lib/stores/auth-store";
 
 type Theme = "light" | "dark" | "system";
 
 export default function SettingsGeneralPage() {
+  const { profile } = useAuthStore();
   const [theme, setTheme] = React.useState<Theme>("system");
   const [sidebarStyle, setSidebarStyle] = React.useState(true);
   const [fontSize, setFontSize] = React.useState("15");
@@ -29,8 +31,10 @@ export default function SettingsGeneralPage() {
   const [defaultModel, setDefaultModel] = React.useState("claude-sonnet");
   const [autoSave, setAutoSave] = React.useState(true);
   const [streaming, setStreaming] = React.useState(true);
+  const [showBranding, setShowBranding] = React.useState(true);
   const [deleteConfirm, setDeleteConfirm] = React.useState(false);
   const [deleteInput, setDeleteInput] = React.useState("");
+  const isPaidPlan = profile && profile.plan_id !== "free";
 
   const themeOptions: { value: Theme; label: string; icon: React.ReactNode }[] =
     [
@@ -198,6 +202,35 @@ export default function SettingsGeneralPage() {
           <Button variant="ghost" size="md">Discard</Button>
           <Button variant="accent" size="md">Save changes</Button>
         </SectionFooter>
+      </SectionCard>
+
+      {/* Branding */}
+      <SectionCard
+        title="App Branding"
+        description="Control how DreamOS86 branding appears on your generated apps."
+      >
+        <div className="space-y-1">
+          <SettingRow
+            title='Show "Built with DreamOS86"'
+            description={
+              isPaidPlan
+                ? "Display a small DreamOS86 badge on your published apps. Uncheck to remove."
+                : "Free plan includes the DreamOS86 watermark. Upgrade to Starter or higher to remove it."
+            }
+          >
+            <Switch
+              checked={isPaidPlan ? showBranding : true}
+              onCheckedChange={isPaidPlan ? setShowBranding : undefined}
+              disabled={!isPaidPlan}
+              aria-label="Show DreamOS86 branding"
+            />
+          </SettingRow>
+          {!isPaidPlan && (
+            <p className="pl-1 text-[11.5px] text-muted-foreground">
+              <a href="/pricing" className="text-accent hover:underline underline-offset-2">Upgrade to Starter</a> to remove the watermark from your apps.
+            </p>
+          )}
+        </div>
       </SectionCard>
 
       {/* Danger Zone */}

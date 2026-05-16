@@ -497,57 +497,9 @@ export const integrations: Integration[] = [
 ];
 
 // ─── Notifications ────────────────────────────────────────────────────────────
-
-export const notifications: Notification[] = [
-  {
-    id: "n1",
-    type: "deploy",
-    title: "North deployed successfully",
-    body: "Your app is live on dreamos86.app/north — 2.1s build time.",
-    timeLabel: "2m ago",
-    read: false,
-  },
-  {
-    id: "n2",
-    type: "ai",
-    title: "Generation complete",
-    body: "Atlas v2 layout has been generated. Review before publishing.",
-    timeLabel: "18m ago",
-    read: false,
-  },
-  {
-    id: "n3",
-    type: "credit",
-    title: "You're at 80% credits",
-    body: "240 credits remaining this month. Upgrade for more capacity.",
-    timeLabel: "1h ago",
-    read: true,
-  },
-  {
-    id: "n4",
-    type: "invite",
-    title: "Alex Chen joined your workspace",
-    body: "Team member accepted invite and joined as Collaborator.",
-    timeLabel: "3h ago",
-    read: true,
-  },
-  {
-    id: "n5",
-    type: "build",
-    title: "Build failed: Pulse v1.2",
-    body: "TypeScript error in api/routes.ts line 48. Auto-fix available.",
-    timeLabel: "Yesterday",
-    read: true,
-  },
-  {
-    id: "n6",
-    type: "system",
-    title: "DreamOS86 v0.8 is here",
-    body: "New: Streaming generation, model switcher, and 6 new templates.",
-    timeLabel: "2d ago",
-    read: true,
-  },
-];
+// Notifications are loaded from the database via AppProvider + Supabase Realtime.
+// This static array is intentionally empty — all notifications are real DB records.
+export const notifications: Notification[] = [];
 
 // ─── Changelog ────────────────────────────────────────────────────────────────
 

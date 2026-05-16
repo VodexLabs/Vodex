@@ -595,6 +595,266 @@ Credit packs let you purchase additional credits that never expire, separately f
 If you believe credits were charged incorrectly, contact support with the conversation ID. We can review exact token counts and usage logs.
 `,
   },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    slug: "oauth-setup",
+    title: "Google & GitHub OAuth Setup",
+    description: "Enable Google and GitHub sign-in for your DreamOS86 account and generated apps.",
+    category: "Integrations",
+    readMinutes: 6,
+    content: `## Overview
+
+DreamOS86 uses Supabase Auth for all authentication, including OAuth providers. The platform supports **Google** and **GitHub** sign-in out of the box.
+
+## Setting up Google OAuth
+
+### 1. Create a Google Cloud project
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com)
+2. Create a new project or select an existing one
+3. Navigate to **APIs & Services → Credentials**
+
+### 2. Create OAuth credentials
+
+1. Click **Create Credentials → OAuth client ID**
+2. Select **Web application**
+3. Add your authorised redirect URIs:
+   - \`http://localhost:3000/auth/callback\` (development)
+   - \`https://yourdomain.com/auth/callback\` (production)
+   - Add the Supabase callback too: \`https://your-project.supabase.co/auth/v1/callback\`
+
+### 3. Configure Supabase
+
+1. Go to your [Supabase project dashboard](https://supabase.com/dashboard)
+2. **Auth → Providers → Google**
+3. Enable Google, paste your **Client ID** and **Client Secret**
+
+### 4. Add redirect URLs to Supabase
+
+**Auth → URL Configuration → Redirect URLs:**
+- \`http://localhost:3000/auth/callback\`
+- \`https://dreamos86.com/auth/callback\`
+
+---
+
+## Setting up GitHub OAuth
+
+### 1. Create a GitHub OAuth App
+
+1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
+2. Click **OAuth Apps → New OAuth App**
+3. Set:
+   - **Homepage URL**: \`https://dreamos86.com\`
+   - **Authorization callback URL**: \`https://your-project.supabase.co/auth/v1/callback\`
+
+### 2. Configure Supabase
+
+1. **Auth → Providers → GitHub**
+2. Enable GitHub, paste your **Client ID** and **Client Secret**
+
+### 3. Add redirect URLs
+
+Same as Google — add both localhost and production URLs to Supabase's allowed redirect list.
+
+---
+
+## Testing OAuth locally
+
+Google and GitHub OAuth both work on \`localhost:3000\` as long as:
+1. \`http://localhost:3000/auth/callback\` is in your Supabase redirect URLs
+2. The Google Cloud credentials have \`http://localhost:3000/auth/callback\` as an authorised URI
+3. Your \`NEXT_PUBLIC_APP_URL=http://localhost:3000\` in \`.env.local\`
+
+## Troubleshooting
+
+**"Provider not enabled"**
+→ The provider hasn't been enabled in Supabase Auth settings.
+
+**"Redirect URI mismatch"**
+→ The URL your app is redirecting to doesn't match exactly what's registered in Google Console or Supabase. Check for trailing slashes.
+
+**"callback_failed" error after OAuth**
+→ Usually a network error or SSL certificate issue in local development. The \`src/instrumentation.ts\` file in your project automatically handles SSL certificate issues on Windows in development.
+
+**Session not persisting after OAuth login**
+→ Ensure your middleware is refreshing the session on every request and that cookies are being set correctly.
+`,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    slug: "deployment",
+    title: "Deploying Your App",
+    description: "Deploy your generated app to production with Vercel, custom domains, and environment management.",
+    category: "Deployment",
+    readMinutes: 6,
+    content: `## Overview
+
+DreamOS86 generates production-ready Next.js apps. Deployment targets:
+
+| Platform | Notes |
+|----------|-------|
+| **Vercel** | Recommended. Zero-config, instant deploys |
+| **Railway** | Great for full-stack with databases |
+| **Fly.io** | Best for global edge deployments |
+| **Self-hosted** | Any Node.js-capable server |
+
+---
+
+## Deploying to Vercel
+
+### 1. Connect your repository
+
+1. Push your project to GitHub via **Settings → Integrations → GitHub**
+2. Go to [vercel.com/new](https://vercel.com/new)
+3. Import your GitHub repository
+
+### 2. Set environment variables
+
+In Vercel project settings → **Environment Variables**, add all variables from your \`.env.local.example\`:
+
+\`\`\`
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+NEXT_PUBLIC_APP_URL=https://yourdomain.com
+STRIPE_SECRET_KEY
+STRIPE_WEBHOOK_SECRET
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+ANTHROPIC_API_KEY
+\`\`\`
+
+### 3. Set NEXT_PUBLIC_APP_URL
+
+This is critical for OAuth redirects to work in production:
+\`\`\`
+NEXT_PUBLIC_APP_URL=https://yourdomain.com
+\`\`\`
+
+Without this, OAuth callbacks will redirect to the wrong URL.
+
+### 4. Update Supabase redirect URLs
+
+Add your production domain to **Supabase → Auth → URL Configuration → Redirect URLs**:
+\`\`\`
+https://yourdomain.com/auth/callback
+\`\`\`
+
+---
+
+## Custom domains
+
+### Vercel
+1. Vercel project → **Settings → Domains**
+2. Add your domain
+3. Update your DNS: add a CNAME pointing to \`cname.vercel-dns.com\`
+
+### Supabase redirect URLs
+After adding your domain, update the allowed redirect URLs in Supabase to include your new domain.
+
+---
+
+## Deployment environments
+
+DreamOS86 supports three environments:
+
+| Environment | Branch | Purpose |
+|-------------|--------|---------|
+| **Production** | \`main\` | Live site |
+| **Preview** | Any PR | PR preview URLs |
+| **Staging** | \`staging\` | Pre-release testing |
+
+---
+
+## Rollbacks
+
+To roll back to a previous deployment:
+1. **DreamOS86 → Deploy → Deployment History**
+2. Find the deployment you want to restore
+3. Click **Rollback**
+
+This triggers a re-deployment of the selected build.
+
+---
+
+## Troubleshooting
+
+**Build failing after deploy**
+→ Check that all required environment variables are set in Vercel. The most common cause is missing \`NEXT_PUBLIC_SUPABASE_URL\`.
+
+**OAuth not working in production**
+→ Update \`NEXT_PUBLIC_APP_URL\` to your production domain and add the domain to Supabase's allowed redirect list.
+
+**Webhook not firing**
+→ Set the webhook endpoint in Stripe Dashboard to your production URL, and update \`STRIPE_WEBHOOK_SECRET\` with the production signing secret.
+`,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    slug: "model-routing",
+    title: "AI Model Routing",
+    description: "How DreamOS86 selects AI models, and how to customise model selection for your projects.",
+    category: "AI Modes",
+    readMinutes: 5,
+    content: `## Auto mode
+
+By default, DreamOS86 uses **Auto** mode to select the best model for each task. Auto routing considers:
+
+- **Task type** — simple edit vs. complex architecture
+- **Context length** — how many tokens your request requires
+- **Budget** — your remaining credits and plan tier
+- **Speed requirement** — whether you need a quick response or can wait for higher quality
+
+## Manual model selection
+
+You can override the auto-selected model at any time using the model picker in the chat input bar.
+
+## Orchestration modes
+
+When creating an app from the home screen, you can choose an orchestration mode:
+
+| Mode | Runtime | Model strategy |
+|------|---------|----------------|
+| **Fast** | 8–20s | Lightweight models throughout |
+| **Balanced** | 25–45s | Mixes lightweight and standard |
+| **Deep Build** | 50–90s | Standard + premium for architecture |
+| **Production** | 80–120s | Premium models with quality verification |
+| **Autonomous** | 90–180s | Agentic loop with self-review |
+
+## Model tiers
+
+| Tier | Models | Credit cost |
+|------|--------|-------------|
+| **Standard** | Claude Haiku, Gemini Flash, GPT-5.4 Mini | Low |
+| **Premium** | Claude Sonnet, GPT-5.4, Gemini Pro | Medium |
+| **Ultra** | Claude Opus, GPT-5.5, Grok 4 | High |
+
+Your plan determines which tiers you can access:
+
+- Free & Starter: Standard only
+- Pro: Standard + Premium
+- Studio & above: All tiers including Ultra
+
+## Default model
+
+You can set a default model in **Settings → Models → Default Model**. This model is used when Auto mode selects a standard-tier model, replacing it with your preference.
+
+## Disabling models
+
+Disable specific models to prevent them from being used, even by Auto routing. Go to **Settings → Models** and toggle the models you don't want.
+
+## Recommended model per task
+
+| Task | Recommended |
+|------|-------------|
+| Simple UI edits | Claude Haiku / Gemini Flash |
+| Feature development | Claude Sonnet / GPT-5.4 |
+| Full app generation | Claude Opus / GPT-5.5 |
+| Large codebase analysis | Gemini Pro (2M context) |
+| Code refactoring | Composer (Cursor) |
+`,
+  },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

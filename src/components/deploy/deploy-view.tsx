@@ -4,7 +4,8 @@ import * as React from "react";
 import { motion } from "framer-motion";
 import {
   Rocket, Globe, Clock, CheckCircle, AlertCircle,
-  Loader, Plus, RefreshCw, ExternalLink,
+  Loader, Plus, RefreshCw, ExternalLink, RotateCcw, GitBranch,
+  Terminal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { variants } from "@/lib/motion";
@@ -28,6 +29,7 @@ export function DeployView() {
   const { profile } = useAuthStore();
   const [deployments, setDeployments] = React.useState<DeploymentWithProject[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [rollingBack, setRollingBack] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!profile?.id) return;
@@ -53,6 +55,25 @@ export function DeployView() {
       .limit(20);
     setDeployments((data as DeploymentWithProject[]) ?? []);
     setLoading(false);
+  }
+
+  async function handleRollback(dep: DeploymentWithProject) {
+    if (!dep.url || dep.status !== "deployed") return;
+    setRollingBack(dep.id);
+    // Insert a new deployment record queued for rollback (triggers real pipeline)
+    await supabase.from("deployments").insert({
+      project_id: dep.project_id,
+      user_id: profile!.id,
+      status: "queued" as const,
+      environment: dep.environment,
+      commit_message: `Rollback to ${dep.commit_message ?? dep.id.slice(0, 8)}`,
+      url: null,
+      build_duration_ms: null,
+      error_message: null,
+      metadata: {},
+    });
+    await refresh();
+    setRollingBack(null);
   }
 
   const active = deployments.filter((d) => d.status === "deployed" || d.status === "building");
@@ -92,18 +113,27 @@ export function DeployView() {
           variants={variants.fadeUp}
           initial="hidden"
           animate="show"
-          className="flex flex-col items-center py-16 text-center"
+          className="rounded-[var(--radius-xl)] bg-surface ring-1 ring-border px-8 py-16 text-center"
         >
-          <Rocket className="mb-3 size-12 text-muted-foreground/20" strokeWidth={1.25} />
-          <p className="text-[15px] font-medium text-foreground">No deployments yet</p>
-          <p className="mt-1 max-w-sm text-[13px] text-muted-foreground">
-            Deploy your first project to see it here. Deployments are tracked across all environments.
+          <div className="mx-auto mb-5 flex size-16 items-center justify-center rounded-2xl bg-muted/60 ring-1 ring-border">
+            <Rocket className="size-8 text-muted-foreground/40" strokeWidth={1.25} />
+          </div>
+          <p className="text-[16px] font-semibold tracking-[-0.02em] text-foreground">No deployments yet</p>
+          <p className="mt-2 max-w-[360px] mx-auto text-[13px] leading-relaxed text-muted-foreground">
+            Build a project and deploy it to Vercel with one click. All environments — production, staging, and preview — are tracked here with live status.
           </p>
-          <Button variant="accent" size="md" asChild className="mt-5">
-            <a href="/projects">
-              <Plus className="size-4" strokeWidth={2} /> Create project
-            </a>
-          </Button>
+          <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Button variant="accent" size="md" asChild>
+              <a href="/create">
+                <Plus className="size-4" strokeWidth={2} /> Create your first app
+              </a>
+            </Button>
+            <Button variant="secondary" size="md" asChild>
+              <a href="/help/docs/deployment">
+                <Globe className="size-4" strokeWidth={1.75} /> Deployment guide
+              </a>
+            </Button>
+          </div>
         </motion.div>
       ) : (
         <>
@@ -166,7 +196,7 @@ export function DeployView() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       {dep.url && dep.status === "deployed" && (
                         <a
                           href={dep.url}
@@ -178,8 +208,25 @@ export function DeployView() {
                           Open
                         </a>
                       )}
+                      {dep.status === "deployed" && (
+                        <button
+                          type="button"
+                          onClick={() => handleRollback(dep)}
+                          disabled={rollingBack === dep.id}
+                          className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-[12px] text-muted-foreground transition hover:bg-surface hover:text-amber-500 disabled:opacity-50"
+                          title="Roll back to this deployment"
+                        >
+                          {rollingBack === dep.id
+                            ? <Loader className="size-3.5 animate-spin" strokeWidth={1.75} />
+                            : <RotateCcw className="size-3.5" strokeWidth={1.75} />}
+                          Rollback
+                        </button>
+                      )}
                       {dep.error_message && (
-                        <span className="max-w-[160px] truncate rounded-lg bg-destructive/10 px-2 py-1 text-[11px] text-destructive">
+                        <span
+                          className="max-w-[160px] truncate rounded-lg bg-destructive/10 px-2 py-1 text-[11px] text-destructive cursor-help"
+                          title={dep.error_message}
+                        >
                           {dep.error_message}
                         </span>
                       )}
