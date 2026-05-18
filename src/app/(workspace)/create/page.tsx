@@ -10,10 +10,13 @@ export const metadata: Metadata = {
   description: "AI orchestration workspace.",
 };
 
+const VALID_MODES = ["discuss", "edit", "build"] as const;
+type Mode = (typeof VALID_MODES)[number];
+
 export default async function WorkspaceCreatePage({
   searchParams,
 }: {
-  searchParams: Promise<{ prompt?: string; projectId?: string }>;
+  searchParams: Promise<{ prompt?: string; projectId?: string; mode?: string }>;
 }) {
   const supabase = await createClient();
   const {
@@ -22,7 +25,12 @@ export default async function WorkspaceCreatePage({
 
   if (!user) redirect("/auth/login");
 
-  const { prompt, projectId } = await searchParams;
+  const { prompt, projectId, mode } = await searchParams;
+
+  // Validate mode param — fall back to "build" for unknown values
+  const initialMode: Mode = VALID_MODES.includes(mode as Mode)
+    ? (mode as Mode)
+    : "build";
 
   // If a projectId is provided, fetch the project
   let project = null;
@@ -46,6 +54,7 @@ export default async function WorkspaceCreatePage({
     >
       <ImmersiveWorkspace
         initialPrompt={prompt ?? ""}
+        initialMode={initialMode}
         project={project}
       />
     </Suspense>

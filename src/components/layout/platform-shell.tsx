@@ -1,10 +1,13 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { Home, LayoutGrid, Compass, MessageSquare, Users } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/top-bar";
+import { cn } from "@/lib/utils";
 
 const pageMeta: Record<string, { title: string; subtitle?: string }> = {
   "/projects": {
@@ -91,11 +94,60 @@ const pageMeta: Record<string, { title: string; subtitle?: string }> = {
     title: "Changelog",
     subtitle: "What's new in DreamOS86.",
   },
+  "/admin": {
+    title: "Admin Panel",
+    subtitle: "Platform management — restricted access.",
+  },
   "/onboarding": {
     title: "Welcome to DreamOS86",
     subtitle: "Let's get you set up.",
   },
 };
+
+// ─── Mobile bottom navigation bar ────────────────────────────────────────────
+
+const MOBILE_NAV = [
+  { href: "/", icon: Home, label: "Home" },
+  { href: "/projects", icon: LayoutGrid, label: "Apps" },
+  { href: "/explore", icon: Compass, label: "Explore" },
+  { href: "/chat", icon: MessageSquare, label: "Chat" },
+  { href: "/community", icon: Users, label: "Community" },
+];
+
+function MobileBottomNav() {
+  const pathname = usePathname();
+
+  return (
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-40 flex items-center border-t border-border lg:hidden bg-background/90 backdrop-blur-xl"
+      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+    >
+      {MOBILE_NAV.map((item) => {
+        const active = item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(`${item.href}/`);
+        const Icon = item.icon;
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={cn(
+              "relative flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[10px] font-medium transition-colors",
+              active ? "text-accent" : "text-muted-foreground",
+            )}
+          >
+            {active && (
+              <span className="absolute top-0 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-accent" />
+            )}
+            <Icon
+              className={cn("size-5 transition-transform", active && "scale-110")}
+              strokeWidth={active ? 2 : 1.5}
+            />
+            <span>{item.label}</span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
 
 // Ambient background orbs — ultra subtle, alive but not distracting
 function AmbientOrbs() {
@@ -139,6 +191,8 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
   const isCreateHome = pathname === "/";
+  // Pages that need a full-bleed, scroll-free layout (no shell padding/overflow)
+  const isFullBleed = pathname === "/" || pathname === "/chat";
   const meta = pageMeta[pathname] ?? { title: "DreamOS86" };
 
   // Close mobile menu on route change
@@ -149,7 +203,7 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
   return (
     // h-screen + overflow-hidden ensures only the content area scrolls,
     // not the entire page — sidebar and topbar remain perfectly fixed.
-    <div className="relative flex h-screen overflow-hidden bg-background">
+    <div className="relative flex h-[100dvh] overflow-hidden bg-background">
       <AmbientOrbs />
       <Sidebar
         mobileOpen={mobileOpen}
@@ -168,11 +222,11 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
         {/* Only this scrolls — sidebar/topbar stay fixed */}
         <main
           className={
-            isCreateHome
-              ? "relative flex-1 overflow-y-auto overflow-x-hidden"
-              : "relative flex-1 overflow-y-auto overflow-x-hidden bg-atmosphere px-[var(--page-padding-x)] py-[var(--page-padding-y)]"
+            isFullBleed
+              ? "relative flex min-h-0 flex-1 overflow-hidden"
+              : "relative flex-1 overflow-y-auto overflow-x-hidden bg-atmosphere px-[var(--page-padding-x)] py-[var(--page-padding-y)] pb-[calc(var(--page-padding-y)_+_4rem)] lg:pb-[var(--page-padding-y)]"
           }
-          style={{ scrollBehavior: "smooth" }}
+          style={isFullBleed ? undefined : { scrollBehavior: "smooth" }}
         >
           {/*
             IMPORTANT: do NOT add `mode="wait"` here, and do NOT add a
@@ -185,17 +239,20 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.div
               key={pathname}
-              initial={{ opacity: 0, y: 8 }}
+              initial={{ opacity: 0, y: isFullBleed ? 0 : 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-              className="min-h-full"
+              className={isFullBleed ? "flex h-full min-h-0 flex-col" : "min-h-full"}
             >
               {children}
             </motion.div>
           </AnimatePresence>
         </main>
       </div>
+
+      {/* Mobile bottom navigation — only on small screens */}
+      <MobileBottomNav />
     </div>
   );
 }

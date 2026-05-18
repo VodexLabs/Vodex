@@ -161,7 +161,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         resetAuth();
         resetCredits();
         resetNotifications();
-        router.push("/auth/login");
+        // Only push if not already on an auth page — the logout modal does a full
+        // window.location.href redirect which is more reliable. This is a fallback
+        // for programmatic/server-side sign-outs that don't use the modal.
+        if (typeof window !== "undefined" && !window.location.pathname.startsWith("/auth")) {
+          router.push("/auth/login");
+        }
       }
 
       if (event === "TOKEN_REFRESHED" && session?.user) {

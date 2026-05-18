@@ -18,7 +18,7 @@ import {
   Lock,
 } from "lucide-react";
 import type { CreationModel, Rating1to5, ModelSpecialization } from "@/lib/creation/models";
-import { CREATION_MODELS } from "@/lib/creation/models";
+import { CREATION_MODELS, FLAGSHIP_MODELS } from "@/lib/creation/models";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
@@ -57,14 +57,31 @@ const SPEC_BADGE: Record<ModelSpecialization, { label: string; color: string }> 
   multimodal:   { label: "VISION", color: "bg-teal-500/10 text-teal-600 ring-teal-500/20" },
 };
 
-// ─── Rating dots ──────────────────────────────────────────────────────────────
+// ─── Star rating ──────────────────────────────────────────────────────────────
 
-function RatingDots({ value, max = 5 }: { value: Rating1to5; max?: number }) {
+function StarRating({ value, max = 5 }: { value: number; max?: number }) {
   return (
     <span className="inline-flex items-center gap-0.5">
-      {Array.from({ length: max }).map((_, i) => (
-        <span key={i} className={cn("size-1.5 rounded-full", i < value ? "bg-accent" : "bg-muted")} />
-      ))}
+      {Array.from({ length: max }).map((_, i) => {
+        const fill = Math.min(1, Math.max(0, value - i));
+        const pct = Math.round(fill * 100);
+        return (
+          <span key={i} className="relative size-3 shrink-0 text-muted/40">
+            {/* Empty star */}
+            <svg viewBox="0 0 12 12" className="size-3 text-muted-foreground/20" fill="currentColor">
+              <path d="M6 1l1.4 2.8 3.1.5L8.2 6.5l.6 3.1L6 8.2 3.2 9.6l.6-3.1L1.5 4.3l3.1-.5L6 1z" />
+            </svg>
+            {/* Filled star clipped to value */}
+            {pct > 0 && (
+              <span className="absolute inset-0 overflow-hidden" style={{ width: `${pct}%` }}>
+                <svg viewBox="0 0 12 12" className="size-3 text-amber-400" fill="currentColor">
+                  <path d="M6 1l1.4 2.8 3.1.5L8.2 6.5l.6 3.1L6 8.2 3.2 9.6l.6-3.1L1.5 4.3l3.1-.5L6 1z" />
+                </svg>
+              </span>
+            )}
+          </span>
+        );
+      })}
     </span>
   );
 }
@@ -148,21 +165,23 @@ function ModelDetailPanel({ model }: { model: CreationModel }) {
         {model.orchestrationRole}
       </p>
 
-      <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[10.5px]">
+      <div className="space-y-1.5 text-[10.5px]">
         {([
-          ["Intelligence", r.intelligence, Brain],
-          ["Reasoning", r.reasoning, Layers],
-          ["Frontend", r.frontend, Cpu],
-          ["Backend", r.backend, Cpu],
+          ["Cost efficiency", r.cost, Coins],
           ["Speed", r.speed, Gauge],
-          ["Cost eff.", r.cost, Coins],
+          ["UI / Frontend", r.frontend, Cpu],
+          ["Backend / Reasoning", r.backend, Brain],
+          ["Long-context", r.reasoning, Layers],
         ] as Array<[string, Rating1to5, React.ElementType]>).map(([label, val, Icon]) => (
-          <div key={label} className="flex items-center justify-between gap-1.5">
-            <span className="flex items-center gap-1 text-muted-foreground">
+          <div key={label} className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1 text-muted-foreground shrink-0">
               <Icon className="size-2.5" strokeWidth={1.65} />
               {label}
             </span>
-            <RatingDots value={val} />
+            <div className="flex items-center gap-1">
+              <StarRating value={val} />
+              <span className="text-[9.5px] font-mono text-muted-foreground/70">{val}.0</span>
+            </div>
           </div>
         ))}
       </div>
@@ -271,7 +290,11 @@ export function ModelPicker({
     return () => { window.removeEventListener("scroll", updatePos, true); window.removeEventListener("resize", updatePos); };
   }, [open, updatePos]);
 
-  const filtered = CREATION_MODELS.filter((m) => {
+  // Default: show top 8 flagship models. Searching reveals all models.
+  const filtered = (query
+    ? CREATION_MODELS
+    : FLAGSHIP_MODELS
+  ).filter((m) => {
     if (!query) return true;
     const q = query.toLowerCase();
     return (
@@ -344,7 +367,7 @@ export function ModelPicker({
 
           {/* Footer hint */}
           <div className="border-t border-border px-3 py-1.5 text-[10px] text-muted-foreground/50">
-            Hover to see orchestration role · Click to select agent
+            Hover a model for details · Click to select
           </div>
         </motion.div>
       )}

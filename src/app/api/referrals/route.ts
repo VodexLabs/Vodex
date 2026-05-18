@@ -84,7 +84,7 @@ export async function GET() {
     .single();
 
   const totalReferrals = myProfile?.total_referrals ?? list.length;
-  const creditsPerReferral = Math.floor(25 / 3); // 1/3 of free-tier credits = 8
+  const creditsPerReferral = 20; // 1/5 of free plan monthly credits (100 / 5 = 20)
   const creditsEarned = list.length * creditsPerReferral;
   const slotsUsed = list.length;
   const slotsRemaining = Math.max(0, MAX_REFERRALS - slotsUsed);

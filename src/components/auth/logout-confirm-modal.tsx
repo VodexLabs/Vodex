@@ -32,35 +32,43 @@ export function LogoutConfirmModal({ open, onClose }: LogoutConfirmModalProps) {
   async function confirmLogout() {
     setLoading(true);
     setErrorMsg(null);
+
+    // Fire signOut but race it with a 4s timeout — if Supabase hangs we still
+    // proceed with local cleanup so the user is never stuck in "Signing out…".
     try {
       const supabase = createClient();
-      const { error } = await supabase.auth.signOut({ scope: "global" });
-      if (error) throw error;
-    } catch (err: unknown) {
-      // Non-fatal — still clear local state and redirect
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      console.warn("[logout] signOut error (proceeding anyway):", msg);
-    } finally {
-      // Clear ALL local auth data regardless of server-side result
-      try {
-        const keys = Object.keys(localStorage).filter(
-          (k) => k.startsWith("sb-") || k.startsWith("dreamos-") || k === "supabase.auth.token"
-        );
-        keys.forEach((k) => localStorage.removeItem(k));
-        sessionStorage.clear();
-      } catch {}
-      resetAuth();
-      creditsStore.reset();
-      window.location.replace("/auth/login");
+      await Promise.race([
+        supabase.auth.signOut(),
+        new Promise<void>((_, reject) =>
+          setTimeout(() => reject(new Error("timeout")), 4000),
+        ),
+      ]);
+    } catch {
+      // Best-effort — always proceed regardless of server-side result
     }
+
+    // Clear ALL local auth data
+    try {
+      const keys = Object.keys(localStorage).filter(
+        (k) => k.startsWith("sb-") || k.startsWith("dreamos-") || k === "supabase.auth.token",
+      );
+      keys.forEach((k) => localStorage.removeItem(k));
+      sessionStorage.clear();
+    } catch { /* ignore in SSR */ }
+
+    resetAuth();
+    creditsStore.reset();
+
+    // Hard navigate — clears all React state and ensures no stale auth
+    window.location.replace("/auth/login");
   }
 
   React.useEffect(() => {
     if (!open) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape" && !loading) onClose(); };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [open, onClose]);
+  }, [open, onClose, loading]);
 
   if (!mounted) return null;
 
@@ -83,9 +91,11 @@ export function LogoutConfirmModal({ open, onClose }: LogoutConfirmModalProps) {
             alignItems: "center",
             justifyContent: "center",
             padding: "1rem",
-            background: "rgba(0,0,0,0.55)",
+            background: "rgba(15,23,60,0.45)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
           }}
-          onClick={onClose}
+          onClick={loading ? undefined : onClose}
         >
           {/* Modal — stopPropagation so clicks inside don't close */}
           <motion.div
@@ -96,21 +106,15 @@ export function LogoutConfirmModal({ open, onClose }: LogoutConfirmModalProps) {
             style={{ width: "100%", maxWidth: "22rem", zIndex: 99999 }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div
-              className="overflow-hidden rounded-2xl bg-background ring-1 ring-border"
-              style={{
-                boxShadow:
-                  "0 0 0 1px rgba(0,0,0,0.08), 0 8px 24px -4px rgba(0,0,0,0.3), 0 32px 80px -12px rgba(0,0,0,0.4)",
-              }}
-            >
-              {/* Accent stripe */}
-              <div className="h-0.5 w-full bg-gradient-to-r from-destructive/70 via-destructive to-destructive/70" />
+            <div className="overflow-hidden rounded-2xl bg-background ring-1 ring-accent/20 shadow-[0_0_0_1px_hsl(var(--accent)/0.12),0_8px_32px_-4px_hsl(var(--accent)/0.18),0_24px_64px_-8px_hsl(var(--accent)/0.10)]">
+              {/* Blue-accent top bar */}
+              <div className="h-1 w-full bg-gradient-to-r from-accent via-violet-500 to-accent" />
 
               {/* Header */}
-              <div className="flex items-start justify-between gap-3 px-5 pt-5">
-                <div className="flex items-center gap-3">
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-destructive/10">
-                    <LogOut className="size-4.5 text-destructive" strokeWidth={1.65} />
+              <div className="flex items-start justify-between gap-3 px-6 pt-5">
+                <div className="flex items-center gap-3.5">
+                  <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 ring-1 ring-accent/20">
+                    <LogOut className="size-5 text-accent" strokeWidth={1.65} />
                   </div>
                   <div>
                     <p className="text-[15px] font-semibold text-foreground">Log out of DreamOS86?</p>
@@ -131,7 +135,7 @@ export function LogoutConfirmModal({ open, onClose }: LogoutConfirmModalProps) {
 
               {/* Error */}
               {errorMsg && (
-                <div className="mx-5 mt-3 flex items-start gap-2 rounded-lg bg-destructive/8 px-3 py-2 text-[12px] text-destructive ring-1 ring-destructive/15">
+                <div className="mx-6 mt-3 flex items-start gap-2 rounded-lg bg-destructive/8 px-3 py-2 text-[12px] text-destructive ring-1 ring-destructive/15">
                   <AlertTriangle className="size-3.5 shrink-0 mt-0.5" strokeWidth={1.75} />
                   <div>
                     <p className="font-medium">Logout issue</p>
@@ -142,7 +146,7 @@ export function LogoutConfirmModal({ open, onClose }: LogoutConfirmModalProps) {
               )}
 
               {/* Actions */}
-              <div className="flex items-center gap-2 px-5 py-5">
+              <div className="flex items-center gap-2.5 px-6 py-5">
                 <button
                   type="button"
                   onClick={onClose}
@@ -155,7 +159,7 @@ export function LogoutConfirmModal({ open, onClose }: LogoutConfirmModalProps) {
                   type="button"
                   onClick={confirmLogout}
                   disabled={loading}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-destructive py-2.5 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:opacity-70"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-accent to-violet-500 py-2.5 text-[13px] font-semibold text-white shadow-[0_4px_16px_-2px_hsl(var(--accent)/0.40)] transition hover:opacity-90 active:scale-[0.98] disabled:opacity-70 disabled:shadow-none"
                 >
                   {loading ? (
                     <>

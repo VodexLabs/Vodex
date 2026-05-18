@@ -141,6 +141,7 @@ const MODE_STYLE = {
 
 export interface ImmersiveWorkspaceProps {
   initialPrompt?: string;
+  initialMode?: CreationMode;
   project?: { id: string; name: string; preview_url: string | null } | null;
 }
 
@@ -148,6 +149,7 @@ export interface ImmersiveWorkspaceProps {
 
 export function ImmersiveWorkspace({
   initialPrompt = "",
+  initialMode = "build",
   project = null,
 }: ImmersiveWorkspaceProps) {
   const supabase = createClient();
@@ -156,7 +158,7 @@ export function ImmersiveWorkspace({
   const hydrated = useHydrated();
 
   const [input, setInput] = React.useState(initialPrompt);
-  const [mode, setMode] = React.useState<CreationMode>("build");
+  const [mode, setMode] = React.useState<CreationMode>(initialMode);
   const [modelId, setModelId] = React.useState(DEFAULT_MODEL_ID);
   const [scope, setScope] = React.useState<EditScope | null>(null);
   const [attachments, setAttachments] = React.useState<Attachment[]>([]);
@@ -364,8 +366,35 @@ export function ImmersiveWorkspace({
               )}
 
               {creditError && (
-                <div className="rounded-lg bg-amber-500/10 px-3 py-2 text-[12px] text-amber-600 ring-1 ring-amber-500/30">
-                  Out of credits. <a href="/pricing" className="font-semibold underline">Upgrade</a> to continue.
+                <div className="rounded-xl bg-gradient-to-br from-background via-surface to-background ring-1 ring-border/80 shadow-[0_4px_16px_-4px_rgba(0,0,0,0.3)] overflow-hidden">
+                  <div className="h-[2px] w-full bg-gradient-to-r from-violet-600 via-accent to-sky-500" />
+                  <div className="px-4 py-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 ring-1 ring-accent/20">
+                        <Zap className="size-4 text-accent" strokeWidth={1.75} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-semibold text-foreground">You&apos;re out of tokens</p>
+                        <p className="text-[11.5px] text-muted-foreground mt-0.5">All monthly tokens used. Upgrade to continue generating.</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      <a
+                        href="/pricing"
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-accent to-violet-500 px-3 py-2 text-[12px] font-semibold text-white shadow-[0_4px_12px_-2px_hsl(var(--accent)/0.4)] transition hover:opacity-90"
+                      >
+                        <Zap className="size-3" strokeWidth={2} />
+                        Upgrade plan
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => setCreditError(false)}
+                        className="rounded-xl bg-surface px-3 py-2 text-[12px] font-medium text-muted-foreground ring-1 ring-border transition hover:bg-surface-raised"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
               {error && !creditError && (

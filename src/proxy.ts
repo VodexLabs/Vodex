@@ -32,7 +32,7 @@ const PROTECTED_PATHS = [
 ];
 
 /** Routes that should redirect authenticated users to home */
-const AUTH_PATHS = ["/auth/login", "/auth/signup", "/auth/waitlist"];
+const AUTH_PATHS = ["/auth/login", "/auth/signup", "/auth/sign-up", "/auth/waitlist"];
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });

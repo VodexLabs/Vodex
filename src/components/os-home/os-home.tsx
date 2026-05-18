@@ -61,14 +61,14 @@ const MODES: Array<{ id: CreationMode; label: string; desc: string; icon: React.
   { id: "build", label: "Build", desc: "Full system generation", icon: Zap, accent: "text-violet-500" },
 ];
 
-// Real app concepts — inspiration feed that rotates, no fake authors/stats
+// Real app ideas — inspiration feed with concrete, relatable prompts
 const APP_INSPIRATIONS = [
-  { label: "AI contract analyzer", desc: "Upload PDFs, extract key clauses, flag risks automatically", gradient: "from-blue-500/15 to-indigo-500/15", icon: "📄", prompt: "Build an AI contract analyzer that extracts key clauses, flags risks, and summarizes legal documents." },
-  { label: "Realtime CRM", desc: "Pipeline, contacts, deal tracking, and AI follow-up drafts", gradient: "from-violet-500/15 to-purple-500/15", icon: "📊", prompt: "Build a realtime CRM with contact management, deal pipeline, activity tracking, and AI-powered follow-up email drafts." },
-  { label: "Restaurant inventory OS", desc: "Stock tracking, waste reduction, supplier ordering", gradient: "from-amber-500/15 to-orange-500/15", icon: "🍽️", prompt: "Build a restaurant inventory management system with stock tracking, waste reduction analytics, and automated supplier ordering." },
-  { label: "AI medical scheduler", desc: "Patient booking, reminders, and insurance checks", gradient: "from-emerald-500/15 to-teal-500/15", icon: "🏥", prompt: "Build an AI-powered medical appointment scheduler with patient booking, automated reminders, and insurance verification." },
-  { label: "SaaS metrics dashboard", desc: "MRR, churn, CAC, LTV all in one view", gradient: "from-cyan-500/15 to-blue-500/15", icon: "📈", prompt: "Build a SaaS metrics dashboard tracking MRR, churn, CAC, LTV, and revenue forecasting with real-time charts." },
-  { label: "Code review platform", desc: "PR reviews with AI comments and quality scoring", gradient: "from-rose-500/15 to-pink-500/15", icon: "🔍", prompt: "Build a code review platform with AI-generated review comments, quality scoring, and integration with GitHub PRs." },
+  { label: "Personal finance tracker", desc: "Budgets, goals, spending trends, and alerts", gradient: "from-emerald-500/15 to-green-500/15", icon: "💰", prompt: "Build a personal finance tracker with budget categories, monthly goals, spending trends, and automated alerts when you overspend." },
+  { label: "Gym motivation app", desc: "Workout streaks, progress photos, and PRs", gradient: "from-violet-500/15 to-indigo-500/15", icon: "💪", prompt: "Create a gym motivation app with workout streaks, personal record tracking, progress photo timeline, and weekly achievement badges." },
+  { label: "Restaurant inventory OS", desc: "Stock tracking, waste reduction, supplier alerts", gradient: "from-amber-500/15 to-orange-500/15", icon: "🍽️", prompt: "Build a restaurant inventory management system with stock tracking, waste reduction analytics, low-stock alerts, and automated supplier ordering." },
+  { label: "Social profile app", desc: "Profiles, posts, likes, comments, and follows", gradient: "from-pink-500/15 to-rose-500/15", icon: "💬", prompt: "Create a social app with user profiles, a real-time post feed, likes, comments, follow/unfollow, and push notifications." },
+  { label: "Salon & clinic booking", desc: "Staff calendars, slots, and client reminders", gradient: "from-cyan-500/15 to-blue-500/15", icon: "💇", prompt: "Build a booking platform for a salon or clinic with staff calendars, real-time slot availability, client SMS reminders, and cancellation management." },
+  { label: "AI chatbot platform", desc: "Saved conversations, model selection, history", gradient: "from-blue-500/15 to-violet-500/15", icon: "🤖", prompt: "Build an AI chatbot platform with multiple model support, persistent conversation history, folder organization, and custom system prompts." },
 ];
 
 const STATUS_DOT: Record<string, string> = {
@@ -390,7 +390,7 @@ export function OsHome({ recentProjects }: OsHomeProps) {
     <div className="relative flex-1 overflow-y-auto">
       <AmbientOrbs />
 
-      <div className="relative z-10 mx-auto flex max-w-5xl flex-col items-center gap-10 px-4 pb-20 pt-12 sm:px-6">
+      <div className="relative z-10 mx-auto flex max-w-5xl flex-col items-center gap-10 px-4 pb-28 pt-12 sm:px-6 lg:pb-20">
 
         {/* Greeting */}
         <motion.div

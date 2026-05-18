@@ -60,11 +60,18 @@ function LogoutModal({ onClose }: { onClose: () => void }) {
     setLoading(true);
     try {
       const supabase = createClient();
-      await supabase.auth.signOut({ scope: "global" });
-    } catch {
-      // Best-effort — always proceed
-    }
-    try { localStorage.removeItem("dreamos-auth"); } catch { /* ignore */ }
+      await Promise.race([
+        supabase.auth.signOut(),
+        new Promise<void>((_, reject) => setTimeout(() => reject(new Error("timeout")), 4000)),
+      ]);
+    } catch { /* Best-effort */ }
+    try {
+      const keys = Object.keys(localStorage).filter(
+        (k) => k.startsWith("sb-") || k.startsWith("dreamos-") || k === "supabase.auth.token",
+      );
+      keys.forEach((k) => localStorage.removeItem(k));
+      sessionStorage.clear();
+    } catch { /* ignore */ }
     resetAuth();
     resetCredits?.();
     window.location.replace("/auth/login");
@@ -343,10 +350,19 @@ function ConnectedAccountsSection() {
   const [unlinking, setUnlinking] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    supabase.auth.getUserIdentities().then(({ data }) => {
-      setIdentities((data?.identities ?? []) as typeof identities);
-      setLoading(false);
-    });
+    // Race the identities call with a 5s timeout to prevent infinite spinner
+    const timeout = setTimeout(() => setLoading(false), 5000);
+    supabase.auth.getUserIdentities()
+      .then(({ data }) => {
+        clearTimeout(timeout);
+        setIdentities((data?.identities ?? []) as typeof identities);
+        setLoading(false);
+      })
+      .catch(() => {
+        clearTimeout(timeout);
+        setLoading(false);
+      });
+    return () => clearTimeout(timeout);
   }, []);
 
   const providers = [
@@ -466,12 +482,16 @@ function ConnectedAccountsSection() {
 
 function ProfileSection() {
   const supabase = createClient();
-  const { profile, setProfile } = useAuthStore();
+  const { profile, user, setProfile } = useAuthStore();
   const router = useRouter();
-  const displayName = profile?.full_name ?? profile?.email?.split("@")[0] ?? "User";
-  const displayEmail = profile?.email ?? "";
+  // Fall back to auth user email/name when profile row hasn't been synced yet
+  const authEmail = user?.email ?? user?.user_metadata?.email ?? "";
+  const authName = (user?.user_metadata?.full_name as string | undefined) ??
+    (user?.user_metadata?.name as string | undefined) ?? "";
+  const displayName = profile?.full_name ?? (authName || authEmail.split("@")[0] || "User");
+  const displayEmail = profile?.email ?? authEmail;
 
-  const [name, setName] = React.useState(profile?.full_name ?? "");
+  const [name, setName] = React.useState(profile?.full_name ?? authName ?? "");
   const [saving, setSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
   const [uploading, setUploading] = React.useState(false);

@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Layers, ArrowRight, Globe, Database, Zap, CreditCard, BookOpen, Bell } from "lucide-react";
+import { Layers, ArrowRight } from "lucide-react";
 
 const APP_INTEGRATIONS = [
   { icon: "⚡", name: "Supabase", desc: "Database, Auth, Storage, Realtime" },

@@ -6,6 +6,7 @@ import {
   Search, Star, ArrowUpRight, Sparkles, ExternalLink,
   Smartphone, LayoutDashboard, Users,
 } from "lucide-react";
+import { TemplateMockup, categoryToVariant } from "@/components/ui/template-mockup";
 import { Button } from "@/components/ui/button";
 import { variants } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -92,12 +93,15 @@ function TemplateCard({ template, onUse }: { template: Template; onUse: (t: Temp
       variants={variants.staggerItem}
       className="group flex flex-col overflow-hidden rounded-[var(--radius-xl)] bg-surface shadow-[var(--shadow-card)] ring-1 ring-border transition hover:ring-accent/30 hover:shadow-[var(--shadow-glass)]"
     >
-      {/* Gradient preview */}
-      <div className={cn("relative min-h-[100px] overflow-hidden bg-gradient-to-br", template.gradient)}>
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_20%_0%,rgba(255,255,255,0.6),transparent_55%)] opacity-90 dark:opacity-20" />
-        <div className="pointer-events-none absolute inset-0 ds-preview-grid opacity-25" />
-        <div className="absolute left-3 top-3 flex size-8 items-center justify-center rounded-lg bg-surface/80 backdrop-blur-sm ring-1 ring-border/60">
-          <Icon className="size-4 text-foreground" strokeWidth={1.75} />
+      {/* App preview mockup */}
+      <div className="relative min-h-[120px] overflow-hidden">
+        <TemplateMockup
+          variant={categoryToVariant(template.id)}
+          gradient={template.gradient}
+          className="absolute inset-0"
+        />
+        <div className="absolute left-3 top-3 flex size-8 items-center justify-center rounded-lg bg-black/20 backdrop-blur-sm ring-1 ring-white/20">
+          <Icon className="size-4 text-white/80" strokeWidth={1.75} />
         </div>
         <div className="absolute right-3 top-3">
           <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1", COMPLEXITY_COLORS[template.complexity])}>

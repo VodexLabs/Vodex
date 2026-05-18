@@ -26,7 +26,7 @@ export async function POST() {
 
   const { data, error } = await supabase.rpc("claim_referral_reward", {
     p_referred_id: user.id,
-    p_credits: 50,
+    p_credits: 20, // 1/5 of free monthly quota (100 / 5 = 20)
   });
 
   if (error) {

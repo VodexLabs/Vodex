@@ -42,15 +42,52 @@ export interface Database {
           terms_accepted_at: string | null;
           terms_version: string | null;
           terms_accepted_ip: string | null;
-          is_admin: boolean;
+          is_admin: boolean | null;
           suspended_at: string | null;
           suspended_reason: string | null;
           referral_code: string | null;
           referred_by: string | null;
           total_referrals: number;
+          workspace_name: string | null;
+          workspace_icon_url: string | null;
+          workspace_description: string | null;
         };
         Insert: Omit<Database["public"]["Tables"]["profiles"]["Row"], "id" | "created_at" | "updated_at">;
         Update: Partial<Database["public"]["Tables"]["profiles"]["Row"]>;
+        Relationships: [];
+      };
+
+      groups: {
+        Row: {
+          id: string;
+          created_at: string;
+          updated_at: string;
+          creator_id: string | null;
+          name: string;
+          slug: string;
+          description: string | null;
+          category: string;
+          icon_url: string | null;
+          banner_color: string;
+          is_public: boolean;
+          is_featured: boolean;
+          member_count: number;
+        };
+        Insert: Omit<Database["public"]["Tables"]["groups"]["Row"], "id" | "created_at" | "updated_at">;
+        Update: Partial<Database["public"]["Tables"]["groups"]["Row"]>;
+        Relationships: [];
+      };
+
+      group_members: {
+        Row: {
+          id: string;
+          group_id: string;
+          user_id: string;
+          role: string;
+          joined_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["group_members"]["Row"], "id" | "joined_at">;
+        Update: Partial<Database["public"]["Tables"]["group_members"]["Row"]>;
         Relationships: [];
       };
 

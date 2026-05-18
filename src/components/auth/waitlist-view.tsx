@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { LogoIcon } from "@/components/ui/logo-icon";
 import { motion } from "framer-motion";
 import { ArrowRight, Sparkles, Zap, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -32,15 +32,7 @@ export function WaitlistView() {
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
           className="mx-auto mb-8 flex size-20 items-center justify-center"
         >
-          <Image
-            src="/logo.png"
-            alt="DreamOS86"
-            width={80}
-            height={80}
-            className="drop-shadow-[0_8px_32px_rgba(30,107,255,0.4)]"
-            priority
-            loading="eager"
-          />
+          <LogoIcon size={80} />
         </motion.div>
 
         <span className="inline-flex items-center gap-1.5 rounded-full bg-accent/12 px-3 py-1 text-[12px] font-semibold text-accent ring-1 ring-accent/20">

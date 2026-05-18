@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { LogoIcon } from "@/components/ui/logo-icon";
 
 /**
  * Streamed auth loading UI — rendered by Next.js during any auth route
@@ -11,15 +11,7 @@ export default function AuthLoading() {
       {/* Logo mark */}
       <div className="relative">
         <div className="absolute inset-0 -z-10 animate-ping rounded-full bg-accent/20" />
-        <Image
-          src="/logo.png"
-          alt="DreamOS86"
-          width={52}
-          height={52}
-          className="drop-shadow-[0_6px_24px_rgba(30,107,255,0.45)]"
-          priority
-          loading="eager"
-        />
+        <LogoIcon size={52} />
       </div>
 
       {/* Animated progress bar */}

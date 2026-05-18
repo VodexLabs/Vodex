@@ -105,7 +105,7 @@ export async function POST(request: Request) {
 
   const creditsNeeded = CREDITS_PER_MESSAGE(modelId);
 
-  const { data: creditResultRaw } = await supabase.rpc("consume_credits", {
+  const { data: creditResultRaw, error: rpcError } = await supabase.rpc("consume_credits", {
     p_user_id: user.id,
     p_amount: creditsNeeded,
     p_operation_id: `chat_${Date.now()}`,
@@ -118,14 +118,17 @@ export async function POST(request: Request) {
     | null
     | undefined;
 
-  if (!creditResult?.success) {
-    return NextResponse.json(
-      {
-        error: "insufficient_credits",
-        remaining: creditResult?.remaining ?? 0,
-      },
-      { status: 402 },
-    );
+  // If the RPC itself failed (function missing, network error, etc.) fall through
+  // rather than blocking the user. Only hard-block on confirmed insufficient_credits.
+  if (!rpcError && creditResult && !creditResult.success) {
+    const reason = creditResult.error;
+    // Only return 402 for actual insufficient credits, not infra errors
+    if (reason === "insufficient_credits" || reason === "forbidden") {
+      return NextResponse.json(
+        { error: "insufficient_credits", remaining: creditResult.remaining ?? 0 },
+        { status: 402 },
+      );
+    }
   }
 
   const userText = lastUserText(uiMessages);

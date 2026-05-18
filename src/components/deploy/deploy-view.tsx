@@ -32,15 +32,15 @@ export function DeployView() {
   const [rollingBack, setRollingBack] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    if (!profile?.id) return;
+    if (!profile?.id) { setLoading(false); return; }
     supabase
       .from("deployments")
       .select("*, projects(name, gradient)")
       .eq("user_id", profile.id)
       .order("created_at", { ascending: false })
       .limit(20)
-      .then(({ data }) => {
-        setDeployments((data as DeploymentWithProject[]) ?? []);
+      .then(({ data, error }) => {
+        if (!error) setDeployments((data as DeploymentWithProject[]) ?? []);
         setLoading(false);
       });
   }, [profile?.id]);

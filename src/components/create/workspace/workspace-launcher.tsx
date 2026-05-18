@@ -146,7 +146,7 @@ function WorkspaceDropdown({ onClose, anchorRect, onLogout }: WorkspaceDropdownP
         <div className="border-b border-border px-4 py-3">
           <div className="mb-2.5 flex items-center justify-between">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Credits
+              Tokens
             </p>
             <Link
               href="/credits"
@@ -167,7 +167,7 @@ function WorkspaceDropdown({ onClose, anchorRect, onLogout }: WorkspaceDropdownP
                 </span>
               </p>
               <p className="text-[11px] text-muted-foreground">
-                {plan === "free" ? "Free plan · resets monthly" : `${planLabel} plan`}
+                {plan === "free" ? "Free · 100 tokens / month" : `${planLabel} plan`}
               </p>
             </div>
           </div>
@@ -188,7 +188,7 @@ function WorkspaceDropdown({ onClose, anchorRect, onLogout }: WorkspaceDropdownP
               className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-accent to-violet-500 px-3 py-2 text-[12px] font-semibold text-white transition hover:opacity-90"
             >
               <Zap className="size-3.5" strokeWidth={2} />
-              Upgrade for more credits
+              Upgrade for more tokens
             </Link>
           )}
         </div>

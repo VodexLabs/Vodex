@@ -12,6 +12,7 @@ import {
   ShieldAlert,
   Loader2,
   Wifi,
+  Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { OrchestrationPreview } from "@/components/create/workspace/orchestration-preview";
@@ -39,6 +40,8 @@ export interface PreviewPanelProps {
   thinking?: boolean;
   className?: string;
   editMode?: boolean;
+  /** Whether any generation has completed. Edit targeting only activates when true. */
+  hasGenerated?: boolean;
   onEditTarget?: (info: { x: number; y: number; section: string }) => void;
 }
 
@@ -48,6 +51,7 @@ export function PreviewPanel({
   thinking = false,
   className,
   editMode = false,
+  hasGenerated = false,
   onEditTarget,
 }: PreviewPanelProps) {
   const [viewport, setViewport] = React.useState<Viewport>("desktop");
@@ -151,8 +155,26 @@ export function PreviewPanel({
 
       {/* Viewport surface */}
       <div className="relative flex-1 overflow-hidden bg-atmosphere">
-        {/* Edit mode targeting overlay */}
-        {editMode && (
+        {/* Edit mode: guard — only show targeting overlay after generation exists */}
+        {editMode && !hasGenerated && (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-background/60 backdrop-blur-sm">
+            <div className="flex flex-col items-center gap-3 text-center px-8">
+              <div className="flex size-12 items-center justify-center rounded-2xl bg-amber-500/10 ring-1 ring-amber-500/20">
+                <Pencil className="size-5 text-amber-500" strokeWidth={1.75} />
+              </div>
+              <p className="text-[14px] font-semibold text-foreground">Nothing to edit yet</p>
+              <p className="text-[12.5px] text-muted-foreground leading-relaxed max-w-[260px]">
+                Generate your first interface to begin surgical editing.
+              </p>
+              <p className="text-[11.5px] text-muted-foreground/60">
+                Switch to <span className="font-semibold text-accent">Build</span> mode and describe your app.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Edit mode targeting overlay — only when generation exists */}
+        {editMode && hasGenerated && (
           <div className="absolute inset-0 z-30 cursor-crosshair">
             {/* Dim overlay */}
             <div className="absolute inset-0 bg-background/30 backdrop-blur-[1px]" />
@@ -167,7 +189,6 @@ export function PreviewPanel({
                 style={{ top: `${zone.y}%`, height: `${zone.h}%` }}
                 className="absolute inset-x-0 transition-all duration-150"
               >
-                {/* Highlight on hover */}
                 {hoveredZone === zone.id && (
                   <motion.div
                     layoutId="zone-highlight"
@@ -175,7 +196,6 @@ export function PreviewPanel({
                     transition={{ duration: 0.12 }}
                   />
                 )}
-                {/* Label */}
                 <div className={cn(
                   "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-lg px-3 py-1.5 text-[11.5px] font-semibold transition-all",
                   hoveredZone === zone.id
@@ -187,7 +207,6 @@ export function PreviewPanel({
               </div>
             ))}
 
-            {/* Instruction banner */}
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-xl bg-background/90 px-4 py-2 text-[12px] font-medium text-foreground backdrop-blur ring-1 ring-border shadow-lg">
               Click a section to target it for editing
             </div>

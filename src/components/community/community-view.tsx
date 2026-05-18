@@ -1,10 +1,12 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Heart, MessageCircle, Plus, Sparkles, Flame, TrendingUp, Rocket,
-  Users, X, Loader2, ChevronRight, Tag, Send,
+  Users, X, Loader2, ChevronRight, Send, Upload, ImageIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
@@ -22,8 +24,31 @@ type DiscussionWithAuthor = Discussion & {
   liked?: boolean;
 };
 
+interface Group {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  category: string;
+  icon_url: string | null;
+  banner_color: string;
+  is_public: boolean;
+  is_featured: boolean;
+  member_count: number;
+  created_at: string;
+  creator_id: string | null;
+}
+
 const CATEGORIES = ["General", "Tips", "Guide", "Feedback", "Showcase", "Question", "Announcement"] as const;
 type Category = (typeof CATEGORIES)[number];
+
+const GROUP_CATEGORIES = ["General", "SaaS", "Mobile", "Backend", "Frontend", "AI", "Open Source", "Indie", "Design", "Web3", "Other"];
+
+const BANNER_COLORS = [
+  "#4f7cff", "#6366f1", "#8b5cf6", "#ec4899", "#f43f5e",
+  "#f97316", "#eab308", "#22c55e", "#14b8a6", "#0ea5e9",
+  "#64748b", "#1e293b",
+];
 
 const CATEGORY_COLORS: Record<string, string> = {
   General: "bg-muted/60 text-muted-foreground",
@@ -45,7 +70,7 @@ function CreateDiscussionModal({
   onCreated: (d: Discussion) => void;
 }) {
   const supabase = createClient();
-  const { user, profile } = useAuthStore();
+  const { user } = useAuthStore();
   const [title, setTitle] = React.useState("");
   const [body, setBody] = React.useState("");
   const [category, setCategory] = React.useState<Category>("General");
@@ -153,6 +178,245 @@ function CreateDiscussionModal({
   );
 }
 
+// ─── Create group modal ───────────────────────────────────────────────────────
+
+function CreateGroupModal({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: (g: Group) => void;
+}) {
+  const supabase = createClient();
+  const { user } = useAuthStore();
+  const [name, setName] = React.useState("");
+  const [description, setDescription] = React.useState("");
+  const [category, setCategory] = React.useState("General");
+  const [bannerColor, setBannerColor] = React.useState("#4f7cff");
+  const [iconFile, setIconFile] = React.useState<File | null>(null);
+  const [iconPreview, setIconPreview] = React.useState<string | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [uploading, setUploading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  function handleIconChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIconFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setIconPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  function generateSlug(n: string) {
+    return n.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").slice(0, 60) + "-" + Date.now().toString(36);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user || !name.trim()) return;
+    setLoading(true);
+    setError(null);
+
+    let iconUrl: string | null = null;
+
+    // Upload icon if provided
+    if (iconFile) {
+      setUploading(true);
+      try {
+        const formData = new FormData();
+        formData.append("file", iconFile);
+        const res = await fetch("/api/upload/group-icon", { method: "POST", body: formData });
+        if (res.ok) {
+          const { publicUrl } = await res.json();
+          iconUrl = publicUrl;
+        }
+      } catch {
+        // Non-fatal — proceed without icon
+      }
+      setUploading(false);
+    }
+
+    const slug = generateSlug(name);
+
+    const { data, error: err } = await supabase
+      .from("groups")
+      .insert({
+        creator_id: user.id,
+        name: name.trim(),
+        slug,
+        description: description.trim() || null,
+        category,
+        banner_color: bannerColor,
+        icon_url: iconUrl,
+        is_public: true,
+        is_featured: false,
+        member_count: 1,
+      })
+      .select()
+      .single();
+
+    if (err || !data) {
+      setError(err?.message ?? "Failed to create group.");
+      setLoading(false);
+      return;
+    }
+
+    // Auto-join as admin
+    await supabase.from("group_members").insert({
+      group_id: data.id,
+      user_id: user.id,
+      role: "admin",
+    });
+
+    onCreated(data as Group);
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 backdrop-blur-sm p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 8 }}
+        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+        className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-[var(--radius-xl)] bg-background shadow-2xl ring-1 ring-border"
+      >
+        {/* Header */}
+        <div className="sticky top-0 flex items-center justify-between border-b border-border bg-background px-5 py-4">
+          <p className="text-[14px] font-semibold text-foreground">Create a group</p>
+          <button onClick={onClose} className="cursor-pointer rounded-lg p-1 text-muted-foreground hover:bg-surface hover:text-foreground transition">
+            <X className="size-4" strokeWidth={1.75} />
+          </button>
+        </div>
+
+        {/* Banner preview */}
+        <div
+          className="relative h-24 w-full transition-colors"
+          style={{ background: bannerColor }}
+        >
+          {/* Icon overlay */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="absolute bottom-0 left-5 translate-y-1/2 flex size-16 items-center justify-center overflow-hidden rounded-xl ring-4 ring-background transition hover:opacity-90"
+            style={{ background: iconPreview ? undefined : "rgba(255,255,255,0.2)" }}
+          >
+            {iconPreview ? (
+              <img src={iconPreview} alt="Group icon" className="size-full object-cover" />
+            ) : (
+              <ImageIcon className="size-6 text-white/70" strokeWidth={1.5} />
+            )}
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-5 pt-10 space-y-4">
+          {error && (
+            <div className="rounded-lg bg-destructive/10 px-3 py-2 text-[12px] text-destructive ring-1 ring-destructive/20">{error}</div>
+          )}
+
+          {/* Icon upload */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            className="sr-only"
+            onChange={handleIconChange}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-2 text-[12px] text-accent hover:underline underline-offset-2"
+          >
+            <Upload className="size-3.5" strokeWidth={1.75} />
+            {iconPreview ? "Change group icon" : "Upload group icon (optional)"}
+          </button>
+
+          {/* Banner color picker */}
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-medium text-foreground">Banner color</label>
+            <div className="flex flex-wrap gap-2">
+              {BANNER_COLORS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setBannerColor(c)}
+                  className={cn(
+                    "size-7 rounded-lg transition ring-2",
+                    bannerColor === c ? "ring-foreground ring-offset-1" : "ring-transparent hover:ring-border",
+                  )}
+                  style={{ background: c }}
+                  title={c}
+                />
+              ))}
+              {/* Custom color input */}
+              <div className="relative">
+                <input
+                  type="color"
+                  value={bannerColor}
+                  onChange={(e) => setBannerColor(e.target.value)}
+                  className="absolute inset-0 opacity-0 cursor-pointer size-7"
+                  title="Custom color"
+                />
+                <div className="flex size-7 items-center justify-center rounded-lg border border-dashed border-border text-[10px] text-muted-foreground hover:border-accent transition cursor-pointer">
+                  +
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Name */}
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-medium text-foreground">Group name <span className="text-destructive">*</span></label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. AI SaaS Builders"
+              maxLength={60}
+              required
+              className="h-10 w-full rounded-[var(--radius-md)] bg-surface px-3 text-[13px] text-foreground ring-1 ring-border outline-none focus:ring-accent/50 transition placeholder:text-muted-foreground/50"
+            />
+          </div>
+
+          {/* Category */}
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-medium text-foreground">Category</label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="h-10 w-full rounded-[var(--radius-md)] bg-surface px-3 text-[13px] text-foreground ring-1 ring-border outline-none focus:ring-accent/50 transition"
+            >
+              {GROUP_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+
+          {/* Description */}
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-medium text-foreground">Description <span className="text-muted-foreground/60">(optional)</span></label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="What is this group about?"
+              rows={3}
+              maxLength={500}
+              className="w-full rounded-[var(--radius-md)] bg-surface px-3 py-2.5 text-[13px] text-foreground ring-1 ring-border outline-none focus:ring-accent/50 transition resize-none placeholder:text-muted-foreground/50"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="secondary" size="sm" type="button" onClick={onClose} disabled={loading}>Cancel</Button>
+            <Button variant="accent" size="sm" type="submit" disabled={loading || !name.trim()} className="gap-1.5">
+              {loading ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" strokeWidth={2} />}
+              {uploading ? "Uploading icon…" : loading ? "Creating…" : "Create group"}
+            </Button>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  );
+}
+
 // ─── Discussion card ──────────────────────────────────────────────────────────
 
 function DiscussionCard({
@@ -245,7 +509,6 @@ const INSPIRATION_CARDS = [
 function EmptyDiscussions({ onStart }: { onStart: () => void }) {
   return (
     <div className="space-y-6">
-      {/* Hero */}
       <div className="flex flex-col items-center rounded-[var(--radius-xl)] bg-surface px-6 py-12 text-center ring-1 ring-border">
         <motion.div
           initial={{ scale: 0.8, opacity: 0 }}
@@ -267,7 +530,6 @@ function EmptyDiscussions({ onStart }: { onStart: () => void }) {
         </Button>
       </div>
 
-      {/* What to post */}
       <div>
         <p className="mb-3 text-[12px] font-medium uppercase tracking-wider text-muted-foreground">
           What can I post?
@@ -302,6 +564,162 @@ function EmptyDiscussions({ onStart }: { onStart: () => void }) {
   );
 }
 
+// ─── Groups tab ───────────────────────────────────────────────────────────────
+
+function GroupsTab({ onCreateGroup }: { onCreateGroup: () => void }) {
+  const supabase = createClient();
+  const { user } = useAuthStore();
+  const [groups, setGroups] = React.useState<Group[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [joinedIds, setJoinedIds] = React.useState<Set<string>>(new Set());
+  const [joiningId, setJoiningId] = React.useState<string | null>(null);
+  const router = useRouter();
+
+  React.useEffect(() => {
+    async function load() {
+      try {
+        const [{ data: grps }, memberData] = await Promise.all([
+          supabase.from("groups").select("*").eq("is_public", true).order("member_count", { ascending: false }).limit(20),
+          user ? supabase.from("group_members").select("group_id").eq("user_id", user.id) : Promise.resolve({ data: [] }),
+        ]);
+        setGroups((grps ?? []) as Group[]);
+        setJoinedIds(new Set((memberData.data ?? []).map((m: { group_id: string }) => m.group_id)));
+      } catch {
+        // Table may not exist yet — just show empty state
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [user?.id]);
+
+  async function handleJoin(groupId: string) {
+    if (!user) { router.push("/auth/login"); return; }
+    setJoiningId(groupId);
+    const isJoined = joinedIds.has(groupId);
+    if (isJoined) {
+      await supabase.from("group_members").delete().eq("group_id", groupId).eq("user_id", user.id);
+      setJoinedIds((prev) => { const n = new Set(prev); n.delete(groupId); return n; });
+      setGroups((prev) => prev.map((g) => g.id === groupId ? { ...g, member_count: Math.max(0, g.member_count - 1) } : g));
+    } else {
+      await supabase.from("group_members").insert({ group_id: groupId, user_id: user.id, role: "member" });
+      setJoinedIds((prev) => new Set([...prev, groupId]));
+      setGroups((prev) => prev.map((g) => g.id === groupId ? { ...g, member_count: g.member_count + 1 } : g));
+    }
+    setJoiningId(null);
+  }
+
+  if (loading) {
+    return <div className="flex justify-center py-16"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      {groups.length === 0 ? (
+        <div className="flex flex-col items-center rounded-[var(--radius-xl)] bg-surface py-14 text-center ring-1 ring-border px-6">
+          <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-accent/10 ring-1 ring-accent/20">
+            <Users className="size-7 text-accent" strokeWidth={1.5} />
+          </div>
+          <p className="text-[15px] font-semibold text-foreground">No groups yet</p>
+          <p className="mt-2 max-w-sm text-[13px] text-muted-foreground">
+            Be the first to start a builder collective. Create a group around a niche, stack, or product category.
+          </p>
+          <Button variant="accent" size="sm" className="mt-6 gap-1.5" onClick={onCreateGroup}>
+            <Plus className="size-3.5" strokeWidth={2} />
+            Create the first group
+          </Button>
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {groups.map((g) => {
+            const isJoined = joinedIds.has(g.id);
+            return (
+              <motion.div
+                key={g.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={cn(
+                  "group cursor-pointer overflow-hidden rounded-[var(--radius-xl)] bg-surface ring-1 transition",
+                  g.is_featured ? "ring-accent/30" : "ring-border hover:ring-accent/30",
+                )}
+              >
+                {/* Banner */}
+                <div className="h-16 w-full relative" style={{ background: g.banner_color }}>
+                  {g.is_featured && (
+                    <span className="absolute top-2 right-2 rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
+                      Featured
+                    </span>
+                  )}
+                </div>
+                <div className="p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div
+                        className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl ring-2 ring-background -mt-7"
+                        style={{ background: g.icon_url ? undefined : `${g.banner_color}33` }}
+                      >
+                        {g.icon_url ? (
+                          <img src={g.icon_url} alt={g.name} className="size-full object-cover" />
+                        ) : (
+                          <Users className="size-4 text-white" strokeWidth={1.5} />
+                        )}
+                      </div>
+                      <div className="mt-0">
+                        <p className="text-[13.5px] font-semibold text-foreground">{g.name}</p>
+                        <p className="text-[11px] text-muted-foreground">{g.member_count.toLocaleString()} members · {g.category}</p>
+                      </div>
+                    </div>
+                  </div>
+                  {g.description && (
+                    <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground line-clamp-2">{g.description}</p>
+                  )}
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleJoin(g.id)}
+                      disabled={joiningId === g.id}
+                      className={cn(
+                        "rounded-lg px-3 py-1.5 text-[11.5px] font-semibold ring-1 transition",
+                        isJoined
+                          ? "bg-muted/60 text-muted-foreground ring-border hover:bg-destructive/10 hover:text-destructive hover:ring-destructive/20"
+                          : "bg-accent/10 text-accent ring-accent/20 hover:bg-accent/20",
+                      )}
+                    >
+                      {joiningId === g.id ? <Loader2 className="size-3 animate-spin inline" /> : isJoined ? "Leave" : "Join"}
+                    </button>
+                    <Link
+                      href={`/community/groups/${g.id}`}
+                      className="rounded-lg bg-surface-raised px-3 py-1.5 text-[11.5px] font-medium text-muted-foreground ring-1 ring-border transition hover:text-foreground"
+                    >
+                      View
+                    </Link>
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Create group CTA */}
+      <div
+        className="rounded-[var(--radius-xl)] border-2 border-dashed border-border p-6 text-center transition hover:border-accent/30 cursor-pointer"
+        onClick={onCreateGroup}
+      >
+        <p className="text-[13.5px] font-semibold text-foreground">Start a builder collective</p>
+        <p className="mt-1 text-[12.5px] text-muted-foreground">Create a group around a niche, stack, or product category.</p>
+        <button
+          type="button"
+          className="mt-4 rounded-xl bg-accent px-4 py-2 text-[12.5px] font-semibold text-white transition hover:bg-accent/90"
+          onClick={(e) => { e.stopPropagation(); onCreateGroup(); }}
+        >
+          Create a group
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main view ────────────────────────────────────────────────────────────────
 
 const TABS = ["Discussions", "Groups", "Trending", "Community", "Builders"] as const;
@@ -314,6 +732,7 @@ export function CommunityView() {
   const [discussions, setDiscussions] = React.useState<DiscussionWithAuthor[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [showCreate, setShowCreate] = React.useState(false);
+  const [showCreateGroup, setShowCreateGroup] = React.useState(false);
   const [likedIds, setLikedIds] = React.useState<Set<string>>(new Set());
 
   React.useEffect(() => {
@@ -330,13 +749,7 @@ export function CommunityView() {
       user
         ? supabase.from("discussion_likes").select("discussion_id").eq("user_id", user.id)
         : Promise.resolve({ data: [] }),
-    ]).then(([{ data: discs, error: discErr }, { data: likes }]) => {
-      if (discErr) {
-        // Table doesn't exist yet — show empty state instead of crashing
-        setDiscussions([]);
-        setLoading(false);
-        return;
-      }
+    ]).then(([{ data: discs }, { data: likes }]) => {
       const liked = new Set((likes ?? []).map((l: { discussion_id: string }) => l.discussion_id));
       setLikedIds(liked);
       setDiscussions(
@@ -345,6 +758,9 @@ export function CommunityView() {
           liked: liked.has(d.id),
         })) as DiscussionWithAuthor[],
       );
+    }).catch(() => {
+      setDiscussions([]);
+    }).finally(() => {
       setLoading(false);
     });
   }, [tab, user?.id]);
@@ -401,10 +817,17 @@ export function CommunityView() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="accent" size="md" onClick={() => setShowCreate(true)} disabled={!user}>
-            <Plus className="size-4" strokeWidth={1.75} />
-            Start discussion
-          </Button>
+          {tab === "Groups" ? (
+            <Button variant="accent" size="md" onClick={() => setShowCreateGroup(true)} disabled={!user}>
+              <Plus className="size-4" strokeWidth={1.75} />
+              Create group
+            </Button>
+          ) : (
+            <Button variant="accent" size="md" onClick={() => setShowCreate(true)} disabled={!user}>
+              <Plus className="size-4" strokeWidth={1.75} />
+              Start discussion
+            </Button>
+          )}
         </div>
       </motion.div>
 
@@ -436,107 +859,21 @@ export function CommunityView() {
       {/* Trending tab */}
       {tab === "Trending" && (
         <motion.div variants={variants.fadeUp} initial="hidden" animate="show" transition={{ delay: 0.1 }} className="mt-6">
-          <div className="flex flex-col items-center rounded-[var(--radius-xl)] bg-surface py-12 text-center ring-1 ring-border">
-            <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-accent/10 ring-1 ring-accent/20">
-              <Flame className="size-7 text-accent" strokeWidth={1.5} />
-            </div>
-            <p className="text-[15px] font-semibold text-foreground">Trending picks up as posts roll in</p>
-            <p className="mt-2 max-w-sm text-[13px] text-muted-foreground">
-              The most liked, shared, and discussed content rises here automatically. Start the conversation.
-            </p>
-            <Button variant="accent" size="sm" className="mt-6 gap-1.5" onClick={() => setTab("Discussions")}>
-              <Sparkles className="size-3.5" strokeWidth={1.75} />
-              Start a discussion
-            </Button>
-          </div>
+          <TrendingTab onStartDiscussion={() => { setTab("Discussions"); setShowCreate(true); }} discussions={discussions} />
         </motion.div>
       )}
 
       {/* Community apps tab */}
       {tab === "Community" && (
         <motion.div variants={variants.fadeUp} initial="hidden" animate="show" transition={{ delay: 0.1 }} className="mt-6">
-          <div className="flex flex-col items-center rounded-[var(--radius-xl)] bg-surface py-12 text-center ring-1 ring-border px-6">
-            <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-accent/10 ring-1 ring-accent/20">
-              <Rocket className="size-7 text-accent" strokeWidth={1.5} />
-            </div>
-            <p className="text-[15px] font-semibold text-foreground">Ship your first app to appear here</p>
-            <p className="mt-2 max-w-md text-[13px] text-muted-foreground leading-relaxed">
-              Apps built on DreamOS86 that are marked public will surface in this feed. Create something incredible and let the community discover it.
-            </p>
-            <Button
-              variant="accent"
-              size="sm"
-              className="mt-6 gap-1.5"
-              onClick={() => window.open("/", "_self")}
-            >
-              <Sparkles className="size-3.5" strokeWidth={1.75} />
-              Create your first app
-            </Button>
-          </div>
+          <CommunityAppsTab />
         </motion.div>
       )}
 
       {/* Groups tab */}
       {tab === "Groups" && (
-        <motion.div variants={variants.fadeUp} initial="hidden" animate="show" transition={{ delay: 0.1 }} className="mt-6 space-y-4">
-          {/* Featured groups */}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {[
-              { name: "AI SaaS Builders", desc: "Teams building AI-native B2B products with DreamOS86.", emoji: "🚀", members: 284, tag: "SaaS", gradient: "from-blue-500/20 to-violet-500/20", featured: true },
-              { name: "Frontend Artisans", desc: "Obsessing over pixel-perfect, performant UI and animation.", emoji: "🎨", members: 197, tag: "Design", gradient: "from-pink-500/20 to-rose-500/20", featured: false },
-              { name: "Indie Hackers", desc: "Solo founders building and shipping fast with AI generation.", emoji: "⚡", members: 452, tag: "Indie", gradient: "from-amber-500/20 to-orange-500/20", featured: false },
-              { name: "Backend Systems", desc: "Infrastructure, APIs, databases, and distributed architecture.", emoji: "🗄️", members: 163, tag: "Backend", gradient: "from-emerald-500/20 to-cyan-500/20", featured: false },
-              { name: "Mobile Builders", desc: "React Native and mobile-first apps built with AI orchestration.", emoji: "📱", members: 118, tag: "Mobile", gradient: "from-violet-500/20 to-purple-500/20", featured: false },
-              { name: "Open Source Lab", desc: "Building in public, open source, and community-driven projects.", emoji: "🔬", members: 95, tag: "Open Source", gradient: "from-teal-500/20 to-green-500/20", featured: false },
-            ].map((g) => (
-              <motion.div
-                key={g.name}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={cn(
-                  "group cursor-pointer overflow-hidden rounded-[var(--radius-xl)] bg-surface ring-1 transition hover:ring-accent/30 hover:shadow-md",
-                  g.featured ? "ring-accent/30 sm:col-span-2 lg:col-span-1" : "ring-border",
-                )}
-              >
-                {/* Banner */}
-                <div className={cn("h-16 w-full bg-gradient-to-br", g.gradient)} />
-                <div className="p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-xl">{g.emoji}</span>
-                      <div>
-                        <p className="text-[13.5px] font-semibold text-foreground">{g.name}</p>
-                        <p className="text-[11px] text-muted-foreground">{g.members.toLocaleString()} members · {g.tag}</p>
-                      </div>
-                    </div>
-                    {g.featured && (
-                      <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold text-accent ring-1 ring-accent/20">
-                        Featured
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{g.desc}</p>
-                  <div className="mt-3 flex items-center gap-2">
-                    <button type="button" className="rounded-lg bg-accent/10 px-3 py-1.5 text-[11.5px] font-semibold text-accent ring-1 ring-accent/20 transition hover:bg-accent/20">
-                      Join group
-                    </button>
-                    <button type="button" className="rounded-lg bg-surface-raised px-3 py-1.5 text-[11.5px] font-medium text-muted-foreground ring-1 ring-border transition hover:text-foreground">
-                      View
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-
-          {/* Create group CTA */}
-          <div className="rounded-[var(--radius-xl)] border-2 border-dashed border-border p-6 text-center transition hover:border-accent/30">
-            <p className="text-[13.5px] font-semibold text-foreground">Start a builder collective</p>
-            <p className="mt-1 text-[12.5px] text-muted-foreground">Create a group around a niche, stack, or product category.</p>
-            <button type="button" className="mt-4 rounded-xl bg-accent px-4 py-2 text-[12.5px] font-semibold text-white transition hover:bg-accent/90">
-              Create a group
-            </button>
-          </div>
+        <motion.div variants={variants.fadeUp} initial="hidden" animate="show" transition={{ delay: 0.1 }} className="mt-6">
+          <GroupsTab onCreateGroup={() => setShowCreateGroup(true)} />
         </motion.div>
       )}
 
@@ -562,29 +899,11 @@ export function CommunityView() {
       {/* Builders tab */}
       {tab === "Builders" && (
         <motion.div variants={variants.fadeUp} initial="hidden" animate="show" transition={{ delay: 0.1 }} className="mt-6">
-          <div className="flex flex-col items-center rounded-[var(--radius-xl)] bg-surface py-12 text-center ring-1 ring-border px-6">
-            <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-accent/10 ring-1 ring-accent/20">
-              <Users className="size-7 text-accent" strokeWidth={1.5} />
-            </div>
-            <p className="text-[15px] font-semibold text-foreground">Earn your spot on the leaderboard</p>
-            <p className="mt-2 max-w-md text-[13px] text-muted-foreground leading-relaxed">
-              The builder leaderboard celebrates creators who ship the most, help the most, and inspire the most. Start building — every project, post, and contribution counts.
-            </p>
-            <div className="mt-6 flex gap-3">
-              <Button variant="accent" size="sm" className="gap-1.5" onClick={() => window.open("/", "_self")}>
-                <Sparkles className="size-3.5" strokeWidth={1.75} />
-                Build something
-              </Button>
-              <Button variant="secondary" size="sm" className="gap-1.5" onClick={() => setShowCreate(true)}>
-                <MessageCircle className="size-3.5" strokeWidth={1.75} />
-                Post a discussion
-              </Button>
-            </div>
-          </div>
+          <BuildersTab />
         </motion.div>
       )}
 
-      {/* Create modal */}
+      {/* Create discussion modal */}
       <AnimatePresence>
         {showCreate && (
           <CreateDiscussionModal
@@ -593,6 +912,157 @@ export function CommunityView() {
           />
         )}
       </AnimatePresence>
+
+      {/* Create group modal */}
+      <AnimatePresence>
+        {showCreateGroup && (
+          <CreateGroupModal
+            onClose={() => setShowCreateGroup(false)}
+            onCreated={(g) => {
+              setTab("Groups");
+              setShowCreateGroup(false);
+            }}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── Trending tab ─────────────────────────────────────────────────────────────
+
+function TrendingTab({ onStartDiscussion, discussions }: { onStartDiscussion: () => void; discussions: DiscussionWithAuthor[] }) {
+  const trending = [...discussions].sort((a, b) => b.like_count - a.like_count).slice(0, 10);
+
+  if (trending.length === 0) {
+    return (
+      <div className="flex flex-col items-center rounded-[var(--radius-xl)] bg-surface py-12 text-center ring-1 ring-border">
+        <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-accent/10 ring-1 ring-accent/20">
+          <Flame className="size-7 text-accent" strokeWidth={1.5} />
+        </div>
+        <p className="text-[15px] font-semibold text-foreground">Trending picks up as posts roll in</p>
+        <p className="mt-2 max-w-sm text-[13px] text-muted-foreground">
+          The most liked, shared, and discussed content rises here automatically. Start the conversation.
+        </p>
+        <Button variant="accent" size="sm" className="mt-6 gap-1.5" onClick={onStartDiscussion}>
+          <Sparkles className="size-3.5" strokeWidth={1.75} />
+          Start a discussion
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-hidden rounded-[var(--radius-xl)] bg-surface ring-1 ring-border divide-y divide-border/60">
+      <div className="flex items-center gap-2 border-b border-border px-5 py-3">
+        <Flame className="size-4 text-orange-500" strokeWidth={1.75} />
+        <p className="text-[13px] font-semibold text-foreground">Hot this week</p>
+      </div>
+      {trending.map((disc, i) => (
+        <div key={disc.id} className="flex items-start gap-4 px-5 py-3 hover:bg-muted/20 transition cursor-pointer">
+          <span className="shrink-0 w-5 text-[12px] font-bold text-muted-foreground/40 tabular-nums pt-0.5">{i + 1}</span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[13px] font-medium text-foreground leading-snug">{disc.title}</p>
+            <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+              <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-medium", CATEGORY_COLORS[disc.category] ?? CATEGORY_COLORS.General)}>
+                {disc.category}
+              </span>
+              <span className="flex items-center gap-1">
+                <Heart className="size-3" strokeWidth={1.5} />
+                {disc.like_count}
+              </span>
+              <span className="flex items-center gap-1">
+                <MessageCircle className="size-3" strokeWidth={1.5} />
+                {disc.reply_count}
+              </span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Community apps tab ───────────────────────────────────────────────────────
+
+function CommunityAppsTab() {
+  return (
+    <div className="flex flex-col items-center rounded-[var(--radius-xl)] bg-surface py-12 text-center ring-1 ring-border px-6">
+      <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-accent/10 ring-1 ring-accent/20">
+        <Rocket className="size-7 text-accent" strokeWidth={1.5} />
+      </div>
+      <p className="text-[15px] font-semibold text-foreground">Ship your first app to appear here</p>
+      <p className="mt-2 max-w-md text-[13px] text-muted-foreground leading-relaxed">
+        Apps built on DreamOS86 that are marked public will surface in this feed. Create something incredible and let the community discover it.
+      </p>
+      <Button
+        variant="accent"
+        size="sm"
+        className="mt-6 gap-1.5"
+        onClick={() => window.open("/", "_self")}
+      >
+        <Sparkles className="size-3.5" strokeWidth={1.75} />
+        Create your first app
+      </Button>
+    </div>
+  );
+}
+
+// ─── Builders tab ─────────────────────────────────────────────────────────────
+
+function BuildersTab() {
+  const supabase = createClient();
+  const [builders, setBuilders] = React.useState<Array<{ id: string; full_name: string | null; email: string; avatar_url: string | null }>>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    supabase
+      .from("profiles")
+      .select("id, full_name, email, avatar_url")
+      .order("created_at", { ascending: false })
+      .limit(12)
+      .then(({ data }) => {
+        setBuilders(data ?? []);
+        setLoading(false);
+      }, () => {
+        setBuilders([]);
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) {
+    return <div className="flex justify-center py-16"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 mb-4">
+        <Users className="size-4 text-accent" strokeWidth={1.75} />
+        <p className="text-[13px] font-semibold text-foreground">Builders on DreamOS86</p>
+        <span className="ml-auto text-[12px] text-muted-foreground">{builders.length} members</span>
+      </div>
+
+      {builders.length === 0 ? (
+        <div className="flex flex-col items-center rounded-[var(--radius-xl)] bg-surface py-12 text-center ring-1 ring-border px-6">
+          <Users className="mb-2 size-8 text-muted-foreground/30" strokeWidth={1.25} />
+          <p className="text-[13px] font-medium text-foreground">No builders yet</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {builders.map((b) => {
+            const name = b.full_name ?? b.email.split("@")[0];
+            return (
+              <div key={b.id} className="flex flex-col items-center gap-2 rounded-[var(--radius-xl)] bg-surface p-4 text-center ring-1 ring-border transition hover:ring-accent/20">
+                <Avatar name={name} src={b.avatar_url ?? undefined} size="lg" />
+                <div>
+                  <p className="text-[12.5px] font-semibold text-foreground">{name}</p>
+                  <p className="text-[11px] text-muted-foreground truncate max-w-[120px]">{b.email}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

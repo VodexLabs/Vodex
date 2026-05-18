@@ -35,7 +35,7 @@ export function CreditsView() {
   const [eventsLoading, setEventsLoading] = React.useState(true);
 
   React.useEffect(() => {
-    if (!profile?.id) return;
+    if (!profile?.id) { setEventsLoading(false); return; }
 
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -46,17 +46,18 @@ export function CreditsView() {
       .gte("created_at", thirtyDaysAgo)
       .order("created_at", { ascending: false })
       .limit(20)
-      .then(({ data }) => {
-        const events = (data as CreditEvent[]) ?? [];
-        setRecentEvents(events);
-
-        const breakdown: Record<string, number> = {};
-        for (const ev of events) {
-          if (ev.event_type === "generation") {
-            breakdown[ev.model_id] = (breakdown[ev.model_id] ?? 0) + ev.credits_consumed;
+      .then(({ data, error }) => {
+        if (!error) {
+          const events = (data as CreditEvent[]) ?? [];
+          setRecentEvents(events);
+          const breakdown: Record<string, number> = {};
+          for (const ev of events) {
+            if (ev.event_type === "generation") {
+              breakdown[ev.model_id] = (breakdown[ev.model_id] ?? 0) + ev.credits_consumed;
+            }
           }
+          setModelUsage(breakdown);
         }
-        setModelUsage(breakdown);
         setEventsLoading(false);
       });
   }, [profile?.id]);
@@ -97,7 +98,7 @@ export function CreditsView() {
             ) : (
               <p className="text-[36px] font-semibold tracking-tight text-foreground tabular-nums">
                 {remaining.toLocaleString()}
-                <span className="ml-1.5 text-[16px] font-normal text-muted-foreground">credits</span>
+                <span className="ml-1.5 text-[16px] font-normal text-muted-foreground">tokens</span>
               </p>
             )}
             {daysUntilReset !== null && (
@@ -165,7 +166,7 @@ export function CreditsView() {
         <motion.div variants={variants.fadeUp} className="rounded-[var(--radius-xl)] bg-surface p-5 ring-1 ring-border">
           <div className="flex items-center gap-2 mb-4">
             <Cpu className="size-4 text-muted-foreground" strokeWidth={1.75} />
-            <h3 className="text-[14px] font-semibold text-foreground">Credits by model</h3>
+            <h3 className="text-[14px] font-semibold text-foreground">Tokens by model</h3>
             <span className="ml-auto text-[11px] text-muted-foreground">Last 30 days</span>
           </div>
           <div className="space-y-3">
@@ -244,9 +245,9 @@ export function CreditsView() {
 
       {/* No top-up packs — subscription only */}
       <motion.div variants={variants.fadeUp} className="rounded-[var(--radius-xl)] bg-surface px-5 py-4 ring-1 ring-border">
-        <p className="text-[13px] font-semibold text-foreground">Need more credits?</p>
+        <p className="text-[13px] font-semibold text-foreground">Need more tokens?</p>
         <p className="mt-1 text-[12px] text-muted-foreground">
-          Upgrade your subscription tier to get more credits each month. We don&apos;t sell one-time credit packs.
+          Upgrade your subscription to get more tokens each month. Tokens reset automatically — no one-time packs.
         </p>
         <Button variant="accent" size="sm" asChild className="mt-3">
           <Link href="/pricing">

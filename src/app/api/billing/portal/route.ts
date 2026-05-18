@@ -54,7 +54,7 @@ export async function POST() {
     const { default: Stripe } = await import("stripe");
     const stripe = new Stripe(stripeKey, { apiVersion: "2026-04-22.dahlia" });
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://dreamos86.com";
 
     const session = await stripe.billingPortal.sessions.create({
       customer: profile.stripe_customer_id,

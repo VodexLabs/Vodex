@@ -121,6 +121,7 @@ export default function GlobalError({
             <button className="primary" onClick={() => unstable_retry()}>
               ↻ &nbsp;Retry
             </button>
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
             <a className="secondary" href="/">
               ← &nbsp;Return home
             </a>
