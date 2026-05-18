@@ -29,6 +29,11 @@ const PROTECTED_PATHS = [
   "/help",
   "/changelog",
   "/onboarding",
+  "/admin",
+  "/referrals",
+  "/billing",
+  "/generate",
+  "/create",
 ];
 
 /** Routes that should redirect authenticated users to home */

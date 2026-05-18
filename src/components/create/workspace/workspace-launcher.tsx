@@ -338,7 +338,7 @@ export function WorkspaceLauncher({
                 className="flex items-center gap-1.5 rounded-full bg-accent/10 px-2 py-0.5"
               >
                 <span className="size-1.5 animate-pulse rounded-full bg-accent" />
-                <span className="text-[11px] font-medium text-accent">Orchestrating</span>
+                <span className="text-[11px] font-medium text-accent">Building…</span>
               </motion.div>
             )}
           </AnimatePresence>

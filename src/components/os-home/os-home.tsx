@@ -387,7 +387,7 @@ export function OsHome({ recentProjects }: OsHomeProps) {
   const firstName = profile?.full_name?.split(" ")[0] ?? profile?.email?.split("@")[0] ?? null;
 
   return (
-    <div className="relative flex-1 overflow-y-auto">
+    <div className="relative h-full w-full overflow-y-auto">
       <AmbientOrbs />
 
       <div className="relative z-10 mx-auto flex max-w-5xl flex-col items-center gap-10 px-4 pb-28 pt-12 sm:px-6 lg:pb-20">

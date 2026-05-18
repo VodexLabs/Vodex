@@ -72,17 +72,17 @@ const PHASE_NARRATION: Record<string, string[]> = {
 };
 
 const INIT_NARRATION = [
-  "Awakening orchestration engine…",
-  "Parsing your request…",
-  "Assembling specialist agents…",
-  "Preparing generation pipeline…",
+  "Understanding your request…",
+  "Planning the solution…",
+  "Setting up the build pipeline…",
+  "Getting ready to generate…",
 ];
 
 const COMPLETING_NARRATION = [
   "Finalizing output…",
   "Reviewing generated code…",
   "Checking for consistency…",
-  "Wrapping orchestration…",
+  "Almost done…",
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

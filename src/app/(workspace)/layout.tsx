@@ -1,7 +1,7 @@
 /**
  * Workspace layout — fully isolated, no platform shell.
  *
- * The creation workspace is a focused orchestration environment.
+ * The creation workspace is a focused building environment.
  * No sidebar, no topbar, no navigation clutter.
  * The workspace chrome is self-contained inside the page.
  */

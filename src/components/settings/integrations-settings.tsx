@@ -1,176 +1,109 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
-import { Check, ExternalLink, Lock } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { integrations } from "@/lib/data";
+import { Plug, LayoutGrid, ArrowRight, ExternalLink } from "lucide-react";
 import { variants } from "@/lib/motion";
-import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
-const categoryOrder = ["Version Control", "Deployment", "Database", "Design", "Communication", "Project Management", "Knowledge", "Email"];
-
-// Simple color map for integration logos
-const logoColors: Record<string, string> = {
-  github: "#1a1a2e",
-  vercel: "#000000",
-  stripe: "#635bff",
-  supabase: "#3ecf8e",
-  figma: "#f24e1e",
-  slack: "#4a154b",
-  linear: "#5e6ad2",
-  notion: "#000000",
-  cloudflare: "#f6821f",
-  resend: "#000000",
-};
-
-const logoInitials: Record<string, string> = {
-  github: "GH",
-  vercel: "VC",
-  stripe: "ST",
-  supabase: "SB",
-  figma: "FG",
-  slack: "SL",
-  linear: "LN",
-  notion: "NT",
-  cloudflare: "CF",
-  resend: "RS",
-};
+const EXAMPLE_INTEGRATIONS = [
+  { name: "Supabase", desc: "Database, auth, and storage for your app", icon: "SB", color: "#3ecf8e" },
+  { name: "Stripe", desc: "Payments, subscriptions, and billing", icon: "ST", color: "#635bff" },
+  { name: "GitHub", desc: "Source control and CI/CD automation", icon: "GH", color: "#1a1a2e" },
+  { name: "Vercel", desc: "Deployment and edge network", icon: "VC", color: "#000000" },
+  { name: "Resend", desc: "Transactional email delivery", icon: "RS", color: "#000000" },
+  { name: "Slack", desc: "Team notifications and alerts", icon: "SL", color: "#4a154b" },
+];
 
 export function IntegrationsSettings() {
-  const [connected, setConnected] = React.useState<Record<string, boolean>>(
-    Object.fromEntries(integrations.map((i) => [i.id, i.connected]))
-  );
-  const [category, setCategory] = React.useState("All");
-
-  const categories = ["All", ...categoryOrder.filter((c) => integrations.some((i) => i.category === c))];
-
-  const filtered = integrations.filter(
-    (i) => category === "All" || i.category === category
-  );
-
   return (
-    <div className="space-y-6">
-      {/* Honest status banner */}
+    <motion.div
+      variants={variants.staggerContainer}
+      initial="hidden"
+      animate="show"
+      className="space-y-6"
+    >
+      {/* Explanation card */}
       <motion.div
         variants={variants.fadeUp}
-        initial="hidden"
-        animate="show"
-        className="flex items-start gap-3 rounded-[var(--radius-lg)] border border-border bg-surface px-5 py-4"
+        className="rounded-[var(--radius-xl)] bg-surface ring-1 ring-border overflow-hidden"
       >
-        <ExternalLink className="mt-0.5 size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} />
-        <div>
-          <p className="text-[13px] font-semibold text-foreground">
-            Integrations are in active development
+        <div className="flex flex-col items-center px-6 py-12 text-center">
+          <div className="mb-5 flex size-14 items-center justify-center rounded-2xl bg-accent/10 ring-1 ring-accent/20">
+            <Plug className="size-7 text-accent" strokeWidth={1.5} />
+          </div>
+          <h2 className="text-[17px] font-semibold tracking-tight text-foreground">
+            Integrations are app-scoped
+          </h2>
+          <p className="mx-auto mt-2 max-w-md text-[13px] leading-relaxed text-muted-foreground">
+            Each app you build has its own integrations, secrets, and connected services.
+            To connect Supabase, Stripe, GitHub, or other services, open the dashboard for
+            the specific app you want to configure.
           </p>
-          <p className="mt-0.5 text-[12px] text-muted-foreground">
-            Connect buttons for available integrations (Supabase, GitHub) will open an OAuth flow.
-            Integrations marked <strong>Coming soon</strong> are not yet available.
+          <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row">
+            <Button variant="accent" size="md" asChild>
+              <Link href="/projects">
+                <LayoutGrid className="size-4" strokeWidth={1.75} />
+                View my apps
+              </Link>
+            </Button>
+            <Button variant="outline" size="md" asChild>
+              <Link href="/">
+                <ArrowRight className="size-4" strokeWidth={1.75} />
+                Create a new app
+              </Link>
+            </Button>
+          </div>
+        </div>
+
+        {/* Integration examples */}
+        <div className="border-t border-border bg-muted/30 px-6 py-5">
+          <p className="mb-4 text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Available in each app dashboard
           </p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {EXAMPLE_INTEGRATIONS.map((intg) => (
+              <div
+                key={intg.name}
+                className="flex items-center gap-3 rounded-[var(--radius-lg)] bg-background px-3 py-2.5 ring-1 ring-border"
+              >
+                <div
+                  className="flex size-7 shrink-0 items-center justify-center rounded-lg text-[9px] font-bold text-white"
+                  style={{ background: intg.color }}
+                >
+                  {intg.icon}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[12.5px] font-semibold text-foreground">{intg.name}</p>
+                  <p className="truncate text-[10.5px] text-muted-foreground">{intg.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </motion.div>
 
-      <motion.div variants={variants.staggerContainer} initial="hidden" animate="show" className="space-y-5">
-        <motion.div variants={variants.staggerItem}>
-          {/* Category filter */}
-          <div className="flex flex-wrap gap-2 pb-2">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => setCategory(cat)}
-                className={cn(
-                  "rounded-full px-3 py-1 text-[12px] font-medium transition",
-                  category === cat
-                    ? "bg-foreground text-background"
-                    : "bg-surface text-muted-foreground ring-1 ring-border hover:text-foreground",
-                )}
-              >
-                {cat}
-              </button>
-            ))}
+      {/* DreamOS API keys note */}
+      <motion.div
+        variants={variants.fadeUp}
+        className="rounded-[var(--radius-xl)] bg-surface px-5 py-4 ring-1 ring-border"
+      >
+        <div className="flex items-start gap-3">
+          <ExternalLink className="mt-0.5 size-4 shrink-0 text-muted-foreground" strokeWidth={1.5} />
+          <div>
+            <p className="text-[13px] font-medium text-foreground">DreamOS Platform API Keys</p>
+            <p className="mt-0.5 text-[12px] leading-relaxed text-muted-foreground">
+              If you are looking for API keys to access DreamOS programmatically, those are
+              in{" "}
+              <Link href="/settings/api-keys" className="text-accent hover:underline underline-offset-2">
+                Settings → API Keys
+              </Link>
+              .
+            </p>
           </div>
-        </motion.div>
-
-        <motion.div variants={variants.staggerItem}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {filtered.map((integration) => {
-              const isConnected = connected[integration.id];
-              return (
-                <div
-                  key={integration.id}
-                  className={cn(
-                    "relative flex items-start gap-4 rounded-[var(--radius-xl)] p-5 transition ring-1",
-                    isConnected
-                      ? "bg-surface shadow-[var(--shadow-card)] ring-border"
-                      : "bg-muted/30 ring-border/60",
-                    integration.comingSoon && "opacity-60",
-                  )}
-                >
-                  {/* Logo */}
-                  <div
-                    className="flex size-10 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[11px] font-bold text-white shadow-[var(--shadow-xs)]"
-                    style={{ backgroundColor: logoColors[integration.logo] ?? "#4a5568" }}
-                  >
-                    {logoInitials[integration.logo] ?? integration.name.slice(0, 2).toUpperCase()}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-[13px] font-semibold text-foreground">{integration.name}</p>
-                      {integration.comingSoon && (
-                        <span className="rounded-full bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-border">
-                          Soon
-                        </span>
-                      )}
-                      {isConnected && (
-                        <span className="flex items-center gap-0.5 rounded-full bg-positive/15 px-1.5 py-0.5 text-[10px] font-semibold text-positive">
-                          <Check className="size-2.5" strokeWidth={2.5} />
-                          Connected
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
-                      {integration.category}
-                    </span>
-                    <p className="mt-1 text-[12px] text-muted-foreground">{integration.description}</p>
-                  </div>
-
-                  {!integration.comingSoon && (
-                    <Button
-                      variant={isConnected ? "secondary" : "accent"}
-                      size="xs"
-                      className="shrink-0"
-                      onClick={() => {
-                        if (!isConnected) {
-                          // Supabase and GitHub have real OAuth via Supabase Auth
-                          if (integration.id === "github") {
-                            window.location.href = "/auth/login?provider=github&next=/settings/integrations";
-                            return;
-                          }
-                          if (integration.id === "supabase") {
-                            window.location.href = "/help/docs/supabase-setup";
-                            return;
-                          }
-                        }
-                        setConnected((p) => ({ ...p, [integration.id]: !isConnected }));
-                      }}
-                    >
-                      {isConnected ? "Disconnect" : "Connect"}
-                    </Button>
-                  )}
-                  {integration.comingSoon && (
-                    <span className="rounded-full bg-muted/60 px-2 py-1 text-[10px] font-medium text-muted-foreground ring-1 ring-border">
-                      Coming soon
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </motion.div>
+        </div>
       </motion.div>
-    </div>
+    </motion.div>
   );
 }

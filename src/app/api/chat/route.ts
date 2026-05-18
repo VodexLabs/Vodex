@@ -5,24 +5,36 @@ import { openai } from "@ai-sdk/openai";
 import { google } from "@ai-sdk/google";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import {
-  loadMemory,
-  formatMemoryForPrompt,
-} from "@/lib/creation/memory";
-import { buildOrchestrationSystem } from "@/lib/creation/orchestration";
+import { loadMemory, formatMemoryForPrompt } from "@/lib/creation/memory";
+import { buildSystemPrompt } from "@/lib/creation/system-prompt";
+import { calculateCredits } from "@/lib/credits/cost-engine";
 
-const MODEL_CREDITS: Record<string, number> = {
-  "claude-3-5-sonnet": 3,
-  "claude-3-5-haiku": 1,
-  "claude-opus-4": 10,
-  "gpt-4o": 4,
-  "gpt-4o-mini": 1,
-  "gemini-2-0-flash": 1,
-  "gemini-2-5-pro": 5,
-  "deepseek-chat": 1,
+// ─── Model ID normalisation ───────────────────────────────────────────────────
+
+const MODEL_ID_MAP: Record<string, string> = {
+  // DreamOS internal IDs → provider SDK IDs
+  "claude-opus-4-7":   "claude-opus-4-5",            // placeholder until 4.7 GA
+  "claude-opus-4-6":   "claude-opus-4-5",
+  "claude-sonnet-4-6": "claude-sonnet-4-5",
+  "claude-haiku-4-5":  "claude-haiku-4-5",
+  "gpt-5-5":           "gpt-4o",                     // map until GPT-5 GA
+  "gpt-5-4":           "gpt-4o",
+  "gpt-4o":            "gpt-4o",
+  "gpt-4o-mini":       "gpt-4o-mini",
+  "gemini-2-5-pro":    "gemini-2.5-pro",
+  "gemini-2-0-flash":  "gemini-2.0-flash",
+  "deepseek-chat":     "deepseek-chat",
+  "deepseek-reasoner": "deepseek-reasoner",
 };
 
-const CREDITS_PER_MESSAGE = (modelId: string) => MODEL_CREDITS[modelId] ?? 2;
+function resolveModel(modelId: string) {
+  const resolved = MODEL_ID_MAP[modelId] ?? modelId;
+  if (resolved.startsWith("claude")) return anthropic(resolved);
+  if (resolved.startsWith("gpt"))    return openai(resolved);
+  if (resolved.startsWith("gemini")) return google(resolved);
+  // Default: fast Anthropic model
+  return anthropic("claude-haiku-4-5");
+}
 
 function lastUserText(messages: UIMessage[]): string {
   const last = [...messages].reverse().find((m) => m.role === "user");
@@ -33,27 +45,11 @@ function lastUserText(messages: UIMessage[]): string {
     .join("");
 }
 
-function getModel(modelId: string) {
-  if (modelId.startsWith("claude")) {
-    return anthropic(modelId);
-  }
-  if (modelId.startsWith("gpt")) {
-    return openai(modelId);
-  }
-  if (modelId.startsWith("gemini")) {
-    const geminiId = modelId
-      .replace("gemini-2-0-flash", "gemini-2.0-flash")
-      .replace("gemini-2-5-pro", "gemini-2.5-pro");
-    return google(geminiId);
-  }
-  return anthropic("claude-3-5-haiku-20241022");
-}
+// ─── Handler ──────────────────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -81,34 +77,31 @@ export async function POST(request: Request) {
 
   const modelId = typeof raw.modelId === "string" && raw.modelId.length > 0
     ? raw.modelId
-    : "claude-3-5-sonnet";
-  const conversationId =
-    typeof raw.conversationId === "string" && raw.conversationId.length > 0
-      ? raw.conversationId
-      : undefined;
+    : "claude-sonnet-4-6";
+  const conversationId = typeof raw.conversationId === "string" && raw.conversationId.length > 0
+    ? raw.conversationId
+    : undefined;
   const mode: "discuss" | "edit" | "build" =
     raw.mode === "edit" ? "edit" : raw.mode === "build" ? "build" : "discuss";
   const scope = typeof raw.scope === "string" ? raw.scope : null;
-  const projectId =
-    typeof raw.projectId === "string" && raw.projectId.length > 0
-      ? raw.projectId
-      : undefined;
+  const projectId = typeof raw.projectId === "string" && raw.projectId.length > 0
+    ? raw.projectId
+    : undefined;
 
   let modelMessages;
   try {
-    modelMessages = await convertToModelMessages(uiMessages, {
-      ignoreIncompleteToolCalls: true,
-    });
+    modelMessages = await convertToModelMessages(uiMessages, { ignoreIncompleteToolCalls: true });
   } catch {
     return NextResponse.json({ error: "Invalid messages payload" }, { status: 400 });
   }
 
-  const creditsNeeded = CREDITS_PER_MESSAGE(modelId);
+  // ─── Credit gate (using unified cost engine) ─────────────────────────────
+  const creditsNeeded = calculateCredits(modelId, mode);
 
   const { data: creditResultRaw, error: rpcError } = await supabase.rpc("consume_credits", {
     p_user_id: user.id,
     p_amount: creditsNeeded,
-    p_operation_id: `chat_${Date.now()}`,
+    p_operation_id: `chat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     p_model_id: modelId,
     ...(conversationId ? { p_conversation_id: conversationId } : {}),
   });
@@ -118,21 +111,23 @@ export async function POST(request: Request) {
     | null
     | undefined;
 
-  // If the RPC itself failed (function missing, network error, etc.) fall through
-  // rather than blocking the user. Only hard-block on confirmed insufficient_credits.
+  // Only hard-block on confirmed insufficient credits; let infra errors through
   if (!rpcError && creditResult && !creditResult.success) {
     const reason = creditResult.error;
-    // Only return 402 for actual insufficient credits, not infra errors
     if (reason === "insufficient_credits" || reason === "forbidden") {
       return NextResponse.json(
-        { error: "insufficient_credits", remaining: creditResult.remaining ?? 0 },
+        {
+          error: "insufficient_credits",
+          remaining: creditResult.remaining ?? 0,
+          required: creditsNeeded,
+        },
         { status: 402 },
       );
     }
   }
 
+  // ─── Persist user message ────────────────────────────────────────────────
   const userText = lastUserText(uiMessages);
-
   if (conversationId && userText) {
     await supabase.from("messages").insert({
       conversation_id: conversationId,
@@ -144,31 +139,25 @@ export async function POST(request: Request) {
     });
   }
 
-  supabase
-    .from("analytics_events")
-    .insert({
-      user_id: user.id,
-      event_type: "ai_generation",
-      properties: { model_id: modelId, credits: creditsNeeded },
-    })
-    .then(() => {});
+  // Fire-and-forget analytics
+  supabase.from("analytics_events").insert({
+    user_id: user.id,
+    event_type: "ai_generation",
+    properties: { model_id: modelId, credits: creditsNeeded, mode },
+  }).then(() => {});
 
-  // ─── Memory injection (real, persistent) ──────────────────────────────────
+  // ─── Build system prompt ─────────────────────────────────────────────────
   let memoryBlock = "";
   if (projectId) {
     const { entries } = await loadMemory(supabase, { projectId, limit: 30 });
     memoryBlock = formatMemoryForPrompt(entries);
   }
 
-  const systemPrompt = buildOrchestrationSystem({
-    mode,
-    scope,
-    projectMemoryBlock: memoryBlock,
-    hasProject: !!projectId,
-  });
+  const systemPrompt = buildSystemPrompt({ mode, scope, projectMemoryBlock: memoryBlock, hasProject: !!projectId });
 
+  // ─── Stream response ─────────────────────────────────────────────────────
   try {
-    const model = getModel(modelId);
+    const model = resolveModel(modelId);
     const result = streamText({
       model,
       messages: modelMessages,

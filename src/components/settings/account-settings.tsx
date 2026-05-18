@@ -350,8 +350,8 @@ function ConnectedAccountsSection() {
   const [unlinking, setUnlinking] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    // Race the identities call with a 5s timeout to prevent infinite spinner
-    const timeout = setTimeout(() => setLoading(false), 5000);
+    // Race the identities call with a 3s timeout to prevent infinite spinner
+    const timeout = setTimeout(() => setLoading(false), 3000);
     supabase.auth.getUserIdentities()
       .then(({ data }) => {
         clearTimeout(timeout);

@@ -28,7 +28,7 @@ export const metadata: Metadata = {
     template: "%s · DreamOS86",
   },
   description:
-    "DreamOS86 is the AI-native operating system for software creation. Describe what you want; an orchestration of frontier models architects, builds, and deploys it.",
+    "DreamOS86 is the AI-native platform for building software. Describe what you want — frontier AI architects, builds, and deploys it in minutes.",
   applicationName: "DreamOS86",
   keywords: [
     "AI",
@@ -59,14 +59,14 @@ export const metadata: Metadata = {
     siteName: "DreamOS86",
     title: "DreamOS86 — AI-native software operating system",
     description:
-      "Describe the app you want. DreamOS86 orchestrates frontier AI to architect, build, and deploy it.",
+      "Describe the app you want. DreamOS86 uses frontier AI to architect, build, and deploy it in minutes.",
     locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
     title: "DreamOS86 — AI-native software operating system",
     description:
-      "Describe the app you want. DreamOS86 orchestrates frontier AI to architect, build, and deploy it.",
+      "Describe the app you want. DreamOS86 uses frontier AI to architect, build, and deploy it in minutes.",
   },
   robots: {
     index: true,

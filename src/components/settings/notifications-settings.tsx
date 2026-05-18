@@ -32,8 +32,8 @@ const FUTURE_CAPABILITIES = [
   },
   {
     icon: Brain,
-    label: "AI orchestration summaries",
-    description: "Weekly digests of what your AI agents built and what they learned.",
+    label: "AI build summaries",
+    description: "Weekly digests of what you built, which models were used, and credits spent.",
   },
 ];
 

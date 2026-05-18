@@ -34,7 +34,12 @@ function useConversations(userId: string | undefined) {
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    if (!userId) return;
+    // If no user yet, stop loading immediately (profile may still be bootstrapping)
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     supabase
       .from("conversations")
       .select("*")
@@ -44,6 +49,8 @@ function useConversations(userId: string | undefined) {
       .limit(50)
       .then(({ data }) => {
         setConversations(data ?? []);
+        setLoading(false);
+      }, () => {
         setLoading(false);
       });
   }, [userId]);
