@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     await supabase.from("profiles").update({ stripe_customer_id: customerId }).eq("id", user.id);
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://dreamos86.com";
 
   const session = await stripe.checkout.sessions.create({
     customer: customerId,

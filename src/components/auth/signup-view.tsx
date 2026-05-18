@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { LogoIcon } from "@/components/ui/logo-icon";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, Check, AlertCircle, Loader2, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -151,15 +151,7 @@ export function SignupView() {
         {/* Logo */}
         <div className="mb-8 flex flex-col items-center">
           <Link href="/" className="flex items-center gap-3" tabIndex={-1}>
-            <Image
-              src="/logo.png"
-              alt="DreamOS86"
-              width={44}
-              height={44}
-              className="drop-shadow-[0_4px_16px_rgba(30,107,255,0.3)]"
-              priority
-              loading="eager"
-            />
+            <LogoIcon size={44} />
             <span className="text-[18px] font-semibold tracking-[-0.04em] text-foreground">
               DreamOS86
             </span>
@@ -206,7 +198,7 @@ export function SignupView() {
               </label>
               <Input
                 id="name"
-                placeholder="Alex Chen"
+                placeholder="Your full name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 autoComplete="name"

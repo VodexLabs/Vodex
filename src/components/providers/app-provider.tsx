@@ -16,6 +16,8 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { useCreditsStore } from "@/lib/stores/credits-store";
 import { useNotificationsStore } from "@/lib/stores/notifications-store";
 import type { Notification } from "@/lib/supabase/types";
+import { ReferralCapture } from "@/components/referrals/referral-capture";
+import { CommandCenter } from "@/components/command/command-center";
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -24,6 +26,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const { syncFromDB: syncCredits, reset: resetCredits } = useCreditsStore();
   const { setNotifications, addNotification, reset: resetNotifications } =
     useNotificationsStore();
+
+  // Rehydrate persisted Zustand state AFTER mount. The store is created
+  // with `skipHydration: true` so SSR and first client paint match. We
+  // trigger rehydration here, then bootstrap the live session below.
+  React.useEffect(() => {
+    void useAuthStore.persist.rehydrate();
+  }, []);
 
   React.useEffect(() => {
     const supabase = createClient();
@@ -37,10 +46,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       if (profile) {
         setProfile(profile);
-        useCreditsStore.getState().setCredits(
-          profile.credits_remaining,
-          profile.credits_reset_at,
-        );
+        // Set credits from profile immediately so we never flash 0.
+        // `setCredits` marks the store as `isConfirmed = true`, preventing
+        // false "out of credits" blocks during initial hydration.
+        const creditsValue = typeof profile.credits_remaining === "number"
+          ? profile.credits_remaining
+          : null;
+        if (creditsValue !== null) {
+          useCreditsStore.getState().setCredits(
+            creditsValue,
+            profile.credits_reset_at ?? null,
+          );
+        }
       }
 
       const { data: notifications } = await supabase
@@ -104,16 +121,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     let disposeRealtime: (() => void) | undefined;
 
-    void supabase.auth.getSession().then(({ data: { session } }) => {
+    void supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      setLoading(false);
 
       if (session?.user) {
-        void bootstrapUser(session.user.id).then((dispose) => {
-          disposeRealtime = dispose;
-        });
+        // Bootstrap profile + credits BEFORE clearing the loading state so the
+        // UI never flashes a "logged out" or "0 credits" state on a refresh.
+        const dispose = await bootstrapUser(session.user.id);
+        disposeRealtime = dispose;
       }
+
+      setLoading(false);
     });
 
     const {
@@ -131,10 +150,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (event === "SIGNED_OUT") {
         disposeRealtime?.();
         disposeRealtime = undefined;
+        // Clear ALL persisted state immediately
+        try {
+          const keys = Object.keys(localStorage).filter(
+            (k) => k.startsWith("sb-") || k.startsWith("dreamos-") || k === "supabase.auth.token",
+          );
+          keys.forEach((k) => localStorage.removeItem(k));
+          sessionStorage.clear();
+        } catch { /* ignore in SSR */ }
         resetAuth();
         resetCredits();
         resetNotifications();
-        router.push("/auth/login");
+        // Only push if not already on an auth page — the logout modal does a full
+        // window.location.href redirect which is more reliable. This is a fallback
+        // for programmatic/server-side sign-outs that don't use the modal.
+        if (typeof window !== "undefined" && !window.location.pathname.startsWith("/auth")) {
+          router.push("/auth/login");
+        }
       }
 
       if (event === "TOKEN_REFRESHED" && session?.user) {
@@ -149,5 +181,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return <>{children}</>;
+  return (
+    <>
+      <ReferralCapture />
+      <CommandCenter />
+      {children}
+    </>
+  );
 }

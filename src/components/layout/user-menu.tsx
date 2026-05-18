@@ -1,13 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   User, Settings, CreditCard, Bell, HelpCircle,
   LogOut, Moon, Sun, Gift, ChevronRight, Loader2, Zap, ArrowUpRight,
-  CalendarClock,
+  CalendarClock, Copy, Check,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -15,6 +14,9 @@ import { useCreditsStore } from "@/lib/stores/credits-store";
 import { useTheme } from "next-themes";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { useHydrated } from "@/lib/hooks/use-hydrated";
+import { getAppUrl } from "@/lib/app-url";
+import { LogoutConfirmModal } from "@/components/auth/logout-confirm-modal";
 
 // ─── Menu item types ──────────────────────────────────────────────────────────
 
@@ -75,15 +77,20 @@ function MenuRow({ item, onClose }: { item: MenuItem; onClose: () => void }) {
   );
 }
 
-function DarkModeToggle({ onClose }: { onClose: () => void }) {
-  const { theme, setTheme } = useTheme();
-  const isDark = theme === "dark";
+function DarkModeToggle({ onClose: _onClose }: { onClose: () => void }) {
+  const { resolvedTheme, setTheme } = useTheme();
+  const hydrated = useHydrated();
+  // Until hydrated we render a deterministic neutral state matching SSR.
+  // After hydration we trust resolvedTheme (which next-themes sets via its
+  // pre-hydration script).
+  const isDark = hydrated ? resolvedTheme === "dark" : false;
 
   return (
     <button
       type="button"
+      disabled={!hydrated}
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-[13px] text-foreground transition hover:bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-[13px] text-foreground transition hover:bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
     >
       {isDark
         ? <Sun className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.65} />
@@ -103,21 +110,28 @@ function DarkModeToggle({ onClose }: { onClose: () => void }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function UserMenu() {
-  const router = useRouter();
   const { profile, reset: resetAuth } = useAuthStore();
-  const { remaining, reset: resetCredits } = useCreditsStore();
+  const [copied, setCopied] = React.useState(false);
+  const { remaining, resetAt, reset: resetCredits } = useCreditsStore();
+  const hydrated = useHydrated();
   const [open, setOpen] = React.useState(false);
   const [loggingOut, setLoggingOut] = React.useState(false);
+  const [showLogoutModal, setShowLogoutModal] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
 
-  const displayName = profile?.full_name ?? profile?.email?.split("@")[0] ?? "User";
-  const displayEmail = profile?.email ?? "";
-  const planLabel = profile
-    ? (profile.plan_id === "free" ? "Free Plan" : `${profile.plan_id.charAt(0).toUpperCase() + profile.plan_id.slice(1)} Plan`)
+  // Until hydration completes, render a deterministic empty profile state.
+  // Profile data is loaded from Supabase by AppProvider and is not part of
+  // the SSR snapshot — reading it during the first paint causes mismatches.
+  const safeProfile = hydrated ? profile : null;
+
+  const displayName = safeProfile?.full_name ?? safeProfile?.email?.split("@")[0] ?? "User";
+  const displayEmail = safeProfile?.email ?? "";
+  const planLabel = safeProfile
+    ? (safeProfile.plan_id === "free" ? "Free Plan" : `${safeProfile.plan_id.charAt(0).toUpperCase() + safeProfile.plan_id.slice(1)} Plan`)
     : "";
-  const isFree = !profile || profile.plan_id === "free";
-  const resetDate = useCreditsStore.getState().resetAt
-    ? new Date(useCreditsStore.getState().resetAt!).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+  const isFree = !safeProfile || safeProfile.plan_id === "free";
+  const resetDate = hydrated && resetAt
+    ? new Date(resetAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })
     : null;
 
   // Close on outside click
@@ -142,17 +156,9 @@ export function UserMenu() {
     return () => document.removeEventListener("keydown", handler);
   }, [open]);
 
-  async function handleLogout() {
-    setLoggingOut(true);
-    try {
-      const supabase = createClient();
-      await supabase.auth.signOut();
-    } catch {
-      // Best-effort; always redirect
-    }
-    resetAuth();
-    resetCredits?.();
-    router.push("/auth/login");
+  function handleLogout() {
+    setOpen(false);
+    setShowLogoutModal(true);
   }
 
   const menuItems: (MenuItem | "separator")[] = [
@@ -161,7 +167,7 @@ export function UserMenu() {
     "separator",
     { id: "billing", label: "Billing", icon: CreditCard, href: "/settings/billing" },
     { id: "notifications", label: "Notifications", icon: Bell, href: "/settings/notifications" },
-    { id: "referral", label: "Referral Program", icon: Gift, href: "/settings/account", badge: "Soon" },
+    { id: "referral", label: "Referral Program", icon: Gift, href: "/referrals" },
     "separator",
     { id: "help", label: "Help Center", icon: HelpCircle, href: "/help" },
     "separator",
@@ -187,7 +193,7 @@ export function UserMenu() {
           )}
         </div>
         <Avatar
-          src={profile?.avatar_url ?? undefined}
+          src={safeProfile?.avatar_url ?? undefined}
           name={displayName}
           size="md"
         />
@@ -206,7 +212,7 @@ export function UserMenu() {
             {/* User identity header */}
             <div className="flex items-center gap-3 border-b border-border px-4 py-3.5">
               <Avatar
-                src={profile?.avatar_url ?? undefined}
+                src={safeProfile?.avatar_url ?? undefined}
                 name={displayName}
                 size="lg"
               />
@@ -259,6 +265,37 @@ export function UserMenu() {
               )}
             </div>
 
+            {/* Referral code */}
+            {safeProfile?.referral_code && (
+              <div className="border-b border-border px-4 py-2.5">
+                <p className="text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
+                  Your referral code
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const link = `${getAppUrl()}/auth/sign-up?ref=${safeProfile.referral_code}`;
+                    navigator.clipboard.writeText(link).then(() => {
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    });
+                  }}
+                  className="flex w-full items-center justify-between gap-2 rounded-lg bg-muted/50 px-3 py-2 ring-1 ring-border transition hover:ring-accent/30"
+                >
+                  <span className="font-mono text-[12px] font-semibold tracking-wider text-foreground">
+                    {safeProfile.referral_code}
+                  </span>
+                  {copied
+                    ? <Check className="size-3.5 text-positive" strokeWidth={2.5} />
+                    : <Copy className="size-3.5 text-muted-foreground" strokeWidth={1.75} />
+                  }
+                </button>
+                {copied && (
+                  <p className="mt-1 text-[10.5px] text-positive">Referral link copied!</p>
+                )}
+              </div>
+            )}
+
             {/* Menu items */}
             <div className="p-1.5">
               {menuItems.map((item, i) => {
@@ -290,6 +327,11 @@ export function UserMenu() {
           </motion.div>
         )}
       </AnimatePresence>
+      {/* Logout confirmation modal */}
+      <LogoutConfirmModal
+        open={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+      />
     </div>
   );
 }

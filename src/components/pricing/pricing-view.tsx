@@ -1,445 +1,597 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Check, Zap, CreditCard, X, Bell, Sparkles,
-  ChevronDown, Infinity as InfinityIcon, Mail,
+  Check, X, ChevronDown, ChevronUp, Zap, Sparkles,
+  Building2, ArrowRight, MessageCircle,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { variants } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { variants } from "@/lib/motion";
 
-// ─── Plan data ────────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-interface Plan {
+const FREE_CREDITS = 100;
+const ANNUAL_DISCOUNT = 0.20;
+const INFINITY_DISCOUNT = 0.05;
+
+// ─── Infinity tiers ───────────────────────────────────────────────────────────
+
+interface InfinityTier {
   id: string;
-  name: string;
-  price: number | null;
-  priceSuffix?: string;
-  tagline: string;
-  highlight?: boolean;
-  features: string[];
-  notIncluded?: string[];
-  badge?: string;
-  models: string;
-  cta: string;
+  label: string;
+  credits: number;
+  baseMonthly: number;   // non-discounted monthly price
+  discount?: number;     // 0.05 for 5% off
 }
 
-const PLANS: Plan[] = [
+const INFINITY_TIERS: InfinityTier[] = [
+  { id: "inf-1", label: "Infinity I",   credits: 5_000,  baseMonthly: 100 },
+  { id: "inf-2", label: "Infinity II",  credits: 10_000, baseMonthly: 200 },
+  { id: "inf-3", label: "Infinity III", credits: 15_000, baseMonthly: 300 },
+  { id: "inf-4", label: "Infinity IV",  credits: 20_000, baseMonthly: 400, discount: INFINITY_DISCOUNT },
+  { id: "inf-5", label: "Infinity V",   credits: 30_000, baseMonthly: 600, discount: INFINITY_DISCOUNT },
+  { id: "inf-6", label: "Infinity VI",  credits: 45_000, baseMonthly: 900, discount: INFINITY_DISCOUNT },
+  { id: "inf-7", label: "Infinity VII", credits: 65_000, baseMonthly: 1300, discount: INFINITY_DISCOUNT },
+];
+
+function tierPrice(tier: InfinityTier, annual: boolean): number {
+  const base = tier.discount ? Math.round(tier.baseMonthly * (1 - tier.discount)) : tier.baseMonthly;
+  if (annual) return Math.round(base * (1 - ANNUAL_DISCOUNT));
+  return base;
+}
+
+function tierOriginalPrice(tier: InfinityTier): number {
+  return tier.baseMonthly;
+}
+
+// ─── Comparison table data ────────────────────────────────────────────────────
+
+const COMPARISON_ROWS: { label: string; free: string | boolean; starter: string | boolean; pro: string | boolean; infinity: string | boolean }[] = [
+  { label: "Monthly credits",      free: "100",       starter: "1,000",    pro: "2,500",         infinity: "5,000–65,000" },
+  { label: "Active projects",      free: "3",         starter: "Unlimited", pro: "Unlimited",    infinity: "Unlimited" },
+  { label: "Discuss mode",         free: true,        starter: true,        pro: true,           infinity: true },
+  { label: "Edit mode",            free: false,       starter: true,        pro: true,           infinity: true },
+  { label: "Build mode",           free: false,       starter: true,        pro: true,           infinity: true },
+  { label: "Manual model select",  free: false,       starter: true,        pro: true,           infinity: true },
+  { label: "Frontier models",      free: false,       starter: "Standard",  pro: "All",          infinity: "All" },
+  { label: "Custom domains",       free: false,       starter: true,        pro: "Unlimited",    infinity: "Unlimited" },
+  { label: "Remove watermark",     free: false,       starter: true,        pro: true,           infinity: true },
+  { label: "Source export",        free: false,       starter: true,        pro: true,           infinity: true },
+  { label: "Team collaborators",   free: false,       starter: false,       pro: "5",            infinity: "Custom" },
+  { label: "Analytics",            free: false,       starter: false,       pro: true,           infinity: true },
+  { label: "API access",           free: false,       starter: false,       pro: true,           infinity: true },
+  { label: "Dedicated compute",    free: false,       starter: false,       pro: false,          infinity: true },
+  { label: "White-label",          free: false,       starter: false,       pro: false,          infinity: true },
+  { label: "SSO / SAML",          free: false,       starter: false,       pro: false,          infinity: true },
+  { label: "Support",             free: "Community", starter: "Email",     pro: "Priority",      infinity: "Dedicated" },
+];
+
+// ─── FAQ data ─────────────────────────────────────────────────────────────────
+
+const FAQS = [
   {
-    id: "free",
-    name: "Free",
-    price: 0,
-    tagline: "Start building for free.",
-    models: "Lightweight models (Auto routing)",
-    features: [
-      "100 starter credits",
-      "3 projects",
-      "AI assistant (discuss only)",
-      "Public deployments",
-      "Community access",
-    ],
-    notIncluded: ["Premium models", "Custom domains", "Team access"],
-    cta: "Get started",
+    q: "What are credits?",
+    a: "Credits are the unit of AI compute used for every generation, edit, or build action. Each AI model request consumes a small number of credits based on the model selected and task complexity. Discuss mode is the most credit-efficient, while Build mode with frontier models uses more.",
   },
   {
-    id: "starter",
-    name: "Starter",
-    price: 20,
-    tagline: "For individuals shipping real products.",
-    models: "Standard + Premium models",
-    features: [
-      "500 credits / month",
-      "Unlimited projects",
-      "Standard & premium AI models",
-      "5 GB storage",
-      "Custom domains",
-      "AI assistant + code generation",
-      "Export code",
-      "Email support",
-    ],
-    cta: "Get Starter",
+    q: "Do credits roll over to next month?",
+    a: "Credits reset at the start of each billing period. Unused credits do not carry forward. If you need more capacity, you can upgrade to a higher plan or contact us for a custom arrangement.",
   },
   {
-    id: "pro",
-    name: "Pro",
-    price: 50,
-    tagline: "For teams building production apps.",
-    highlight: true,
-    badge: "Most Popular",
-    models: "All models including Opus & GPT-5.5",
-    features: [
-      "2,000 credits / month",
-      "Unlimited projects",
-      "All premium AI models",
-      "25 GB storage",
-      "Unlimited custom domains",
-      "5 collaborators",
-      "AI Agent mode",
-      "Advanced analytics",
-      "Priority support",
-      "API access",
-    ],
-    cta: "Get Pro",
+    q: "Can I change my plan at any time?",
+    a: "Yes. You can upgrade or downgrade your plan at any time. Upgrades take effect immediately, with prorated billing for the rest of your period. Downgrades apply at the next renewal.",
   },
   {
-    id: "infinity",
-    name: "Infinity",
-    price: 200,
-    priceSuffix: "/ mo from",
-    tagline: "Orchestration-scale AI infrastructure.",
-    models: "Orchestration + Ultra models",
-    features: [
-      "Starts at 10,000 credits / month",
-      "Unlimited everything",
-      "Ultra models (Opus 4.7, GPT-5.5)",
-      "Orchestration pipelines",
-      "Unlimited collaborators",
-      "Dedicated infrastructure",
-      "Custom SLAs",
-      "White-label",
-      "SSO / SAML",
-      "Volume pricing (5% after $300)",
-    ],
-    cta: "Get Infinity",
+    q: "What happens when I run out of credits?",
+    a: "When you use all your monthly credits, new generation requests will be paused until your credits reset at the start of the next period. You can upgrade your plan at any time to continue immediately.",
+  },
+  {
+    q: "How does annual billing work?",
+    a: "Annual plans are billed once per year at a 20% discount compared to the equivalent monthly plan. Credits remain exactly the same — you get the same monthly allowance, just at a lower per-month cost.",
+  },
+  {
+    q: "What is Infinity?",
+    a: "Infinity is our enterprise-tier product for teams and power users who need high monthly credit volumes, all frontier models, dedicated infrastructure, concurrency, white-labeling, SSO, and a dedicated support tier. You pick a tier (I–VII) based on your monthly credit needs.",
+  },
+  {
+    q: "Can I get a custom plan?",
+    a: "Yes. If your team's needs exceed Infinity VII or you need special compliance, custom SLAs, or bespoke infrastructure, contact us and we'll design a plan around your requirements.",
+  },
+  {
+    q: "Do paid plans remove the DreamOS86 watermark?",
+    a: "Yes. All paid plans (Starter and above) remove the DreamOS86 branding from your deployed apps. The Free plan shows a subtle 'Built with DreamOS86' badge.",
+  },
+  {
+    q: "Can I cancel anytime?",
+    a: "Absolutely. You can cancel your subscription at any time. Your plan stays active until the end of the current billing period, then reverts to Free. No lock-ins, no cancellation fees.",
   },
 ];
 
-// Infinity sub-tiers: I–IX
-// I=$200/10k, II=$300/15k, III=$400/20k, then +$150/5k each (with 5% volume discount after $300)
-function buildInfinityTiers() {
-  const romanLabels = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"];
-  return romanLabels.map((roman, i) => {
-    const baseCredits = 10000 + i * 5000;
-    let basePrice: number;
-    if (i === 0) basePrice = 200;
-    else if (i === 1) basePrice = 300;
-    else if (i === 2) basePrice = 400;
-    else {
-      // From IV onwards: $400 + (i-2)*$150, then 5% volume discount
-      basePrice = Math.round((400 + (i - 2) * 150) * 0.95);
-    }
-    return { label: `Infinity ${roman}`, price: basePrice, credits: baseCredits };
-  });
+// ─── Cell helper ──────────────────────────────────────────────────────────────
+
+function Cell({ value }: { value: string | boolean }) {
+  if (value === true) return <Check className="mx-auto size-4 text-positive" strokeWidth={2.5} />;
+  if (value === false) return <X className="mx-auto size-3.5 text-muted-foreground/30" strokeWidth={2} />;
+  return <span className="text-[12px] text-muted-foreground">{value}</span>;
 }
-const INFINITY_TIERS = buildInfinityTiers();
 
-// ─── Payments coming soon modal ───────────────────────────────────────────────
+// ─── FAQ item ─────────────────────────────────────────────────────────────────
 
-function PaymentsComingSoonModal({ planName, onClose }: { planName: string; onClose: () => void }) {
+function FaqItem({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = React.useState(false);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 p-4 backdrop-blur-sm">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 8 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 8 }}
-        transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-        className="w-full max-w-sm overflow-hidden rounded-[var(--radius-xl)] bg-background shadow-2xl ring-1 ring-border"
+    <div className="border-b border-border/60 last:border-b-0">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-4 px-1 py-4 text-left text-[14px] font-medium text-foreground hover:text-accent transition-colors"
       >
-        <div className="flex items-start justify-between gap-3 border-b border-border px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-full bg-accent/10">
-              <CreditCard className="size-5 text-accent" strokeWidth={1.75} />
-            </div>
-            <div>
-              <p className="text-[14px] font-semibold text-foreground">{planName} — Coming Soon</p>
-              <p className="text-[12px] text-muted-foreground">Payments launching soon</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="cursor-pointer rounded-lg p-1 text-muted-foreground transition hover:bg-surface hover:text-foreground"
+        {q}
+        {open ? <ChevronUp className="size-4 shrink-0 text-muted-foreground" strokeWidth={2} /> : <ChevronDown className="size-4 shrink-0 text-muted-foreground" strokeWidth={2} />}
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden"
           >
-            <X className="size-4" strokeWidth={1.75} />
-          </button>
-        </div>
-        <div className="space-y-4 p-6">
-          <p className="text-[13px] leading-relaxed text-muted-foreground">
-            DreamOS86 is in early access. Paid plans are being finalized and will launch shortly.
-            You&apos;ll receive an email the moment billing goes live.
-          </p>
-          <button
-            onClick={onClose}
-            className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-accent/90 active:scale-[0.98]"
-          >
-            <Bell className="size-3.5" strokeWidth={2} />
-            Got it — I&apos;ll wait
-          </button>
-        </div>
-      </motion.div>
+            <p className="px-1 pb-4 text-[13.5px] leading-relaxed text-muted-foreground">{a}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
 // ─── Plan card ────────────────────────────────────────────────────────────────
 
+interface PlanCardProps {
+  id: string;
+  name: string;
+  price: number | null;
+  annualPrice?: number | null;
+  annual: boolean;
+  credits: string;
+  tagline: string;
+  features: string[];
+  notIncluded?: string[];
+  highlight?: boolean;
+  badge?: string;
+  cta: string;
+  currentPlanId?: string | null;
+  children?: React.ReactNode;
+}
+
 function PlanCard({
-  plan,
-  onSelect,
-  currentPlanId,
-}: {
-  plan: Plan;
-  onSelect: (planId: string) => void;
-  currentPlanId?: string;
-}) {
-  const isCurrent = currentPlanId === plan.id || (plan.id === "free" && !currentPlanId);
-  const isInfinity = plan.id === "infinity";
-  const [tierOpen, setTierOpen] = React.useState(false);
-  const [selectedTier, setSelectedTier] = React.useState(0);
-  const tierRef = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    if (!tierOpen) return;
-    function handler(e: MouseEvent) {
-      if (tierRef.current && !tierRef.current.contains(e.target as Node)) setTierOpen(false);
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [tierOpen]);
-
-  const displayPrice = isInfinity ? INFINITY_TIERS[selectedTier].price : plan.price;
+  id, name, price, annualPrice, annual, credits, tagline, features, notIncluded = [],
+  highlight, badge, cta, currentPlanId, children,
+}: PlanCardProps) {
+  const isCurrent = currentPlanId === id;
+  const displayPrice = annual && annualPrice != null ? annualPrice : price;
+  const originalPrice = annual && annualPrice != null ? price : null;
 
   return (
     <motion.div
       variants={variants.fadeUp}
       className={cn(
-        "relative flex flex-col rounded-[var(--radius-2xl)] p-5 ring-1 transition",
-        plan.highlight
-          ? "bg-accent/5 ring-accent/35 shadow-[0_0_0_4px_hsl(var(--accent)/0.06)]"
-          : "bg-surface ring-border",
+        "relative flex flex-col rounded-[var(--radius-xl)] ring-1 overflow-hidden",
+        highlight
+          ? "bg-gradient-to-b from-accent/8 via-background to-background ring-accent/40 shadow-[0_0_0_1px_hsl(var(--accent)/0.15),0_12px_40px_-8px_hsl(var(--accent)/0.25)]"
+          : "bg-background ring-border",
       )}
     >
-      {plan.badge && (
-        <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-accent px-3 py-0.5 text-[10.5px] font-semibold text-white">
-          {plan.badge}
-        </span>
+      {highlight && (
+        <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-accent to-transparent" />
       )}
-
-      {/* Name + tagline */}
-      <div className="mb-4">
-        <div className="flex items-center gap-2">
-          <h3 className="text-[15px] font-semibold tracking-[-0.02em] text-foreground">{plan.name}</h3>
-          {isInfinity && <InfinityIcon className="size-4 text-accent" strokeWidth={1.75} />}
+      {badge && (
+        <div className="absolute right-4 top-4">
+          <span className="rounded-full bg-accent px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+            {badge}
+          </span>
         </div>
-        <p className="mt-0.5 text-[12px] text-muted-foreground">{plan.tagline}</p>
-      </div>
-
-      {/* Price */}
-      <div className="mb-4">
-        {plan.price === 0 ? (
-          <p className="text-[28px] font-semibold tracking-tight text-foreground">Free</p>
-        ) : (
-          <div className="flex items-baseline gap-1">
-            {plan.priceSuffix && (
-              <span className="text-[11px] text-muted-foreground mr-0.5">{plan.priceSuffix}</span>
+      )}
+      <div className="flex flex-col gap-4 p-6">
+        {/* Header */}
+        <div>
+          <p className="text-[13px] font-semibold text-muted-foreground">{name}</p>
+          <div className="mt-1 flex items-end gap-1.5">
+            {price === 0 ? (
+              <span className="text-[32px] font-bold tracking-tight text-foreground leading-none">Free</span>
+            ) : price === null ? (
+              <span className="text-[24px] font-bold tracking-tight text-foreground leading-none">Custom</span>
+            ) : (
+              <>
+                <span className="text-[32px] font-bold tracking-tight text-foreground leading-none">
+                  ${displayPrice}
+                </span>
+                {originalPrice !== null && originalPrice !== displayPrice && (
+                  <span className="text-[13px] text-muted-foreground/50 line-through leading-loose">
+                    ${originalPrice}
+                  </span>
+                )}
+                <span className="text-[12px] text-muted-foreground pb-1">/mo</span>
+              </>
             )}
-            <span className="text-[28px] font-semibold tracking-tight text-foreground">
-              ${displayPrice}
-            </span>
-            <span className="text-[12px] text-muted-foreground">/mo</span>
           </div>
-        )}
-      </div>
-
-      {/* Infinity tier selector */}
-      {isInfinity && (
-        <div ref={tierRef} className="relative mb-4">
-          <button
-            type="button"
-            onClick={() => setTierOpen((v) => !v)}
-            className="flex w-full items-center justify-between rounded-xl bg-background px-3 py-2 text-[12px] ring-1 ring-border transition hover:ring-accent/40"
-          >
-            <div className="flex items-center gap-1.5">
-              <Zap className="size-3.5 text-accent" strokeWidth={1.75} />
-              <span className="font-medium text-foreground">{INFINITY_TIERS[selectedTier].label}</span>
-              <span className="text-muted-foreground">— {(INFINITY_TIERS[selectedTier].credits / 1000).toFixed(0)}k credits</span>
-            </div>
-            <ChevronDown className={cn("size-3.5 text-muted-foreground transition-transform", tierOpen && "rotate-180")} strokeWidth={1.75} />
-          </button>
-          <AnimatePresence>
-            {tierOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.12 }}
-                className="absolute left-0 right-0 top-full z-20 mt-1 max-h-52 overflow-y-auto rounded-xl bg-background shadow-lg ring-1 ring-border"
-              >
-                {INFINITY_TIERS.map((t, i) => (
-                  <button
-                    key={t.label}
-                    type="button"
-                    onClick={() => { setSelectedTier(i); setTierOpen(false); }}
-                    className={cn(
-                      "flex w-full items-center justify-between px-3 py-2 text-left text-[12px] transition hover:bg-surface",
-                      selectedTier === i && "bg-surface",
-                    )}
-                  >
-                    <span className="font-medium text-foreground">{t.label}</span>
-                    <div className="flex items-center gap-3 text-muted-foreground">
-                      <span>{(t.credits / 1000).toFixed(0)}k credits</span>
-                      <span className="font-semibold text-foreground">${t.price}/mo</span>
-                    </div>
-                  </button>
-                ))}
-                <div className="border-t border-border px-3 py-2.5">
-                  <a
-                    href="mailto:dreamos86app@gmail.com?subject=Enterprise inquiry"
-                    className="flex items-center gap-1.5 text-[11.5px] text-accent hover:underline underline-offset-2"
-                  >
-                    <Mail className="size-3.5" strokeWidth={1.75} />
-                    Need larger scale? Contact us
-                  </a>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {annual && price !== null && price !== 0 && (
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              Billed annually ({20}% off)
+            </p>
+          )}
+          <p className="mt-2 text-[11.5px] text-muted-foreground leading-snug">{tagline}</p>
         </div>
-      )}
 
-      {/* Models label */}
-      <div className="mb-4 flex items-center gap-1.5 rounded-lg bg-muted/50 px-2.5 py-1.5 text-[11px] text-muted-foreground ring-1 ring-border/60">
-        <Sparkles className="size-3 shrink-0 text-accent" strokeWidth={1.75} />
-        {plan.models}
-      </div>
-
-      {/* CTA */}
-      {isCurrent ? (
-        <div className="mb-5 flex items-center justify-center rounded-xl bg-muted/40 py-2.5 text-[12.5px] font-medium text-muted-foreground ring-1 ring-border">
-          Current plan
+        {/* Credits pill */}
+        <div className="flex items-center gap-2 rounded-xl bg-accent/8 px-3 py-2 ring-1 ring-accent/15">
+          <Zap className="size-3.5 shrink-0 text-accent" strokeWidth={2} />
+          <span className="text-[12px] font-semibold text-accent">{credits}</span>
         </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => onSelect(plan.id)}
+
+        {/* Children (Infinity dropdown) */}
+        {children}
+
+        {/* CTA */}
+        <Link
+          href={id === "free" ? "/auth/sign-up" : "/pricing#contact"}
           className={cn(
-            "mb-5 flex w-full cursor-pointer items-center justify-center rounded-xl py-2.5 text-[13px] font-semibold transition active:scale-[0.98]",
-            plan.highlight
-              ? "bg-accent text-white shadow-[0_2px_12px_hsl(var(--accent)/0.35)] hover:bg-accent/90"
-              : plan.id === "free"
-                ? "bg-surface text-foreground ring-1 ring-border hover:ring-accent/40 hover:bg-background"
-                : "bg-foreground text-background hover:opacity-90",
+            "flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-semibold transition",
+            isCurrent
+              ? "bg-surface text-muted-foreground ring-1 ring-border cursor-default"
+              : highlight
+              ? "bg-accent text-white shadow-[0_4px_14px_-4px_hsl(var(--accent)/0.5)] hover:bg-accent/90"
+              : "bg-surface text-foreground ring-1 ring-border hover:ring-accent/30",
           )}
         >
-          {plan.cta}
-        </button>
-      )}
+          {isCurrent ? "Current plan" : cta}
+          {!isCurrent && <ArrowRight className="size-3.5" strokeWidth={2.5} />}
+        </Link>
 
-      <div className="h-px bg-border" />
-
-      {/* Features */}
-      <ul className="mt-4 space-y-2">
-        {plan.features.map((f) => (
-          <li key={f} className="flex items-start gap-2 text-[12.5px] text-foreground/80">
-            <Check className="mt-0.5 size-3.5 shrink-0 text-positive" strokeWidth={2.5} />
-            {f}
-          </li>
-        ))}
-        {plan.notIncluded?.map((f) => (
-          <li key={f} className="flex items-start gap-2 text-[12px] text-muted-foreground/45 line-through">
-            <X className="mt-0.5 size-3.5 shrink-0 opacity-30" strokeWidth={2} />
-            {f}
-          </li>
-        ))}
-      </ul>
+        {/* Features */}
+        <div className="space-y-2">
+          {features.map((f) => (
+            <div key={f} className="flex items-start gap-2">
+              <Check className="size-3.5 mt-0.5 shrink-0 text-positive" strokeWidth={2.5} />
+              <span className="text-[12.5px] text-foreground/80">{f}</span>
+            </div>
+          ))}
+          {notIncluded.map((f) => (
+            <div key={f} className="flex items-start gap-2 opacity-45">
+              <X className="size-3 mt-0.5 shrink-0 text-muted-foreground" strokeWidth={2} />
+              <span className="text-[12px] text-muted-foreground">{f}</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </motion.div>
   );
 }
 
-// ─── Main pricing view ────────────────────────────────────────────────────────
+// ─── Infinity dropdown ────────────────────────────────────────────────────────
 
-export function PricingView() {
-  const router = useRouter();
-  const { profile } = useAuthStore();
-  const [comingSoonPlan, setComingSoonPlan] = React.useState<string | null>(null);
-
-  function handleSelect(planId: string) {
-    if (planId === "free") {
-      if (!profile) router.push("/auth/signup");
-      return;
-    }
-    if (!profile) { router.push("/auth/signup"); return; }
-    const labels: Record<string, string> = {
-      starter: "Starter",
-      pro: "Pro",
-      business: "Business",
-      infinity: "Infinity",
-    };
-    setComingSoonPlan(labels[planId] ?? planId);
-  }
+function InfinityDropdown({
+  annual,
+  selectedTier,
+  onSelect,
+}: {
+  annual: boolean;
+  selectedTier: InfinityTier;
+  onSelect: (t: InfinityTier) => void;
+}) {
+  const [open, setOpen] = React.useState(false);
 
   return (
-    <>
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 rounded-xl bg-surface px-3 py-2.5 text-left text-[12.5px] ring-1 ring-border transition hover:ring-accent/30"
+      >
+        <span className="font-medium text-foreground">{selectedTier.label}</span>
+        <div className="flex items-center gap-2 shrink-0">
+          {selectedTier.discount && (
+            <span className="rounded-full bg-positive/12 px-1.5 py-0.5 text-[9px] font-bold text-positive">
+              {Math.round((selectedTier.discount + (annual ? ANNUAL_DISCOUNT : 0)) * 100)}% off
+            </span>
+          )}
+          {!selectedTier.discount && annual && (
+            <span className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[9px] font-bold text-accent">20% off</span>
+          )}
+          <span className="font-semibold text-foreground">${tierPrice(selectedTier, annual)}<span className="font-normal text-muted-foreground">/mo</span></span>
+          <ChevronDown className={cn("size-3.5 text-muted-foreground transition-transform", open && "rotate-180")} strokeWidth={2} />
+        </div>
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.15 }}
+            className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-xl bg-background ring-1 ring-border shadow-[0_8px_32px_-8px_rgba(0,0,0,0.4)]"
+          >
+            {INFINITY_TIERS.map((t) => {
+              const price = tierPrice(t, annual);
+              const original = tierOriginalPrice(t);
+              const totalDiscount = t.discount ? t.discount + (annual ? ANNUAL_DISCOUNT : 0) : (annual ? ANNUAL_DISCOUNT : 0);
+              const isSelected = t.id === selectedTier.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => { onSelect(t); setOpen(false); }}
+                  className={cn(
+                    "flex w-full items-center gap-3 px-3 py-2.5 text-left text-[12px] transition hover:bg-surface",
+                    isSelected && "bg-accent/8",
+                  )}
+                >
+                  <div className="flex-1 min-w-0">
+                    <span className={cn("font-medium", isSelected ? "text-accent" : "text-foreground")}>{t.label}</span>
+                    <span className="ml-2 text-muted-foreground">{t.credits.toLocaleString()} credits/mo</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {totalDiscount > 0 && (
+                      <span className="rounded-full bg-positive/12 px-1.5 py-0.5 text-[9px] font-bold text-positive">
+                        {Math.round(totalDiscount * 100)}% off
+                      </span>
+                    )}
+                    {price !== original && (
+                      <span className="text-muted-foreground/40 line-through text-[11px]">${original}</span>
+                    )}
+                    <span className="font-semibold text-foreground">${price}<span className="font-normal text-muted-foreground text-[10px]">/mo</span></span>
+                  </div>
+                </button>
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── Main view ────────────────────────────────────────────────────────────────
+
+export function PricingView() {
+  const { profile } = useAuthStore();
+  const [annual, setAnnual] = React.useState(false);
+  const [infTier, setInfTier] = React.useState<InfinityTier>(INFINITY_TIERS[0]);
+
+  const planId = profile?.plan_id ?? null;
+
+  const starterMonthly = 20;
+  const proMonthly = 50;
+  const starterAnnual = Math.round(starterMonthly * (1 - ANNUAL_DISCOUNT));
+  const proAnnual = Math.round(proMonthly * (1 - ANNUAL_DISCOUNT));
+
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-12 space-y-20">
+
+      {/* Hero */}
       <motion.div
         variants={variants.staggerContainer}
         initial="hidden"
         animate="show"
-        className="mx-auto max-w-6xl space-y-10 pb-16"
+        className="text-center space-y-4"
       >
-        {/* Header */}
-        <motion.div variants={variants.fadeUp} className="text-center">
-          <h1 className="text-[28px] font-semibold tracking-[-0.04em] text-foreground">
-            Choose your plan
-          </h1>
-          <p className="mt-2 text-[14px] text-muted-foreground">
-            Credits scale dynamically with your usage. No hidden fees. Cancel anytime.
-          </p>
+        <motion.div variants={variants.fadeUp}>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-accent/10 px-3 py-1 text-[12px] font-semibold text-accent ring-1 ring-accent/20">
+            <Sparkles className="size-3" strokeWidth={2} />
+            Simple, transparent pricing
+          </span>
         </motion.div>
-
-        {/* 4 plan cards in one row */}
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {PLANS.map((plan) => (
-            <PlanCard
-              key={plan.id}
-              plan={plan}
-              onSelect={handleSelect}
-              currentPlanId={profile?.plan_id}
-            />
-          ))}
-        </div>
-
-        {/* FAQ */}
-        <motion.div variants={variants.fadeUp} className="space-y-4">
-          <h3 className="text-[15px] font-semibold text-foreground">Common questions</h3>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {[
-              {
-                q: "What are credits?",
-                a: "Credits represent AI compute value. Each request costs credits based on the model selected, context size, and complexity. All costs are calculated transparently.",
-              },
-              {
-                q: "Do unused credits roll over?",
-                a: "No. Credits reset monthly to keep pricing predictable. Your projects and data are never affected.",
-              },
-              {
-                q: "Can I change my plan mid-cycle?",
-                a: "Yes. Upgrades are immediate and pro-rated. Downgrades take effect at the next billing period.",
-              },
-              {
-                q: "What's the 5% savings on Infinity?",
-                a: "All Infinity tiers above $300/mo automatically receive a 5% volume discount, with price steps increasing by $150 from Infinity IV onward.",
-              },
-            ].map((faq) => (
-              <div key={faq.q} className="rounded-[var(--radius-lg)] bg-surface px-5 py-4 ring-1 ring-border">
-                <p className="text-[13px] font-semibold text-foreground">{faq.q}</p>
-                <p className="mt-1.5 text-[12.5px] text-muted-foreground">{faq.a}</p>
-              </div>
-            ))}
-          </div>
+        <motion.h1 variants={variants.fadeUp} className="text-[36px] sm:text-[48px] font-bold tracking-tight text-foreground leading-[1.1]">
+          Build anything with AI.
+          <br className="hidden sm:block" />
+          <span className="text-accent"> Pay only for what you use.</span>
+        </motion.h1>
+        <motion.p variants={variants.fadeUp} className="max-w-xl mx-auto text-[15px] text-muted-foreground leading-relaxed">
+          Every plan includes AI app generation, instant deployment, and real-time collaboration. Credits reset monthly — no commitments.
+        </motion.p>
+        {/* Billing toggle */}
+        <motion.div variants={variants.fadeUp} className="flex items-center justify-center gap-3 pt-2">
+          <span className={cn("text-[13px]", !annual ? "font-semibold text-foreground" : "text-muted-foreground")}>Monthly</span>
+          <button
+            type="button"
+            onClick={() => setAnnual((v) => !v)}
+            className={cn(
+              "relative h-6 w-11 rounded-full transition-colors",
+              annual ? "bg-accent" : "bg-border",
+            )}
+            aria-label="Toggle annual billing"
+          >
+            <span className={cn("absolute top-0.5 left-0.5 size-5 rounded-full bg-white shadow transition-transform", annual && "translate-x-5")} />
+          </button>
+          <span className={cn("text-[13px]", annual ? "font-semibold text-foreground" : "text-muted-foreground")}>
+            Annual
+            <span className="ml-1.5 rounded-full bg-positive/15 px-1.5 py-0.5 text-[10px] font-bold text-positive">Save 20%</span>
+          </span>
         </motion.div>
       </motion.div>
 
-      <AnimatePresence>
-        {comingSoonPlan && (
-          <PaymentsComingSoonModal
-            planName={comingSoonPlan}
-            onClose={() => setComingSoonPlan(null)}
-          />
-        )}
-      </AnimatePresence>
-    </>
+      {/* Plan cards */}
+      <motion.div
+        variants={variants.staggerContainer}
+        initial="hidden"
+        animate="show"
+        className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
+      >
+        <PlanCard
+          id="free"
+          name="Free"
+          price={0}
+          annual={annual}
+          credits={`${FREE_CREDITS} credits / mo`}
+          tagline="Start building for free. No card required."
+          features={[
+            `${FREE_CREDITS} credits / month`,
+            "3 active projects",
+            "Discuss mode",
+            "Public deployments",
+            "Automatic model routing",
+          ]}
+          notIncluded={[
+            "Manual model selection",
+            "Edit & Build mode",
+            "Custom domains",
+            "Team access",
+          ]}
+          cta="Get started free"
+          currentPlanId={planId}
+        />
+
+        <PlanCard
+          id="starter"
+          name="Starter"
+          price={starterMonthly}
+          annualPrice={starterAnnual}
+          annual={annual}
+          credits="1,000 credits / mo"
+          tagline="For individuals shipping real products."
+          features={[
+            "1,000 credits / month",
+            "Unlimited projects",
+            "Discuss, Edit & Build modes",
+            "Manual model selection",
+            "Custom domains",
+            "Remove watermark",
+            "Full source code export",
+            "Email support",
+          ]}
+          cta="Get Starter"
+          currentPlanId={planId}
+        />
+
+        <PlanCard
+          id="pro"
+          name="Pro"
+          price={proMonthly}
+          annualPrice={proAnnual}
+          annual={annual}
+          credits="2,500 credits / mo"
+          tagline="For teams building production apps."
+          highlight
+          badge="Most Popular"
+          features={[
+            "2,500 credits / month",
+            "All frontier models",
+            "Multi-agent generation",
+            "5 collaborators",
+            "Advanced analytics",
+            "API access",
+            "Unlimited custom domains",
+            "Priority support",
+          ]}
+          cta="Get Pro"
+          currentPlanId={planId}
+        />
+
+        <PlanCard
+          id="infinity"
+          name="Infinity"
+          price={tierPrice(infTier, annual)}
+          annual={annual}
+          credits={`${infTier.credits.toLocaleString()} credits / mo`}
+          tagline="For power teams that need unlimited scale."
+          features={[
+            `${infTier.credits.toLocaleString()} credits / month`,
+            "All frontier models",
+            "Dedicated compute",
+            "White-label",
+            "Custom SLAs",
+            "SSO / SAML",
+            "Dedicated support",
+          ]}
+          cta="Get Infinity"
+          currentPlanId={planId}
+        >
+          <InfinityDropdown annual={annual} selectedTier={infTier} onSelect={setInfTier} />
+        </PlanCard>
+      </motion.div>
+
+      {/* Custom plan banner */}
+      <motion.div
+        variants={variants.fadeUp}
+        initial="hidden"
+        animate="show"
+        className="rounded-[var(--radius-xl)] bg-gradient-to-r from-accent/8 via-background to-violet-500/8 ring-1 ring-border px-8 py-8"
+      >
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-4">
+            <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-accent/10 ring-1 ring-accent/20">
+              <Building2 className="size-5 text-accent" strokeWidth={1.75} />
+            </div>
+            <div>
+              <p className="text-[16px] font-semibold text-foreground">Need a custom plan?</p>
+              <p className="mt-1 text-[13.5px] text-muted-foreground max-w-lg">
+                Tell us your scale, team size, model usage, and infrastructure needs. We'll build a plan that fits.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2.5 sm:shrink-0">
+            <a
+              href="mailto:support@dreamos86.com"
+              className="flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-[13px] font-semibold text-white transition hover:bg-accent/90"
+            >
+              <MessageCircle className="size-4" strokeWidth={1.75} />
+              Contact us
+            </a>
+            <a
+              href="mailto:sales@dreamos86.com"
+              className="flex items-center gap-2 rounded-xl bg-surface px-5 py-2.5 text-[13px] font-semibold text-foreground ring-1 ring-border transition hover:ring-accent/30"
+            >
+              Talk to sales
+            </a>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Comparison table */}
+      <motion.div variants={variants.fadeUp} initial="hidden" animate="show">
+        <h2 className="text-[22px] font-bold tracking-tight text-foreground mb-6 text-center">Compare plans</h2>
+        <div className="overflow-x-auto rounded-[var(--radius-xl)] ring-1 ring-border">
+          <table className="w-full min-w-[600px] text-center text-[13px]">
+            <thead>
+              <tr className="border-b border-border bg-surface/50">
+                <th className="px-4 py-3 text-left text-[12px] font-semibold text-muted-foreground w-48">Feature</th>
+                {["Free", "Starter", "Pro", "Infinity"].map((p) => (
+                  <th key={p} className={cn("px-4 py-3 text-[12px] font-semibold", p === "Pro" ? "text-accent" : "text-foreground")}>
+                    {p}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {COMPARISON_ROWS.map((row, i) => (
+                <tr key={row.label} className={cn("border-b border-border/50 transition hover:bg-surface/30", i % 2 === 0 && "bg-surface/10")}>
+                  <td className="px-4 py-3 text-left text-[12.5px] text-foreground/80 font-medium">{row.label}</td>
+                  <td className="px-4 py-3"><Cell value={row.free} /></td>
+                  <td className="px-4 py-3"><Cell value={row.starter} /></td>
+                  <td className="px-4 py-3"><Cell value={row.pro} /></td>
+                  <td className="px-4 py-3"><Cell value={row.infinity} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </motion.div>
+
+      {/* FAQ */}
+      <motion.div variants={variants.fadeUp} initial="hidden" animate="show">
+        <h2 className="text-[22px] font-bold tracking-tight text-foreground mb-6 text-center">Frequently asked questions</h2>
+        <div className="mx-auto max-w-2xl rounded-[var(--radius-xl)] bg-background ring-1 ring-border px-6 divide-y divide-border/50">
+          {FAQS.map((faq) => (
+            <FaqItem key={faq.q} q={faq.q} a={faq.a} />
+          ))}
+        </div>
+      </motion.div>
+
+    </div>
   );
 }

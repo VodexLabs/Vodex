@@ -5,8 +5,10 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   Search, ArrowUpRight, Sparkles, Zap, Smartphone,
-  LayoutDashboard, ShoppingCart, Users, Globe,
+  LayoutDashboard, ShoppingCart, Users, Globe, Loader2,
 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { useTimedLoading } from "@/lib/hooks/use-timed-loading";
 import { Button } from "@/components/ui/button";
 import { variants, whileHover, whileTap, transition } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -126,22 +128,88 @@ function ShowcaseCard({ item }: { item: ShowcaseItem }) {
   );
 }
 
-function CommunityComingSoon() {
-  return (
-    <div className="mt-6 flex flex-col items-center rounded-[var(--radius-xl)] bg-surface py-16 text-center ring-1 ring-border">
-      <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-accent/10 ring-1 ring-accent/20">
-        <Users className="size-7 text-accent" strokeWidth={1.5} />
+interface PublicProject {
+  id: string;
+  name: string;
+  description: string | null;
+  gradient: string;
+  category: string | null;
+  owner_name: string | null;
+  updated_at: string;
+}
+
+function CommunityBuilds() {
+  const supabase = createClient();
+  const [projects, setProjects] = React.useState<PublicProject[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const isLoading = useTimedLoading(loading, 1000);
+
+  React.useEffect(() => {
+    supabase
+      .from("projects")
+      .select("id, name, description, gradient, category, updated_at")
+      .eq("is_public", true)
+      .order("updated_at", { ascending: false })
+      .limit(9)
+      .then(({ data, error }) => {
+        if (!error) setProjects((data as PublicProject[]) ?? []);
+        setLoading(false);
+      });
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="mt-6 flex items-center justify-center py-16">
+        <Loader2 className="size-5 animate-spin text-muted-foreground" strokeWidth={1.75} />
       </div>
-      <p className="text-[15px] font-semibold text-foreground">Community builds coming soon</p>
-      <p className="mt-2 max-w-sm text-[13px] text-muted-foreground">
-        Apps built and published by DreamOS86 users will appear here. Build something great and be the first.
-      </p>
-      <Button variant="accent" size="sm" className="mt-6 gap-1.5" asChild>
-        <Link href="/">
-          <Zap className="size-3.5" strokeWidth={1.75} />
-          Start building
-        </Link>
-      </Button>
+    );
+  }
+
+  if (projects.length === 0) {
+    return (
+      <div className="mt-6 flex flex-col items-center rounded-[var(--radius-xl)] bg-surface py-16 text-center ring-1 ring-border">
+        <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-accent/10 ring-1 ring-accent/20">
+          <Users className="size-7 text-accent" strokeWidth={1.5} />
+        </div>
+        <p className="text-[15px] font-semibold text-foreground">No public apps yet</p>
+        <p className="mt-2 max-w-sm text-[13px] text-muted-foreground">
+          Apps published publicly by DreamOS86 builders will appear here. Build something and make it public.
+        </p>
+        <Button variant="accent" size="sm" className="mt-6 gap-1.5" asChild>
+          <Link href="/create">
+            <Zap className="size-3.5" strokeWidth={1.75} />
+            Start building
+          </Link>
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {projects.map((p, i) => (
+        <motion.div
+          key={p.id}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: i * 0.04 }}
+          className="group overflow-hidden rounded-[var(--radius-xl)] bg-surface ring-1 ring-border transition hover:ring-accent/30 hover:shadow-md"
+        >
+          <div className={`h-24 w-full bg-gradient-to-br ${p.gradient} opacity-80`} />
+          <div className="p-4">
+            <p className="text-[14px] font-semibold text-foreground">{p.name}</p>
+            {p.description && (
+              <p className="mt-0.5 text-[12px] text-muted-foreground line-clamp-2">{p.description}</p>
+            )}
+            <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground">
+              {p.category && (
+                <span className="rounded-full bg-muted/60 px-2 py-0.5 font-medium">{p.category}</span>
+              )}
+              <span>{new Date(p.updated_at).toLocaleDateString()}</span>
+            </div>
+          </div>
+        </motion.div>
+      ))}
     </div>
   );
 }
@@ -250,7 +318,7 @@ export function ExploreView() {
         <p className="mb-4 text-[11px] font-semibold tracking-[0.18em] text-muted-foreground">
           COMMUNITY BUILDS
         </p>
-        <CommunityComingSoon />
+        <CommunityBuilds />
       </motion.div>
     </div>
   );

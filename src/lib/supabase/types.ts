@@ -42,15 +42,52 @@ export interface Database {
           terms_accepted_at: string | null;
           terms_version: string | null;
           terms_accepted_ip: string | null;
-          is_admin: boolean;
+          is_admin: boolean | null;
           suspended_at: string | null;
           suspended_reason: string | null;
           referral_code: string | null;
           referred_by: string | null;
           total_referrals: number;
+          workspace_name: string | null;
+          workspace_icon_url: string | null;
+          workspace_description: string | null;
         };
         Insert: Omit<Database["public"]["Tables"]["profiles"]["Row"], "id" | "created_at" | "updated_at">;
         Update: Partial<Database["public"]["Tables"]["profiles"]["Row"]>;
+        Relationships: [];
+      };
+
+      groups: {
+        Row: {
+          id: string;
+          created_at: string;
+          updated_at: string;
+          creator_id: string | null;
+          name: string;
+          slug: string;
+          description: string | null;
+          category: string;
+          icon_url: string | null;
+          banner_color: string;
+          is_public: boolean;
+          is_featured: boolean;
+          member_count: number;
+        };
+        Insert: Omit<Database["public"]["Tables"]["groups"]["Row"], "id" | "created_at" | "updated_at">;
+        Update: Partial<Database["public"]["Tables"]["groups"]["Row"]>;
+        Relationships: [];
+      };
+
+      group_members: {
+        Row: {
+          id: string;
+          group_id: string;
+          user_id: string;
+          role: string;
+          joined_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["group_members"]["Row"], "id" | "joined_at">;
+        Update: Partial<Database["public"]["Tables"]["group_members"]["Row"]>;
         Relationships: [];
       };
 
@@ -501,14 +538,72 @@ export interface Database {
           id: string;
           created_at: string;
           referrer_id: string;
-          referred_email: string;
-          referred_id: string | null;
-          status: "pending" | "completed" | "invalid";
-          completed_at: string | null;
-          credits_granted: number;
+          referred_id: string;
+          code: string;
+          status: "pending" | "qualified" | "rewarded" | "fraud";
+          rewarded_at: string | null;
+          reward_kind: "credits" | "plan_days" | "feature_unlock" | null;
+          reward_amount: number | null;
+          attribution: Json;
         };
-        Insert: Omit<Database["public"]["Tables"]["referrals"]["Row"], "id" | "created_at">;
+        Insert: Omit<
+          Database["public"]["Tables"]["referrals"]["Row"],
+          "id" | "created_at" | "rewarded_at" | "reward_kind" | "reward_amount" | "attribution"
+        > & {
+          rewarded_at?: string | null;
+          reward_kind?: "credits" | "plan_days" | "feature_unlock" | null;
+          reward_amount?: number | null;
+          attribution?: Json;
+        };
         Update: Partial<Database["public"]["Tables"]["referrals"]["Row"]>;
+        Relationships: [];
+      };
+
+      referral_codes: {
+        Row: {
+          user_id: string;
+          code: string;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["referral_codes"]["Row"], "created_at"> & {
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["referral_codes"]["Row"]>;
+        Relationships: [];
+      };
+
+      project_memory: {
+        Row: {
+          id: string;
+          created_at: string;
+          updated_at: string;
+          project_id: string;
+          user_id: string;
+          category:
+            | "architecture"
+            | "visual_identity"
+            | "code_evolution"
+            | "deployment"
+            | "preferences"
+            | "workflow"
+            | "components"
+            | "design_system"
+            | "intent"
+            | "file_relationships";
+          key: string;
+          value: Json;
+          importance: number;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["project_memory"]["Row"],
+          "id" | "created_at" | "updated_at" | "importance"
+        > & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          importance?: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["project_memory"]["Row"]>;
         Relationships: [];
       };
 
@@ -659,6 +754,18 @@ export interface Database {
           total_granted: number;
           remaining: number;
           reset_at: string;
+        };
+      };
+      ensure_referral_code: {
+        Args: { p_user_id: string };
+        Returns: string;
+      };
+      claim_referral_reward: {
+        Args: { p_referred_id: string; p_credits?: number };
+        Returns: {
+          success: boolean;
+          credits_granted?: number;
+          error?: string;
         };
       };
     };

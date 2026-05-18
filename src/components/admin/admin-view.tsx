@@ -88,13 +88,7 @@ export function AdminView() {
   const [loading, setLoading] = React.useState(false);
   const [grantTarget, setGrantTarget] = React.useState<{ id: string; name: string } | null>(null);
 
-  React.useEffect(() => {
-    if (activeTab === "users") loadUsers();
-    if (activeTab === "tickets") loadTickets();
-    if (activeTab === "audit") loadAuditLogs();
-  }, [activeTab]);
-
-  async function loadUsers() {
+  const loadUsers = React.useCallback(async () => {
     setLoading(true);
     const { data } = await supabase
       .from("profiles")
@@ -103,9 +97,9 @@ export function AdminView() {
       .limit(100);
     setUsers((data as Profile[]) ?? []);
     setLoading(false);
-  }
+  }, [supabase]);
 
-  async function loadTickets() {
+  const loadTickets = React.useCallback(async () => {
     setLoading(true);
     const { data } = await supabase
       .from("support_tickets")
@@ -114,9 +108,9 @@ export function AdminView() {
       .limit(50);
     setTickets(data ?? []);
     setLoading(false);
-  }
+  }, [supabase]);
 
-  async function loadAuditLogs() {
+  const loadAuditLogs = React.useCallback(async () => {
     setLoading(true);
     const { data } = await supabase
       .from("audit_logs")
@@ -125,7 +119,13 @@ export function AdminView() {
       .limit(100);
     setAuditLogs(data ?? []);
     setLoading(false);
-  }
+  }, [supabase]);
+
+  React.useEffect(() => {
+    if (activeTab === "users") loadUsers();
+    if (activeTab === "tickets") loadTickets();
+    if (activeTab === "audit") loadAuditLogs();
+  }, [activeTab, loadUsers, loadTickets, loadAuditLogs]);
 
   const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: "users", label: "Users", icon: Users },

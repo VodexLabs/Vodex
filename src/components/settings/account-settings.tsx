@@ -7,6 +7,7 @@ import {
   Camera, Shield, Monitor, AlertTriangle,
   Loader2, CheckCircle2, X, Info, LogOut, Mail, Link2, Link2Off,
 } from "lucide-react";
+import { toast } from "@/lib/toast";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -51,7 +52,6 @@ function UserAvatar({ name, avatarUrl, size = 64 }: { name: string; avatarUrl?: 
 // ─── Logout modal ─────────────────────────────────────────────────────────────
 
 function LogoutModal({ onClose }: { onClose: () => void }) {
-  const router = useRouter();
   const { reset: resetAuth } = useAuthStore();
   const { reset: resetCredits } = useCreditsStore();
   const [loading, setLoading] = React.useState(false);
@@ -60,13 +60,21 @@ function LogoutModal({ onClose }: { onClose: () => void }) {
     setLoading(true);
     try {
       const supabase = createClient();
-      await supabase.auth.signOut();
-    } catch {
-      // Best-effort
-    }
+      await Promise.race([
+        supabase.auth.signOut(),
+        new Promise<void>((_, reject) => setTimeout(() => reject(new Error("timeout")), 4000)),
+      ]);
+    } catch { /* Best-effort */ }
+    try {
+      const keys = Object.keys(localStorage).filter(
+        (k) => k.startsWith("sb-") || k.startsWith("dreamos-") || k === "supabase.auth.token",
+      );
+      keys.forEach((k) => localStorage.removeItem(k));
+      sessionStorage.clear();
+    } catch { /* ignore */ }
     resetAuth();
     resetCredits?.();
-    router.push("/auth/login");
+    window.location.replace("/auth/login");
   }
 
   return (
@@ -342,10 +350,19 @@ function ConnectedAccountsSection() {
   const [unlinking, setUnlinking] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    supabase.auth.getUserIdentities().then(({ data }) => {
-      setIdentities((data?.identities ?? []) as typeof identities);
-      setLoading(false);
-    });
+    // Race the identities call with a 5s timeout to prevent infinite spinner
+    const timeout = setTimeout(() => setLoading(false), 5000);
+    supabase.auth.getUserIdentities()
+      .then(({ data }) => {
+        clearTimeout(timeout);
+        setIdentities((data?.identities ?? []) as typeof identities);
+        setLoading(false);
+      })
+      .catch(() => {
+        clearTimeout(timeout);
+        setLoading(false);
+      });
+    return () => clearTimeout(timeout);
   }, []);
 
   const providers = [
@@ -465,14 +482,20 @@ function ConnectedAccountsSection() {
 
 function ProfileSection() {
   const supabase = createClient();
-  const { profile, setProfile } = useAuthStore();
-  const displayName = profile?.full_name ?? profile?.email?.split("@")[0] ?? "User";
-  const displayEmail = profile?.email ?? "";
+  const { profile, user, setProfile } = useAuthStore();
+  const router = useRouter();
+  // Fall back to auth user email/name when profile row hasn't been synced yet
+  const authEmail = user?.email ?? user?.user_metadata?.email ?? "";
+  const authName = (user?.user_metadata?.full_name as string | undefined) ??
+    (user?.user_metadata?.name as string | undefined) ?? "";
+  const displayName = profile?.full_name ?? (authName || authEmail.split("@")[0] || "User");
+  const displayEmail = profile?.email ?? authEmail;
 
-  const [name, setName] = React.useState(profile?.full_name ?? "");
+  const [name, setName] = React.useState(profile?.full_name ?? authName ?? "");
   const [saving, setSaving] = React.useState(false);
-  const [saved, setSaved] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
+  const [uploading, setUploading] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -489,12 +512,66 @@ function ProfileSection() {
 
     if (error) {
       setSaveError(error.message);
+      toast.error("Failed to save profile");
     } else if (data) {
       setProfile(data as typeof profile);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
+      toast.success("Profile updated");
+      router.refresh();
     }
     setSaving(false);
+  }
+
+  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !profile?.id) return;
+
+    const validTypes = ["image/png", "image/jpeg", "image/webp"];
+    if (!validTypes.includes(file.type)) {
+      toast.error("Please upload a PNG, JPG, or WEBP image");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image must be smaller than 5MB");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const ext = file.type === "image/webp" ? "webp" : file.type === "image/jpeg" ? "jpg" : "png";
+      const filePath = `${profile.id}/avatar.${ext}`;
+
+      // Use the API route for avatar upload — handles bucket creation + RLS gracefully
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("path", filePath);
+
+      const res = await fetch("/api/upload/avatar", { method: "POST", body: formData });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Upload failed" }));
+        throw new Error(err.error ?? "Upload failed");
+      }
+      const { publicUrl } = await res.json();
+
+      const { data, error: updateErr } = await supabase
+        .from("profiles")
+        .update({ avatar_url: `${publicUrl}?t=${Date.now()}` })
+        .eq("id", profile.id)
+        .select()
+        .single();
+
+      if (updateErr) throw updateErr;
+      if (data) {
+        setProfile(data as typeof profile);
+        toast.success("Avatar updated");
+        router.refresh();
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      toast.error(`Failed to upload avatar: ${msg}`);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   }
 
   return (
@@ -511,17 +588,41 @@ function ProfileSection() {
               <div className="ring-2 ring-border rounded-full">
                 <UserAvatar name={displayName} avatarUrl={profile?.avatar_url} size={64} />
               </div>
-              <button
-                type="button"
-                className="absolute -bottom-1 -right-1 flex size-6 cursor-pointer items-center justify-center rounded-full bg-surface shadow-[var(--shadow-sm)] ring-1 ring-border transition hover:bg-surface hover:ring-accent/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <Camera className="size-3 text-muted-foreground" strokeWidth={1.75} />
-              </button>
+              {uploading ? (
+                <div className="absolute -bottom-1 -right-1 flex size-6 items-center justify-center rounded-full bg-surface shadow-[var(--shadow-sm)] ring-1 ring-border">
+                  <Loader2 className="size-3 text-accent animate-spin" strokeWidth={2} />
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Change avatar"
+                  className="absolute -bottom-1 -right-1 flex size-6 cursor-pointer items-center justify-center rounded-full bg-surface shadow-[var(--shadow-sm)] ring-1 ring-border transition hover:bg-accent hover:ring-accent/40 hover:[&_svg]:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Camera className="size-3 text-muted-foreground transition" strokeWidth={1.75} />
+                </button>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="sr-only"
+                tabIndex={-1}
+                onChange={handleAvatarChange}
+              />
             </div>
             <div>
               <p className="text-[13px] font-medium text-foreground">{displayName}</p>
               <p className="text-[12px] text-muted-foreground">{displayEmail}</p>
-              <p className="mt-1 text-[11px] text-muted-foreground">Avatar upload coming soon</p>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="mt-1 cursor-pointer text-[11px] text-accent underline-offset-2 hover:underline disabled:opacity-50"
+              >
+                {uploading ? "Uploading…" : "Change avatar"}
+              </button>
+              <p className="text-[10.5px] text-muted-foreground/70">PNG, JPG, WEBP · max 5MB</p>
             </div>
           </div>
 
@@ -552,11 +653,6 @@ function ProfileSection() {
           )}
 
           <div className="flex items-center justify-end gap-2">
-            {saved && (
-              <span className="flex items-center gap-1 text-[12px] text-positive">
-                <CheckCircle2 className="size-3.5" strokeWidth={2} /> Saved
-              </span>
-            )}
             <Button variant="accent" size="sm" type="submit" disabled={saving} className="gap-1.5">
               {saving && <Loader2 className="size-3.5 animate-spin" />}
               Save profile
@@ -589,10 +685,12 @@ function PasswordSection() {
     const { error: err } = await supabase.auth.updateUser({ password: next });
     if (err) {
       setError(err.message);
+      toast.error("Failed to update password");
     } else {
-      setSaved(true);
       setCurrent(""); setNext(""); setConfirm("");
+      setSaved(true);
       setTimeout(() => setSaved(false), 2500);
+      toast.success("Password updated");
     }
     setSaving(false);
   }
