@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AdminView } from "@/components/admin/admin-view";
-
-const OWNER_EMAIL = "dreamos86app@gmail.com";
+import { isDreamosOwnerEmail } from "@/lib/admin-owner";
 
 export default async function AdminPage() {
   const supabase = await createClient();
@@ -10,14 +9,8 @@ export default async function AdminPage() {
 
   if (!user) redirect("/auth/login");
 
-  // Backend-enforced: must be the owner email OR have is_admin flag
-  if (user.email !== OWNER_EMAIL) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("is_admin")
-      .eq("id", user.id)
-      .single();
-    if (!profile?.is_admin) redirect("/");
+  if (!isDreamosOwnerEmail(user.email)) {
+    redirect("/");
   }
 
   return <AdminView />;

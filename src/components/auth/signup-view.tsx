@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { LogoIcon } from "@/components/ui/logo-icon";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, Check, AlertCircle, Loader2, WifiOff } from "lucide-react";
@@ -56,6 +57,7 @@ function PasswordStrength({ password }: { password: string }) {
 }
 
 export function SignupView() {
+  const searchParams = useSearchParams();
   const [showPassword, setShowPassword] = React.useState(false);
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
@@ -114,7 +116,8 @@ export function SignupView() {
     setOauthLoading(provider);
     setError(null);
 
-    const { error: oauthError } = await authSignInWithOAuth(provider);
+    const next = searchParams.get("next") ?? undefined;
+    const { error: oauthError } = await authSignInWithOAuth(provider, next);
 
     if (oauthError) {
       setError(humanizeAuthError(oauthError.message, provider));

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Json } from "@/lib/supabase/types";
 import { z } from "zod";
 import { attachReferralByCode } from "@/lib/referrals/server-referral";
+import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
 const bodySchema = z.object({
   hear_about: z.string().min(1).max(120),
@@ -58,15 +59,30 @@ export async function POST(request: Request) {
     answers: onboarding_answers as Json,
   });
 
-  await supabase
+  const patch = {
+    onboarding_completed: true,
+    onboarding_completed_at: now,
+    onboarding_answers,
+    use_case: build_first,
+    signup_wizard_completed: true,
+  };
+
+  const { error: profileUserErr } = await supabase
     .from("profiles")
-    .update({
-      onboarding_completed: true,
-      onboarding_completed_at: now,
-      onboarding_answers,
-      use_case: build_first,
-    })
+    .update(patch)
     .eq("id", user.id);
+
+  if (profileUserErr) {
+    try {
+      const admin = createSupabaseAdmin();
+      const { error: adminErr } = await admin.from("profiles").update(patch).eq("id", user.id);
+      if (adminErr) {
+        return NextResponse.json({ error: adminErr.message }, { status: 500 });
+      }
+    } catch {
+      return NextResponse.json({ error: profileUserErr.message }, { status: 500 });
+    }
+  }
 
   await supabase.rpc("claim_referral_reward", {
     p_referred_id: user.id,

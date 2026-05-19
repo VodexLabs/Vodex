@@ -53,7 +53,7 @@ export function Switch({
     >
       <motion.span
         transition={{ type: "spring", stiffness: 520, damping: 34 }}
-        className="pointer-events-none absolute left-0.5 top-0.5 size-6 rounded-full bg-surface shadow-[var(--shadow-xs)] ring-1 ring-border"
+        className="pointer-events-none absolute left-0.5 top-1/2 size-6 -translate-y-1/2 rounded-full bg-surface shadow-[var(--shadow-xs)] ring-1 ring-border"
         animate={{ x: on ? 16 : 0 }}
       />
     </button>

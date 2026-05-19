@@ -1,15 +1,19 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Check, X, ChevronDown, ChevronUp, Zap, Sparkles,
-  Building2, ArrowRight, MessageCircle,
+  Building2, ArrowRight, MessageCircle, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { variants } from "@/lib/motion";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { toast } from "@/lib/toast";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -17,7 +21,7 @@ const FREE_CREDITS = 100;
 const ANNUAL_DISCOUNT = 0.20;
 const INFINITY_DISCOUNT = 0.05;
 
-// ─── Infinity tiers ───────────────────────────────────────────────────────────
+const SUPPORT_EMAIL = "support@dreamos86.com";
 
 interface InfinityTier {
   id: string;
@@ -53,8 +57,8 @@ const COMPARISON_ROWS: { label: string; free: string | boolean; starter: string 
   { label: "Monthly credits",      free: "100",       starter: "1,000",    pro: "2,500",         infinity: "5,000–65,000" },
   { label: "Active projects",      free: "3",         starter: "Unlimited", pro: "Unlimited",    infinity: "Unlimited" },
   { label: "Discuss mode",         free: true,        starter: true,        pro: true,           infinity: true },
-  { label: "Edit mode",            free: false,       starter: true,        pro: true,           infinity: true },
-  { label: "Build mode",           free: false,       starter: true,        pro: true,           infinity: true },
+  { label: "Edit mode",            free: true,        starter: true,        pro: true,           infinity: true },
+  { label: "Build mode",           free: true,        starter: true,        pro: true,           infinity: true },
   { label: "Manual model select",  free: false,       starter: true,        pro: true,           infinity: true },
   { label: "Frontier models",      free: false,       starter: "Standard",  pro: "All",          infinity: "All" },
   { label: "Custom domains",       free: false,       starter: true,        pro: "Unlimited",    infinity: "Unlimited" },
@@ -66,7 +70,7 @@ const COMPARISON_ROWS: { label: string; free: string | boolean; starter: string 
   { label: "Dedicated compute",    free: false,       starter: false,       pro: false,          infinity: true },
   { label: "White-label",          free: false,       starter: false,       pro: false,          infinity: true },
   { label: "SSO / SAML",          free: false,       starter: false,       pro: false,          infinity: true },
-  { label: "Support",             free: "Community", starter: "Email",     pro: "Priority",      infinity: "Dedicated" },
+  { label: "Support",             free: "Email",     starter: "Support",   pro: "Priority",      infinity: "Dedicated" },
 ];
 
 // ─── FAQ data ─────────────────────────────────────────────────────────────────
@@ -149,6 +153,216 @@ function FaqItem({ q, a }: { q: string; a: string }) {
   );
 }
 
+function SubscriptionsLockedModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  if (!open || typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-foreground/25 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="paid-plans-lock-title"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.97, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.2 }}
+        className="relative w-full max-w-md overflow-hidden rounded-[var(--radius-xl)] bg-background p-6 shadow-xl ring-1 ring-border"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          className="absolute right-3 top-3 rounded-lg p-1 text-muted-foreground hover:bg-surface hover:text-foreground"
+          onClick={onClose}
+          aria-label="Close"
+        >
+          <X className="size-4" strokeWidth={1.75} />
+        </button>
+        <div className="flex size-10 items-center justify-center rounded-xl bg-accent/10 ring-1 ring-accent/20">
+          <Sparkles className="size-5 text-accent" strokeWidth={1.65} />
+        </div>
+        <h2 id="paid-plans-lock-title" className="mt-4 text-[17px] font-semibold tracking-tight text-foreground">
+          Paid plans — opening soon
+        </h2>
+        <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+          Starter, Pro, and Infinity checkout is not live yet. Your free workspace keeps working as usual — we&apos;ll
+          email the address on your account when billing is ready. Need something custom in the meantime? Use{" "}
+          <span className="font-medium text-foreground">Contact us</span> at the bottom of this page.
+        </p>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <Button type="button" variant="accent" size="sm" onClick={onClose}>
+            Got it
+          </Button>
+          <Button type="button" variant="secondary" size="sm" asChild>
+            <a href={`mailto:${SUPPORT_EMAIL}`}>Email support</a>
+          </Button>
+        </div>
+      </motion.div>
+    </div>,
+    document.body,
+  );
+}
+
+function ContactSalesModal({
+  kind,
+  open,
+  onClose,
+  defaultPlan,
+}: {
+  kind: "sales" | "support";
+  open: boolean;
+  onClose: () => void;
+  defaultPlan: string;
+}) {
+  const { profile, user } = useAuthStore();
+  const [name, setName] = React.useState(profile?.full_name ?? "");
+  const [email, setEmail] = React.useState(profile?.email ?? user?.email ?? "");
+  const [company, setCompany] = React.useState("");
+  const [teamSize, setTeamSize] = React.useState("");
+  const [expectedUsage, setExpectedUsage] = React.useState("");
+  const [currentPlan, setCurrentPlan] = React.useState(defaultPlan);
+  const [message, setMessage] = React.useState("");
+  const [submitting, setSubmitting] = React.useState(false);
+  const [copied, setCopied] = React.useState(false);
+
+  async function copySupportEmail() {
+    try {
+      await navigator.clipboard.writeText(SUPPORT_EMAIL);
+      setCopied(true);
+      toast.success("Email copied");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Could not copy");
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/contact-sales", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          kind,
+          name: name.trim(),
+          email: email.trim(),
+          company: company.trim() || null,
+          team_size: teamSize.trim() || null,
+          expected_usage: expectedUsage.trim() || null,
+          current_plan: currentPlan.trim() || null,
+          message: message.trim(),
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string; hint?: string };
+      if (!res.ok) {
+        const detail = data.hint ? `${data.error ?? "Request failed"} — ${data.hint}` : (data.error ?? "Request failed");
+        throw new Error(detail);
+      }
+      toast.success(
+        kind === "sales"
+          ? "Thanks — we'll be in touch shortly."
+          : "Message received. We'll get back to you soon.",
+      );
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (!open || typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-foreground/25 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="contact-modal-title"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.97, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.2 }}
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius-xl)] bg-background shadow-2xl ring-1 ring-border"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-border px-6 py-4">
+          <div>
+            <p id="contact-modal-title" className="text-[15px] font-semibold text-foreground">
+              {kind === "sales" ? "Talk to sales" : "Contact us"}
+            </p>
+            <p className="mt-0.5 text-[12.5px] text-muted-foreground">
+              Tell us what you need — we&apos;ll route this to the right team.
+            </p>
+          </div>
+          <button type="button" onClick={onClose} className="cursor-pointer rounded-lg p-1 text-muted-foreground hover:bg-surface">
+            <X className="size-4" strokeWidth={1.75} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4 p-6">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block sm:col-span-1">
+              <span className="text-[12px] font-medium text-foreground">Name</span>
+              <Input value={name} onChange={(e) => setName(e.target.value)} required className="mt-1.5" />
+            </label>
+            <label className="block sm:col-span-1">
+              <span className="text-[12px] font-medium text-foreground">Email</span>
+              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="mt-1.5" />
+            </label>
+            <label className="block sm:col-span-1">
+              <span className="text-[12px] font-medium text-foreground">Company</span>
+              <Input value={company} onChange={(e) => setCompany(e.target.value)} className="mt-1.5" placeholder="Acme Inc." />
+            </label>
+            <label className="block sm:col-span-1">
+              <span className="text-[12px] font-medium text-foreground">Team size</span>
+              <Input value={teamSize} onChange={(e) => setTeamSize(e.target.value)} className="mt-1.5" placeholder="e.g. 5–20" />
+            </label>
+            <label className="block sm:col-span-2">
+              <span className="text-[12px] font-medium text-foreground">Expected monthly usage</span>
+              <Input
+                value={expectedUsage}
+                onChange={(e) => setExpectedUsage(e.target.value)}
+                className="mt-1.5"
+                placeholder="Rough credit volume, projects, or seats"
+              />
+            </label>
+            <label className="block sm:col-span-2">
+              <span className="text-[12px] font-medium text-foreground">Plan</span>
+              <Input value={currentPlan} onChange={(e) => setCurrentPlan(e.target.value)} className="mt-1.5" placeholder="Current or target plan" />
+            </label>
+            <label className="block sm:col-span-2">
+              <span className="text-[12px] font-medium text-foreground">Message</span>
+              <textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                required
+                rows={4}
+                className="mt-1.5 w-full rounded-[var(--radius-md)] bg-surface px-3 py-2.5 text-[13px] text-foreground ring-1 ring-border outline-none focus:ring-accent/40"
+                placeholder={kind === "sales" ? "Goals, timeline, compliance needs…" : "How can we help?"}
+              />
+            </label>
+          </div>
+          <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <Button type="button" variant="secondary" size="sm" onClick={copySupportEmail} className="w-full sm:w-auto">
+              {copied ? "Copied" : `Copy ${SUPPORT_EMAIL}`}
+            </Button>
+            <Button type="submit" variant="accent" size="sm" disabled={submitting} className="w-full gap-1.5 sm:w-auto">
+              {submitting && <Loader2 className="size-3.5 animate-spin" />}
+              {submitting ? "Sending…" : "Submit"}
+            </Button>
+          </div>
+        </form>
+      </motion.div>
+    </div>,
+    document.body,
+  );
+}
+
 // ─── Plan card ────────────────────────────────────────────────────────────────
 
 interface PlanCardProps {
@@ -166,11 +380,12 @@ interface PlanCardProps {
   cta: string;
   currentPlanId?: string | null;
   children?: React.ReactNode;
+  ctaOnClick?: () => void;
 }
 
 function PlanCard({
   id, name, price, annualPrice, annual, credits, tagline, features, notIncluded = [],
-  highlight, badge, cta, currentPlanId, children,
+  highlight, badge, cta, currentPlanId, children, ctaOnClick,
 }: PlanCardProps) {
   const isCurrent = currentPlanId === id;
   const displayPrice = annual && annualPrice != null ? annualPrice : price;
@@ -237,20 +452,37 @@ function PlanCard({
         {children}
 
         {/* CTA */}
-        <Link
-          href={id === "free" ? "/auth/sign-up" : "/pricing#contact"}
-          className={cn(
+        {(() => {
+          const ctaClass = cn(
             "flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-semibold transition",
             isCurrent
               ? "bg-surface text-muted-foreground ring-1 ring-border cursor-default"
               : highlight
               ? "bg-accent text-white shadow-[0_4px_14px_-4px_hsl(var(--accent)/0.5)] hover:bg-accent/90"
               : "bg-surface text-foreground ring-1 ring-border hover:ring-accent/30",
-          )}
-        >
-          {isCurrent ? "Current plan" : cta}
-          {!isCurrent && <ArrowRight className="size-3.5" strokeWidth={2.5} />}
-        </Link>
+          );
+          if (isCurrent) {
+            return (
+              <div className={cn(ctaClass, "pointer-events-none cursor-default")}>
+                Current plan
+              </div>
+            );
+          }
+          if (ctaOnClick) {
+            return (
+              <button type="button" className={ctaClass} onClick={ctaOnClick}>
+                {cta}
+                <ArrowRight className="size-3.5" strokeWidth={2.5} />
+              </button>
+            );
+          }
+          return (
+            <Link href={id === "free" ? "/auth/sign-up" : "/pricing#contact"} className={ctaClass}>
+              {cta}
+              <ArrowRight className="size-3.5" strokeWidth={2.5} />
+            </Link>
+          );
+        })()}
 
         {/* Features */}
         <div className="space-y-2">
@@ -278,80 +510,174 @@ function InfinityDropdown({
   annual,
   selectedTier,
   onSelect,
+  onContactSales,
 }: {
   annual: boolean;
   selectedTier: InfinityTier;
   onSelect: (t: InfinityTier) => void;
+  onContactSales?: () => void;
 }) {
   const [open, setOpen] = React.useState(false);
+  const btnRef = React.useRef<HTMLButtonElement>(null);
+  const [placement, setPlacement] = React.useState({ top: 0, left: 0, width: 280, maxH: 320 });
+
+  const updatePlacement = React.useCallback(() => {
+    if (!btnRef.current || typeof window === "undefined") return;
+    const r = btnRef.current.getBoundingClientRect();
+    const pad = 16;
+    const maxH = Math.max(168, Math.min(400, window.innerHeight - r.bottom - pad));
+    const width = Math.max(268, r.width);
+    const left = Math.min(r.left, window.innerWidth - width - 8);
+    setPlacement({ top: r.bottom + 6, left, width, maxH });
+  }, []);
+
+  React.useLayoutEffect(() => {
+    if (!open) return;
+    updatePlacement();
+  }, [open, annual, selectedTier.id, updatePlacement]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    updatePlacement();
+    window.addEventListener("resize", updatePlacement);
+    window.addEventListener("scroll", updatePlacement, true);
+    return () => {
+      window.removeEventListener("resize", updatePlacement);
+      window.removeEventListener("scroll", updatePlacement, true);
+    };
+  }, [open, updatePlacement]);
+
+  const portal =
+    open && typeof document !== "undefined"
+      ? createPortal(
+          <>
+            <div className="fixed inset-0 z-[9998]" aria-hidden onClick={() => setOpen(false)} />
+            <motion.div
+              role="listbox"
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+              style={{
+                position: "fixed",
+                top: placement.top,
+                left: placement.left,
+                width: placement.width,
+                maxHeight: placement.maxH,
+                zIndex: 9999,
+              }}
+              className="flex flex-col overflow-hidden rounded-xl bg-background ring-1 ring-border shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-1 [scrollbar-gutter:stable]">
+                {INFINITY_TIERS.map((t) => {
+                  const price = tierPrice(t, annual);
+                  const original = tierOriginalPrice(t);
+                  const totalDiscount = t.discount
+                    ? t.discount + (annual ? ANNUAL_DISCOUNT : 0)
+                    : annual
+                    ? ANNUAL_DISCOUNT
+                    : 0;
+                  const isSelected = t.id === selectedTier.id;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      onClick={() => {
+                        onSelect(t);
+                        setOpen(false);
+                      }}
+                      className={cn(
+                        "grid w-full grid-cols-1 items-center gap-x-3 gap-y-1.5 px-3 py-2 text-left transition hover:bg-surface sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:gap-y-0 sm:py-2.5",
+                        isSelected && "bg-accent/8",
+                      )}
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                          <span
+                            className={cn(
+                              "text-[12.5px] font-semibold tracking-tight",
+                              isSelected ? "text-accent" : "text-foreground",
+                            )}
+                          >
+                            {t.label}
+                          </span>
+                          <span className="text-[11px] text-muted-foreground sm:text-[11.5px]">
+                            {t.credits.toLocaleString()} credits/mo
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex justify-end sm:justify-center">
+                        {totalDiscount > 0 ? (
+                          <span className="inline-flex rounded-full bg-positive/12 px-1.5 py-px text-[8.5px] font-bold uppercase tracking-wide text-positive">
+                            −{Math.min(99, Math.round(totalDiscount * 100))}%
+                          </span>
+                        ) : (
+                          <span className="hidden h-4 w-8 sm:block" aria-hidden />
+                        )}
+                      </div>
+                      <div className="flex items-center justify-end gap-1.5 tabular-nums">
+                        {price !== original && (
+                          <span className="hidden text-[10.5px] text-muted-foreground/45 line-through sm:inline">${original}</span>
+                        )}
+                        <span className="text-[12px] font-semibold text-foreground sm:text-[12.5px]">
+                          ${price}
+                          <span className="pl-0.5 text-[10px] font-medium text-muted-foreground">/mo</span>
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="shrink-0 border-t border-border bg-background px-3 py-3">
+                <p className="text-center text-[11px] leading-snug text-muted-foreground">
+                  Need larger scale?{" "}
+                  <button
+                    type="button"
+                    className="font-semibold text-accent underline-offset-2 hover:underline"
+                    onClick={() => {
+                      setOpen(false);
+                      onContactSales?.();
+                    }}
+                  >
+                    Billing roadmap
+                  </button>
+                </p>
+              </div>
+            </motion.div>
+          </>,
+          document.body,
+        )
+      : null;
 
   return (
     <div className="relative">
       <button
+        ref={btnRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between gap-2 rounded-xl bg-surface px-3 py-2.5 text-left text-[12.5px] ring-1 ring-border transition hover:ring-accent/30"
       >
-        <span className="font-medium text-foreground">{selectedTier.label}</span>
-        <div className="flex items-center gap-2 shrink-0">
+        <span className="min-w-0 truncate font-medium text-foreground">{selectedTier.label}</span>
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {selectedTier.discount && (
-            <span className="rounded-full bg-positive/12 px-1.5 py-0.5 text-[9px] font-bold text-positive">
+            <span className="rounded-full bg-positive/12 px-1.5 py-0.5 text-[8.5px] font-bold text-positive">
               {Math.round((selectedTier.discount + (annual ? ANNUAL_DISCOUNT : 0)) * 100)}% off
             </span>
           )}
           {!selectedTier.discount && annual && (
-            <span className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[9px] font-bold text-accent">20% off</span>
+            <span className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[8.5px] font-bold text-accent">20%</span>
           )}
-          <span className="font-semibold text-foreground">${tierPrice(selectedTier, annual)}<span className="font-normal text-muted-foreground">/mo</span></span>
-          <ChevronDown className={cn("size-3.5 text-muted-foreground transition-transform", open && "rotate-180")} strokeWidth={2} />
+          <span className="whitespace-nowrap font-semibold text-foreground">
+            ${tierPrice(selectedTier, annual)}
+            <span className="font-normal text-muted-foreground">/mo</span>
+          </span>
+          <ChevronDown className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} strokeWidth={2} />
         </div>
       </button>
-
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.15 }}
-            className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-xl bg-background ring-1 ring-border shadow-[0_8px_32px_-8px_rgba(0,0,0,0.4)]"
-          >
-            {INFINITY_TIERS.map((t) => {
-              const price = tierPrice(t, annual);
-              const original = tierOriginalPrice(t);
-              const totalDiscount = t.discount ? t.discount + (annual ? ANNUAL_DISCOUNT : 0) : (annual ? ANNUAL_DISCOUNT : 0);
-              const isSelected = t.id === selectedTier.id;
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => { onSelect(t); setOpen(false); }}
-                  className={cn(
-                    "flex w-full items-center gap-3 px-3 py-2.5 text-left text-[12px] transition hover:bg-surface",
-                    isSelected && "bg-accent/8",
-                  )}
-                >
-                  <div className="flex-1 min-w-0">
-                    <span className={cn("font-medium", isSelected ? "text-accent" : "text-foreground")}>{t.label}</span>
-                    <span className="ml-2 text-muted-foreground">{t.credits.toLocaleString()} credits/mo</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {totalDiscount > 0 && (
-                      <span className="rounded-full bg-positive/12 px-1.5 py-0.5 text-[9px] font-bold text-positive">
-                        {Math.round(totalDiscount * 100)}% off
-                      </span>
-                    )}
-                    {price !== original && (
-                      <span className="text-muted-foreground/40 line-through text-[11px]">${original}</span>
-                    )}
-                    <span className="font-semibold text-foreground">${price}<span className="font-normal text-muted-foreground text-[10px]">/mo</span></span>
-                  </div>
-                </button>
-              );
-            })}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {portal}
     </div>
   );
 }
@@ -362,8 +688,23 @@ export function PricingView() {
   const { profile } = useAuthStore();
   const [annual, setAnnual] = React.useState(false);
   const [infTier, setInfTier] = React.useState<InfinityTier>(INFINITY_TIERS[0]);
+  const [contactOpen, setContactOpen] = React.useState(false);
+  const [paidLockedOpen, setPaidLockedOpen] = React.useState(false);
+  const [contactKind, setContactKind] = React.useState<"sales" | "support">("support");
+  const [contactModalKey, setContactModalKey] = React.useState(0);
 
   const planId = profile?.plan_id ?? null;
+  const prettyPlan = planId ? planId.charAt(0).toUpperCase() + planId.slice(1) : "Free";
+
+  function openContact(kind: "sales" | "support") {
+    setContactKind(kind);
+    setContactModalKey((k) => k + 1);
+    setContactOpen(true);
+  }
+
+  function openPaidLocked() {
+    setPaidLockedOpen(true);
+  }
 
   const starterMonthly = 20;
   const proMonthly = 50;
@@ -371,6 +712,7 @@ export function PricingView() {
   const proAnnual = Math.round(proMonthly * (1 - ANNUAL_DISCOUNT));
 
   return (
+    <>
     <div className="mx-auto max-w-6xl px-4 py-12 space-y-20">
 
       {/* Hero */}
@@ -466,6 +808,7 @@ export function PricingView() {
           ]}
           cta="Get Starter"
           currentPlanId={planId}
+          ctaOnClick={openPaidLocked}
         />
 
         <PlanCard
@@ -490,6 +833,7 @@ export function PricingView() {
           ]}
           cta="Get Pro"
           currentPlanId={planId}
+          ctaOnClick={openPaidLocked}
         />
 
         <PlanCard
@@ -510,17 +854,24 @@ export function PricingView() {
           ]}
           cta="Get Infinity"
           currentPlanId={planId}
+          ctaOnClick={openPaidLocked}
         >
-          <InfinityDropdown annual={annual} selectedTier={infTier} onSelect={setInfTier} />
+          <InfinityDropdown
+            annual={annual}
+            selectedTier={infTier}
+            onSelect={setInfTier}
+            onContactSales={openPaidLocked}
+          />
         </PlanCard>
       </motion.div>
 
       {/* Custom plan banner */}
       <motion.div
+        id="contact"
         variants={variants.fadeUp}
         initial="hidden"
         animate="show"
-        className="rounded-[var(--radius-xl)] bg-gradient-to-r from-accent/8 via-background to-violet-500/8 ring-1 ring-border px-8 py-8"
+        className="scroll-mt-24 rounded-[var(--radius-xl)] bg-gradient-to-r from-accent/8 via-background to-violet-500/8 ring-1 ring-border px-8 py-8"
       >
         <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-4">
@@ -530,24 +881,26 @@ export function PricingView() {
             <div>
               <p className="text-[16px] font-semibold text-foreground">Need a custom plan?</p>
               <p className="mt-1 text-[13.5px] text-muted-foreground max-w-lg">
-                Tell us your scale, team size, model usage, and infrastructure needs. We'll build a plan that fits.
+                Tell us your scale, team size, model usage, and infrastructure needs. We&apos;ll build a plan that fits.
               </p>
             </div>
           </div>
-          <div className="flex gap-2.5 sm:shrink-0">
-            <a
-              href="mailto:support@dreamos86.com"
-              className="flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-[13px] font-semibold text-white transition hover:bg-accent/90"
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:shrink-0">
+            <button
+              type="button"
+              onClick={() => openContact("support")}
+              className="flex items-center justify-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-[13px] font-semibold text-white transition hover:bg-accent/90"
             >
               <MessageCircle className="size-4" strokeWidth={1.75} />
               Contact us
-            </a>
-            <a
-              href="mailto:sales@dreamos86.com"
-              className="flex items-center gap-2 rounded-xl bg-surface px-5 py-2.5 text-[13px] font-semibold text-foreground ring-1 ring-border transition hover:ring-accent/30"
+            </button>
+            <button
+              type="button"
+              onClick={() => openContact("sales")}
+              className="flex items-center justify-center gap-2 rounded-xl bg-surface px-5 py-2.5 text-[13px] font-semibold text-foreground ring-1 ring-border transition hover:ring-accent/30"
             >
               Talk to sales
-            </a>
+            </button>
           </div>
         </div>
       </motion.div>
@@ -593,5 +946,15 @@ export function PricingView() {
       </motion.div>
 
     </div>
+
+    <SubscriptionsLockedModal open={paidLockedOpen} onClose={() => setPaidLockedOpen(false)} />
+    <ContactSalesModal
+      key={contactModalKey}
+      kind={contactKind}
+      open={contactOpen}
+      onClose={() => setContactOpen(false)}
+      defaultPlan={contactKind === "sales" ? `${prettyPlan} plan · ${infTier.label}` : `${prettyPlan} plan`}
+    />
+    </>
   );
 }

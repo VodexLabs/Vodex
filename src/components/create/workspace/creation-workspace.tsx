@@ -20,16 +20,15 @@ import {
   X,
   ArrowRight,
   CheckCircle2,
+  Code2,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useCreditsStore } from "@/lib/stores/credits-store";
 import { createClient } from "@/lib/supabase/client";
-import { useHydrated } from "@/lib/hooks/use-hydrated";
 
 import {
-  CREATION_MODELS,
   DEFAULT_MODEL_ID,
   MODE_META,
   type CreationMode,
@@ -46,10 +45,13 @@ import {
   type Attachment,
 } from "@/components/create/workspace/attachment-rail";
 import { PreviewPanel } from "@/components/create/workspace/preview-panel";
-import { WorkspaceLauncher } from "@/components/create/workspace/workspace-launcher";
+import { WorkspaceLauncher, type WorkspaceRightTab } from "@/components/create/workspace/workspace-launcher";
 import { AgentPhases } from "@/components/create/workspace/agent-phases";
 import { BuildTimeline } from "@/components/create/workspace/build-timeline";
-import { OrchestrationNarrator } from "@/components/create/workspace/orchestration-narrator";
+import { BuildStatusNarrator } from "@/components/create/workspace/build-status-narrator";
+import { AppDashboardPanel } from "@/components/create/workspace/app-dashboard-panel";
+import { extractFencedCode } from "@/lib/creation/extract-fenced-code";
+import { toast } from "@/lib/toast";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -65,6 +67,21 @@ function newAttachmentId() {
   return `att_${Math.random().toString(36).slice(2, 10)}_${Date.now()}`;
 }
 
+/** Minimal project row for `AppDashboardPanel` when only URL context is hydrated. */
+function projectForDashboard(project: { id: string; name: string; previewUrl: string | null }) {
+  return {
+    id: project.id,
+    name: project.name,
+    status: "draft" as const,
+    preview_url: project.previewUrl,
+    custom_domain: null as string | null,
+    framework: "—",
+    gradient: "from-accent to-violet-600",
+    metadata: {},
+    is_public: false,
+  };
+}
+
 // ─── Message bubble ──────────────────────────────────────────────────────────
 
 function MessageBubble({
@@ -72,11 +89,13 @@ function MessageBubble({
   userAvatar,
   userName,
   streaming,
+  mode,
 }: {
   message: UIMessage;
   userAvatar?: string | null;
   userName: string;
   streaming?: boolean;
+  mode: CreationMode;
 }) {
   const isUser = message.role === "user";
   const text = messageText(message);
@@ -121,11 +140,11 @@ function MessageBubble({
             <div className="rounded-2xl bg-surface px-4 py-2.5 text-[13.5px] leading-relaxed text-muted-foreground ring-1 ring-border">
               <span className="inline-flex items-center gap-1.5">
                 <span className="size-1.5 animate-pulse rounded-full bg-accent" />
-                Orchestrating…
+                Building your app…
               </span>
             </div>
           ) : (
-            <AgentPhases text={text} streaming={streaming} />
+            <AgentPhases text={text} streaming={streaming} suppressCode={mode === "build"} />
           )}
         </div>
       )}
@@ -353,8 +372,8 @@ export function CreationWorkspace({
   const [showPreview, setShowPreview] = React.useState(true);
   const [creditError, setCreditError] = React.useState(false);
   const [conversationId, setConversationId] = React.useState<string | null>(null);
-  // Panel mode: "preview" or "dashboard" — only active after first generation
-  const [panelMode, setPanelMode] = React.useState<"preview" | "dashboard">("preview");
+  // Panel mode: "preview" or "project" (stats for this build — app-wide hub is /dashboard)
+  const [panelMode, setPanelMode] = React.useState<"preview" | "dashboard" | "code">("preview");
 
   const fileRef = React.useRef<HTMLInputElement>(null);
   const scrollRef = React.useRef<HTMLDivElement>(null);
@@ -412,6 +431,26 @@ export function CreationWorkspace({
   } = useChat({ transport });
 
   const isBusy = status === "submitted" || status === "streaming";
+
+  const lastAssistantText = React.useMemo(() => {
+    const last = [...messages].reverse().find((m) => m.role === "assistant");
+    return last ? messageText(last) : "";
+  }, [messages]);
+
+  const codePaneText = React.useMemo(() => extractFencedCode(lastAssistantText), [lastAssistantText]);
+
+  const launcherProject = project
+    ? {
+        id: project.id,
+        name: project.name,
+        icon_url: null as string | null,
+        gradient: "from-accent to-violet-600",
+        preview_url: project.previewUrl,
+        metadata: null as unknown,
+      }
+    : null;
+
+  const generationActive = isBusy || messages.length > 0;
 
   // Auto-scroll to bottom on new tokens
   React.useEffect(() => {
@@ -528,13 +567,6 @@ export function CreationWorkspace({
   const showEmpty = messages.length === 0 && !isBusy;
   const modeStyle = MODE_STYLE[mode];
 
-  // For build timeline: get the last assistant message text
-  const lastAssistantText = React.useMemo(() => {
-    const last = [...messages].reverse().find((m) => m.role === "assistant");
-    if (!last) return "";
-    return last.parts?.filter((p): p is { type: "text"; text: string } => p.type === "text").map((p) => p.text).join("") ?? "";
-  }, [messages]);
-
   // Show build timeline when build mode is active and we have content
   const showBuildTimeline = mode === "build" && (isBusy || lastAssistantText.length > 0);
 
@@ -547,8 +579,24 @@ export function CreationWorkspace({
     >
       {/* Workspace header — WorkspaceName / AppName breadcrumb */}
       <WorkspaceLauncher
-        projectName={project?.name}
+        project={launcherProject}
+        generationActive={generationActive}
         isBusy={isBusy}
+        planId={profile?.plan_id}
+        onRightTab={(t: WorkspaceRightTab) => {
+          if (!showPreview) setShowPreview(true);
+          if (t === "preview") setPanelMode("preview");
+          if (t === "dashboard") setPanelMode("dashboard");
+          if (t === "code") setPanelMode("code");
+        }}
+        onAppSection={(section) => {
+          if (section === "overview") {
+            if (!showPreview) setShowPreview(true);
+            setPanelMode("dashboard");
+            return;
+          }
+          toast.info("Open your app in the main create workspace for full management features.");
+        }}
       />
 
       {/* Horizontal split: timeline + chat + preview */}
@@ -626,6 +674,7 @@ export function CreationWorkspace({
                       message={m}
                       userAvatar={userAvatar}
                       userName={userName}
+                      mode={mode}
                       streaming={isBusy && isLast && m.role === "assistant"}
                     />
                   );
@@ -640,19 +689,14 @@ export function CreationWorkspace({
                     parts: [{ type: "text", text: "" }],
                   } satisfies UIMessage}
                   userName={userName}
+                  mode={mode}
                   streaming
                 />
               )}
             </div>
 
-            {/* Live orchestration narration */}
-            {isBusy && (
-              <OrchestrationNarrator
-                streamingText={messages.length ? messageText(messages[messages.length - 1]) : ""}
-                isStreaming={isBusy}
-                className="mt-1"
-              />
-            )}
+            {/* Live build status */}
+            {isBusy && <BuildStatusNarrator isStreaming={isBusy} className="mt-1" />}
 
             {/* Out-of-credits upgrade card */}
             {creditError && (
@@ -783,7 +827,7 @@ export function CreationWorkspace({
         </div>
       </div>
 
-      {/* RIGHT: preview + dashboard panel */}
+      {/* RIGHT: preview + project panel */}
       <AnimatePresence initial={false}>
         {showPreview && (
           <motion.aside
@@ -794,7 +838,7 @@ export function CreationWorkspace({
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
             className="hidden shrink-0 flex-col overflow-hidden border-l border-border bg-atmosphere lg:flex"
           >
-            {/* Panel mode bar — only shown after generation */}
+            {/* Preview | Dashboard | Code */}
             {messages.length > 0 && (
               <div className="flex shrink-0 items-center gap-1 border-b border-border/60 bg-background/70 px-3 py-1.5 backdrop-blur-sm">
                 <button
@@ -820,6 +864,18 @@ export function CreationWorkspace({
                   )}
                 >
                   Dashboard
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPanelMode("code")}
+                  className={cn(
+                    "rounded-lg px-3 py-1 text-[12px] font-medium transition",
+                    panelMode === "code"
+                      ? "bg-surface text-foreground ring-1 ring-border"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  Code
                 </button>
               </div>
             )}
@@ -849,16 +905,39 @@ export function CreationWorkspace({
                       }}
                     />
                   </motion.div>
-                ) : (
+                ) : panelMode === "dashboard" ? (
                   <motion.div
                     key="dashboard-pane"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.15 }}
-                    className="h-full overflow-y-auto p-4"
+                    className="h-full overflow-y-auto"
                   >
-                    <InlineDashboard project={project} isBusy={isBusy} />
+                    <AppDashboardPanel project={project ? projectForDashboard(project) : null} isBusy={isBusy} />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="code-pane"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="flex h-full flex-col"
+                  >
+                    {codePaneText.trim() ? (
+                      <pre className="h-full overflow-auto p-4 text-[11px] leading-relaxed text-foreground [scrollbar-gutter:stable]">
+                        {codePaneText}
+                      </pre>
+                    ) : (
+                      <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
+                        <Code2 className="size-8 text-muted-foreground/40" strokeWidth={1.25} />
+                        <p className="text-[13px] font-medium text-foreground">No code blocks yet</p>
+                        <p className="max-w-sm text-[12px] leading-relaxed text-muted-foreground">
+                          Fenced source from the assistant stream appears here. Plain explanations stay in the chat.
+                        </p>
+                      </div>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -951,117 +1030,5 @@ function EmptyHero({
         ))}
       </div>
     </motion.div>
-  );
-}
-
-// ─── Inline dashboard (right panel dashboard mode) ───────────────────────────
-
-function InlineDashboard({
-  project,
-  isBusy,
-}: {
-  project: { id: string; name: string; previewUrl: string | null } | null;
-  isBusy: boolean;
-}) {
-  const appName = project?.name ?? "Untitled App";
-
-  const stats = [
-    { label: "Status", value: isBusy ? "Building…" : "Live", color: isBusy ? "text-amber-500" : "text-emerald-500" },
-    { label: "Deploy", value: "Vercel Edge", color: "text-muted-foreground" },
-    { label: "Region", value: "iad1", color: "text-muted-foreground" },
-    { label: "Runtime", value: "Next.js 15", color: "text-muted-foreground" },
-  ];
-
-  const sections = [
-    {
-      title: "Overview",
-      items: [
-        { label: "App name", value: appName },
-        { label: "Framework", value: "Next.js (App Router)" },
-        { label: "Visibility", value: "Private" },
-        { label: "Last deploy", value: "Just now" },
-      ],
-    },
-    {
-      title: "Environment",
-      items: [
-        { label: "NODE_ENV", value: "production" },
-        { label: "NEXT_PUBLIC_APP_URL", value: "https://dreamos86.com" },
-      ],
-    },
-  ];
-
-  return (
-    <div className="space-y-4">
-      {/* App identity row */}
-      <div className="flex items-center gap-3 rounded-xl bg-surface px-4 py-3 ring-1 ring-border">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-accent/30 to-violet-500/30 text-[15px] font-bold text-foreground">
-          {appName[0]?.toUpperCase() ?? "A"}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[13px] font-semibold text-foreground">{appName}</p>
-          <p className="text-[11px] text-muted-foreground">App workspace</p>
-        </div>
-        {isBusy && <Loader2 className="size-4 shrink-0 animate-spin text-accent" strokeWidth={1.75} />}
-      </div>
-
-      {/* Quick stats */}
-      <div className="grid grid-cols-2 gap-2">
-        {stats.map((s) => (
-          <div key={s.label} className="rounded-xl bg-surface px-3 py-2.5 ring-1 ring-border">
-            <p className="text-[10.5px] text-muted-foreground">{s.label}</p>
-            <p className={cn("mt-0.5 text-[12.5px] font-semibold", s.color)}>{s.value}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Details sections */}
-      {sections.map((sec) => (
-        <div key={sec.title} className="rounded-xl bg-surface ring-1 ring-border">
-          <div className="border-b border-border px-4 py-2.5">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{sec.title}</p>
-          </div>
-          <div className="divide-y divide-border">
-            {sec.items.map((item) => (
-              <div key={item.label} className="flex items-center justify-between gap-3 px-4 py-2.5">
-                <p className="text-[12px] text-muted-foreground">{item.label}</p>
-                <p className="truncate text-[12px] font-medium text-foreground">{item.value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-
-      {/* Domains */}
-      <div className="rounded-xl bg-surface ring-1 ring-border">
-        <div className="border-b border-border px-4 py-2.5">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Domains</p>
-        </div>
-        <div className="px-4 py-3">
-          {project?.previewUrl ? (
-            <a
-              href={project.previewUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 text-[12.5px] text-accent hover:underline underline-offset-2"
-            >
-              {project.previewUrl}
-            </a>
-          ) : (
-            <p className="text-[12px] text-muted-foreground">No domain assigned yet.</p>
-          )}
-        </div>
-      </div>
-
-      {/* App usage */}
-      <div className="rounded-xl bg-surface ring-1 ring-border">
-        <div className="border-b border-border px-4 py-2.5">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Usage this session</p>
-        </div>
-        <div className="px-4 py-3 text-[12px] text-muted-foreground">
-          Orchestration calls and model usage will appear here after generation completes.
-        </div>
-      </div>
-    </div>
   );
 }

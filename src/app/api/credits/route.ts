@@ -1,25 +1,31 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { loadProfileBillingRow } from "@/lib/supabase/load-profile-billing";
+import { FREE_MONTHLY_QUOTA, getMonthlyTokenQuotaForPlan } from "@/lib/stores/credits-store";
 
 export async function GET() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("credits_remaining, credits_reset_at, plan_id")
-    .eq("id", user.id)
-    .single();
-
-  if (error || !profile) {
-    return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+  const { row: profile, hint } = await loadProfileBillingRow(supabase, user);
+  if (!profile) {
+    return NextResponse.json(
+      {
+        error: "Profile not available",
+        hint:
+          hint ??
+          "Apply Supabase migrations for public.profiles and ensure SUPABASE_SERVICE_ROLE_KEY is set.",
+      },
+      { status: 503 },
+    );
   }
 
-  // Get usage this period from credit ledger
   const { data: usage } = await supabase
     .from("credit_events")
     .select("credits_consumed")
@@ -29,8 +35,16 @@ export async function GET() {
 
   const total_used = usage?.reduce((sum, e) => sum + e.credits_consumed, 0) ?? 0;
 
+  const planId = profile.plan_id ?? "free";
+  const quota = getMonthlyTokenQuotaForPlan(planId);
+  let remaining = profile.credits_remaining;
+  if (planId === "free") {
+    remaining = Math.min(remaining, FREE_MONTHLY_QUOTA);
+  }
+
   return NextResponse.json({
-    remaining: profile.credits_remaining,
+    remaining,
+    quota,
     reset_at: profile.credits_reset_at,
     plan_id: profile.plan_id,
     total_used,

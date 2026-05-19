@@ -22,12 +22,21 @@ interface CreditsState {
   setUsed: (used: number) => void;
   deductOptimistic: (amount: number) => void;
   setLoading: (loading: boolean) => void;
-  syncFromDB: (userId: string) => Promise<void>;
+  syncFromDB: (userId: string, options?: { force?: boolean }) => Promise<void>;
   reset: () => void;
 }
 
 /** Monthly quota for the free plan — used as default before first DB sync. */
 export const FREE_MONTHLY_QUOTA = 100;
+
+/** Monthly token allowance shown in UI for each plan tier. */
+export function getMonthlyTokenQuotaForPlan(planId: string | undefined): number {
+  const p = planId ?? "free";
+  if (p === "free") return FREE_MONTHLY_QUOTA;
+  if (p === "pro") return 25_000;
+  if (p === "business") return 100_000;
+  return 10_000;
+}
 
 export const useCreditsStore = create<CreditsState>()((set, get) => ({
   // Default to free plan quota so the UI never shows "0 / 0" before first sync.
@@ -51,10 +60,9 @@ export const useCreditsStore = create<CreditsState>()((set, get) => ({
 
   setLoading: (loading) => set({ loading }),
 
-  syncFromDB: async (_userId: string) => {
-    // Avoid hammering the DB — skip if synced within last 30s
+  syncFromDB: async (_userId: string, options?: { force?: boolean }) => {
     const { lastSyncedAt, loading } = get();
-    if (loading || (lastSyncedAt && Date.now() - lastSyncedAt < 30_000)) return;
+    if (!options?.force && (loading || (lastSyncedAt && Date.now() - lastSyncedAt < 30_000))) return;
 
     set({ loading: true });
     try {

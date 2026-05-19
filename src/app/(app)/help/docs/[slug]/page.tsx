@@ -17,7 +17,7 @@ export async function generateMetadata({ params }: Props) {
   const doc = getDoc(slug);
   if (!doc) return {};
   return {
-    title: `${doc.title} · DreamOS86 Help`,
+    title: `${doc.title} Help`,
     description: doc.description,
   };
 }

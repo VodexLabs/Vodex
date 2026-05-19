@@ -6,8 +6,8 @@ import { ImmersiveWorkspace } from "@/components/create/workspace/immersive-work
 import { Loader2 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Create — DreamOS86",
-  description: "AI orchestration workspace.",
+  title: "Create",
+  description: "DreamOS86 create workspace — build with AI.",
 };
 
 const VALID_MODES = ["discuss", "edit", "build"] as const;
@@ -37,7 +37,7 @@ export default async function WorkspaceCreatePage({
   if (projectId) {
     const { data } = await supabase
       .from("projects")
-      .select("id, name, preview_url")
+      .select("id, name, preview_url, icon_url, gradient, status, framework, custom_domain, is_public, metadata, published_subdomain")
       .eq("id", projectId)
       .eq("owner_id", user.id)
       .single();

@@ -8,7 +8,6 @@ import {
   Search,
   Sparkles,
   LayoutGrid,
-  LayoutTemplate,
   Compass,
   Rocket,
   Store,
@@ -33,6 +32,7 @@ import {
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { runFullSignOut } from "@/lib/auth/sign-out-client";
+import { DreamTemplatesNavIcon } from "@/components/ui/dream-templates-nav-icon";
 
 // ─── Command item types ───────────────────────────────────────────────────────
 
@@ -160,7 +160,7 @@ export function CommandCenter() {
       label: "Navigate",
       items: [
         { id: "apps", label: "My Apps", description: "All your projects", icon: LayoutGrid, action: () => navigate("/projects"), keywords: ["projects", "apps"] },
-        { id: "templates", label: "Templates", description: "Start from a foundation", icon: LayoutTemplate, action: () => navigate("/templates"), keywords: ["template", "starter"] },
+        { id: "templates", label: "Templates", description: "Start from a foundation", icon: DreamTemplatesNavIcon, action: () => navigate("/templates"), keywords: ["template", "starter"] },
         { id: "explore", label: "Explore", description: "Discover community builds", icon: Compass, action: () => navigate("/explore"), keywords: ["discover", "explore", "browse"] },
         { id: "chat", label: "AI Chat", description: "Talk to any model", icon: MessageSquare, action: () => navigate("/chat"), keywords: ["chat", "message", "model"] },
         { id: "deploy", label: "Deploy", description: "Deployment center", icon: Rocket, action: () => navigate("/deploy"), keywords: ["deploy", "ship", "release"] },
@@ -318,7 +318,10 @@ export function CommandCenter() {
                               "flex size-7 shrink-0 items-center justify-center rounded-lg transition",
                               selected ? "bg-accent/15 text-accent" : "bg-surface text-muted-foreground",
                             )}>
-                              <Icon className="size-3.5" strokeWidth={1.75} />
+                              <Icon
+                                className="size-3.5"
+                                {...(item.id === "templates" ? {} : { strokeWidth: 1.75 })}
+                              />
                             </div>
                             <div className="min-w-0 flex-1">
                               <p className={cn(

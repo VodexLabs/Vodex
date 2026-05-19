@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="DreamOS86">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2563eb"/>
+      <stop offset="55%" style="stop-color:#6366f1"/>
+      <stop offset="100%" style="stop-color:#38bdf8"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#g)"/>
+  <path fill="#ffffff" opacity="0.95" d="M32 14L46 24v16L32 50 18 40V24L32 14zm0 4.8L22.5 26.2v11.6L32 45.2l9.5-7.4V26.2L32 18.8z"/>
+  <path fill="#ffffff" opacity="0.5" d="M32 22l6.5 4.5v11L32 42l-6.5-4.5v-11L32 22z"/>
+</svg>

@@ -21,6 +21,11 @@ export function LoginView() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  function safeInternalPath(raw: string | null): string {
+    if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/";
+    return raw;
+  }
+
   const [showPassword, setShowPassword] = React.useState(false);
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -72,7 +77,8 @@ export function LoginView() {
         setLoading(false);
         return;
       }
-      router.push("/");
+      const nextDest = safeInternalPath(searchParams.get("next"));
+      router.push(nextDest);
       router.refresh();
     };
 

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { GenerationWorkspace } from "@/components/generate/generation-workspace";
 
 export const metadata: Metadata = {
-  title: "Generating — DreamOS86",
+  title: "Generating",
 };
 
 export default function GeneratePage() {

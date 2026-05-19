@@ -21,7 +21,7 @@ export function LogoIcon({
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src="/logo.png"
+      src="/dreamos86-platform-logo.png"
       alt="DreamOS86"
       width={size}
       height={size}

@@ -494,8 +494,7 @@ function ConnectedAccountsSection() {
 // ─── Profile section ──────────────────────────────────────────────────────────
 
 function ProfileSection() {
-  const supabase = createClient();
-  const { profile, user, setProfile } = useAuthStore();
+  const { profile, user, setProfile, setUser, setSession } = useAuthStore();
   const router = useRouter();
   const authEmail = user?.email ?? user?.user_metadata?.email ?? "";
   const displayName = resolveDisplayName(profile, user);
@@ -514,31 +513,55 @@ function ProfileSection() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!profile?.id) return;
+    if (!user?.id) {
+      toast.error("Sign in to save your profile.");
+      return;
+    }
     setSaving(true);
     setSaveError(null);
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .update({ full_name: name.trim() })
-      .eq("id", profile.id)
-      .select()
-      .single();
-
-    if (error) {
-      setSaveError(error.message);
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ full_name: name.trim() }),
+      });
+      const payload = (await res.json()) as { error?: string; profile?: typeof profile };
+      if (!res.ok) {
+        throw new Error(payload.error ?? "Failed to save");
+      }
+      if (payload.profile) {
+        setProfile(payload.profile);
+        const supabase = createClient();
+        const trimmed = name.trim();
+        await supabase.auth.updateUser({
+          data: { full_name: trimmed, name: trimmed },
+        });
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          setSession(session);
+          setUser(session.user);
+        }
+        toast.success("Saved successfully");
+        router.refresh();
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setSaveError(msg);
       toast.error("Failed to save profile");
-    } else if (data) {
-      setProfile(data as typeof profile);
-      toast.success("Saved successfully");
-      router.refresh();
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file || !profile?.id) return;
+    if (!file) return;
+    if (!user?.id) {
+      toast.error("Sign in to update your avatar.");
+      return;
+    }
 
     const validTypes = ["image/png", "image/jpeg", "image/webp"];
     if (!validTypes.includes(file.type)) {
@@ -552,34 +575,32 @@ function ProfileSection() {
 
     setUploading(true);
     try {
-      const ext = file.type === "image/webp" ? "webp" : file.type === "image/jpeg" ? "jpg" : "png";
-      const filePath = `${profile.id}/avatar.${ext}`;
-
-      // Use the API route for avatar upload — handles bucket creation + RLS gracefully
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("path", filePath);
 
-      const res = await fetch("/api/upload/avatar", { method: "POST", body: formData });
+      const res = await fetch("/api/upload/avatar", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Upload failed" }));
-        throw new Error(err.error ?? "Upload failed");
+        const err = await res.json().catch(() => ({ error: "Upload failed" })) as { error?: string; hint?: string };
+        const detail = err.hint ? `${err.error ?? "Upload failed"} — ${err.hint}` : (err.error ?? "Upload failed");
+        throw new Error(detail);
       }
-      const { publicUrl } = await res.json();
+      const { publicUrl, profile: updated } = (await res.json()) as {
+        publicUrl: string;
+        profile?: typeof profile;
+      };
 
-      const { data, error: updateErr } = await supabase
-        .from("profiles")
-        .update({ avatar_url: `${publicUrl}?t=${Date.now()}` })
-        .eq("id", profile.id)
-        .select()
-        .single();
-
-      if (updateErr) throw updateErr;
-      if (data) {
-        setProfile(data as typeof profile);
-        toast.success("Saved successfully");
+      if (updated) {
+        setProfile(updated);
+        toast.success("Avatar updated");
         router.refresh();
+        return;
       }
+
+      throw new Error("Upload succeeded but profile was not returned");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       toast.error(`Failed to upload avatar: ${msg}`);
@@ -668,7 +689,7 @@ function ProfileSection() {
           )}
 
           <div className="flex items-center justify-end gap-2">
-            <Button variant="accent" size="sm" type="submit" disabled={saving || !nameDirty} className="gap-1.5">
+            <Button variant="accent" size="sm" type="submit" disabled={saving || !nameDirty || !user?.id} className="gap-1.5">
               {saving && <Loader2 className="size-3.5 animate-spin" />}
               Save profile
             </Button>
@@ -688,12 +709,23 @@ function ProfileSection() {
 
 function PasswordSection() {
   const supabase = createClient();
+  const user = useAuthStore((s) => s.user);
+  /** OAuth-only accounts have no email/password identity until the user sets a password. */
+  const needsCurrentPassword =
+    (user?.identities ?? []).some((i) => i.provider === "email");
+
   const [current, setCurrent] = React.useState("");
   const [next, setNext] = React.useState("");
   const [confirm, setConfirm] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  const submitDisabled =
+    saving ||
+    !next ||
+    !confirm ||
+    (needsCurrentPassword && !current);
 
   async function handleUpdate(e: React.FormEvent) {
     e.preventDefault();
@@ -702,38 +734,73 @@ function PasswordSection() {
     setSaving(true);
     setError(null);
 
-    const { error: err } = await supabase.auth.updateUser({ password: next });
-    if (err) {
-      setError(err.message);
-      toast.error("Failed to update password");
-    } else {
-      setCurrent(""); setNext(""); setConfirm("");
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
-      toast.success("Password updated");
+    try {
+      if (needsCurrentPassword) {
+        const email = user?.email?.trim();
+        if (!email) {
+          setError("Your account has no email; use your provider to sign in.");
+          setSaving(false);
+          return;
+        }
+        const { error: reauthErr } = await supabase.auth.signInWithPassword({
+          email,
+          password: current,
+        });
+        if (reauthErr) {
+          const msg =
+            reauthErr.message?.toLowerCase().includes("invalid login credentials")
+              ? "Current password is incorrect."
+              : reauthErr.message;
+          setError(msg);
+          toast.error("Failed to update password");
+          setSaving(false);
+          return;
+        }
+      }
+
+      const { error: err } = await supabase.auth.updateUser({ password: next });
+      if (err) {
+        setError(err.message);
+        toast.error("Failed to update password");
+      } else {
+        setCurrent(""); setNext(""); setConfirm("");
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2500);
+        toast.success(
+          needsCurrentPassword ? "Password updated" : "Password set — you can sign in with email next time",
+        );
+        void supabase.auth.refreshSession().catch(() => {});
+      }
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Password</CardTitle>
-        <CardDescription>Change your account password.</CardDescription>
+        <CardDescription>
+          {needsCurrentPassword
+            ? "Change your account password."
+            : "You signed in with a social provider. Set a password if you also want to sign in with email."}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleUpdate} className="space-y-4">
-          <label className="block">
-            <span className="text-[12px] font-medium text-foreground">Current password</span>
-            <Input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} placeholder="••••••••" className="mt-1.5" />
-          </label>
+          {needsCurrentPassword && (
+            <label className="block">
+              <span className="text-[12px] font-medium text-foreground">Current password</span>
+              <Input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} placeholder="••••••••" className="mt-1.5" autoComplete="current-password" />
+            </label>
+          )}
           <label className="block">
             <span className="text-[12px] font-medium text-foreground">New password</span>
-            <Input type="password" value={next} onChange={(e) => setNext(e.target.value)} placeholder="New password (8+ chars)" className="mt-1.5" />
+            <Input type="password" value={next} onChange={(e) => setNext(e.target.value)} placeholder="New password (8+ chars)" className="mt-1.5" autoComplete="new-password" />
           </label>
           <label className="block">
             <span className="text-[12px] font-medium text-foreground">Confirm new password</span>
-            <Input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Confirm" className="mt-1.5" />
+            <Input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Confirm" className="mt-1.5" autoComplete="new-password" />
           </label>
           {error && <p className="text-[12px] text-destructive">{error}</p>}
           <div className="flex items-center justify-end gap-2">
@@ -742,9 +809,9 @@ function PasswordSection() {
                 <CheckCircle2 className="size-3.5" strokeWidth={2} /> Updated
               </span>
             )}
-            <Button variant="accent" size="sm" type="submit" disabled={saving || !current || !next || !confirm} className="gap-1.5">
+            <Button variant="accent" size="sm" type="submit" disabled={submitDisabled} className="gap-1.5">
               {saving && <Loader2 className="size-3.5 animate-spin" />}
-              Update password
+              {needsCurrentPassword ? "Update password" : "Set password"}
             </Button>
           </div>
         </form>

@@ -1,11 +1,26 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createSupabaseAdmin } from "@/lib/supabase/admin";
+import { logAnalyticsAdmin } from "@/lib/log-analytics-admin";
 
 const ALLOWED_MIME = [
   "image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml",
   "application/pdf", "text/plain", "video/mp4", "video/webm",
 ];
 const MAX_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
+
+async function logMediaFailure(userId: string, properties: Record<string, unknown>) {
+  try {
+    const admin = createSupabaseAdmin();
+    await logAnalyticsAdmin(admin, {
+      user_id: userId,
+      event_type: "storage_error",
+      properties: { scope: "media", ...properties },
+    });
+  } catch {
+    /* admin key optional for logging */
+  }
+}
 
 export async function GET() {
   const supabase = await createClient();
@@ -58,6 +73,7 @@ export async function POST(request: Request) {
     });
 
   if (uploadError) {
+    await logMediaFailure(user.id, { step: "storage_upload", message: uploadError.message, path: storagePath });
     return NextResponse.json({ error: uploadError.message }, { status: 500 });
   }
 
@@ -84,7 +100,10 @@ export async function POST(request: Request) {
     .select()
     .single();
 
-  if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });
+  if (dbError) {
+    await logMediaFailure(user.id, { step: "media_assets_row", message: dbError.message, path: storagePath });
+    return NextResponse.json({ error: dbError.message }, { status: 500 });
+  }
 
   // Track upload in analytics
   await supabase.from("analytics_events").insert({

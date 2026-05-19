@@ -1,30 +1,31 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/supabase/types";
+import type { Database } from "./types";
+import { getSupabaseServiceRoleKey } from "./service-role-key";
 
-/**
- * Supabase client with the service role secret. SERVER ROUTES / SERVER ACTIONS ONLY.
- * Never import this file from client components, shared hooks, or Zustand stores.
- */
+/** Service-role client shape used across admin routes. */
 export type SupabaseAdminClient = SupabaseClient<Database>;
 
-export function createSupabaseAdmin(): SupabaseAdminClient {
+/**
+ * Service-role client for server routes only. Never import in client bundles.
+ * Returns null when `SUPABASE_SERVICE_ROLE_KEY` is not set.
+ */
+export function createServiceRoleClient(): SupabaseAdminClient | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const secret = process.env.SUPABASE_SECRET_KEY;
-
-  if (!url?.trim()) {
-    throw new Error("createSupabaseAdmin: NEXT_PUBLIC_SUPABASE_URL is not set");
-  }
-  if (!secret?.trim()) {
-    throw new Error(
-      "createSupabaseAdmin: SUPABASE_SECRET_KEY is missing. Add it to server env only (never NEXT_PUBLIC_*).",
-    );
-  }
-
-  return createClient<Database>(url, secret, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceKey) return null;
+  return createClient<Database>(url, serviceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
   });
+}
+
+/**
+ * Service-role client; throws if service role key is missing.
+ * Use in routes that already handle failures via try/catch.
+ */
+export function createSupabaseAdmin(): SupabaseAdminClient {
+  const client = createServiceRoleClient();
+  if (!client) {
+    throw new Error("SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SECRET_KEY is not configured");
+  }
+  return client;
 }

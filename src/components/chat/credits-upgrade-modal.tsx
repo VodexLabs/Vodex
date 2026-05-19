@@ -48,7 +48,7 @@ export function CreditsUpgradeModal({ onClose, currentPlanId = "free" }: Credits
               <Zap className="size-5 text-accent" strokeWidth={1.75} />
             </div>
             <div>
-              <p className="text-[15px] font-semibold text-foreground">You&apos;ve used all your credits</p>
+              <p className="text-[15px] font-semibold text-foreground">You&apos;re out of tokens</p>
               <p className="mt-0.5 text-[12px] text-muted-foreground">
                 Upgrade to keep building. Your progress is saved.
               </p>

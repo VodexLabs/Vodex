@@ -4,12 +4,14 @@ import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Upload, X, CheckCircle2, AlertCircle, Loader2,
-  FileCode2, Package, Layers, Database, Zap,
-  Smartphone, Globe, GitBranch, ExternalLink,
+  FileCode2, Package,
+  GitBranch, ExternalLink,
   ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { toast } from "@/lib/toast";
+import { useRouter } from "next/navigation";
 
 // ─── Detection types ──────────────────────────────────────────────────────────
 
@@ -29,92 +31,47 @@ interface ScanResult {
   estimatedRestore: string;
 }
 
-// ─── Simulated scan pipeline ─────────────────────────────────────────────────
-// In production, this would POST to /api/projects/import-zip and stream results.
-// Here we simulate the detection pipeline with realistic timing for the UX.
-
-async function simulateScan(fileName: string): Promise<ScanResult> {
-  // Simulate extraction + scanning delay
-  await new Promise((r) => setTimeout(r, 2800));
-
-  const isNextJs = fileName.toLowerCase().includes("next") || Math.random() > 0.3;
-  const hasSupabase = Math.random() > 0.4;
-  const hasStripe = Math.random() > 0.6;
-  const hasCapacitor = Math.random() > 0.7;
+function scanResultFromImportApi(j: { fileCount: number; framework: string }): ScanResult {
+  const fwLabel =
+    j.framework === "nextjs"
+      ? "Next.js"
+      : j.framework === "vite"
+        ? "Vite / React"
+        : j.framework === "react"
+          ? "React"
+          : "Unknown (generic)";
 
   return {
-    framework: isNextJs ? "Next.js 16" : "React + Vite",
+    framework: fwLabel,
     packageManager: "npm",
-    estimatedRestore: "2–4 minutes",
+    estimatedRestore: "Complete — source is in DreamOS86",
     warnings: [
-      "node_modules not included (will be reinstalled)",
-      ".env values not detected — add secrets manually",
+      ".env secrets are never imported from ZIP — add keys in DreamOS86 settings.",
+      "Binary assets and non-text files are skipped; re-upload media if needed.",
     ],
     detected: [
       {
-        id: "framework",
-        label: "Framework",
-        value: isNextJs ? "Next.js 16 (App Router)" : "React + Vite",
+        id: "files",
+        label: "Text sources saved",
+        value: `${j.fileCount} files stored (see Code tab in workspace)`,
         status: "detected",
         icon: FileCode2,
       },
       {
-        id: "pkg",
-        label: "package.json",
-        value: "Found — 24 dependencies",
+        id: "fw",
+        label: "Framework hint",
+        value: `${fwLabel} (from package.json heuristics)`,
         status: "detected",
         icon: Package,
       },
       {
-        id: "tailwind",
-        label: "Tailwind CSS",
-        value: "tailwind.config.ts detected",
-        status: "detected",
-        icon: Layers,
-      },
-      {
-        id: "supabase",
-        label: "Supabase",
-        value: hasSupabase ? "@supabase/ssr detected" : "Not detected",
-        status: hasSupabase ? "detected" : "missing",
-        icon: Database,
-      },
-      {
-        id: "stripe",
-        label: "Stripe",
-        value: hasStripe ? "stripe + webhook handler detected" : "Not detected",
-        status: hasStripe ? "detected" : "missing",
-        icon: Zap,
-      },
-      {
-        id: "capacitor",
-        label: "Capacitor / TWA",
-        value: hasCapacitor ? "capacitor.config.ts detected" : "Not detected",
-        status: hasCapacitor ? "detected" : "missing",
-        icon: Smartphone,
-      },
-      {
-        id: "routes",
-        label: "Routes",
-        value: isNextJs ? "App Router — 14 routes found" : "React Router — 8 routes found",
-        status: "detected",
-        icon: Globe,
-      },
-      {
-        id: "envexample",
-        label: "Environment template",
-        value: ".env.local.example detected",
-        status: "detected",
-        icon: FileCode2,
-      },
-      {
         id: "git",
         label: "Git history",
-        value: ".git not included — fresh history will be created",
+        value: ".git folders are ignored on import",
         status: "warning",
         icon: GitBranch,
       },
-    ].filter(Boolean) as DetectedItem[],
+    ],
   };
 }
 
@@ -160,15 +117,22 @@ type WizardStep = "idle" | "scanning" | "results" | "done";
 
 interface ZipImportWizardProps {
   onClose: () => void;
-  onComplete: (projectName: string) => void;
+  onComplete: (info: { projectId: string; name: string }) => void;
 }
 
 export function ZipImportWizard({ onClose, onComplete }: ZipImportWizardProps) {
+  const router = useRouter();
   const [step, setStep] = React.useState<WizardStep>("idle");
   const [dragOver, setDragOver] = React.useState(false);
   const [file, setFile] = React.useState<File | null>(null);
   const [pipeline, setPipeline] = React.useState<PipelineStep[]>(PIPELINE);
   const [scanResult, setScanResult] = React.useState<ScanResult | null>(null);
+  const [importResult, setImportResult] = React.useState<{
+    projectId: string;
+    redirectTo: string;
+    fileCount: number;
+    framework: string;
+  } | null>(null);
   const [projectName, setProjectName] = React.useState("");
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -190,25 +154,74 @@ export function ZipImportWizard({ onClose, onComplete }: ZipImportWizardProps) {
   async function startScan() {
     if (!file) return;
     setStep("scanning");
+    const steps = PIPELINE.map((s) => ({ ...s, status: "pending" as const }));
+    setPipeline(steps);
 
-    // Animate each pipeline step sequentially
-    const steps = [...PIPELINE];
-    for (let i = 0; i < steps.length; i++) {
-      steps[i] = { ...steps[i], status: "running" };
-      setPipeline([...steps]);
-      await new Promise((r) => setTimeout(r, 300 + Math.random() * 500));
-      steps[i] = { ...steps[i], status: "done" };
-      setPipeline([...steps]);
+    const tick = async (idx: number, status: PipelineStep["status"]) => {
+      setPipeline((prev) =>
+        prev.map((s, i) => {
+          if (i < idx) return { ...s, status: "done" };
+          if (i === idx) return { ...s, status };
+          return { ...s, status: "pending" };
+        }),
+      );
+      await new Promise((r) => setTimeout(r, 120));
+    };
+
+    for (let i = 0; i < PIPELINE.length; i++) {
+      await tick(i, "running");
     }
 
-    const result = await simulateScan(file.name);
-    setScanResult(result);
+    const fd = new FormData();
+    fd.append("file", file);
+    if (projectName.trim()) fd.append("name", projectName.trim());
+
+    const res = await fetch("/api/projects/import-zip", { method: "POST", body: fd });
+    const j = (await res.json()) as {
+      error?: string;
+      fileCount?: number;
+      framework?: string;
+      projectId?: string;
+      redirectTo?: string;
+    };
+
+    if (!res.ok) {
+      setPipeline((prev) =>
+        prev.map((s, i) =>
+          i === 0 ? { ...s, status: "error" } : { ...s, status: "pending" },
+        ),
+      );
+      toast.error(j.error ?? "Import failed");
+      setStep("idle");
+      return;
+    }
+
+    await tick(PIPELINE.length - 1, "done");
+    setPipeline(PIPELINE.map((s) => ({ ...s, status: "done" as const })));
+
+    setImportResult({
+      projectId: j.projectId!,
+      redirectTo: j.redirectTo!,
+      fileCount: j.fileCount ?? 0,
+      framework: j.framework ?? "unknown",
+    });
+    setScanResult(
+      scanResultFromImportApi({
+        fileCount: j.fileCount ?? 0,
+        framework: j.framework ?? "unknown",
+      }),
+    );
     setStep("results");
   }
 
   function handleOpen() {
+    if (!importResult?.redirectTo) return;
+    const name = projectName || file?.name.replace(/\.zip$/i, "") || "Imported";
     setStep("done");
-    setTimeout(() => onComplete(projectName || file?.name.replace(".zip", "") || "Imported Project"), 600);
+    setTimeout(() => {
+      onComplete({ projectId: importResult.projectId, name });
+      router.push(importResult.redirectTo);
+    }, 450);
   }
 
   return (
@@ -280,7 +293,7 @@ export function ZipImportWizard({ onClose, onComplete }: ZipImportWizardProps) {
                   ) : (
                     <div className="text-center">
                       <p className="text-[14px] font-medium text-foreground">Drop your ZIP here</p>
-                      <p className="text-[12px] text-muted-foreground">or click to browse · max 100MB</p>
+                      <p className="text-[12px] text-muted-foreground">or click to browse · max 25MB</p>
                     </div>
                   )}
                 </div>

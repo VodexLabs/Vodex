@@ -133,7 +133,7 @@ function ModelRow({
           {PROVIDER_LABELS[model.provider]}
         </span>
         <span className="text-[9.5px] text-muted-foreground/60 font-mono">
-          {model.contextK >= 1000 ? `${model.contextK / 1000}M` : `${model.contextK}K`} · {model.credits}cr
+          {model.contextK >= 1000 ? `${model.contextK / 1000}M` : `${model.contextK}K`} · {model.credits} tokens
         </span>
       </div>
     </button>
@@ -161,9 +161,9 @@ function ModelDetailPanel({ model }: { model: CreationModel }) {
         )}
       </div>
 
-      <p className="text-[10.5px] leading-relaxed text-muted-foreground mb-2.5">
-        {model.orchestrationRole}
-      </p>
+        <p className="text-[10.5px] leading-relaxed text-muted-foreground mb-2.5">
+        {model.tagline}
+        </p>
 
       <div className="space-y-1.5 text-[10.5px]">
         {([

@@ -6,15 +6,7 @@ import { motion } from "framer-motion";
 import { Plug, LayoutGrid, ArrowRight, ExternalLink } from "lucide-react";
 import { variants } from "@/lib/motion";
 import { Button } from "@/components/ui/button";
-
-const EXAMPLE_INTEGRATIONS = [
-  { name: "Supabase", desc: "Database, auth, and storage for your app", icon: "SB", color: "#3ecf8e" },
-  { name: "Stripe", desc: "Payments, subscriptions, and billing", icon: "ST", color: "#635bff" },
-  { name: "GitHub", desc: "Source control and CI/CD automation", icon: "GH", color: "#1a1a2e" },
-  { name: "Vercel", desc: "Deployment and edge network", icon: "VC", color: "#000000" },
-  { name: "Resend", desc: "Transactional email delivery", icon: "RS", color: "#000000" },
-  { name: "Slack", desc: "Team notifications and alerts", icon: "SL", color: "#4a154b" },
-];
+import { IntegrationShowcaseGrid } from "@/components/marketing/integrations-showcase";
 
 export function IntegrationsSettings() {
   return (
@@ -62,25 +54,7 @@ export function IntegrationsSettings() {
           <p className="mb-4 text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground">
             Available in each app dashboard
           </p>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {EXAMPLE_INTEGRATIONS.map((intg) => (
-              <div
-                key={intg.name}
-                className="flex items-center gap-3 rounded-[var(--radius-lg)] bg-background px-3 py-2.5 ring-1 ring-border"
-              >
-                <div
-                  className="flex size-7 shrink-0 items-center justify-center rounded-lg text-[9px] font-bold text-white"
-                  style={{ background: intg.color }}
-                >
-                  {intg.icon}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[12.5px] font-semibold text-foreground">{intg.name}</p>
-                  <p className="truncate text-[10.5px] text-muted-foreground">{intg.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+          <IntegrationShowcaseGrid dense />
         </div>
       </motion.div>
 

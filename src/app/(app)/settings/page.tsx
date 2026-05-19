@@ -9,22 +9,25 @@ import {
   SectionCard,
   SettingRow,
   FieldLabel,
-  SectionFooter,
   selectCls,
   textareaCls,
 } from "@/components/settings/shared";
 import { cn } from "@/lib/utils";
-import { Sun, Moon, Monitor, ImagePlus, Trash2, AlertTriangle, Loader2 } from "lucide-react";
+import { Sun, Moon, Monitor, ImagePlus, Trash2, AlertTriangle, Loader2, Zap, Sparkles } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useHydrated } from "@/lib/hooks/use-hydrated";
+import { useCreditsStore, getMonthlyTokenQuotaForPlan } from "@/lib/stores/credits-store";
+import { DreamSpaceGlyph, resolveDreamSpaceLabel } from "@/lib/dream-space";
 import { toast } from "@/lib/toast";
-import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function SettingsGeneralPage() {
-  const { profile, setProfile } = useAuthStore();
+  const router = useRouter();
+  const { profile, user, setProfile } = useAuthStore();
+  const { remaining } = useCreditsStore();
   const { theme, setTheme } = useTheme();
   const hydrated = useHydrated();
-  const supabase = createClient();
 
   const [sidebarStyle, setSidebarStyle] = React.useState(true);
   const [fontSize, setFontSize] = React.useState("15");
@@ -39,14 +42,23 @@ export default function SettingsGeneralPage() {
   const iconInputRef = React.useRef<HTMLInputElement>(null);
 
   const isPaidPlan = profile && profile.plan_id !== "free";
+  const dreamLabelResolved = resolveDreamSpaceLabel(profile, user);
+  const tokenQuota = getMonthlyTokenQuotaForPlan(profile?.plan_id);
+  const planBadge =
+    profile &&
+    (profile.plan_id === "free"
+      ? "Free"
+      : profile.plan_id.charAt(0).toUpperCase() + profile.plan_id.slice(1));
 
   // Sync workspace fields from profile whenever the profile ID changes
   const profileId = profile?.id;
   React.useEffect(() => {
     if (!profile) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- sync form from server profile */
     setWorkspaceName(profile.workspace_name ?? "My Workspace");
     setDescription(profile.workspace_description ?? "");
     setWorkspaceIconUrl(profile.workspace_icon_url ?? null);
+    /* eslint-enable react-hooks/set-state-in-effect */
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileId]);
 
@@ -69,7 +81,11 @@ export default function SettingsGeneralPage() {
 
   async function handleIconChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file || !profile?.id) return;
+    if (!file) return;
+    if (!user?.id) {
+      toast.error("Sign in to upload a workspace icon.");
+      return;
+    }
 
     const validTypes = ["image/png", "image/jpeg", "image/webp"];
     if (!validTypes.includes(file.type)) {
@@ -86,25 +102,31 @@ export default function SettingsGeneralPage() {
       const formData = new FormData();
       formData.append("file", file);
 
-      const res = await fetch("/api/upload/workspace-icon", { method: "POST", body: formData });
+      const res = await fetch("/api/upload/workspace-icon", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Upload failed" }));
-        throw new Error(err.error ?? "Upload failed");
+        const err = await res.json().catch(() => ({ error: "Upload failed" })) as { error?: string; hint?: string };
+        const detail = err.hint ? `${err.error ?? "Upload failed"} — ${err.hint}` : (err.error ?? "Upload failed");
+        throw new Error(detail);
       }
-      const { publicUrl } = await res.json();
-      const iconWithBust = `${publicUrl}?t=${Date.now()}`;
+      const { publicUrl, profile: updated } = (await res.json()) as {
+        publicUrl: string;
+        profile?: typeof profile;
+      };
+      const iconWithBust = updated?.workspace_icon_url ?? `${publicUrl}?t=${Date.now()}`;
       setWorkspaceIconUrl(iconWithBust);
 
-      const { data, error } = await supabase
-        .from("profiles")
-        .update({ workspace_icon_url: iconWithBust })
-        .eq("id", profile.id)
-        .select()
-        .single();
+      if (updated) {
+        setProfile(updated);
+        toast.success("Dream Space icon saved");
+        router.refresh();
+        return;
+      }
 
-      if (error) throw error;
-      if (data) setProfile(data as typeof profile);
-      toast.success("Saved successfully");
+      throw new Error("Upload succeeded but profile was not returned");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       toast.error(`Failed to upload icon: ${msg}`);
@@ -115,22 +137,39 @@ export default function SettingsGeneralPage() {
   }
 
   async function handleSaveWorkspace() {
-    if (!profile?.id) return;
+    if (!user?.id) {
+      toast.error("Sign in to save workspace settings.");
+      return;
+    }
     setSaving(true);
     try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .update({
-          workspace_name: workspaceName,
-          workspace_description: description,
-        })
-        .eq("id", profile.id)
-        .select()
-        .single();
+      const iconBase =
+        workspaceIconUrl && workspaceIconUrl.length > 0
+          ? workspaceIconUrl.split("?")[0] || workspaceIconUrl
+          : null;
 
-      if (error) throw error;
-      if (data) setProfile(data as typeof profile);
-      toast.success("Saved successfully");
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workspace_name: workspaceName.trim(),
+          workspace_description: description.trim(),
+          workspace_icon_url: iconBase,
+        }),
+      });
+      const payload = (await res.json()) as { error?: string; profile?: typeof profile };
+      if (!res.ok) {
+        throw new Error(payload.error ?? "Failed to save");
+      }
+      if (payload.profile) {
+        setProfile(payload.profile);
+        if (payload.profile.workspace_icon_url) {
+          setWorkspaceIconUrl(payload.profile.workspace_icon_url);
+        }
+        toast.success("Dream Space saved");
+        router.refresh();
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       toast.error(`Failed to save: ${msg}`);
@@ -140,7 +179,155 @@ export default function SettingsGeneralPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
+      {/* Dream Space — primary identity */}
+      <div className="overflow-hidden rounded-[var(--radius-xl)] bg-gradient-to-br from-accent/[0.09] via-background to-violet-500/[0.06] p-px shadow-[var(--shadow-card)] ring-1 ring-border/80">
+        <div className="rounded-[calc(var(--radius-xl)-1px)] bg-background/95 px-4 py-5 backdrop-blur-sm sm:px-5 sm:py-5">
+          <div className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-accent">
+            <Sparkles className="size-3" strokeWidth={1.75} />
+            Dream Space
+          </div>
+
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+            <div className="flex flex-col items-center gap-2 sm:flex-row sm:items-start lg:flex-col lg:items-center">
+              <div
+                className="relative isolate overflow-hidden rounded-full p-1"
+                style={{
+                  background:
+                    "repeating-conic-gradient(hsl(var(--muted-foreground) / 0.14) 0% 25%, hsl(var(--muted) / 0.35) 0% 50%) 50% / 14px 14px",
+                }}
+              >
+                <div className="rounded-full bg-background p-1 shadow-inner ring-1 ring-border/60">
+                  <div className="relative size-24 sm:size-28">
+                    <DreamSpaceGlyph
+                      iconUrl={workspaceIconUrl}
+                      label={workspaceName || dreamLabelResolved}
+                      sizeClass="size-full rounded-full"
+                      textClassName="text-xl sm:text-2xl"
+                      className="rounded-full ring-1 ring-border/80"
+                    />
+                    {uploadingIcon && (
+                      <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/45">
+                        <Loader2 className="size-7 animate-spin text-white" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex w-full flex-col items-center gap-2 sm:items-start lg:items-center">
+                <input
+                  ref={iconInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={handleIconChange}
+                />
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => iconInputRef.current?.click()}
+                  disabled={uploadingIcon}
+                >
+                  {uploadingIcon ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <ImagePlus className="size-3.5" strokeWidth={1.6} />
+                  )}
+                  {uploadingIcon ? "Uploading…" : "Change icon"}
+                </Button>
+                <p className="max-w-[200px] text-center text-[11px] text-muted-foreground sm:text-left lg:text-center">
+                  PNG, JPG, or WebP · max 5MB · transparency kept
+                </p>
+              </div>
+            </div>
+
+            <div className="min-w-0 flex-1 space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                {planBadge && (
+                  <span className="inline-flex rounded-full bg-accent/12 px-2.5 py-0.5 text-[11px] font-semibold text-accent ring-1 ring-accent/20">
+                    {planBadge} plan
+                  </span>
+                )}
+                <div className="flex min-w-0 items-center gap-1.5 rounded-full bg-muted/50 px-2.5 py-1 text-[11px] text-muted-foreground ring-1 ring-border/60">
+                  <Zap className="size-3 shrink-0 text-accent" strokeWidth={1.75} />
+                  <span className="tabular-nums font-medium text-foreground">{remaining.toLocaleString()}</span>
+                  <span className="text-muted-foreground/70">/</span>
+                  <span className="tabular-nums">{tokenQuota.toLocaleString()}</span>
+                  <span className="ml-0.5">tokens this period</span>
+                </div>
+              </div>
+
+              <label className="block">
+                <FieldLabel>Name</FieldLabel>
+                <Input
+                  value={workspaceName}
+                  onChange={(e) => setWorkspaceName(e.target.value)}
+                  placeholder="My Dream Space"
+                />
+              </label>
+
+              <label className="block">
+                <FieldLabel>Description</FieldLabel>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={2}
+                  placeholder="What you build here — shown in the shell and create workspace."
+                  className={textareaCls}
+                />
+              </label>
+
+              <div className="rounded-[var(--radius-md)] bg-muted/35 px-3 py-2 ring-1 ring-border/60">
+                <p className="text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Owner (account email)
+                </p>
+                <p className="truncate text-[13px] font-medium text-foreground">
+                  {profile?.email || user?.email || "—"}
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  This is your DreamOS86 login. Space name above is only a display label.
+                </p>
+              </div>
+
+              <p className="text-[12px] text-muted-foreground">
+                <Link
+                  href="/settings/account"
+                  className="font-medium text-accent underline-offset-2 hover:underline"
+                >
+                  Account security
+                </Link>
+                {" · "}
+                email, password, and sign-in for your DreamOS86 user.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-border/70 pt-4">
+            <Button
+              variant="ghost"
+              size="md"
+              onClick={() => {
+                setWorkspaceName(profile?.workspace_name ?? "My Workspace");
+                setDescription(profile?.workspace_description ?? "");
+                setWorkspaceIconUrl(profile?.workspace_icon_url ?? null);
+              }}
+            >
+              Discard
+            </Button>
+            <Button
+              variant="accent"
+              size="md"
+              onClick={handleSaveWorkspace}
+              disabled={saving || !workspaceDirty || !user?.id}
+            >
+              {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+              Save changes
+            </Button>
+          </div>
+        </div>
+      </div>
+
       {/* Appearance */}
       <SectionCard title="Appearance" description="Customize how DreamOS86 looks and feels.">
         <div className="space-y-6">
@@ -186,92 +373,6 @@ export default function SettingsGeneralPage() {
             <Switch checked={sidebarStyle} onCheckedChange={setSidebarStyle} aria-label="Compact sidebar" />
           </SettingRow>
         </div>
-      </SectionCard>
-
-      {/* Workspace */}
-      <SectionCard title="Workspace" description="General information about your workspace.">
-        <div className="space-y-4">
-          {/* Icon upload */}
-          <div className="flex items-center gap-4">
-            <div className="relative size-16 overflow-hidden rounded-[var(--radius-lg)] ring-1 ring-border flex items-center justify-center bg-accent-muted">
-              {workspaceIconUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={workspaceIconUrl}
-                  alt="Workspace icon"
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <span className="text-[22px] font-bold text-accent select-none">
-                  {workspaceName.charAt(0).toUpperCase()}
-                </span>
-              )}
-              {uploadingIcon && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                  <Loader2 className="size-5 animate-spin text-white" />
-                </div>
-              )}
-            </div>
-            <div>
-              <input
-                ref={iconInputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                className="hidden"
-                onChange={handleIconChange}
-              />
-              <Button
-                variant="secondary"
-                size="sm"
-                className="gap-1.5"
-                onClick={() => iconInputRef.current?.click()}
-                disabled={uploadingIcon}
-              >
-                {uploadingIcon ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <ImagePlus className="size-3.5" strokeWidth={1.6} />
-                )}
-                {uploadingIcon ? "Uploading…" : "Upload icon"}
-              </Button>
-              <p className="mt-1.5 text-[12px] text-muted-foreground">PNG, JPG, or WEBP · max 5MB</p>
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block">
-              <FieldLabel>Workspace name</FieldLabel>
-              <Input
-                value={workspaceName}
-                onChange={(e) => setWorkspaceName(e.target.value)}
-                placeholder="My Workspace"
-              />
-            </label>
-          </div>
-
-          <label className="block">
-            <FieldLabel>Description</FieldLabel>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              placeholder="What does your workspace do?"
-              className={textareaCls}
-            />
-          </label>
-        </div>
-        <SectionFooter>
-          <Button variant="ghost" size="md" onClick={() => {
-            setWorkspaceName(profile?.workspace_name ?? "My Workspace");
-            setDescription(profile?.workspace_description ?? "");
-          }}>
-            Discard
-          </Button>
-          <Button variant="accent" size="md" onClick={handleSaveWorkspace} disabled={saving || !workspaceDirty}>
-            {saving ? <Loader2 className="size-4 animate-spin" /> : null}
-            Save changes
-          </Button>
-        </SectionFooter>
       </SectionCard>
 
       {/* App Branding */}

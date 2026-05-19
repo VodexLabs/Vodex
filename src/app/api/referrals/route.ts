@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getSiteUrl } from "@/lib/app-url";
 import { randomBytes } from "crypto";
 
 export const runtime = "nodejs";
@@ -89,9 +90,8 @@ export async function GET() {
   const slotsUsed = list.length;
   const slotsRemaining = Math.max(0, MAX_REFERRALS - slotsUsed);
 
-  const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL ?? "https://dreamos86.com";
-  const inviteUrl = `${appUrl}/auth/sign-up?ref=${code}`;
+  const base = getSiteUrl();
+  const inviteUrl = `${base}/auth/sign-up?ref=${code}`;
 
   const referralRows = list.map((r) => ({
     id: r.id,

@@ -95,6 +95,7 @@ export async function bootstrapProfileFromOAuth(
       id: user.id,
       email,
       full_name: displayName,
+      display_name: displayName,
       username,
       avatar_url: avatarFromOAuth,
       plan_id: "free",
@@ -139,6 +140,7 @@ export async function bootstrapProfileFromOAuth(
 
   if (!(existing.full_name ?? "").trim() && displayName) {
     updates.full_name = displayName;
+    updates.display_name = displayName;
   }
   if (!(existing.username ?? "").trim()) {
     updates.username = await allocateUsername(admin, baseUser);

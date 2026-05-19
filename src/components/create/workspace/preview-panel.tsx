@@ -15,7 +15,7 @@ import {
   Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { OrchestrationPreview } from "@/components/create/workspace/orchestration-preview";
+import { BuildPreviewSurface } from "@/components/create/workspace/build-preview-surface";
 
 type Viewport = "desktop" | "tablet" | "mobile";
 
@@ -36,6 +36,8 @@ const TARGET_ZONES = [
 
 export interface PreviewPanelProps {
   url: string | null;
+  /** Inline HTML for generated previews (e.g. from `preview/index.html`). */
+  srcDoc?: string | null;
   appName?: string | null;
   thinking?: boolean;
   className?: string;
@@ -43,16 +45,22 @@ export interface PreviewPanelProps {
   /** Whether any generation has completed. Edit targeting only activates when true. */
   hasGenerated?: boolean;
   onEditTarget?: (info: { x: number; y: number; section: string }) => void;
+  /** Build-mode assistant excerpt — powers plan/progress surface (not full code). */
+  buildAssistantText?: string;
+  tokensEstimate?: number | null;
 }
 
 export function PreviewPanel({
   url,
+  srcDoc = null,
   appName,
   thinking = false,
   className,
   editMode = false,
   hasGenerated = false,
   onEditTarget,
+  buildAssistantText = "",
+  tokensEstimate = null,
 }: PreviewPanelProps) {
   const [viewport, setViewport] = React.useState<Viewport>("desktop");
   const [reloadKey, setReloadKey] = React.useState(0);
@@ -62,16 +70,19 @@ export function PreviewPanel({
 
   React.useEffect(() => {
     setIframeError(false);
-    if (url) setIframeLoading(true);
-  }, [url, reloadKey]);
+    if (url || srcDoc) setIframeLoading(true);
+  }, [url, srcDoc, reloadKey]);
 
-  const hasUrl = !!url;
-  const displayHost = hasUrl
-    ? (() => {
-        try { return new URL(url!).host; }
-        catch { return url; }
-      })()
-    : "preview";
+  const hasInline = !!srcDoc?.trim();
+  const hasUrl = !!url || hasInline;
+  const displayHost = hasInline
+    ? "live preview (generated)"
+    : hasUrl && url
+      ? (() => {
+          try { return new URL(url).host; }
+          catch { return url; }
+        })()
+      : "preview";
 
   return (
     <div
@@ -213,7 +224,13 @@ export function PreviewPanel({
           </div>
         )}
 
-        {!hasUrl && <OrchestrationPreview status={thinking ? "thinking" : "idle"} />}
+        {!hasUrl && (
+          <BuildPreviewSurface
+            thinking={thinking}
+            assistantText={buildAssistantText}
+            tokensEstimate={tokensEstimate}
+          />
+        )}
 
         {hasUrl && (
           <div className="absolute inset-0 flex items-center justify-center p-3">
@@ -274,20 +291,23 @@ export function PreviewPanel({
                       The app sets <code className="rounded bg-muted px-1 text-[10px]">X-Frame-Options</code>{" "}
                       preventing embedding. Open it directly instead.
                     </p>
-                    <a
-                      href={url!}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-accent/90"
-                    >
-                      Open app
-                      <ExternalLink className="size-3.5" strokeWidth={2} />
-                    </a>
+                    {url && (
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-accent/90"
+                      >
+                        Open app
+                        <ExternalLink className="size-3.5" strokeWidth={2} />
+                      </a>
+                    )}
                   </div>
                 ) : (
                   <iframe
                     key={reloadKey}
-                    src={url}
+                    src={hasInline ? undefined : url ?? undefined}
+                    srcDoc={hasInline ? (srcDoc ?? undefined) : undefined}
                     title={appName ?? "App preview"}
                     className="h-full w-full flex-1 border-0"
                     onLoad={() => setIframeLoading(false)}
@@ -295,6 +315,7 @@ export function PreviewPanel({
                       setIframeError(true);
                       setIframeLoading(false);
                     }}
+                    sandbox="allow-scripts allow-same-origin"
                   />
                 )}
               </motion.div>

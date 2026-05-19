@@ -181,6 +181,7 @@ export function OnboardingView() {
           onboarding_completed: true,
           onboarding_completed_at: new Date().toISOString(),
           use_case: buildLabel,
+          signup_wizard_completed: true,
         });
       }
 

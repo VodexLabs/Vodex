@@ -13,7 +13,6 @@ import { type NextRequest, NextResponse } from "next/server";
 
 /** Routes that require authentication */
 const PROTECTED_PATHS = [
-  "/",
   "/projects",
   "/templates",
   "/chat",
@@ -34,6 +33,8 @@ const PROTECTED_PATHS = [
   "/billing",
   "/generate",
   "/create",
+  "/dashboard",
+  "/apps",
 ];
 
 /** Routes that should redirect authenticated users to home */
@@ -107,6 +108,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|logo.png|icon.png|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|dreamos86-platform-logo.png|logo.png|icon.png|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

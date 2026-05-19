@@ -59,6 +59,27 @@ function ProjectCard({ project }: { project: Project }) {
           </div>
         </div>
 
+        <div className="pointer-events-auto relative z-[2] mt-2 flex flex-wrap gap-2">
+          <Link
+            href={`/apps/${project.id}/builder`}
+            className="rounded-lg bg-accent/12 px-2.5 py-1 text-[10.5px] font-semibold text-accent ring-1 ring-accent/20 transition hover:bg-accent hover:text-white"
+          >
+            Builder
+          </Link>
+          <Link
+            href={`/apps/${project.id}/dashboard`}
+            className="rounded-lg bg-surface px-2.5 py-1 text-[10.5px] font-medium text-foreground ring-1 ring-border transition hover:ring-accent/25"
+          >
+            App dashboard
+          </Link>
+          <Link
+            href={`/projects/${project.id}`}
+            className="rounded-lg px-2.5 py-1 text-[10.5px] font-medium text-muted-foreground ring-1 ring-border/60 transition hover:text-foreground"
+          >
+            Details
+          </Link>
+        </div>
+
         <div className="mt-auto flex items-center justify-between">
           <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
             <span>{project.framework}</span>
@@ -176,10 +197,8 @@ export function ProjectsView() {
       {showImport && (
         <ZipImportWizard
           onClose={() => setShowImport(false)}
-          onComplete={(name) => {
+          onComplete={() => {
             setShowImport(false);
-            // In production: navigate to the newly created project workspace
-            console.info("ZIP import complete:", name);
           }}
         />
       )}

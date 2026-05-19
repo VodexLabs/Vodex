@@ -212,7 +212,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
               {hydrated && (
                 <Link
                   href="/credits"
-                  title={`${remaining} credits remaining`}
+                  title={`${remaining} tokens remaining`}
                   className="flex size-8 items-center justify-center rounded-md text-muted-foreground/70 transition hover:bg-surface hover:text-accent"
                 >
                   <Zap className="size-4" strokeWidth={1.65} />
@@ -236,7 +236,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
                 <div className="flex items-center justify-between gap-2 mb-1.5">
                   <div className="flex items-center gap-1.5 text-[11.5px] font-medium text-muted-foreground">
                     <Zap className="size-3 text-accent" strokeWidth={1.75} />
-                    Credits
+                    Tokens
                   </div>
                   <span className="text-[12px] font-semibold tabular-nums text-foreground">
                     {remaining} <span className="text-muted-foreground font-normal">/ {MONTHLY_QUOTA}</span>

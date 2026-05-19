@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   Search, Star, ArrowUpRight, Sparkles, ExternalLink,
@@ -158,9 +159,11 @@ function CommunityEmptyState() {
       <p className="mt-2 max-w-sm text-[13px] text-muted-foreground">
         When builders publish their apps, they&apos;ll appear here. Build something with DreamOS86 and be the first.
       </p>
-      <Button variant="accent" size="sm" className="mt-6">
-        <Sparkles className="size-3.5" strokeWidth={1.75} />
-        Start building
+      <Button variant="accent" size="sm" className="mt-6 gap-1.5" asChild>
+        <Link href="/create">
+          <Sparkles className="size-3.5" strokeWidth={1.75} />
+          Start building
+        </Link>
       </Button>
     </div>
   );
@@ -189,7 +192,7 @@ export function MarketplaceView() {
   }
 
   return (
-    <div className="relative mx-auto max-w-5xl">
+    <div className="relative mx-auto w-full min-w-0 max-w-7xl">
       <div className="pointer-events-none absolute -left-16 top-0 h-56 w-56 rounded-full bg-[radial-gradient(circle_at_center,color-mix(in_oklab,var(--accent)_8%,transparent),transparent_68%)] blur-3xl" />
 
       <motion.div variants={variants.fadeUp} initial="hidden" animate="show">

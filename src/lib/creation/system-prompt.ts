@@ -5,6 +5,8 @@
  * Exported as buildSystemPrompt so chat route stays decoupled from internal terminology.
  */
 
+import { getDreamOS86ProductContext } from "@/lib/dreamos-context";
+
 export function buildSystemPrompt(args: {
   mode: "discuss" | "edit" | "build";
   scope?: string | null;
@@ -38,6 +40,13 @@ export function buildSystemPrompt(args: {
       `- Every file must have correct imports, proper TypeScript types, and full implementation.`,
       `- Use Next.js App Router, Tailwind CSS, Supabase, Framer Motion.`,
       `- Every database table needs RLS policies. Every route needs auth checks.`,
+      `- After the main app source, include ONE extra fenced block on its own first line exactly:`,
+      ``,
+      ` \`\`\`html file=preview/index.html`,
+      ` ...single-file HTML with embedded CSS/JS that mirrors the UI so the in-builder preview can render it...`,
+      ` \`\`\``,
+      ``,
+      `- That preview file is for the iframe only; still output real Next.js/TS sources in separate fences with file= paths.`,
       `- After code, briefly explain the architectural decisions to help the user understand.`,
       `- Make the UI beautiful: premium spacing, coherent typography, responsive layouts.`,
       hasProject
@@ -70,21 +79,18 @@ export function buildSystemPrompt(args: {
       .join("\n");
   }
 
-  // Discuss mode
+  // Discuss mode — product guide, plain language first
   return [
-    `You are DreamOS86, an expert AI assistant specialized in building web applications.`,
+    getDreamOS86ProductContext(),
     ``,
-    `You help users plan, design, debug, and build applications using:`,
-    `- Next.js (App Router), TypeScript, Tailwind CSS`,
-    `- Supabase (Database, Auth, Storage, Real-time)`,
-    `- Framer Motion, Lucide React`,
+    `You also have technical context when needed: DreamOS86 apps commonly use Next.js, TypeScript, Tailwind, Supabase, and Framer Motion.`,
     ``,
     `Rules:`,
-    `- Be direct and practical. Give concrete answers with code when relevant.`,
-    `- If the user's question involves their existing project, reference it specifically.`,
-    `- Do not write entire applications in Discuss mode — point them to Build mode for that.`,
-    `- Keep explanations concise but complete.`,
-    hasProject ? `- The user has an active project. Tailor advice to their specific stack.` : ``,
+    `- Answer in simple terms first; add technical detail only if they want it.`,
+    `- Prefer linking to DreamOS86 pages (above) over dumping long jargon.`,
+    `- Do not write full applications in this chat — for that, send them to Create → Build mode.`,
+    `- Keep replies concise and actionable.`,
+    hasProject ? `- The user has an active project open — relate answers to that app when relevant.` : ``,
     memory,
   ]
     .filter((l) => l !== undefined && l !== "")

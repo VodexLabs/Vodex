@@ -13,7 +13,7 @@ import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { useCreditsStore } from "@/lib/stores/credits-store";
+import { useCreditsStore, FREE_MONTHLY_QUOTA } from "@/lib/stores/credits-store";
 import { useNotificationsStore } from "@/lib/stores/notifications-store";
 import type { Notification } from "@/lib/supabase/types";
 import { ReferralCapture } from "@/components/referrals/referral-capture";
@@ -55,11 +55,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const supabase = createClient();
 
     async function bootstrapUser(userId: string): Promise<() => void> {
-      const { data: profile } = await supabase
+      let { data: profile } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", userId)
-        .single();
+        .maybeSingle();
+
+      if (!profile && typeof fetch !== "undefined") {
+        try {
+          const res = await fetch("/api/profile/ensure", {
+            method: "POST",
+            credentials: "include",
+          });
+          if (res.ok) {
+            const payload = (await res.json()) as { profile?: typeof profile };
+            if (payload.profile) profile = payload.profile;
+          }
+        } catch {
+          /* ignore — user may retry on refresh */
+        }
+        if (!profile) {
+          const retry = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", userId)
+            .maybeSingle();
+          profile = retry.data ?? null;
+        }
+      }
 
       if (profile) {
         setProfile(profile);
@@ -70,8 +93,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           ? profile.credits_remaining
           : null;
         if (creditsValue !== null) {
+          const planId = profile.plan_id ?? "free";
+          const capped =
+            planId === "free"
+              ? Math.min(creditsValue, FREE_MONTHLY_QUOTA)
+              : creditsValue;
           useCreditsStore.getState().setCredits(
-            creditsValue,
+            capped,
             profile.credits_reset_at ?? null,
           );
         }

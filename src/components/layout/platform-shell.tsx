@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Home, LayoutGrid, Compass, MessageSquare, Users } from "lucide-react";
+import { Home, Compass, MessageSquare, Users, LayoutGrid } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/top-bar";
 import { cn } from "@/lib/utils";
@@ -36,7 +36,7 @@ const pageMeta: Record<string, { title: string; subtitle?: string }> = {
   },
   "/analytics": {
     title: "Analytics",
-    subtitle: "Usage, credits, and generation insights.",
+    subtitle: "Usage, tokens, and generation insights.",
   },
   "/media": {
     title: "Media & Assets",
@@ -46,9 +46,13 @@ const pageMeta: Record<string, { title: string; subtitle?: string }> = {
     title: "Community",
     subtitle: "Forums, showcases, and shared knowledge.",
   },
+  "/dashboard": {
+    title: "Dashboard",
+    subtitle: "Jump to apps, create, tokens, and settings.",
+  },
   "/settings": {
     title: "Settings",
-    subtitle: "Workspace, keys, and preferences.",
+    subtitle: "Account workspace, keys, and preferences.",
   },
   "/settings/account": {
     title: "Account",
@@ -64,7 +68,7 @@ const pageMeta: Record<string, { title: string; subtitle?: string }> = {
   },
   "/settings/models": {
     title: "AI Models",
-    subtitle: "Model preferences, routing, and credit impact.",
+    subtitle: "Model preferences, routing, and token usage.",
   },
   "/settings/api-keys": {
     title: "API Keys",
@@ -83,8 +87,8 @@ const pageMeta: Record<string, { title: string; subtitle?: string }> = {
     subtitle: "Choose the plan that fits your ambitions.",
   },
   "/credits": {
-    title: "Credits Usage",
-    subtitle: "Real-time tracking of your AI spend.",
+    title: "Token usage",
+    subtitle: "Real-time tracking of your AI token spend.",
   },
   "/help": {
     title: "Help Center",
@@ -186,19 +190,52 @@ function AmbientOrbs() {
   );
 }
 
-export function PlatformShell({ children }: { children: React.ReactNode }) {
+export function PlatformShell({
+  children,
+  homeSessionFromServer = false,
+}: {
+  children: React.ReactNode;
+  /** From server `getUser()` for `/` chrome — avoids client auth hydration flash. */
+  homeSessionFromServer?: boolean;
+}) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
-  const isCreateHome = pathname === "/";
-  // Pages that need a full-bleed, scroll-free layout (no shell padding/overflow)
-  const isFullBleed = pathname === "/" || pathname === "/chat";
+  const isCreateHome = pathname === "/" && homeSessionFromServer;
+  const isFullBleed = (pathname === "/" && homeSessionFromServer) || pathname === "/chat";
+  /** Home scrolls on `main` so the scrollbar sits at the right edge of the content column. */
+  const isHomeShellScroll = pathname === "/" && homeSessionFromServer;
   const meta = pageMeta[pathname] ?? { title: "DreamOS86" };
+
+  /** Marketing landing: no app sidebar (session absent on server for this navigation). */
+  const minimalHomeChrome = pathname === "/" && !homeSessionFromServer;
 
   // Close mobile menu on route change
   React.useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
+
+  if (minimalHomeChrome) {
+    return (
+      <div className="relative flex h-[100dvh] overflow-hidden bg-background">
+        <AmbientOrbs />
+        <main className="relative z-[1] flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable]">
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.div
+              key={pathname}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+              className="flex w-full min-w-0 flex-1 flex-col"
+            >
+              {children}
+            </motion.div>
+          </AnimatePresence>
+        </main>
+      </div>
+    );
+  }
 
   return (
     // h-screen + overflow-hidden ensures only the content area scrolls,
@@ -222,11 +259,15 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
         {/* Only this scrolls — sidebar/topbar stay fixed */}
         <main
           className={
-            isFullBleed
-              ? "relative flex min-h-0 flex-1 overflow-hidden"
-              : "relative flex-1 overflow-y-auto overflow-x-hidden bg-atmosphere px-[var(--page-padding-x)] py-[var(--page-padding-y)] pb-[calc(var(--page-padding-y)_+_4rem)] lg:pb-[var(--page-padding-y)]"
+            isHomeShellScroll
+              ? "relative flex min-h-0 flex-1 min-w-0 flex-col overflow-y-auto overflow-x-hidden"
+              : isFullBleed
+                ? "relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+                : "relative flex-1 overflow-y-auto overflow-x-hidden bg-atmosphere px-[var(--page-padding-x)] py-[var(--page-padding-y)] pb-[calc(var(--page-padding-y)_+_4rem)] lg:pb-[var(--page-padding-y)]"
           }
-          style={isFullBleed ? undefined : { scrollBehavior: "smooth" }}
+          style={
+            isHomeShellScroll || !isFullBleed ? { scrollBehavior: "smooth" } : undefined
+          }
         >
           {/*
             IMPORTANT: do NOT add `mode="wait"` here, and do NOT add a
@@ -243,7 +284,13 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-              className={isFullBleed ? "flex h-full min-h-0 flex-col" : "min-h-full"}
+              className={
+                isHomeShellScroll
+                  ? "flex w-full min-w-0 flex-col"
+                  : isFullBleed
+                    ? "flex h-full min-h-0 min-w-0 flex-col"
+                    : "min-h-full"
+              }
             >
               {children}
             </motion.div>

@@ -4,7 +4,7 @@ import { ThemeProvider } from "@/components/providers/theme-provider";
 export const metadata: Metadata = {
   title: {
     default: "DreamOS86",
-    template: "%s · DreamOS86",
+    template: "%s | DreamOS86",
   },
 };
 

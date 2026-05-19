@@ -25,6 +25,7 @@ export interface Database {
           updated_at: string;
           email: string;
           full_name: string | null;
+          display_name: string | null;
           username: string | null;
           avatar_url: string | null;
           plan_id: PlanId;
@@ -52,8 +53,14 @@ export interface Database {
           workspace_icon_url: string | null;
           workspace_description: string | null;
           onboarding_answers: Json;
+          signup_wizard_completed: boolean;
+          signup_heard_about: string | null;
+          signup_referral_code: string | null;
         };
-        Insert: Omit<Database["public"]["Tables"]["profiles"]["Row"], "id" | "created_at" | "updated_at">;
+        Insert: Omit<
+          Database["public"]["Tables"]["profiles"]["Row"],
+          "id" | "created_at" | "updated_at" | "display_name"
+        > & { display_name?: string | null };
         Update: Partial<Database["public"]["Tables"]["profiles"]["Row"]>;
         Relationships: [];
       };
@@ -92,6 +99,25 @@ export interface Database {
         Relationships: [];
       };
 
+      contact_requests: {
+        Row: {
+          id: string;
+          created_at: string;
+          user_id: string | null;
+          kind: "sales" | "support";
+          name: string;
+          email: string;
+          company: string | null;
+          team_size: string | null;
+          expected_usage: string | null;
+          current_plan: string | null;
+          message: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["contact_requests"]["Row"], "id" | "created_at">;
+        Update: Partial<Database["public"]["Tables"]["contact_requests"]["Row"]>;
+        Relationships: [];
+      };
+
       workspaces: {
         Row: {
           id: string;
@@ -105,6 +131,19 @@ export interface Database {
         };
         Insert: Omit<Database["public"]["Tables"]["workspaces"]["Row"], "id" | "created_at" | "updated_at">;
         Update: Partial<Database["public"]["Tables"]["workspaces"]["Row"]>;
+        Relationships: [];
+      };
+
+      workspace_members: {
+        Row: {
+          id: string;
+          created_at: string;
+          workspace_id: string;
+          user_id: string;
+          role: "owner" | "admin" | "editor" | "viewer";
+        };
+        Insert: Omit<Database["public"]["Tables"]["workspace_members"]["Row"], "id" | "created_at">;
+        Update: Partial<Database["public"]["Tables"]["workspace_members"]["Row"]>;
         Relationships: [];
       };
 
@@ -259,6 +298,58 @@ export interface Database {
         Relationships: [];
       };
 
+      message_attachments: {
+        Row: {
+          id: string;
+          created_at: string;
+          user_id: string;
+          conversation_id: string | null;
+          message_id: string | null;
+          bucket_id: string;
+          storage_path: string;
+          public_url: string;
+          mime_type: string;
+          size_bytes: number;
+          file_name: string | null;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["message_attachments"]["Row"],
+          "id" | "created_at" | "file_name"
+        > & {
+          file_name?: string | null;
+          conversation_id?: string | null;
+          message_id?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["message_attachments"]["Row"]>;
+        Relationships: [];
+      };
+
+      ai_usage_logs: {
+        Row: {
+          id: string;
+          created_at: string;
+          user_id: string;
+          user_email: string;
+          model_id: string;
+          mode: string;
+          tokens_charged: number;
+          tokens_input: number | null;
+          tokens_output: number | null;
+          status: "success" | "error";
+          error_message: string | null;
+          conversation_id: string | null;
+          operation_id: string | null;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["ai_usage_logs"]["Row"],
+          "id" | "created_at"
+        > & {
+          operation_id?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["ai_usage_logs"]["Row"]>;
+        Relationships: [];
+      };
+
       projects: {
         Row: {
           id: string;
@@ -275,6 +366,7 @@ export interface Database {
           gradient: string;
           icon_url: string | null;
           preview_url: string | null;
+          published_subdomain: string | null;
           custom_domain: string | null;
           is_public: boolean;
           is_favorite: boolean;
@@ -417,6 +509,103 @@ export interface Database {
           ip?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["analytics_events"]["Row"]>;
+        Relationships: [];
+      };
+
+      app_files: {
+        Row: {
+          id: string;
+          created_at: string;
+          updated_at: string;
+          project_id: string;
+          path: string;
+          content: string;
+          mime_type: string;
+          size_bytes: number;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["app_files"]["Row"],
+          "id" | "created_at" | "updated_at"
+        >;
+        Update: Partial<Database["public"]["Tables"]["app_files"]["Row"]>;
+        Relationships: [];
+      };
+
+      project_secrets: {
+        Row: {
+          id: string;
+          created_at: string;
+          updated_at: string;
+          project_id: string;
+          key_name: string;
+          ciphertext: string;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["project_secrets"]["Row"],
+          "id" | "created_at" | "updated_at"
+        >;
+        Update: Partial<Database["public"]["Tables"]["project_secrets"]["Row"]>;
+        Relationships: [];
+      };
+
+      build_jobs: {
+        Row: {
+          id: string;
+          created_at: string;
+          updated_at: string;
+          user_id: string;
+          project_id: string | null;
+          conversation_id: string | null;
+          status: string;
+          prompt: string | null;
+          result_summary: string | null;
+          error_message: string | null;
+          meta: Json;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["build_jobs"]["Row"],
+          "id" | "created_at" | "updated_at" | "meta"
+        > & { meta?: Json };
+        Update: Partial<Database["public"]["Tables"]["build_jobs"]["Row"]>;
+        Relationships: [];
+      };
+
+      imported_projects: {
+        Row: {
+          id: string;
+          created_at: string;
+          user_id: string;
+          project_id: string;
+          source_archive_path: string | null;
+          framework_detected: string | null;
+          meta: Json;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["imported_projects"]["Row"],
+          "id" | "created_at" | "meta"
+        > & { meta?: Json };
+        Update: Partial<Database["public"]["Tables"]["imported_projects"]["Row"]>;
+        Relationships: [];
+      };
+
+      wrap_jobs: {
+        Row: {
+          id: string;
+          created_at: string;
+          updated_at: string;
+          user_id: string;
+          project_id: string;
+          kind: "web_zip" | "web_deploy" | "android_apk" | "android_aab";
+          status: string;
+          error_message: string | null;
+          artifact_url: string | null;
+          meta: Json;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["wrap_jobs"]["Row"],
+          "id" | "created_at" | "updated_at" | "meta"
+        > & { meta?: Json };
+        Update: Partial<Database["public"]["Tables"]["wrap_jobs"]["Row"]>;
         Relationships: [];
       };
 

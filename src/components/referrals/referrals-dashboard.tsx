@@ -159,10 +159,11 @@ export function ReferralsDashboard() {
   }
 
   const milestones = [
-    { count: 1, label: "First friend", reward: `+${data.creditsPerReferral} credits` },
-    { count: 2, label: "Two signups", reward: `+${data.creditsPerReferral * 2} credits total` },
-    { count: 3, label: "Three friends", reward: `+${data.creditsPerReferral * 3} credits total` },
-    { count: 5, label: "Max referrals", reward: `+${data.creditsPerReferral * 5} credits total` },
+    { count: 1, label: "1 friend", reward: `+${data.creditsPerReferral} credits` },
+    { count: 2, label: "2 friends", reward: `+${data.creditsPerReferral * 2} credits total` },
+    { count: 3, label: "3 friends", reward: `+${data.creditsPerReferral * 3} credits total` },
+    { count: 4, label: "4 friends", reward: `+${data.creditsPerReferral * 4} credits total` },
+    { count: 5, label: "5 friends", reward: `+${data.creditsPerReferral * 5} credits total` },
   ];
   const nextMilestone =
     milestones.find((m) => data.stats.rewarded < m.count) ?? milestones[milestones.length - 1];
@@ -282,20 +283,21 @@ export function ReferralsDashboard() {
           />
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
           {milestones.map((m) => {
             const reached = data.stats.rewarded >= m.count;
             return (
               <div
                 key={m.count}
                 className={cn(
-                  "rounded-lg px-2 py-1.5 text-[11px] ring-1",
+                  "rounded-lg px-2 py-2 text-center text-[11px] ring-1",
                   reached
                     ? "bg-emerald-500/10 text-emerald-700 ring-emerald-500/30"
                     : "bg-surface text-muted-foreground ring-border",
                 )}
               >
-                <span className="font-semibold tabular-nums">{m.count}</span> · {m.reward}
+                <div className="font-semibold tabular-nums text-foreground">{m.count}</div>
+                <div className="mt-0.5 leading-snug">{m.reward}</div>
               </div>
             );
           })}

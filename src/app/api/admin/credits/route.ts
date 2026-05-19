@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
+import { isDreamosOwnerEmail } from "@/lib/admin-owner";
 
 const schema = z.object({
   userId: z.string().uuid(),
@@ -10,17 +11,10 @@ const schema = z.object({
 
 export async function POST(request: Request) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  // Verify admin
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", user.id)
-    .single();
-
-  if (!profile?.is_admin) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user?.email || !isDreamosOwnerEmail(user.email)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -41,12 +35,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: result?.error ?? "Failed" }, { status: 500 });
   }
 
-  // Notify target user
   await supabase.from("notifications").insert({
     user_id: userId,
     type: "credit",
-    title: `${amount} credits added`,
-    body: `An admin has granted you ${amount} credits. Reason: ${reason}`,
+    title: `${amount} tokens added`,
+    body: `An admin has granted you ${amount} tokens. Reason: ${reason}`,
     action_url: "/credits",
   });
 

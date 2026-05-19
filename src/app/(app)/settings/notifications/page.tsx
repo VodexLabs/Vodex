@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import {
-  notifications as initialNotifs,
+  notifications as seedNotifs,
   type Notification,
 } from "@/lib/data";
 import { Switch } from "@/components/ui/switch";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SectionCard } from "@/components/settings/shared";
 import { cn } from "@/lib/utils";
+import { toast } from "@/lib/toast";
 import {
   Bell,
   Rocket,
@@ -20,15 +21,15 @@ import {
   Bot,
   CheckCheck,
   Trash2,
-  Mail,
-  Smartphone,
+  Monitor,
 } from "lucide-react";
 
 type NotifType = Notification["type"];
 
+const PREFS_STORAGE_KEY = "dreamos-notification-prefs-v1";
+
 interface NotifPref {
-  email: boolean;
-  inApp: boolean;
+  inWeb: boolean;
 }
 
 const notifTypes: {
@@ -96,39 +97,69 @@ const notifBadge: Record<
   ai: "accent",
 };
 
+function defaultPrefs(): Record<NotifType, NotifPref> {
+  return Object.fromEntries(
+    notifTypes.map(({ key }) => [key, { inWeb: true }]),
+  ) as Record<NotifType, NotifPref>;
+}
+
+function loadPrefs(): Record<NotifType, NotifPref> {
+  const base = defaultPrefs();
+  if (typeof window === "undefined") return base;
+  try {
+    const raw = window.localStorage.getItem(PREFS_STORAGE_KEY);
+    if (!raw) return base;
+    const parsed = JSON.parse(raw) as Record<string, { inWeb?: boolean }>;
+    for (const { key } of notifTypes) {
+      const row = parsed[key];
+      if (row && typeof row.inWeb === "boolean") {
+        base[key] = { inWeb: row.inWeb };
+      }
+    }
+    return base;
+  } catch {
+    return defaultPrefs();
+  }
+}
+
+function savePrefs(p: Record<NotifType, NotifPref>) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify(p));
+}
+
 export default function NotificationsSettingsPage() {
-  const [prefs, setPrefs] = React.useState<Record<NotifType, NotifPref>>(
-    Object.fromEntries(
-      notifTypes.map(({ key }) => [key, { email: true, inApp: true }]),
-    ) as Record<NotifType, NotifPref>,
+  const [prefs, setPrefs] = React.useState<Record<NotifType, NotifPref>>(defaultPrefs);
+  const [savedSnapshot, setSavedSnapshot] = React.useState<Record<NotifType, NotifPref> | null>(
+    null,
   );
 
-  const [notifs, setNotifs] = React.useState<Notification[]>(initialNotifs);
+  React.useEffect(() => {
+    const loaded = loadPrefs();
+    setPrefs(loaded);
+    setSavedSnapshot(loaded);
+  }, []);
 
-  const setEmail = (key: NotifType, v: boolean) =>
-    setPrefs((p) => ({ ...p, [key]: { ...p[key], email: v } }));
+  const [notifs, setNotifs] = React.useState<Notification[]>(seedNotifs);
 
-  const setInApp = (key: NotifType, v: boolean) =>
-    setPrefs((p) => ({ ...p, [key]: { ...p[key], inApp: v } }));
+  const setInWeb = (key: NotifType, v: boolean) =>
+    setPrefs((p) => ({ ...p, [key]: { inWeb: v } }));
+
+  const isDirty =
+    savedSnapshot &&
+    notifTypes.some(({ key }) => prefs[key].inWeb !== savedSnapshot[key].inWeb);
 
   const unreadCount = notifs.filter((n) => !n.read).length;
 
   return (
     <div className="space-y-5">
-      {/* Preferences */}
       <SectionCard
         title="Notification Preferences"
-        description="Choose how you receive notifications for each event type."
+        description="In-web alerts appear in DreamOS86 while you are signed in. Email delivery is not available yet — preferences are stored in your browser on this device."
       >
-        {/* Channel header */}
-        <div className="flex items-center justify-end gap-5 mb-2 pb-3 border-b border-border">
+        <div className="flex items-center justify-end gap-2 mb-2 pb-3 border-b border-border">
           <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-            <Mail className="size-3.5" strokeWidth={1.6} />
-            Email
-          </div>
-          <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-            <Smartphone className="size-3.5" strokeWidth={1.6} />
-            In-app
+            <Monitor className="size-3.5" strokeWidth={1.6} />
+            In-web
           </div>
         </div>
         <div>
@@ -138,45 +169,49 @@ export default function NotificationsSettingsPage() {
               className="flex items-center gap-4 py-4 border-b border-border last:border-0"
             >
               <div className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-muted ring-1 ring-border">
-                <Icon
-                  className="size-4 text-muted-foreground"
-                  strokeWidth={1.6}
-                />
+                <Icon className="size-4 text-muted-foreground" strokeWidth={1.6} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-medium text-foreground">
-                  {label}
-                </p>
-                <p className="mt-0.5 text-[12px] text-muted-foreground">
-                  {description}
-                </p>
+                <p className="text-[13px] font-medium text-foreground">{label}</p>
+                <p className="mt-0.5 text-[12px] text-muted-foreground">{description}</p>
               </div>
-              <div className="flex items-center gap-5 shrink-0">
+              <div className="flex items-center shrink-0">
                 <Switch
-                  checked={prefs[key].email}
-                  onCheckedChange={(v) => setEmail(key, v)}
-                  aria-label={`${label} email`}
-                />
-                <Switch
-                  checked={prefs[key].inApp}
-                  onCheckedChange={(v) => setInApp(key, v)}
-                  aria-label={`${label} in-app`}
+                  checked={prefs[key].inWeb}
+                  onCheckedChange={(v) => setInWeb(key, v)}
+                  aria-label={`${label} in-web`}
                 />
               </div>
             </div>
           ))}
         </div>
         <div className="flex justify-end gap-2 pt-4 mt-2 border-t border-border">
-          <Button variant="ghost" size="md">
+          <Button
+            variant="ghost"
+            size="md"
+            disabled={!isDirty}
+            onClick={() => {
+              const snap = savedSnapshot ?? loadPrefs();
+              setPrefs(snap);
+            }}
+          >
             Discard
           </Button>
-          <Button variant="accent" size="md">
+          <Button
+            variant="accent"
+            size="md"
+            disabled={!isDirty}
+            onClick={() => {
+              savePrefs(prefs);
+              setSavedSnapshot(prefs);
+              toast.success("Notification preferences saved on this device");
+            }}
+          >
             Save preferences
           </Button>
         </div>
       </SectionCard>
 
-      {/* Recent notifications */}
       <SectionCard
         title="Recent Notifications"
         description={
@@ -186,7 +221,6 @@ export default function NotificationsSettingsPage() {
         }
         noPadding
       >
-        {/* Actions bar */}
         <div className="flex items-center justify-between px-6 py-3 border-b border-border">
           <div className="flex items-center gap-1.5">
             {unreadCount > 0 && (
@@ -231,12 +265,9 @@ export default function NotificationsSettingsPage() {
             <div className="size-12 rounded-full bg-muted ring-1 ring-border flex items-center justify-center mb-4">
               <Bell className="size-5 text-muted-foreground" strokeWidth={1.6} />
             </div>
-            <p className="text-[14px] font-medium text-foreground">
-              No notifications
-            </p>
+            <p className="text-[14px] font-medium text-foreground">No notifications</p>
             <p className="mt-1 text-[13px] text-muted-foreground">
-              You&apos;re all caught up. We&apos;ll notify you when something
-              happens.
+              You&apos;re all caught up. We&apos;ll notify you when something happens.
             </p>
           </div>
         ) : (
@@ -280,9 +311,7 @@ export default function NotificationsSettingsPage() {
                       <p
                         className={cn(
                           "text-[13px] font-medium truncate",
-                          !n.read
-                            ? "text-foreground"
-                            : "text-muted-foreground",
+                          !n.read ? "text-foreground" : "text-muted-foreground",
                         )}
                       >
                         {n.title}
@@ -300,9 +329,7 @@ export default function NotificationsSettingsPage() {
                     <p className="mt-0.5 text-[12px] text-muted-foreground line-clamp-2 text-left">
                       {n.body}
                     </p>
-                    <p className="mt-1 text-[11px] text-muted-foreground/70">
-                      {n.timeLabel}
-                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground/70">{n.timeLabel}</p>
                   </div>
                 </button>
               );

@@ -2,14 +2,13 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowRight,
   Zap,
   Sparkles,
   Plus,
-  Clock,
   LayoutGrid,
   MessageCircle,
   Pencil,
@@ -19,10 +18,16 @@ import {
   Globe,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { IntegrationShowcaseSection } from "@/components/marketing/integrations-showcase";
+import { DreamOsStatsSection } from "@/components/os-home/dreamos-stats-section";
+import { WhyDreamOsSection } from "@/components/os-home/why-dreamos-section";
+import { YourAppsSection } from "@/components/os-home/your-apps-section";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useCreditsStore } from "@/lib/stores/credits-store";
 import { useHydrated } from "@/lib/hooks/use-hydrated";
+import { resolveDisplayName } from "@/lib/profile-display";
 import type { CreationMode } from "@/lib/creation/models";
+import { applyComposerPaste } from "@/lib/composer/textarea-handlers";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,6 +38,7 @@ interface RecentProject {
   status: string;
   updated_at: string;
   preview_url: string | null;
+  icon_url: string | null;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -71,31 +77,23 @@ const APP_INSPIRATIONS = [
   { label: "AI chatbot platform", desc: "Saved conversations, model selection, history", gradient: "from-blue-500/15 to-violet-500/15", icon: "🤖", prompt: "Build an AI chatbot platform with multiple model support, persistent conversation history, folder organization, and custom system prompts." },
 ];
 
-const STATUS_DOT: Record<string, string> = {
-  live: "bg-green-400 animate-pulse",
-  building: "bg-accent animate-pulse",
-  staging: "bg-amber-400",
-  draft: "bg-muted-foreground/40",
-  error: "bg-destructive",
-};
-
 // ─── Ambient orbs ─────────────────────────────────────────────────────────────
 
 function AmbientOrbs() {
   return (
     <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden>
       <motion.div
-        className="absolute -top-32 -left-20 size-[600px] rounded-full bg-gradient-radial from-accent/[0.07] to-transparent blur-3xl"
+        className="absolute -top-32 -left-20 size-[600px] rounded-full bg-gradient-radial from-accent/[0.08] to-transparent blur-3xl"
         animate={{ x: [0, 30, 0], y: [0, -20, 0], scale: [1, 1.05, 1] }}
         transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
       />
       <motion.div
-        className="absolute top-[40%] -right-32 size-[500px] rounded-full bg-gradient-radial from-violet-500/[0.05] to-transparent blur-3xl"
+        className="absolute top-[40%] -right-32 size-[500px] rounded-full bg-gradient-radial from-sky-400/[0.06] to-transparent blur-3xl"
         animate={{ x: [0, -25, 0], y: [0, 30, 0], scale: [1, 1.08, 1] }}
         transition={{ duration: 28, repeat: Infinity, ease: "easeInOut", delay: 5 }}
       />
       <motion.div
-        className="absolute -bottom-20 left-1/3 size-[400px] rounded-full bg-gradient-radial from-blue-500/[0.04] to-transparent blur-3xl"
+        className="absolute -bottom-20 left-1/3 size-[400px] rounded-full bg-gradient-radial from-blue-500/[0.06] to-transparent blur-3xl"
         animate={{ x: [0, 20, 0], y: [0, -15, 0] }}
         transition={{ duration: 18, repeat: Infinity, ease: "easeInOut", delay: 2 }}
       />
@@ -105,22 +103,74 @@ function AmbientOrbs() {
 
 // ─── Quick create bar ─────────────────────────────────────────────────────────
 
-function QuickCreateBar() {
-  const router = useRouter();
-  const [input, setInput] = React.useState("");
-  const [mode, setMode] = React.useState<CreationMode>("build");
+const homeQuickBarVariants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.06, delayChildren: 0.04 } },
+};
+const homeQuickItem = {
+  hidden: { opacity: 0, y: 8 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.32, ease: [0.22, 1, 0.36, 1] as const } },
+};
 
-  function launch() {
-    const q = input.trim();
+const PROMPT_IDEAS = [
+  { label: "SaaS dashboard", prompt: TEMPLATES[0].prompt },
+  { label: "AI chatbot", prompt: TEMPLATES[1].prompt },
+  { label: "E-commerce", prompt: TEMPLATES[2].prompt },
+  { label: "Finance tracker", prompt: APP_INSPIRATIONS[0].prompt },
+  { label: "Booking system", prompt: APP_INSPIRATIONS[4].prompt },
+  { label: "Social app", prompt: APP_INSPIRATIONS[3].prompt },
+];
+
+function QuickCreateBar({
+  value,
+  onChange,
+  inputRef,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  inputRef: React.RefObject<HTMLTextAreaElement | null>;
+}) {
+  const router = useRouter();
+  const [mode, setMode] = React.useState<CreationMode>("build");
+  const formRef = React.useRef<HTMLFormElement>(null);
+
+  function launch(source: "button" | "enter" | "form") {
+    const q = value.trim();
+    if (process.env.NODE_ENV !== "production") {
+      console.info("[home] launch", { source, chars: q.length });
+    }
     if (!q) return;
     router.push(`/create?prompt=${encodeURIComponent(q)}&mode=${mode}`);
   }
 
   return (
-    <div className="w-full max-w-2xl">
-      <div className="relative overflow-hidden rounded-2xl bg-surface ring-1 ring-border shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)] transition focus-within:ring-accent/30 focus-within:shadow-[0_12px_40px_-8px_rgba(30,107,255,0.15)]">
-        {/* Mode selector */}
-        <div className="flex items-center gap-1 border-b border-border/60 px-3 py-1.5">
+    <motion.div
+      variants={homeQuickBarVariants}
+      initial="hidden"
+      animate="show"
+      className="relative z-10 w-full max-w-5xl 2xl:max-w-6xl"
+    >
+      <form
+        ref={formRef}
+        onSubmit={(e) => {
+          e.preventDefault();
+          launch("form");
+        }}
+        className="group relative overflow-hidden rounded-[1.5rem] border border-border/50 bg-background/90 shadow-[0_24px_64px_-28px_rgba(37,99,235,0.45)] ring-1 ring-border/40 transition-[border-color,box-shadow] focus-within:border-accent/30 focus-within:shadow-[0_32px_80px_-24px_rgba(37,99,235,0.5)]"
+      >
+        <motion.div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-[55%] bg-[radial-gradient(ellipse_90%_80%_at_50%_100%,color-mix(in_oklab,var(--accent)_22%,transparent),transparent_70%)]"
+          animate={{ opacity: [0.45, 0.75, 0.45] }}
+          transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-[15%] bottom-0 h-32 rounded-[100%] bg-accent/20 blur-3xl"
+          animate={{ y: [12, -4, 12], scale: [1, 1.06, 1] }}
+          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div variants={homeQuickItem} className="relative flex items-center gap-1 border-b border-border/40 px-3 py-2.5">
           {MODES.map((m) => {
             const Icon = m.icon;
             return (
@@ -129,10 +179,10 @@ function QuickCreateBar() {
                 type="button"
                 onClick={() => setMode(m.id)}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11.5px] font-medium transition",
+                  "flex items-center gap-1.5 rounded-full px-3 py-1 text-[11.5px] font-medium transition",
                   mode === m.id
-                    ? "bg-accent/10 text-accent ring-1 ring-accent/20"
-                    : "text-muted-foreground hover:text-foreground hover:bg-surface-raised",
+                    ? "bg-accent/12 text-accent ring-1 ring-accent/25"
+                    : "text-muted-foreground hover:bg-surface/80 hover:text-foreground",
                 )}
               >
                 <Icon className={cn("size-3", mode === m.id ? "text-accent" : m.accent)} strokeWidth={1.75} />
@@ -140,194 +190,91 @@ function QuickCreateBar() {
               </button>
             );
           })}
-        </div>
+        </motion.div>
 
-        {/* Input */}
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
+        <motion.textarea
+          variants={homeQuickItem}
+          ref={inputRef as React.Ref<HTMLTextAreaElement>}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onPaste={(e) => applyComposerPaste(e, value, onChange)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
-              launch();
+              if (process.env.NODE_ENV !== "production") console.info("[home] enter pressed");
+              formRef.current?.requestSubmit();
             }
           }}
-          placeholder={
-            mode === "build"
-              ? "Describe the app you want to build. DreamOS86 generates routes, backend, UI, and runtime…"
-              : mode === "discuss"
-                ? "Ask anything. Plan architecture, explore ideas, or diagnose a problem…"
-                : "Describe an edit. Choose scope, then describe the change precisely…"
-          }
-          rows={2}
-          className="w-full resize-none bg-transparent px-4 pb-2 pt-3 text-[14px] leading-relaxed text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
+          placeholder="Describe the app you want to create…"
+          rows={3}
+          className="relative w-full resize-none appearance-none bg-transparent px-5 pb-1 pt-4 text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/45 outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0"
         />
 
-        {/* Footer */}
-        <div className="flex items-center justify-between px-3 pb-2.5 pt-0.5">
-          <p className="text-[11px] text-muted-foreground/50">Enter to launch · Shift+Enter for new line</p>
+        <motion.div variants={homeQuickItem} className="relative flex flex-wrap items-center gap-2 px-4 pb-3">
+          <span className="mr-1 text-[11px] font-medium text-muted-foreground/55">Ideas:</span>
+          {PROMPT_IDEAS.map((chip) => (
+            <button
+              key={chip.label}
+              type="button"
+              onClick={() => onChange(chip.prompt)}
+              className="cursor-pointer rounded-full border border-border/60 bg-background/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition hover:border-accent/35 hover:text-foreground"
+            >
+              {chip.label}
+            </button>
+          ))}
+        </motion.div>
+
+        <motion.div variants={homeQuickItem} className="relative flex items-center justify-between gap-3 border-t border-border/40 px-4 py-3">
+          <p className="text-[11px] text-muted-foreground/55">Enter to launch · Shift+Enter for new line</p>
           <button
-            type="button"
-            onClick={launch}
-            disabled={!input.trim()}
+            type="submit"
+            aria-disabled={!value.trim()}
+            onPointerDown={() => {
+              if (process.env.NODE_ENV !== "production") console.info("[home] launch button clicked");
+            }}
+            onClick={() => {
+              if (!value.trim() && process.env.NODE_ENV !== "production") {
+                console.info("[home] launch blocked: empty");
+              }
+            }}
             className={cn(
-              "flex items-center gap-1.5 rounded-xl px-4 py-1.5 text-[13px] font-semibold transition",
-              input.trim()
-                ? mode === "build"
-                  ? "bg-gradient-to-r from-accent to-violet-500 text-white shadow-[0_4px_20px_-4px_rgba(30,107,255,0.4)] hover:opacity-90 active:scale-[0.98]"
-                  : "bg-accent text-white hover:bg-accent/90 active:scale-[0.98]"
-                : "bg-muted text-muted-foreground",
+              "relative z-20 flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-xl transition",
+              value.trim()
+                ? "bg-foreground text-background shadow-lg hover:opacity-90 active:scale-[0.97]"
+                : "cursor-not-allowed bg-muted text-muted-foreground opacity-60",
             )}
+            aria-label="Launch"
           >
-            <Zap className="size-3.5" strokeWidth={2} />
-            Launch
-            <ArrowRight className="size-3.5" strokeWidth={2} />
+            <ArrowRight className="size-4" strokeWidth={2.25} />
           </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Recent apps ──────────────────────────────────────────────────────────────
-
-function RecentApps({ projects }: { projects: RecentProject[] }) {
-  if (projects.length === 0) return null;
-
-  return (
-    <section className="w-full max-w-5xl">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Clock className="size-3.5 text-muted-foreground/60" strokeWidth={1.75} />
-          <span className="text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-            Continue building
-          </span>
-        </div>
-        <Link href="/projects" className="flex items-center gap-1 text-[11.5px] text-accent transition hover:underline">
-          View all <ArrowRight className="size-3" strokeWidth={2} />
-        </Link>
-      </div>
-      <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-none">
-        {projects.map((p, i) => (
-          <motion.div
-            key={p.id}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.05, duration: 0.2 }}
-          >
-            <div className="group flex min-w-[220px] flex-col gap-2 rounded-xl bg-surface p-3 ring-1 ring-border transition hover:ring-accent/30 hover:shadow-sm">
-              <div className="flex items-center gap-2.5">
-                <div className={cn("size-8 shrink-0 rounded-lg bg-gradient-to-br", p.gradient)} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-semibold text-foreground">{p.name}</p>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className={cn("size-1.5 rounded-full", STATUS_DOT[p.status] ?? "bg-muted-foreground/40")} />
-                    <span className="text-[11px] capitalize text-muted-foreground">{p.status}</span>
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-[10.5px] text-muted-foreground/60">
-                  {(() => {
-                    const d = new Date(p.updated_at);
-                    const diff = Date.now() - d.getTime();
-                    const mins = Math.floor(diff / 60000);
-                    if (mins < 1) return "just now";
-                    if (mins < 60) return `${mins}m ago`;
-                    const hrs = Math.floor(mins / 60);
-                    if (hrs < 24) return `${hrs}h ago`;
-                    const days = Math.floor(hrs / 24);
-                    if (days < 7) return `${days}d ago`;
-                    return d.toLocaleDateString();
-                  })()}
-                </span>
-                <Link
-                  href={`/projects/${p.id}`}
-                  className="flex items-center gap-1 rounded-md bg-accent/10 px-2 py-0.5 text-[10.5px] font-semibold text-accent transition hover:bg-accent hover:text-white"
-                >
-                  Open <ArrowRight className="size-2.5" strokeWidth={2.5} />
-                </Link>
-              </div>
-            </div>
-          </motion.div>
-        ))}
-
-        {/* New app tile */}
-        <Link
-          href="/create"
-          className="flex min-w-[160px] shrink-0 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border px-4 py-3 text-center transition hover:border-accent/40 hover:bg-accent/5"
-        >
-          <div className="flex size-8 items-center justify-center rounded-lg bg-accent/10">
-            <Plus className="size-4 text-accent" strokeWidth={2} />
-          </div>
-          <span className="text-[11.5px] font-medium text-muted-foreground">New app</span>
-        </Link>
-      </div>
-    </section>
-  );
-}
-
-// ─── Templates ────────────────────────────────────────────────────────────────
-
-function TemplateGrid() {
-  const router = useRouter();
-
-  return (
-    <section className="w-full max-w-5xl">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Sparkles className="size-3.5 text-muted-foreground/60" strokeWidth={1.75} />
-          <span className="text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-            Start from a template
-          </span>
-        </div>
-        <Link href="/templates" className="flex items-center gap-1 text-[11.5px] text-accent transition hover:underline">
-          All templates <ArrowRight className="size-3" strokeWidth={2} />
-        </Link>
-      </div>
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
-        {TEMPLATES.map((t, i) => (
-          <motion.button
-            key={t.label}
-            type="button"
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.1 + i * 0.04, duration: 0.18 }}
-            onClick={() => router.push(`/create?prompt=${encodeURIComponent(t.prompt)}`)}
-            className={cn(
-              "group relative flex flex-col items-start gap-2 overflow-hidden rounded-xl bg-gradient-to-br p-3.5 ring-1 ring-border transition hover:ring-accent/30 hover:shadow-md",
-              t.gradient,
-            )}
-          >
-            <span className="text-xl leading-none">{t.icon}</span>
-            <span className="text-[12.5px] font-semibold text-foreground">{t.label}</span>
-            <ArrowRight className="absolute right-2.5 top-2.5 size-3.5 text-foreground/20 transition group-hover:text-accent/60" strokeWidth={2} />
-          </motion.button>
-        ))}
-      </div>
-    </section>
+        </motion.div>
+      </form>
+    </motion.div>
   );
 }
 
 // ─── App inspiration feed ─────────────────────────────────────────────────────
 
-function AppInspirationFeed() {
-  const router = useRouter();
+function AppInspirationFeed({ onPickPrompt }: { onPickPrompt: (prompt: string) => void }) {
+  const [ripple, setRipple] = React.useState<string | null>(null);
 
   return (
-    <section className="w-full max-w-5xl">
-      <div className="mb-3 flex items-center justify-between">
+    <section className="w-full">
+      <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <TrendingUp className="size-3.5 text-muted-foreground/60" strokeWidth={1.75} />
           <span className="text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground/60">
             App ideas — build one now
           </span>
         </div>
-        <Link href="/explore" className="flex items-center gap-1 text-[11.5px] text-accent transition hover:underline">
+        <Link
+          href="/explore"
+          className="flex cursor-pointer items-center gap-1 text-[11.5px] text-accent transition hover:underline"
+        >
           Explore more <ArrowRight className="size-3" strokeWidth={2} />
         </Link>
       </div>
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {APP_INSPIRATIONS.map((app, i) => (
           <motion.button
             key={app.label}
@@ -335,18 +282,37 @@ function AppInspirationFeed() {
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 + i * 0.04 }}
-            onClick={() => router.push(`/create?prompt=${encodeURIComponent(app.prompt)}`)}
+            whileHover={{ y: -4, transition: { duration: 0.2 } }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => {
+              setRipple(app.label);
+              window.setTimeout(() => {
+                onPickPrompt(app.prompt);
+                setRipple(null);
+              }, 200);
+            }}
             className={cn(
-              "group flex items-start gap-3 rounded-xl p-3.5 ring-1 ring-border text-left transition hover:ring-accent/30 hover:shadow-sm bg-gradient-to-br",
+              "group relative flex cursor-pointer items-start gap-3 overflow-hidden rounded-xl p-4 text-left ring-1 ring-border transition hover:ring-accent/35 hover:shadow-lg bg-gradient-to-br",
               app.gradient,
             )}
           >
+            {ripple === app.label && (
+              <motion.span
+                className="pointer-events-none absolute inset-0 rounded-xl bg-white/30"
+                initial={{ opacity: 0.5, scale: 0.88 }}
+                animate={{ opacity: 0, scale: 1.18 }}
+                transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+              />
+            )}
             <span className="mt-0.5 text-2xl leading-none shrink-0">{app.icon}</span>
             <div className="min-w-0 flex-1">
               <p className="text-[13px] font-semibold text-foreground">{app.label}</p>
               <p className="mt-0.5 text-[11.5px] leading-relaxed text-muted-foreground line-clamp-2">{app.desc}</p>
             </div>
-            <ArrowRight className="size-3.5 shrink-0 mt-1 text-foreground/20 transition group-hover:text-accent/60" strokeWidth={2} />
+            <ArrowRight
+              className="size-3.5 shrink-0 mt-1 text-foreground/25 transition group-hover:translate-x-0.5 group-hover:text-accent"
+              strokeWidth={2}
+            />
           </motion.button>
         ))}
       </div>
@@ -369,7 +335,7 @@ function PlatformStats({ appCount }: { appCount: number }) {
       {hydrated && (
         <span className="flex items-center gap-1.5">
           <Zap className="size-3 text-accent/70" strokeWidth={1.75} />
-          {credits} credits
+          {credits} tokens
         </span>
       )}
     </div>
@@ -378,90 +344,111 @@ function PlatformStats({ appCount }: { appCount: number }) {
 
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
+const heroContainer = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.12, delayChildren: 0.06 } },
+};
+const heroItem = {
+  hidden: { opacity: 0, y: 18 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.52, ease: [0.22, 1, 0.36, 1] as const },
+  },
+};
+
 export interface OsHomeProps {
   recentProjects: RecentProject[];
 }
 
 export function OsHome({ recentProjects }: OsHomeProps) {
-  const { profile } = useAuthStore();
-  const firstName = profile?.full_name?.split(" ")[0] ?? profile?.email?.split("@")[0] ?? null;
+  const searchParams = useSearchParams();
+  const { profile, user } = useAuthStore();
+  const display = resolveDisplayName(profile, user);
+  const firstName = display !== "User" ? display.split(/\s+/)[0] : null;
+
+  const [quickPrompt, setQuickPrompt] = React.useState("");
+  const quickInputRef = React.useRef<HTMLTextAreaElement>(null);
+
+  React.useEffect(() => {
+    const p = searchParams.get("prompt");
+    if (p) setQuickPrompt(p);
+  }, [searchParams]);
+
+  function prefillCreateBar(prompt: string) {
+    setQuickPrompt(prompt);
+    requestAnimationFrame(() => {
+      quickInputRef.current?.focus();
+      quickInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }
 
   return (
-    <div className="relative h-full w-full overflow-y-auto">
+    <div className="relative w-full min-w-0 flex-1">
       <AmbientOrbs />
 
-      <div className="relative z-10 mx-auto flex max-w-5xl flex-col items-center gap-10 px-4 pb-28 pt-12 sm:px-6 lg:pb-20">
+      <div
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-[1] h-[min(52vh,560px)] bg-[radial-gradient(95%_85%_at_50%_100%,color-mix(in_oklab,var(--accent)_12%,transparent),transparent_72%)]"
+        aria-hidden
+      />
 
-        {/* Greeting */}
+      <div className="relative z-10 flex w-full min-w-0 flex-col items-center gap-12 px-5 pb-[calc(7rem+env(safe-area-inset-bottom,0px))] pt-10 sm:px-8 lg:px-12 xl:px-14 2xl:px-16 lg:pb-20">
+
         <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-          className="flex w-full max-w-2xl flex-col items-center text-center"
+          variants={heroContainer}
+          initial="hidden"
+          animate="show"
+          className="flex w-full max-w-5xl flex-col items-center text-center xl:max-w-6xl"
         >
-          <h1 className="text-[28px] font-semibold tracking-[-0.04em] text-foreground sm:text-[32px]">
-            {GREETING}{firstName ? `, ${firstName}` : ""}.
-          </h1>
-          <p className="mt-2 text-[15px] text-muted-foreground">
-            What are you building today?
-          </p>
-          <div className="mt-2">
-            <PlatformStats appCount={recentProjects.length} />
-          </div>
+          <motion.div
+            className="relative w-full overflow-hidden rounded-[1.85rem] border border-accent/20 bg-background/80 px-6 py-10 shadow-[0_28px_72px_-32px_rgba(37,99,235,0.35)] ring-1 ring-accent/15 sm:px-12 sm:py-14"
+            variants={heroItem}
+          >
+            <motion.div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-[70%] bg-[radial-gradient(ellipse_100%_90%_at_50%_100%,color-mix(in_oklab,var(--accent)_28%,transparent),transparent_68%)]"
+              animate={{ opacity: [0.5, 0.85, 0.5] }}
+              transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
+            />
+            <motion.div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-[10%] bottom-0 h-40 rounded-[100%] bg-sky-400/15 blur-3xl"
+              animate={{ y: [16, -8, 16], scale: [1, 1.08, 1] }}
+              transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+            />
+            <motion.div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 opacity-40 [background:radial-gradient(ellipse_70%_45%_at_50%_0%,color-mix(in_oklab,var(--accent)_12%,transparent),transparent_60%)]"
+            />
+            <motion.p variants={heroItem} className="relative text-[11px] font-semibold uppercase tracking-[0.2em] text-accent/90">
+              DreamOS86
+            </motion.p>
+            <motion.h1
+              variants={heroItem}
+              className="relative mt-3 text-balance text-[28px] font-semibold tracking-[-0.04em] text-foreground sm:text-[36px] lg:text-[40px]"
+            >
+              {GREETING}{firstName ? `, ${firstName}` : ""}.
+            </motion.h1>
+            <motion.p variants={heroItem} className="relative mt-2 text-pretty text-[15px] text-muted-foreground sm:text-[16px]">
+              What are you building today?
+            </motion.p>
+            <motion.div variants={heroItem} className="relative mt-5 flex justify-center">
+              <PlatformStats appCount={recentProjects.length} />
+            </motion.div>
+          </motion.div>
         </motion.div>
 
-        {/* Quick create bar */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.05 }}
-          className="w-full max-w-2xl"
-        >
-          <QuickCreateBar />
-        </motion.div>
+        <div className="w-full max-w-5xl 2xl:max-w-6xl">
+          <QuickCreateBar value={quickPrompt} onChange={setQuickPrompt} inputRef={quickInputRef} />
+        </div>
 
-        {/* Recent apps — or first-run empty state */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.1 }}
-          className="w-full"
+          className="mx-auto w-full max-w-5xl"
         >
-          {recentProjects.length > 0 ? (
-            <RecentApps projects={recentProjects} />
-          ) : (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.12 }}
-              className="flex flex-col items-center gap-3 rounded-2xl bg-surface/50 px-8 py-10 text-center ring-1 ring-border/60"
-            >
-              <div className="flex size-12 items-center justify-center rounded-2xl bg-accent/10 ring-1 ring-accent/20">
-                <Zap className="size-5 text-accent" strokeWidth={1.75} />
-              </div>
-              <div>
-                <p className="text-[15px] font-semibold text-foreground">Build your first AI-native application</p>
-                <p className="mt-1 text-[13px] text-muted-foreground">Describe what you want to create — DreamOS86 architects, builds, and deploys it.</p>
-              </div>
-              <Link
-                href="/create"
-                className="mt-1 inline-flex items-center gap-1.5 rounded-xl bg-accent px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-accent/90"
-              >
-                <Zap className="size-3.5" strokeWidth={2} />
-                Start building
-              </Link>
-            </motion.div>
-          )}
-        </motion.div>
-
-        {/* Templates */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.15 }}
-          className="w-full"
-        >
-          <TemplateGrid />
+          <YourAppsSection projects={recentProjects} />
         </motion.div>
 
         {/* App inspiration feed */}
@@ -469,9 +456,36 @@ export function OsHome({ recentProjects }: OsHomeProps) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.2 }}
-          className="w-full"
+          className="mx-auto w-full max-w-5xl"
         >
-          <AppInspirationFeed />
+          <AppInspirationFeed onPickPrompt={prefillCreateBar} />
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.22 }}
+          className="mx-auto w-full max-w-5xl"
+        >
+          <IntegrationShowcaseSection variant="premium" />
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.23 }}
+          className="mx-auto w-full max-w-5xl"
+        >
+          <WhyDreamOsSection />
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.24 }}
+          className="mx-auto w-full max-w-5xl"
+        >
+          <DreamOsStatsSection />
         </motion.div>
 
         {/* Platform quick links */}
@@ -479,7 +493,7 @@ export function OsHome({ recentProjects }: OsHomeProps) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.25 }}
-          className="flex flex-wrap items-center justify-center gap-2 w-full max-w-2xl"
+          className="flex w-full max-w-4xl flex-wrap items-center justify-center gap-2"
         >
           {[
             { href: "/projects", icon: LayoutGrid, label: "All apps" },

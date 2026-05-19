@@ -38,6 +38,7 @@ const PROVIDER_COST_USD: Record<string, number> = {
   // Google
   "gemini-2-5-pro":    0.06,   // ~$3.5/M input, $10.5/M output (blended)
   "gemini-2-0-flash":  0.008,  // ~$0.075/M input, $0.30/M output
+  "gemini-2.0-flash":  0.008,
   "gemini-flash":      0.004,  // ~$0.075/M input, $0.30/M output
 
   // DeepSeek
@@ -62,6 +63,9 @@ const PROVIDER_COST_USD: Record<string, number> = {
  * Covers infrastructure overhead (compute, storage, egress).
  */
 const MIN_CREDITS_PER_REQUEST = 1;
+
+/** Discuss/chat turns use the cheapest models but still need a sane floor so plans stay economically viable. */
+const DISCUSS_MIN_CREDITS = 3;
 
 /**
  * Orchestration complexity multipliers by creation mode.
@@ -90,8 +94,23 @@ export function calculateCredits(
 
   // Apply 3x margin and convert to credits
   const requiredCredits = adjustedCostUsd * MARGIN_MULTIPLIER * CREDITS_PER_USD;
+  const base = Math.max(MIN_CREDITS_PER_REQUEST, Math.ceil(requiredCredits));
+  if (mode === "discuss") {
+    return Math.max(DISCUSS_MIN_CREDITS, base);
+  }
+  return base;
+}
 
-  return Math.max(MIN_CREDITS_PER_REQUEST, Math.ceil(requiredCredits));
+/**
+ * Wallet units debited per request (same numeric values as `calculateCredits`;
+ * user-facing name is “tokens”, stored in `profiles.credits_remaining`).
+ */
+export function calculateTokens(
+  modelId: string,
+  mode: "discuss" | "edit" | "build" = "discuss",
+  contextMultiplier = 1.0,
+): number {
+  return calculateCredits(modelId, mode, contextMultiplier);
 }
 
 /**

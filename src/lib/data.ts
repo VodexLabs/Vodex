@@ -505,67 +505,45 @@ export const notifications: Notification[] = [];
 
 export const changelog: ChangelogEntry[] = [
   {
-    id: "v0.8",
+    id: "chat-persistence",
     version: "0.8.0",
     date: "May 15, 2026",
     type: "major",
-    title: "Streaming Generation & Model Switcher",
+    title: "AI chat with Supabase persistence",
     description:
-      "Experience real-time app generation with live streaming output. Switch between AI models mid-session and see credits adjust in real time.",
+      "Assistant threads and messages are stored for signed-in accounts. Tokens are billed after each completed model reply, with free plans routed to efficient defaults.",
     highlights: [
-      "Streaming AI generation with token-by-token output",
-      "Model switcher: Claude, GPT-4o, Gemini, Grok, DeepSeek",
-      "6 new premium templates including Mobile App and CRM",
-      "Improved deployment pipeline with rollback",
-      "Asset Library with drag-and-drop uploads",
-      "Team collaboration with live cursors",
+      "Conversations and messages scoped to the logged-in user",
+      "Server-side Anthropic / OpenAI calls using environment keys only",
+      "Fast empty state when no conversations exist yet",
     ],
   },
   {
-    id: "v0.7",
-    version: "0.7.0",
-    date: "Apr 28, 2026",
-    type: "major",
-    title: "Team Collaboration & Deployment Center",
-    description:
-      "Invite your team, collaborate on apps in real time, and deploy with one click to multiple environments.",
-    highlights: [
-      "Team workspaces with role-based permissions",
-      "Deployment Center with staging and production environments",
-      "Build queue with parallel execution",
-      "GitHub integration for auto-deploy on push",
-      "Custom domain support for all paid plans",
-    ],
-  },
-  {
-    id: "v0.6",
-    version: "0.6.0",
-    date: "Apr 10, 2026",
-    type: "major",
-    title: "Premium Templates & App Library Redesign",
-    description:
-      "14 production-ready templates across every category. Beautiful app cards with live status and preview thumbnails.",
-    highlights: [
-      "14 premium templates: SaaS, AI, Marketplace, and more",
-      "App cards with gradient previews and live status indicators",
-      "Template search and category filtering",
-      "Recently edited and favorites sections",
-      "Improved empty states throughout the app",
-    ],
-  },
-  {
-    id: "v0.5",
-    version: "0.5.0",
-    date: "Mar 22, 2026",
+    id: "onboarding-admin-storage",
+    version: "0.7.2",
+    date: "April 2, 2026",
     type: "minor",
-    title: "Pricing & Credits System",
+    title: "First-run onboarding, admin tools, and upload reliability",
     description:
-      "Full subscription management with usage tracking, credit monitoring, and upgrade flows.",
+      "New accounts complete a short guided onboarding flow. The platform owner has a server-enforced admin area for users, contacts, AI usage, storage failures, and token grants.",
     highlights: [
-      "4-tier pricing: Starter, Pro, Studio, Enterprise",
-      "Credits dashboard with real-time usage tracking",
-      "Upgrade prompts with feature gating",
-      "Beautiful billing page with invoice history",
+      "Profile bootstrap on OAuth callback with starter tokens",
+      "Avatar, workspace icon, and media uploads log storage errors for review",
+      "Community and explore tabs fail fast with guided empty states",
+    ],
+  },
+  {
+    id: "workspace-create",
+    version: "0.4.0",
+    date: "December 18, 2025",
+    type: "patch",
+    title: "Workspace shell, create flow, and auth proxy",
+    description:
+      "Early foundations for the signed-in shell: create workspace with preview panel, proxy-based session refresh aligned with Supabase, and pricing surfaces that reflect token-based usage.",
+    highlights: [
+      "Create flow with Discuss / Edit / Build modes",
+      "Home and pricing iterations with honest staging of paid checkout",
+      "Projects list and template shortcuts wired to Supabase where available",
     ],
   },
 ];

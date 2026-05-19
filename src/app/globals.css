@@ -225,10 +225,35 @@
   display: none;
 }
 
-/* Smooth focus ring */
+/* Smooth focus: avoid square outline artifacts on rounded text fields (use ring utilities per-component). */
 :focus-visible {
+  outline: none;
+}
+
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible,
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible,
+[role="button"]:focus-visible,
+[role="menuitem"]:focus-visible,
+[role="tab"]:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
+}
+
+/* Chat / build composers — never show inset blue rings on the textarea */
+.composer-shell:focus-within {
+  box-shadow: var(--shadow-sm);
+}
+.composer-shell textarea,
+.composer-shell textarea:focus,
+.composer-shell textarea:focus-visible {
+  resize: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

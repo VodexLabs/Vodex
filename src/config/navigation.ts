@@ -2,7 +2,6 @@ import {
   Sparkles,
   Home,
   LayoutGrid,
-  LayoutTemplate,
   MessageSquare,
   Compass,
   Rocket,
@@ -16,6 +15,7 @@ import {
   Gift,
   type LucideIcon,
 } from "lucide-react";
+import { DreamTemplatesNavIcon } from "@/components/ui/dream-templates-nav-icon";
 
 export type NavItem = {
   title: string;
@@ -32,7 +32,7 @@ export type NavSection = {
 export const mainNav: NavItem[] = [
   { title: "Home", href: "/", icon: Home },
   { title: "Apps", href: "/projects", icon: LayoutGrid },
-  { title: "Templates", href: "/templates", icon: LayoutTemplate },
+  { title: "Templates", href: "/templates", icon: DreamTemplatesNavIcon },
   { title: "Explore", href: "/explore", icon: Compass },
   { title: "AI Chat", href: "/chat", icon: MessageSquare },
   { title: "Deploy", href: "/deploy", icon: Rocket },
@@ -49,7 +49,7 @@ export const navSections: NavSection[] = [
     items: [
       { title: "Home", href: "/", icon: Home },
       { title: "Apps", href: "/projects", icon: LayoutGrid },
-      { title: "Templates", href: "/templates", icon: LayoutTemplate },
+      { title: "Templates", href: "/templates", icon: DreamTemplatesNavIcon },
       { title: "Explore", href: "/explore", icon: Compass },
     ],
   },
@@ -87,7 +87,6 @@ export const navSections: NavSection[] = [
 
 export const settingsNav: NavItem[] = [
   { title: "General", href: "/settings", icon: Settings2 },
-  { title: "Account", href: "/settings/account", icon: Users },
   { title: "Billing", href: "/settings/billing", icon: BarChart3 },
   { title: "Team", href: "/settings/team", icon: Users },
   { title: "Models", href: "/settings/models", icon: Sparkles },

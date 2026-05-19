@@ -12,7 +12,9 @@
 const EXPECTED_SUPABASE_PROJECT_REF = "xycqutvqxtkbszytaxbe";
 
 export function register() {
-  if (process.env.NODE_ENV !== "production") {
+  // Local dev on Windows only: Supabase CDN certs can fail Node verification (UNABLE_TO_VERIFY_LEAF_SIGNATURE).
+  // Set here — not in npm scripts — so production never logs the insecure TLS warning. Vercel does not need this.
+  if (process.env.NODE_ENV === "development") {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
   }
 

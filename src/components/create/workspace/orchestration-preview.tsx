@@ -1,15 +1,12 @@
 "use client";
 
 import * as React from "react";
-import Image from "next/image";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 /**
  * Live orchestration animation shown in the right preview panel before
- * the user has generated an app. This is intentionally NOT fake progress
- * — it never claims a build is happening. It's an idle pulse that reads
- * as "the OS is alive and ready".
+ * the user has generated an app. Does not imply fake deployment progress.
  */
 export function OrchestrationPreview({
   status = "idle",
@@ -78,13 +75,13 @@ export function OrchestrationPreview({
           className="relative flex size-24 items-center justify-center rounded-3xl"
         >
           <div className="flex size-full items-center justify-center">
-            <Image
-              src="/logo.png"
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/dreamos86-platform-logo.png"
               alt="DreamOS86"
               width={80}
               height={80}
               className="object-contain"
-              priority
             />
           </div>
 
@@ -108,7 +105,7 @@ export function OrchestrationPreview({
           </p>
           <p className="mt-2 text-[14px] tracking-[-0.01em] text-muted-foreground">
             {fast
-              ? "Orchestrating…"
+              ? "Building your app…"
               : "Ready to architect, build, and deploy."}
           </p>
         </div>

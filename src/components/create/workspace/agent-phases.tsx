@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import * as LucideIcons from "lucide-react";
 import { AGENTS, PHASE_MARKER, type AgentRole } from "@/lib/creation/orchestration";
 import { cn } from "@/lib/utils";
+import { stripFencedCodeForChat } from "@/lib/creation/extract-fenced-code";
 
 interface ParsedPhase {
   role: AgentRole;
@@ -71,19 +72,23 @@ export function AgentPhases({
   text,
   streaming,
   className,
+  suppressCode = false,
 }: {
   text: string;
   streaming?: boolean;
   className?: string;
+  /** Hide fenced code in chat — use Code tab instead (build mode). */
+  suppressCode?: boolean;
 }) {
   const parsed = React.useMemo(() => parsePhases(text), [text]);
 
   // No phase markers found — render plain text (model didn't follow the
   // orchestration format, which is fine for short Discuss-mode answers).
   if (parsed.phases.length === 0) {
-    return text ? (
+    const raw = suppressCode ? stripFencedCodeForChat(text) : text;
+    return raw ? (
       <div className={cn("whitespace-pre-wrap text-[13.5px] leading-relaxed", className)}>
-        {text}
+        {raw}
       </div>
     ) : null;
   }
@@ -129,7 +134,7 @@ export function AgentPhases({
                   )}
                 </div>
                 <div className="prose-orch px-3 py-2 text-[13px] leading-relaxed text-foreground">
-                  <PhaseBody body={phase.body} />
+                  <PhaseBody body={phase.body} suppressCode={suppressCode} />
                 </div>
               </motion.div>
             );
@@ -145,12 +150,20 @@ export function AgentPhases({
  * blocks, inline code, and bullets — enough to make a streaming response
  * feel rich without pulling in a heavy markdown lib.
  */
-function PhaseBody({ body }: { body: string }) {
+function PhaseBody({ body, suppressCode }: { body: string; suppressCode?: boolean }) {
   const parts = React.useMemo(() => parseBlocks(body), [body]);
   return (
     <>
       {parts.map((p, i) => {
         if (p.kind === "code") {
+          if (suppressCode) {
+            return (
+              <p key={i} className="my-2 rounded-lg bg-muted/40 px-3 py-2 text-[12px] italic text-muted-foreground ring-1 ring-border/60">
+                Detailed source is in the <span className="font-medium text-foreground">Code</span> tab so this chat
+                stays easy to read.
+              </p>
+            );
+          }
           return (
             <pre
               key={i}

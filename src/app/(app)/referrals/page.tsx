@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { ReferralsDashboard } from "@/components/referrals/referrals-dashboard";
 
 export const metadata: Metadata = {
-  title: "Referrals — DreamOS86",
+  title: "Referrals",
   description: "Invite friends and earn credits.",
 };
 

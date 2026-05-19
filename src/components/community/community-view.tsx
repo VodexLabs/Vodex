@@ -50,6 +50,56 @@ const BANNER_COLORS = [
   "#64748b", "#1e293b",
 ];
 
+function withTimeout<T>(p: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    Promise.resolve(p),
+    new Promise<T>((_, rej) => setTimeout(() => rej(new Error(label)), ms)),
+  ]);
+}
+
+const COMMUNITY_FETCH_TIMEOUT_MS = 1_000;
+
+function CommunityFetchFallback({
+  title,
+  description,
+  onRetry,
+  primaryHref = "/create",
+  primaryLabel = "Start building",
+  secondaryLabel,
+  onSecondary,
+}: {
+  title: string;
+  description: string;
+  onRetry: () => void;
+  primaryHref?: string;
+  primaryLabel?: string;
+  secondaryLabel?: string;
+  onSecondary?: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center rounded-[var(--radius-xl)] bg-surface py-12 text-center ring-1 ring-border px-6">
+      <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-accent/10 ring-1 ring-accent/20">
+        <Rocket className="size-7 text-accent" strokeWidth={1.5} />
+      </div>
+      <p className="text-[15px] font-semibold text-foreground">{title}</p>
+      <p className="mt-2 max-w-md text-[13px] text-muted-foreground leading-relaxed">{description}</p>
+      <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+        <Button variant="accent" size="sm" className="gap-1.5" asChild>
+          <Link href={primaryHref}>{primaryLabel}</Link>
+        </Button>
+        {secondaryLabel && onSecondary ? (
+          <Button variant="secondary" size="sm" type="button" onClick={onSecondary}>
+            {secondaryLabel}
+          </Button>
+        ) : null}
+        <Button variant="ghost" size="sm" type="button" onClick={onRetry}>
+          Retry
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 const CATEGORY_COLORS: Record<string, string> = {
   General: "bg-muted/60 text-muted-foreground",
   Tips: "bg-accent/10 text-accent",
@@ -83,18 +133,23 @@ function CreateDiscussionModal({
     setLoading(true);
     setError(null);
 
-    const { data, error: err } = await supabase
-      .from("discussions")
-      .insert({ user_id: user.id, title: title.trim(), body: body.trim(), category })
-      .select()
-      .single();
+    try {
+      const { data, error: err } = await supabase
+        .from("discussions")
+        .insert({ user_id: user.id, title: title.trim(), body: body.trim(), category })
+        .select()
+        .single();
 
-    if (err || !data) {
-      setError(err?.message ?? "Failed to create discussion.");
+      if (err || !data) {
+        setError(err?.message ?? "Failed to create discussion.");
+      } else {
+        onCreated(data as Discussion);
+        onClose();
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to create discussion.");
+    } finally {
       setLoading(false);
-    } else {
-      onCreated(data as Discussion);
-      onClose();
     }
   }
 
@@ -320,7 +375,7 @@ function CreateGroupModal({
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif"
+            accept="image/png,image/jpeg,image/webp"
             className="sr-only"
             onChange={handleIconChange}
           />
@@ -428,6 +483,8 @@ function DiscussionCard({
 }) {
   const authorName = disc.author_name ?? "Community member";
   const timeAgo = React.useMemo(() => {
+    // Relative timestamps are intentionally computed against wall-clock time.
+    // eslint-disable-next-line react-hooks/purity -- time delta from created_at
     const diff = Date.now() - new Date(disc.created_at).getTime();
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return "just now";
@@ -519,14 +576,14 @@ function EmptyDiscussions({ onStart }: { onStart: () => void }) {
           <Users className="size-8 text-accent" strokeWidth={1.5} />
         </motion.div>
         <h2 className="text-[17px] font-semibold tracking-tight text-foreground">
-          Be the first voice here
+          No discussions yet
         </h2>
         <p className="mt-2 max-w-md text-[13px] text-muted-foreground leading-relaxed">
           DreamOS86 is early and this community is yours to shape. Ask questions, share builds, leave feedback, post tips — everything counts.
         </p>
         <Button variant="accent" size="sm" className="mt-6 gap-1.5" onClick={onStart}>
           <Plus className="size-3.5" strokeWidth={2} />
-          Start the first discussion
+          Start discussion
         </Button>
       </div>
 
@@ -571,27 +628,52 @@ function GroupsTab({ onCreateGroup }: { onCreateGroup: () => void }) {
   const { user } = useAuthStore();
   const [groups, setGroups] = React.useState<Group[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [retryKey, setRetryKey] = React.useState(0);
   const [joinedIds, setJoinedIds] = React.useState<Set<string>>(new Set());
   const [joiningId, setJoiningId] = React.useState<string | null>(null);
   const router = useRouter();
 
   React.useEffect(() => {
+    let cancelled = false;
     async function load() {
+      setLoading(true);
+      setError(null);
       try {
-        const [{ data: grps }, memberData] = await Promise.all([
-          supabase.from("groups").select("*").eq("is_public", true).order("member_count", { ascending: false }).limit(20),
-          user ? supabase.from("group_members").select("group_id").eq("user_id", user.id) : Promise.resolve({ data: [] }),
-        ]);
-        setGroups((grps ?? []) as Group[]);
-        setJoinedIds(new Set((memberData.data ?? []).map((m: { group_id: string }) => m.group_id)));
-      } catch {
-        // Table may not exist yet — just show empty state
+        const { gr, mr } = await withTimeout(
+          (async () => {
+            const gr = await supabase
+              .from("groups")
+              .select("*")
+              .eq("is_public", true)
+              .order("member_count", { ascending: false })
+              .limit(20);
+            const mr = user
+              ? await supabase.from("group_members").select("group_id").eq("user_id", user.id)
+              : { data: [] as { group_id: string }[] | null, error: null as Error | null };
+            return { gr, mr };
+          })(),
+          COMMUNITY_FETCH_TIMEOUT_MS,
+          "Request timed out",
+        );
+        if (cancelled) return;
+        if (gr.error) throw new Error(gr.error.message);
+        setGroups((gr.data ?? []) as Group[]);
+        setJoinedIds(new Set((mr.data ?? []).map((m) => m.group_id)));
+      } catch (e) {
+        if (!cancelled) {
+          setGroups([]);
+          setError(e instanceof Error ? e.message : "Failed to load groups");
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
     load();
-  }, [user?.id]);
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, retryKey]);
 
   async function handleJoin(groupId: string) {
     if (!user) { router.push("/auth/login"); return; }
@@ -613,6 +695,16 @@ function GroupsTab({ onCreateGroup }: { onCreateGroup: () => void }) {
     return <div className="flex justify-center py-16"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>;
   }
 
+  if (error) {
+    return (
+      <CommunityFetchFallback
+        title="Get started"
+        description="Groups are taking longer than usual to load. You can still build apps on DreamOS86 or try loading again."
+        onRetry={() => setRetryKey((k) => k + 1)}
+      />
+    );
+  }
+
   return (
     <div className="space-y-4">
       {groups.length === 0 ? (
@@ -626,7 +718,7 @@ function GroupsTab({ onCreateGroup }: { onCreateGroup: () => void }) {
           </p>
           <Button variant="accent" size="sm" className="mt-6 gap-1.5" onClick={onCreateGroup}>
             <Plus className="size-3.5" strokeWidth={2} />
-            Create the first group
+            Create group
           </Button>
         </div>
       ) : (
@@ -730,40 +822,66 @@ export function CommunityView() {
   const { user } = useAuthStore();
   const [tab, setTab] = React.useState<Tab>("Discussions");
   const [discussions, setDiscussions] = React.useState<DiscussionWithAuthor[]>([]);
-  const [loading, setLoading] = React.useState(true);
+  const [discussionsLoading, setDiscussionsLoading] = React.useState(true);
+  const [discussionsError, setDiscussionsError] = React.useState<string | null>(null);
+  const [discussionsRetryKey, setDiscussionsRetryKey] = React.useState(0);
   const [showCreate, setShowCreate] = React.useState(false);
   const [showCreateGroup, setShowCreateGroup] = React.useState(false);
   const [likedIds, setLikedIds] = React.useState<Set<string>>(new Set());
 
   React.useEffect(() => {
-    if (tab !== "Discussions") { setLoading(false); return; }
-    setLoading(true);
+    if (tab !== "Discussions" && tab !== "Trending") {
+      return;
+    }
 
-    Promise.all([
-      supabase
-        .from("discussions")
-        .select("*")
-        .order("is_pinned", { ascending: false })
-        .order("created_at", { ascending: false })
-        .limit(50),
-      user
-        ? supabase.from("discussion_likes").select("discussion_id").eq("user_id", user.id)
-        : Promise.resolve({ data: [] }),
-    ]).then(([{ data: discs }, { data: likes }]) => {
-      const liked = new Set((likes ?? []).map((l: { discussion_id: string }) => l.discussion_id));
-      setLikedIds(liked);
-      setDiscussions(
-        (discs ?? []).map((d) => ({
-          ...d,
-          liked: liked.has(d.id),
-        })) as DiscussionWithAuthor[],
-      );
-    }).catch(() => {
-      setDiscussions([]);
-    }).finally(() => {
-      setLoading(false);
-    });
-  }, [tab, user?.id]);
+    let cancelled = false;
+    /* eslint-disable react-hooks/set-state-in-effect -- discussions fetch lifecycle */
+    setDiscussionsLoading(true);
+    setDiscussionsError(null);
+    /* eslint-enable react-hooks/set-state-in-effect */
+
+    (async () => {
+      try {
+        const [discRes, likesRes] = await withTimeout(
+          Promise.all([
+            supabase
+              .from("discussions")
+              .select("*")
+              .order("is_pinned", { ascending: false })
+              .order("created_at", { ascending: false })
+              .limit(50),
+            user
+              ? supabase.from("discussion_likes").select("discussion_id").eq("user_id", user.id)
+              : Promise.resolve({ data: [] as { discussion_id: string }[] | null, error: null }),
+          ]),
+          COMMUNITY_FETCH_TIMEOUT_MS,
+          "Request timed out",
+        );
+        if (cancelled) return;
+        if (discRes.error) throw new Error(discRes.error.message);
+        const likes = likesRes.data ?? [];
+        const liked = new Set(likes.map((l: { discussion_id: string }) => l.discussion_id));
+        setLikedIds(liked);
+        setDiscussions(
+          (discRes.data ?? []).map((d) => ({
+            ...d,
+            liked: liked.has(d.id),
+          })) as DiscussionWithAuthor[],
+        );
+      } catch (e) {
+        if (!cancelled) {
+          setDiscussions([]);
+          setDiscussionsError(e instanceof Error ? e.message : "Failed to load discussions");
+        }
+      } finally {
+        if (!cancelled) setDiscussionsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, user?.id, discussionsRetryKey]);
 
   async function handleLike(discussionId: string) {
     if (!user) return;
@@ -799,7 +917,7 @@ export function CommunityView() {
   }
 
   return (
-    <div className="relative mx-auto max-w-5xl">
+    <div className="relative mx-auto w-full min-w-0 max-w-[min(100%,90rem)]">
       <div className="pointer-events-none absolute -left-16 top-0 h-56 w-56 rounded-full bg-[radial-gradient(circle_at_center,color-mix(in_oklab,var(--accent)_8%,transparent),transparent_68%)] blur-3xl" />
 
       <motion.div
@@ -859,7 +977,25 @@ export function CommunityView() {
       {/* Trending tab */}
       {tab === "Trending" && (
         <motion.div variants={variants.fadeUp} initial="hidden" animate="show" transition={{ delay: 0.1 }} className="mt-6">
-          <TrendingTab onStartDiscussion={() => { setTab("Discussions"); setShowCreate(true); }} discussions={discussions} />
+          {discussionsLoading ? (
+            <div className="flex justify-center py-16">
+              <Loader2 className="size-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : discussionsError ? (
+            <CommunityFetchFallback
+              title="Get started"
+              description={
+                discussionsError === "Request timed out"
+                  ? "Discussions are slow to respond right now. Shipped something amazing while you wait, or try again in a moment."
+                  : `We couldn’t load discussions (${discussionsError}). You can still start building, post when the feed is back, or retry.`
+              }
+              onRetry={() => setDiscussionsRetryKey((k) => k + 1)}
+              secondaryLabel="Start a discussion"
+              onSecondary={() => setShowCreate(true)}
+            />
+          ) : (
+            <TrendingTab onStartDiscussion={() => { setTab("Discussions"); setShowCreate(true); }} discussions={discussions} />
+          )}
         </motion.div>
       )}
 
@@ -880,10 +1016,22 @@ export function CommunityView() {
       {/* Discussions tab */}
       {tab === "Discussions" && (
         <motion.div variants={variants.fadeUp} initial="hidden" animate="show" transition={{ delay: 0.1 }} className="mt-6">
-          {loading ? (
+          {discussionsLoading ? (
             <div className="flex justify-center py-16">
               <Loader2 className="size-6 animate-spin text-muted-foreground" />
             </div>
+          ) : discussionsError ? (
+            <CommunityFetchFallback
+              title="Get started"
+              description={
+                discussionsError === "Request timed out"
+                  ? "Discussions are slow to respond right now. Shipped something amazing while you wait, or try again in a moment."
+                  : `We couldn’t load discussions (${discussionsError}). You can still start building, post when the feed is back, or retry.`
+              }
+              onRetry={() => setDiscussionsRetryKey((k) => k + 1)}
+              secondaryLabel="Start a discussion"
+              onSecondary={() => setShowCreate(true)}
+            />
           ) : discussions.length === 0 ? (
             <EmptyDiscussions onStart={() => setShowCreate(true)} />
           ) : (
@@ -918,7 +1066,7 @@ export function CommunityView() {
         {showCreateGroup && (
           <CreateGroupModal
             onClose={() => setShowCreateGroup(false)}
-            onCreated={(g) => {
+            onCreated={() => {
               setTab("Groups");
               setShowCreateGroup(false);
             }}
@@ -1014,24 +1162,49 @@ function BuildersTab() {
   const supabase = createClient();
   const [builders, setBuilders] = React.useState<Array<{ id: string; full_name: string | null; email: string; avatar_url: string | null }>>([]);
   const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [retryKey, setRetryKey] = React.useState(0);
 
   React.useEffect(() => {
-    supabase
-      .from("profiles")
-      .select("id, full_name, email, avatar_url")
-      .order("created_at", { ascending: false })
-      .limit(12)
-      .then(({ data }) => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const { data, error: err } = await withTimeout(
+          supabase.from("profiles").select("id, full_name, email, avatar_url").order("created_at", { ascending: false }).limit(12),
+          COMMUNITY_FETCH_TIMEOUT_MS,
+          "Request timed out",
+        );
+        if (cancelled) return;
+        if (err) throw new Error(err.message);
         setBuilders(data ?? []);
-        setLoading(false);
-      }, () => {
-        setBuilders([]);
-        setLoading(false);
-      });
-  }, []);
+      } catch (e) {
+        if (!cancelled) {
+          setBuilders([]);
+          setError(e instanceof Error ? e.message : "Failed to load builders");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [retryKey]);
 
   if (loading) {
     return <div className="flex justify-center py-16"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>;
+  }
+
+  if (error) {
+    return (
+      <CommunityFetchFallback
+        title="Get started"
+        description="We couldn’t load builder profiles right now. Start shipping an app or try again in a moment."
+        onRetry={() => setRetryKey((k) => k + 1)}
+      />
+    );
   }
 
   return (
@@ -1044,8 +1217,21 @@ function BuildersTab() {
 
       {builders.length === 0 ? (
         <div className="flex flex-col items-center rounded-[var(--radius-xl)] bg-surface py-12 text-center ring-1 ring-border px-6">
-          <Users className="mb-2 size-8 text-muted-foreground/30" strokeWidth={1.25} />
-          <p className="text-[13px] font-medium text-foreground">No builders yet</p>
+          <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-accent/10 ring-1 ring-accent/20">
+            <Users className="size-7 text-accent" strokeWidth={1.5} />
+          </div>
+          <p className="text-[15px] font-semibold text-foreground">No builders yet</p>
+          <p className="mt-2 max-w-md text-[13px] text-muted-foreground">
+            When teammates join, they&apos;ll show up here. Invite people from Team settings or start shipping apps.
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+            <Button variant="accent" size="sm" className="gap-1.5" asChild>
+              <Link href="/settings/team">Invite builders</Link>
+            </Button>
+            <Button variant="secondary" size="sm" className="gap-1.5" asChild>
+              <Link href="/">Start building</Link>
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
