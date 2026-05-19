@@ -28,6 +28,7 @@ export const INTEGRATION_SHOWCASE_ITEMS: IntegrationShowcaseItem[] = [
   { name: "Resend", desc: "Transactional email delivery", slug: "resend", iconWrap: "bg-foreground/6" },
   { name: "Slack", desc: "Notifications and webhooks", slug: "slack", iconWrap: "bg-[#4A154B]/12" },
   { name: "OpenAI", desc: "AI completions and embeddings", slug: "openai", iconWrap: "bg-[#10A37F]/12" },
+  { name: "Gemini", desc: "Google multimodal models", slug: "googlegemini", iconWrap: "bg-[#4285F4]/12" },
 ];
 
 function BrandIcon({

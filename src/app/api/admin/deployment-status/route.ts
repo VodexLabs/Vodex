@@ -39,14 +39,17 @@ export async function GET() {
 
   let termsReachable = false;
   let privacyReachable = false;
+  let contactReachable = false;
   try {
     const base = appUrl.replace(/\/$/, "");
-    const [termsRes, privacyRes] = await Promise.all([
+    const [termsRes, privacyRes, contactRes] = await Promise.all([
       fetch(`${base}/terms`, { method: "GET", redirect: "follow" }),
       fetch(`${base}/privacy`, { method: "GET", redirect: "follow" }),
+      fetch(`${base}/contact`, { method: "GET", redirect: "follow" }),
     ]);
     termsReachable = termsRes.ok;
     privacyReachable = privacyRes.ok;
+    contactReachable = contactRes.ok;
   } catch {
     /* unreachable from this runtime */
   }
@@ -70,6 +73,7 @@ export async function GET() {
     legal: {
       termsReachable,
       privacyReachable,
+      contactReachable,
     },
     packages: {
       speedInsightsInstalled: true,

@@ -16,7 +16,7 @@ type DeploymentStatus = {
     llmOk: boolean;
     appUrlIsProduction: boolean;
   };
-  legal: { termsReachable: boolean; privacyReachable: boolean };
+  legal: { termsReachable: boolean; privacyReachable: boolean; contactReachable: boolean };
   packages: { speedInsightsInstalled: boolean };
   reminders: string[];
 };
@@ -107,6 +107,7 @@ export function DeploymentStatusPanel() {
           <Row ok={data.env.llmOk} label="At least one LLM key" />
           <Row ok={data.legal.termsReachable} label="/terms reachable" />
           <Row ok={data.legal.privacyReachable} label="/privacy reachable" />
+          <Row ok={data.legal.contactReachable} label="/contact reachable" />
           <Row ok={data.packages.speedInsightsInstalled} label="@vercel/speed-insights installed" />
 
           <div className="py-3">

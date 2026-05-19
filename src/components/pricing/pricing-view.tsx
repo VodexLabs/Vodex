@@ -195,7 +195,7 @@ function SubscriptionsLockedModal({ open, onClose }: { open: boolean; onClose: (
             Got it
           </Button>
           <Button type="button" variant="secondary" size="sm" asChild>
-            <a href={`mailto:${SUPPORT_EMAIL}`}>Email support</a>
+            <Link href="/contact?reason=Support">Contact form</Link>
           </Button>
         </div>
       </motion.div>
@@ -886,21 +886,19 @@ export function PricingView() {
             </div>
           </div>
           <div className="flex flex-col gap-2.5 sm:flex-row sm:shrink-0">
-            <button
-              type="button"
-              onClick={() => openContact("support")}
+            <Link
+              href="/contact?reason=Support"
               className="flex items-center justify-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-[13px] font-semibold text-white transition hover:bg-accent/90"
             >
               <MessageCircle className="size-4" strokeWidth={1.75} />
               Contact us
-            </button>
-            <button
-              type="button"
-              onClick={() => openContact("sales")}
+            </Link>
+            <Link
+              href="/contact?reason=Sales"
               className="flex items-center justify-center gap-2 rounded-xl bg-surface px-5 py-2.5 text-[13px] font-semibold text-foreground ring-1 ring-border transition hover:ring-accent/30"
             >
               Talk to sales
-            </button>
+            </Link>
           </div>
         </div>
       </motion.div>

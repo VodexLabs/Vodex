@@ -9,6 +9,7 @@ import {
   PublicMarketingFooter,
   PublicMarketingHeader,
 } from "@/components/marketing/public-marketing-shell";
+import { PublicShipSection } from "@/components/marketing/public-ship-section";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -143,60 +144,6 @@ function CapabilityCards() {
   );
 }
 
-function ShipFasterSection() {
-  const cards = [
-    {
-      title: "Build apps in minutes",
-      desc: "Describe what you want. DreamOS86 writes real files into a saved project you can open, edit, and ship.",
-      accent: "from-accent/20 via-accent/5 to-transparent",
-    },
-    {
-      title: "One workspace, three modes",
-      desc: "Discuss architecture, edit surgically, or run full builds — each mode uses tokens only after successful AI steps.",
-      accent: "from-violet-500/15 via-sky-500/5 to-transparent",
-    },
-    {
-      title: "Production-ready by default",
-      desc: "Supabase auth, Stripe billing hooks, and publish readiness checks — no fake deploy buttons.",
-      accent: "from-emerald-500/12 via-cyan-500/5 to-transparent",
-    },
-  ];
-
-  return (
-    <motion.section
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.18, duration: 0.45 }}
-      className="mx-auto mt-20 max-w-5xl text-center"
-    >
-      <h2 className="text-balance text-[26px] font-semibold tracking-tight text-foreground sm:text-[32px]">
-        Now you can ship software within minutes — not months
-      </h2>
-      <p className="mx-auto mt-3 max-w-2xl text-[14px] leading-relaxed text-muted-foreground">
-        DreamOS86 is an AI-native workspace: one prompt becomes a hosted preview, saved files, and a path to publish when you are ready.
-      </p>
-      <div className="mt-10 grid gap-4 sm:grid-cols-3">
-        {cards.map((card, i) => (
-          <motion.div
-            key={card.title}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 + i * 0.06 }}
-            whileHover={{ y: -4 }}
-            className={cn(
-              "rounded-2xl border border-border/70 bg-gradient-to-br p-6 text-left shadow-sm ring-1 ring-border/50",
-              card.accent,
-            )}
-          >
-            <p className="text-[15px] font-semibold text-foreground">{card.title}</p>
-            <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">{card.desc}</p>
-          </motion.div>
-        ))}
-      </div>
-    </motion.section>
-  );
-}
-
 function BottomCta() {
   return (
     <motion.section
@@ -308,13 +255,13 @@ export function PublicLanding() {
 
         <CapabilityCards />
 
-        <ShipFasterSection />
+        <PublicShipSection />
 
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.1, duration: 0.35 }}
-          className="mx-auto mt-16 max-w-5xl"
+          className="mx-auto mt-12 max-w-5xl"
         >
           <IntegrationShowcaseSection variant="premium" />
         </motion.div>
@@ -322,8 +269,8 @@ export function PublicLanding() {
         <motion.section
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.16, duration: 0.35 }}
-          className="mx-auto mt-14 max-w-4xl rounded-2xl border border-border/70 bg-gradient-to-br from-accent/[0.06] via-background to-violet-500/[0.05] p-6 text-center ring-1 ring-border/60 sm:p-10"
+          transition={{ delay: 0.14, duration: 0.35 }}
+          className="mx-auto mt-12 max-w-4xl rounded-2xl border border-border/70 bg-gradient-to-br from-accent/[0.06] via-background to-violet-500/[0.05] p-6 text-center ring-1 ring-border/60 sm:p-8"
         >
           <p className="text-[12px] font-semibold uppercase tracking-wide text-accent">Flow</p>
           <p className="mt-2 text-balance text-[18px] font-semibold text-foreground sm:text-[22px]">
@@ -336,13 +283,7 @@ export function PublicLanding() {
 
         <BottomCta />
 
-        <p className="mx-auto mt-10 max-w-lg text-center text-[14px] text-muted-foreground">
-          Already have an account?{" "}
-          <Link href="/auth/login" className="font-semibold text-accent hover:underline underline-offset-2">
-            Log in
-          </Link>
-        </p>
-        <p className="mx-auto mt-6 max-w-lg text-center text-[11px] text-muted-foreground">
+        <p className="mx-auto mt-8 max-w-lg text-center text-[11px] text-muted-foreground">
           By continuing, you agree to our{" "}
           <Link href="/terms" className="hover:underline underline-offset-4">
             Terms
@@ -352,6 +293,12 @@ export function PublicLanding() {
             Privacy Policy
           </Link>
           .
+        </p>
+        <p className="mx-auto mt-4 max-w-lg text-center text-[13px] text-muted-foreground">
+          Already have an account?{" "}
+          <Link href="/auth/login" className="font-semibold text-accent hover:underline underline-offset-2">
+            Log in
+          </Link>
         </p>
       </main>
       <PublicMarketingFooter />

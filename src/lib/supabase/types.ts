@@ -104,7 +104,7 @@ export interface Database {
           id: string;
           created_at: string;
           user_id: string | null;
-          kind: "sales" | "support";
+          kind: "sales" | "support" | null;
           name: string;
           email: string;
           company: string | null;
@@ -112,6 +112,11 @@ export interface Database {
           expected_usage: string | null;
           current_plan: string | null;
           message: string;
+          reason: string | null;
+          plan_interest: string | null;
+          status: string;
+          source: string;
+          metadata: Json;
         };
         Insert: Omit<Database["public"]["Tables"]["contact_requests"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["contact_requests"]["Row"]>;

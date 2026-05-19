@@ -1,5 +1,5 @@
 import { LegalParagraph, LegalProse, LegalSection } from "@/components/marketing/legal-document";
-import { SUPPORT_EMAIL } from "@/components/marketing/public-marketing-shell";
+import Link from "next/link";
 
 export function TermsContent() {
   return (
@@ -156,10 +156,10 @@ export function TermsContent() {
 
       <LegalSection title="15. Contact">
         <LegalParagraph>
-          Questions about these Terms:{" "}
-          <a href={`mailto:${SUPPORT_EMAIL}`} className="text-accent hover:underline underline-offset-4">
-            {SUPPORT_EMAIL}
-          </a>
+          Questions about these Terms: use our{" "}
+          <Link href="/contact" className="text-accent hover:underline underline-offset-4">
+            contact form
+          </Link>
           .
         </LegalParagraph>
       </LegalSection>

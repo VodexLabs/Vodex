@@ -1,5 +1,5 @@
 import { LegalParagraph, LegalProse, LegalSection } from "@/components/marketing/legal-document";
-import { SUPPORT_EMAIL } from "@/components/marketing/public-marketing-shell";
+import Link from "next/link";
 
 export function PrivacyContent() {
   return (
@@ -131,10 +131,10 @@ export function PrivacyContent() {
       <LegalSection title="9. Security">
         <LegalParagraph>
           We use encryption in transit (HTTPS), access controls, and service-role isolation for server operations.
-          No method of transmission or storage is 100% secure; report suspected issues to{" "}
-          <a href={`mailto:${SUPPORT_EMAIL}`} className="text-accent hover:underline underline-offset-4">
-            {SUPPORT_EMAIL}
-          </a>
+          No method of transmission or storage is 100% secure; report suspected issues via our{" "}
+          <Link href="/contact" className="text-accent hover:underline underline-offset-4">
+            contact form
+          </Link>
           .
         </LegalParagraph>
       </LegalSection>
@@ -170,10 +170,10 @@ export function PrivacyContent() {
 
       <LegalSection title="14. Contact">
         <LegalParagraph>
-          Privacy questions:{" "}
-          <a href={`mailto:${SUPPORT_EMAIL}`} className="text-accent hover:underline underline-offset-4">
-            {SUPPORT_EMAIL}
-          </a>
+          Privacy questions: use our{" "}
+          <Link href="/contact" className="text-accent hover:underline underline-offset-4">
+            contact form
+          </Link>
           .
         </LegalParagraph>
       </LegalSection>

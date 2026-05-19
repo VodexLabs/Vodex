@@ -23,6 +23,7 @@ import { variants } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { AuthHealthPanel } from "@/components/admin/auth-health-panel";
 import { DeploymentStatusPanel } from "@/components/admin/deployment-status-panel";
+import { ContactRequestsPanel } from "@/components/admin/contact-requests-panel";
 
 type Tab = "users" | "contacts" | "ai" | "storage" | "audit" | "auth";
 
@@ -369,7 +370,9 @@ export function AdminView({ initialTab = "users" }: { initialTab?: AdminTab }) {
         </div>
       )}
 
-      {activeTab === "contacts" && (
+      {activeTab === "contacts" && <ContactRequestsPanel />}
+
+      {false && (
         <div className="space-y-2">
           {loading ? (
             <div className="flex justify-center py-8">

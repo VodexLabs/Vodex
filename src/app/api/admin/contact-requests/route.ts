@@ -1,15 +1,62 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { z } from "zod";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
-import { isDreamosOwnerEmail } from "@/lib/admin-owner";
+import { requireDreamosOwner } from "@/lib/admin/require-owner";
+import { logAdminAudit } from "@/lib/admin/audit-log";
 
-export async function GET() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user?.email || !isDreamosOwnerEmail(user.email)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+const patchSchema = z.object({
+  id: z.string().uuid(),
+  status: z.enum(["new", "read", "resolved"]),
+});
+
+export async function GET(req: Request) {
+  const gate = await requireDreamosOwner();
+  if (gate.error) return gate.error;
+
+  const { searchParams } = new URL(req.url);
+  const status = searchParams.get("status");
+  const reason = searchParams.get("reason");
+
+  let admin;
+  try {
+    admin = createSupabaseAdmin();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Server misconfigured";
+    return NextResponse.json({ error: msg }, { status: 503 });
+  }
+
+  let query = admin.from("contact_requests").select("*").order("created_at", { ascending: false }).limit(200);
+
+  if (status && ["new", "read", "resolved"].includes(status)) {
+    query = query.eq("status", status);
+  }
+  if (reason) {
+    query = query.eq("reason", reason);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    return NextResponse.json({ error: error.message, requests: [] }, { status: 200 });
+  }
+
+  return NextResponse.json({ requests: data ?? [] });
+}
+
+export async function PATCH(request: Request) {
+  const gate = await requireDreamosOwner();
+  if (gate.error) return gate.error;
+  const { user } = gate;
+
+  let json: unknown;
+  try {
+    json = await request.json();
+  } catch {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+  }
+
+  const parsed = patchSchema.safeParse(json);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
   let admin;
@@ -22,13 +69,21 @@ export async function GET() {
 
   const { data, error } = await admin
     .from("contact_requests")
+    .update({ status: parsed.data.status })
+    .eq("id", parsed.data.id)
     .select("*")
-    .order("created_at", { ascending: false })
-    .limit(100);
+    .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: error.message, requests: [] }, { status: 200 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ requests: data ?? [] });
+  if (data?.user_id) {
+    await logAdminAudit(user, "contact_request_status", {
+      targetUserId: data.user_id,
+      metadata: { requestId: parsed.data.id, status: parsed.data.status },
+    });
+  }
+
+  return NextResponse.json({ request: data });
 }

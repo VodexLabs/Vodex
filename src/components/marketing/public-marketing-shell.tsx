@@ -2,8 +2,6 @@ import Link from "next/link";
 import { LogoIcon } from "@/components/ui/logo-icon";
 import { cn } from "@/lib/utils";
 
-export const SUPPORT_EMAIL = "support@dreamos86.com";
-
 export function PublicMarketingHeader({ className }: { className?: string }) {
   return (
     <header
@@ -23,6 +21,12 @@ export function PublicMarketingHeader({ className }: { className?: string }) {
             className="hidden rounded-lg px-3 py-1.5 text-[12.5px] font-medium text-muted-foreground transition hover:bg-surface hover:text-foreground sm:inline-block"
           >
             Home
+          </Link>
+          <Link
+            href="/contact"
+            className="hidden rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium text-muted-foreground transition hover:bg-surface hover:text-foreground sm:inline-block sm:px-3"
+          >
+            Contact
           </Link>
           <Link
             href="/privacy"
@@ -80,12 +84,12 @@ export function PublicMarketingFooter({ className }: { className?: string }) {
           >
             Terms
           </Link>
-          <a
-            href={`mailto:${SUPPORT_EMAIL}`}
+          <Link
+            href="/contact"
             className="text-muted-foreground transition hover:text-foreground hover:underline underline-offset-4"
           >
             Contact
-          </a>
+          </Link>
         </nav>
       </div>
     </footer>
