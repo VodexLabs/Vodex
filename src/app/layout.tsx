@@ -4,6 +4,7 @@ import { ThemeProvider } from "@/components/providers/theme-provider";
 import { AppProvider } from "@/components/providers/app-provider";
 import { AppearanceProvider } from "@/components/providers/appearance-provider";
 import { Toaster } from "@/components/ui/toaster";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 export const dynamic = "force-dynamic";
@@ -112,6 +113,7 @@ export default function RootLayout({
             </AppearanceProvider>
           </AppProvider>
         </ThemeProvider>
+        <Analytics />
       </body>
     </html>
   );
