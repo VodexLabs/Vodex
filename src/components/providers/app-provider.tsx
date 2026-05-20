@@ -25,7 +25,7 @@ import {
   invalidateBootstrapCache,
   setCachedBootstrap,
 } from "@/lib/cache/session-bootstrap-cache";
-import { loadUserProfileCore } from "@/lib/supabase/load-user-profile";
+import { loadUserProfileCoreDeduped } from "@/lib/supabase/load-user-profile";
 import type { Profile } from "@/lib/supabase/types";
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -90,7 +90,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      let { profile: coreProfile } = await loadUserProfileCore(supabase, userId);
+      let { profile: coreProfile } = await loadUserProfileCoreDeduped(supabase, userId);
 
       if (!coreProfile && typeof fetch !== "undefined") {
         try {
@@ -106,7 +106,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           /* ignore — user may retry on refresh */
         }
         if (!coreProfile) {
-          const retry = await loadUserProfileCore(supabase, userId);
+          const retry = await loadUserProfileCoreDeduped(supabase, userId);
           coreProfile = retry.profile;
         }
       }

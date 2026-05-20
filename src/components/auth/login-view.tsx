@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { LogoIcon } from "@/components/ui/logo-icon";
+import { DreamOS86BrandLockup } from "@/components/brand/dreamos86-brand-lockup";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, AlertCircle, Loader2, WifiOff } from "lucide-react";
@@ -13,7 +13,9 @@ import {
   authSignIn,
   authSignInWithOAuth,
   humanizeAuthError,
+  humanizeLoginError,
   CALLBACK_ERROR_MESSAGES,
+  type LoginErrorKind,
 } from "@/lib/auth";
 import { persistReferralCodeForBrowser } from "@/lib/auth/ref-cookie";
 
@@ -62,7 +64,15 @@ export function LoginView() {
       ? (CALLBACK_ERROR_MESSAGES[urlError] ?? urlErrorDesc ?? "Authentication error. Please try again.")
       : null,
   );
+  const [loginErrorKind, setLoginErrorKind] = React.useState<LoginErrorKind | null>(null);
   const isNetworkError = error?.toLowerCase().includes("network") || error?.toLowerCase().includes("connection");
+
+  React.useEffect(() => {
+    const fromUrl = searchParams.get("email");
+    if (fromUrl?.trim()) {
+      setEmail(fromUrl.trim());
+    }
+  }, [searchParams]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -73,10 +83,29 @@ export function LoginView() {
     const action = async () => {
       const { error: authError } = await authSignIn(email, password);
       if (authError) {
-        setError(humanizeAuthError(authError.message));
+        let emailRegistered: boolean | undefined;
+        if (/invalid login credentials|invalid_credentials/i.test(authError.message)) {
+          try {
+            const res = await fetch("/api/auth/account-status", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ email: email.trim() }),
+            });
+            if (res.ok) {
+              const data = (await res.json()) as { registered?: boolean };
+              emailRegistered = data.registered;
+            }
+          } catch {
+            /* keep generic login message */
+          }
+        }
+        const friendly = humanizeLoginError(authError.message, { emailRegistered });
+        setError(friendly.message);
+        setLoginErrorKind(friendly.kind);
         setLoading(false);
         return;
       }
+      setLoginErrorKind(null);
       const nextDest = safeInternalPath(searchParams.get("next"));
       router.push(nextDest);
       router.refresh();
@@ -112,12 +141,7 @@ export function LoginView() {
       >
         {/* Logo */}
         <div className="mb-8 flex flex-col items-center">
-          <Link href="/" className="flex items-center gap-3" tabIndex={-1}>
-            <LogoIcon size={44} />
-            <span className="text-[18px] font-semibold tracking-[-0.04em] text-foreground">
-              DreamOS86
-            </span>
-          </Link>
+          <DreamOS86BrandLockup variant="auth" compact href="/" />
         </div>
 
         <div className="overflow-hidden rounded-[var(--radius-xl)] bg-glass backdrop-blur-xl shadow-[var(--shadow-glass)] ring-1 ring-white/60 dark:ring-white/[0.08] p-8">
@@ -146,18 +170,44 @@ export function LoginView() {
               key={error}
               initial={{ opacity: 0, y: -4 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mt-4 flex items-start gap-2 rounded-lg bg-destructive/10 px-3 py-2.5 text-[12px] text-destructive ring-1 ring-destructive/20"
+              className="mt-4 flex flex-col gap-2 rounded-lg bg-destructive/10 px-3 py-2.5 text-[12px] text-destructive ring-1 ring-destructive/20"
               role="alert"
             >
-              <AlertCircle className="mt-0.5 size-3.5 shrink-0" strokeWidth={2} />
-              <span className="flex-1">{error}</span>
-              {isNetworkError && lastAction && (
-                <button
-                  className="ml-2 shrink-0 text-[11px] font-medium text-accent hover:underline"
-                  onClick={() => { setError(null); void lastAction(); }}
+              <div className="flex items-start gap-2">
+                <AlertCircle className="mt-0.5 size-3.5 shrink-0" strokeWidth={2} />
+                <span className="flex-1">{error}</span>
+                {isNetworkError && lastAction && (
+                  <button
+                    type="button"
+                    className="ml-2 shrink-0 text-[11px] font-medium text-accent hover:underline"
+                    onClick={() => {
+                      setError(null);
+                      void lastAction();
+                    }}
+                  >
+                    Retry
+                  </button>
+                )}
+              </div>
+              {loginErrorKind === "no_account" && (
+                <Link
+                  href={
+                    email
+                      ? `/auth/signup?email=${encodeURIComponent(email)}`
+                      : "/auth/signup"
+                  }
+                  className="w-fit rounded-lg bg-accent px-3 py-1.5 text-[11px] font-semibold text-white"
                 >
-                  Retry
-                </button>
+                  Create an account
+                </Link>
+              )}
+              {loginErrorKind === "wrong_password" && (
+                <Link
+                  href="/auth/forgot"
+                  className="w-fit text-[11px] font-semibold text-accent hover:underline"
+                >
+                  Reset password
+                </Link>
               )}
             </motion.div>
           )}

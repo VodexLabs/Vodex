@@ -15,7 +15,7 @@ export const PROFILE_MINIMAL_SELECT =
 
 /** Loaded in a second query; failures fall back to defaults. */
 export const PROFILE_OPTIONAL_SELECT =
-  "plan_interval, credits_reset_at, full_name, display_name, username, avatar_url, role, default_model_id, preferred_model, experience_level, credits_used, signup_wizard_completed, onboarding_step, onboarding_answers, stripe_customer_id, is_admin";
+  "plan_interval, credits_used, credits_period_start, credits_period_end, credits_reset_at, full_name, display_name, username, avatar_url, role, default_model_id, preferred_model, experience_level, signup_wizard_completed, onboarding_step, onboarding_answers, stripe_customer_id, is_admin";
 
 export type ProfileOptionalFields = {
   plan_interval: "monthly" | "yearly";
@@ -153,4 +153,24 @@ export async function loadUserProfileCore(
   };
 
   return { profile: merged, schemaDegraded };
+}
+
+const profileInflight = new Map<
+  string,
+  Promise<{ profile: Partial<Profile> | null; schemaDegraded: boolean }>
+>();
+
+/** Dedupe concurrent profile loads per user (auth hydration). */
+export async function loadUserProfileCoreDeduped(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<{ profile: Partial<Profile> | null; schemaDegraded: boolean }> {
+  const running = profileInflight.get(userId);
+  if (running) return running;
+
+  const promise = loadUserProfileCore(supabase, userId).finally(() => {
+    if (profileInflight.get(userId) === promise) profileInflight.delete(userId);
+  });
+  profileInflight.set(userId, promise);
+  return promise;
 }

@@ -3,13 +3,19 @@
 import * as React from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { LogoIcon } from "@/components/ui/logo-icon";
+import { DreamOS86BrandLockup } from "@/components/brand/dreamos86-brand-lockup";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, Check, AlertCircle, Loader2, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { variants } from "@/lib/motion";
-import { authSignUp, authSignInWithOAuth, humanizeAuthError } from "@/lib/auth";
+import {
+  authSignUp,
+  authSignInWithOAuth,
+  humanizeAuthError,
+  isSignupDuplicateWithoutError,
+  isSignupExistingUserError,
+} from "@/lib/auth";
 import { persistReferralCodeForBrowser } from "@/lib/auth/ref-cookie";
 import { cn } from "@/lib/utils";
 
@@ -78,6 +84,8 @@ export function SignupView() {
         persistReferralCodeForBrowser(ref);
         setReferralFromUrl(ref.trim().toUpperCase());
       }
+      const emailParam = p.get("email");
+      if (emailParam?.trim()) setEmail(emailParam.trim());
     } catch {
       /* ignore */
     }
@@ -168,12 +176,7 @@ export function SignupView() {
       >
         {/* Logo */}
         <div className="mb-8 flex flex-col items-center">
-          <Link href="/" className="flex items-center gap-1.5" tabIndex={-1}>
-            <LogoIcon size={40} />
-            <span className="text-[17px] font-semibold tracking-[-0.03em] text-foreground">
-              DreamOS86
-            </span>
-          </Link>
+          <DreamOS86BrandLockup variant="auth" compact href="/" />
         </div>
 
         <div className="overflow-hidden rounded-[var(--radius-xl)] bg-glass backdrop-blur-xl shadow-[var(--shadow-glass)] ring-1 ring-white/60 dark:ring-white/[0.08] p-8">

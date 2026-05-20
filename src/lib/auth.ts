@@ -71,17 +71,39 @@ export async function authUpdatePassword(password: string) {
   return createClient().auth.updateUser({ password });
 }
 
+export type LoginErrorKind =
+  | "wrong_password"
+  | "no_account"
+  | "invalid_email"
+  | "email_not_confirmed"
+  | "rate_limit"
+  | "network"
+  | "generic";
+
+const SIGNUP_EXISTS_RE =
+  /user already registered|already been registered|user_already_exists|email_exists|already exists|duplicate user|email address is already|signups not allowed.*exist/i;
+
+export function isSignupExistingUserError(message: string): boolean {
+  return SIGNUP_EXISTS_RE.test(message);
+}
+
+export function isSignupDuplicateWithoutError(
+  user: { identities?: { length: number }[] } | null | undefined,
+): boolean {
+  return Boolean(user && Array.isArray(user.identities) && user.identities.length === 0);
+}
+
 const ERROR_MAP: Array<[RegExp, string]> = [
   [
-    /invalid login credentials|invalid_credentials|email or password/i,
-    "Incorrect email or password.",
+    /invalid login credentials|invalid_credentials/i,
+    "__LOGIN_INVALID__",
   ],
   [
     /email not confirmed/i,
     "Please verify your email before signing in. Check your inbox.",
   ],
   [
-    /user already registered|already been registered|user_already_exists|email_exists|already exists|duplicate user|signups not allowed/i,
+    SIGNUP_EXISTS_RE,
     "Account already exists. Log in with this email instead.",
   ],
   [
@@ -109,12 +131,61 @@ const ERROR_MAP: Array<[RegExp, string]> = [
   [/email.*invalid|invalid.*email/i, "Please enter a valid email address."],
 ];
 
+export function humanizeLoginError(
+  message: string,
+  options?: { emailRegistered?: boolean },
+): { message: string; kind: LoginErrorKind } {
+  const raw = message.replace(/^\[.*?\]\s*/, "").replace(/\s+/g, " ").trim();
+
+  if (/email.*invalid|invalid.*email/i.test(raw)) {
+    return { message: "Enter a valid email address.", kind: "invalid_email" };
+  }
+  if (/email not confirmed/i.test(raw)) {
+    return {
+      message: "Please verify your email before signing in. Check your inbox.",
+      kind: "email_not_confirmed",
+    };
+  }
+  if (/rate.?limit|too many/i.test(raw)) {
+    return { message: "Too many attempts. Please wait and try again.", kind: "rate_limit" };
+  }
+  if (/network|failed to fetch|load failed/i.test(raw)) {
+    return {
+      message: "Network error. Check your connection and try again.",
+      kind: "network",
+    };
+  }
+  if (/invalid login credentials|invalid_credentials/i.test(raw)) {
+    if (options?.emailRegistered === false) {
+      return {
+        message: "No account found with this email. Create an account instead.",
+        kind: "no_account",
+      };
+    }
+    if (options?.emailRegistered === true) {
+      return {
+        message: "Incorrect password. Try again or reset your password.",
+        kind: "wrong_password",
+      };
+    }
+    return {
+      message: "Incorrect password. Try again or reset your password.",
+      kind: "wrong_password",
+    };
+  }
+
+  return { message: humanizeAuthError(raw), kind: "generic" };
+}
+
 export function humanizeAuthError(
   message: string,
   provider?: "google" | "github",
 ): string {
   for (const [pattern, replacement] of ERROR_MAP) {
     if (pattern.test(message)) {
+      if (replacement === "__LOGIN_INVALID__") {
+        return "Incorrect password. Try again or reset your password.";
+      }
       if (replacement === "__PROVIDER_OFF__") {
         const name =
           provider === "google"

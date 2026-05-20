@@ -153,7 +153,9 @@ export function CreditsView() {
             {profile?.plan_id ?? "free"} plan
           </p>
           <p className="text-[12px] text-muted-foreground">
-            {profile?.plan_interval === "yearly" ? "Billed annually" : "Billed monthly"}
+            {(profile?.plan_interval ?? "monthly") === "yearly"
+              ? "Billed annually"
+              : "Billed monthly"}
           </p>
         </div>
         <Button variant="secondary" size="sm" asChild>

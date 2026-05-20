@@ -33,11 +33,20 @@ const MASKABLE_OUT = path.join(BRAND_DIR, "dreamos86-icon-maskable.png");
 const PUBLIC_DIR = path.join(ROOT, "public");
 const APP_DIR = path.join(ROOT, "src/app");
 
-const PNG_SIZES = [
+/** Browser tab favicons — balanced, not oversized in 16–48px tabs. */
+const FAVICON_FILL_RATIO = 0.65;
+
+/** App icons / PWA / apple-touch — larger cloud fill. */
+const APP_ICON_FILL_RATIO = 0.86;
+
+const FAVICON_PNG_SIZES = [
   { file: "favicon-16x16.png", size: 16 },
   { file: "favicon-32x32.png", size: 32 },
   { file: "favicon-48x48.png", size: 48 },
   { file: "favicon-64x64.png", size: 64 },
+];
+
+const APP_PNG_SIZES = [
   { file: "icon.png", size: 32 },
   { file: "favicon.png", size: 32 },
   { file: "apple-touch-icon.png", size: 180 },
@@ -76,6 +85,8 @@ async function findNewestAssetUpload() {
       let score = 0;
       if (lower.includes("for_app_transperent") || lower.includes("for_app_transparent"))
         score += 120;
+      if (lower.includes("for_gfx_transperent") || lower.includes("for_gfx_transparent"))
+        score += 115;
       if (lower.includes("untitled_design")) score += 100;
       if (lower.includes("dreamos86_trans")) score += 80;
       if (lower.includes("2026-05-20")) score += 20;
@@ -117,13 +128,7 @@ async function resolveMasterSource() {
 
 const TRANSPARENT_BG = { r: 0, g: 0, b: 0, alpha: 0 };
 
-/** Cloud fill ratio inside square canvas (86–92% visible area). */
-const ICON_FILL_RATIO = 0.89;
-
-/**
- * Resize PNG on transparent canvas — icon scaled up (no matte, no background shape).
- */
-async function resizeTransparentPng(input, size, output, fillRatio = ICON_FILL_RATIO) {
+async function resizeTransparentPng(input, size, output, fillRatio) {
   const inner = Math.max(8, Math.round(size * fillRatio));
   const iconBuf = await sharp(input)
     .ensureAlpha()
@@ -148,7 +153,6 @@ async function resizeTransparentPng(input, size, output, fillRatio = ICON_FILL_R
     .toFile(output);
 }
 
-/** PWA maskable safe zone — separate file only; main icon stays fully transparent. */
 async function writeMaskableIcon(input, canvasSize, output) {
   const iconSize = Math.round(canvasSize * 0.72);
   const offset = Math.round((canvasSize - iconSize) / 2);
@@ -175,13 +179,12 @@ async function writeMaskableIcon(input, canvasSize, output) {
     .toFile(output);
 }
 
-/** Build favicon.ico from the same 32px PNG used for /icon.png (DreamOS86 cloud, not Vercel). */
-async function writeFaviconIco(pngSourcePath) {
+async function writeFaviconIco(master) {
   const sizes = [16, 32, 48];
   const pngBuffers = await Promise.all(
     sizes.map(async (size) => {
-      const inner = Math.max(8, Math.round(size * ICON_FILL_RATIO));
-      const iconBuf = await sharp(pngSourcePath)
+      const inner = Math.max(8, Math.round(size * FAVICON_FILL_RATIO));
+      const iconBuf = await sharp(master)
         .ensureAlpha()
         .resize(inner, inner, {
           fit: "contain",
@@ -214,9 +217,9 @@ async function writeFaviconIco(pngSourcePath) {
 async function writeCanonicalBrandPngs(master) {
   const meta = await sharp(master).metadata();
   const dim = Math.max(meta.width ?? 512, meta.height ?? 512, 512);
-  await resizeTransparentPng(master, dim, CANONICAL_ICON);
-  await resizeTransparentPng(master, dim, CANONICAL_TRANSPARENT);
-  console.log(`  wrote brand/dreamos86-icon.png (${dim}x${dim}, alpha)`);
+  await resizeTransparentPng(master, dim, CANONICAL_ICON, APP_ICON_FILL_RATIO);
+  await resizeTransparentPng(master, dim, CANONICAL_TRANSPARENT, APP_ICON_FILL_RATIO);
+  console.log(`  wrote brand/dreamos86-icon.png (${dim}x${dim}, alpha, fill=${APP_ICON_FILL_RATIO})`);
 }
 
 async function main() {
@@ -230,33 +233,45 @@ async function main() {
 
   await fs.mkdir(BRAND_DIR, { recursive: true });
   console.log("[generate-brand-icons] Master:", path.basename(master));
+  console.log(
+    `[generate-brand-icons] FAVICON_FILL_RATIO=${FAVICON_FILL_RATIO} APP_ICON_FILL_RATIO=${APP_ICON_FILL_RATIO}`,
+  );
 
   await fs.copyFile(master, path.join(BRAND_DIR, "dreamos86-master-source.png"));
   await writeCanonicalBrandPngs(master);
 
   for (const { file, size } of BRAND_SIZES) {
-    await resizeTransparentPng(master, size, path.join(BRAND_DIR, file));
+    await resizeTransparentPng(master, size, path.join(BRAND_DIR, file), APP_ICON_FILL_RATIO);
     console.log("  wrote brand/", file, `(${size}x${size}, alpha)`);
   }
 
-  for (const { file, size } of PNG_SIZES) {
-    await resizeTransparentPng(master, size, path.join(PUBLIC_DIR, file));
-    console.log("  wrote", file, `(${size}x${size}, alpha)`);
+  for (const { file, size } of FAVICON_PNG_SIZES) {
+    await resizeTransparentPng(master, size, path.join(PUBLIC_DIR, file), FAVICON_FILL_RATIO);
+    console.log("  wrote", file, `(${size}x${size}, favicon fill)`);
+  }
+
+  for (const { file, size } of APP_PNG_SIZES) {
+    await resizeTransparentPng(master, size, path.join(PUBLIC_DIR, file), APP_ICON_FILL_RATIO);
+    console.log("  wrote", file, `(${size}x${size}, app fill)`);
   }
 
   await writeMaskableIcon(master, 512, MASKABLE_OUT);
   console.log("  wrote brand/dreamos86-icon-maskable.png (maskable only)");
 
-  const iconPng = path.join(PUBLIC_DIR, "icon.png");
-  await resizeTransparentPng(master, 32, iconPng);
-  await resizeTransparentPng(master, 32, path.join(APP_DIR, "icon.png"));
-  await resizeTransparentPng(master, 180, path.join(APP_DIR, "apple-icon.png"));
-  await resizeTransparentPng(master, 180, path.join(PUBLIC_DIR, "apple-touch-icon.png"));
+  await resizeTransparentPng(master, 32, path.join(PUBLIC_DIR, "icon.png"), APP_ICON_FILL_RATIO);
+  await resizeTransparentPng(master, 32, path.join(APP_DIR, "icon.png"), APP_ICON_FILL_RATIO);
+  await resizeTransparentPng(master, 180, path.join(APP_DIR, "apple-icon.png"), APP_ICON_FILL_RATIO);
+  await resizeTransparentPng(
+    master,
+    180,
+    path.join(PUBLIC_DIR, "apple-touch-icon.png"),
+    APP_ICON_FILL_RATIO,
+  );
 
-  console.log("  generating favicon.ico from public/icon.png …");
-  await writeFaviconIco(iconPng);
+  console.log("  generating favicon.ico from master (favicon fill) …");
+  await writeFaviconIco(master);
 
-  console.log("[generate-brand-icons] Done — alpha preserved; favicon.ico written to public/ and src/app/");
+  console.log("[generate-brand-icons] Done — alpha preserved; favicon.ico uses favicon fill only");
 }
 
 main().catch((err) => {
