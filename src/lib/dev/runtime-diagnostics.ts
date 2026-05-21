@@ -40,6 +40,17 @@ export type RuntimeDiagnosticEvent =
   | "charge_failed"
   | "charge_tokens_missing"
   | "schema_warning"
+  | "schema_check_failed"
+  | "schema_check_contradiction"
+  | "rpc_postgrest_missing"
+  | "rpc_pgproc_exists_but_postgrest_missing"
+  | "credit_charge_blocked"
+  | "provider_failed"
+  | "provider_fallback"
+  | "build_failed"
+  | "app_identity_failed"
+  | "icon_generation_failed"
+  | "duplicate_prompt_deduped"
   | "publish_readiness"
   | "queue_add"
   | "queue_drain"
@@ -68,6 +79,17 @@ const EVENT_CATEGORY: Partial<Record<RuntimeDiagnosticEvent, import("@/lib/diagn
   files_persist_failed: "api_error",
   error_boundary: "frontend_error",
   schema_warning: "supabase",
+  schema_check_failed: "supabase",
+  schema_check_contradiction: "supabase",
+  rpc_postgrest_missing: "supabase",
+  rpc_pgproc_exists_but_postgrest_missing: "supabase",
+  credit_charge_blocked: "credit",
+  provider_failed: "api_error",
+  provider_fallback: "api_error",
+  build_failed: "build",
+  app_identity_failed: "build",
+  icon_generation_failed: "build",
+  duplicate_prompt_deduped: "duplicate_prompt",
   publish_readiness: "publish",
 };
 

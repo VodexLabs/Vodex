@@ -1,19 +1,24 @@
+import { safeFetch } from "@/lib/network/safe-fetch";
+
 export async function testSupabaseAnon(url: string, anonKey: string): Promise<{ ok: boolean; error?: string }> {
   const base = url.replace(/\/$/, "");
-  try {
-    const res = await fetch(`${base}/rest/v1/`, {
+  const { response: res, error: fetchErr } = await safeFetch(
+    `${base}/rest/v1/`,
+    {
       headers: {
         apikey: anonKey,
         Authorization: `Bearer ${anonKey}`,
       },
-    });
-    if (res.status === 401 || res.status === 403) {
-      return { ok: false, error: `Anon key rejected (${res.status})` };
-    }
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Could not reach Supabase REST" };
+    },
+    "integrations_test_supabase_anon",
+  );
+  if (!res) {
+    return { ok: false, error: fetchErr?.userMessage ?? "Could not reach Supabase REST" };
   }
+  if (res.status === 401 || res.status === 403) {
+    return { ok: false, error: `Anon key rejected (${res.status})` };
+  }
+  return { ok: true };
 }
 
 export async function testSupabaseServiceRole(
@@ -21,20 +26,23 @@ export async function testSupabaseServiceRole(
   serviceKey: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const base = url.replace(/\/$/, "");
-  try {
-    const res = await fetch(`${base}/rest/v1/`, {
+  const { response: res, error: fetchErr } = await safeFetch(
+    `${base}/rest/v1/`,
+    {
       headers: {
         apikey: serviceKey,
         Authorization: `Bearer ${serviceKey}`,
       },
-    });
-    if (!res.ok && res.status !== 404) {
-      return { ok: false, error: `Service role key failed (${res.status})` };
-    }
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Could not reach Supabase with service key" };
+    },
+    "integrations_test_supabase_service",
+  );
+  if (!res) {
+    return { ok: false, error: fetchErr?.userMessage ?? "Could not reach Supabase with service key" };
   }
+  if (!res.ok && res.status !== 404) {
+    return { ok: false, error: `Service role key failed (${res.status})` };
+  }
+  return { ok: true };
 }
 
 export function extractSupabaseRef(url: string): string | null {

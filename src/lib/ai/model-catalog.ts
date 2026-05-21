@@ -1,3 +1,6 @@
+import { isProviderSelectable } from "@/lib/ai/provider-availability";
+import type { ProviderName } from "@/lib/ai/provider-errors";
+
 /** Maps DreamOS86 catalog IDs to live provider API model IDs. */
 export const API_MODEL_MAP: Record<string, string> = {
   "gpt-5.4-mini": "gpt-4o-mini",
@@ -32,9 +35,17 @@ export function isGrokConfigured(): boolean {
 }
 
 export function pickStandardFast(prefer: "openai" | "google" | "anthropic" = "openai"): string {
-  if (prefer === "openai" && process.env.OPENAI_API_KEY?.trim()) return "gpt-5.4-mini";
-  if (prefer === "google") return "gemini-flash";
-  if (process.env.ANTHROPIC_API_KEY?.trim()) return "claude-haiku-4.5";
-  if (process.env.OPENAI_API_KEY?.trim()) return "gpt-5.4-mini";
-  return "gemini-flash";
+  const order: ProviderName[] =
+    prefer === "google"
+      ? ["google", "openai", "anthropic"]
+      : prefer === "anthropic"
+        ? ["anthropic", "openai", "google"]
+        : ["openai", "google", "anthropic"];
+  for (const p of order) {
+    if (!isProviderSelectable(p)) continue;
+    if (p === "openai") return "gpt-5.4-mini";
+    if (p === "google") return "gemini-flash";
+    return "claude-haiku-4.5";
+  }
+  return "gpt-5.4-mini";
 }

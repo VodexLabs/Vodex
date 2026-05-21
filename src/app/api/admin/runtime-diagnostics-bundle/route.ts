@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireDreamosOwner } from "@/lib/admin/require-owner";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
-import { probeChargeTokensRpcDetailed } from "@/lib/db/probe-charge-tokens-rpc";
-import { checkRuntimeSchemaHealth } from "@/lib/db/schema-health";
+import { getAdminRuntimeHealth } from "@/lib/db/admin-runtime-health";
+import { getRuntimeRepairSql } from "@/lib/admin/sql/runtime-repair-sql";
 import {
   buildDreamosIdentity,
   getSupabaseEnvSource,
@@ -16,8 +16,7 @@ export async function GET() {
   if (gate.error) return gate.error;
 
   const admin = createServiceRoleClient();
-  const chargeProbe = await probeChargeTokensRpcDetailed();
-  const schema = await checkRuntimeSchemaHealth();
+  const runtimeHealth = await getAdminRuntimeHealth({ refresh: true });
   const identity = admin
     ? await buildDreamosIdentity(admin, gate.user.id, gate.user.email)
     : null;
@@ -48,8 +47,8 @@ export async function GET() {
     projectRef: projectRefFromSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL),
     appEnv: getSupabaseEnvSource(),
     checked_at: new Date().toISOString(),
-    charge_tokens_probe: chargeProbe,
-    schema_health: schema,
+    runtime_health: runtimeHealth,
+    sql_patch_chars: getRuntimeRepairSql().length,
     recent_ai_usage: usage ?? [],
     recent_credit_events: events ?? [],
     env: {

@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { requireDreamosOwner } from "@/lib/admin/require-owner";
 import { bustAdminRuntimeHealthCache, getCachedAdminRuntimeHealth } from "@/lib/cache/admin-runtime-health-cache";
 import { getAdminRuntimeHealth } from "@/lib/db/admin-runtime-health";
-import { getAppUrl } from "@/lib/app-url";
 
 export const dynamic = "force-dynamic";
 
@@ -19,23 +18,19 @@ export async function GET(req: Request) {
   if (force) bustAdminRuntimeHealthCache();
 
   const health = await getCachedAdminRuntimeHealth(getAdminRuntimeHealth, force);
+  const ct = health.rpcs.charge_tokens;
 
   return NextResponse.json(
     {
-      ok: health.ok,
+      ok: health.ok && ct.callableByPostgrest && ct.executableByServiceRole,
       checkedAt: health.checkedAt,
       source: health.source,
-      appUrl: getAppUrl(),
       projectRef: health.projectRef,
       helperRpcUnavailable: health.helperRpcUnavailable,
-      helperRpcNote: health.helperRpcUnavailable
-        ? "Debug helper RPC is not available through PostgREST. This does not prove charge_tokens is missing."
-        : null,
       tables: health.tables,
-      rpcs: health.rpcs,
+      charge_tokens: ct,
       missing: health.missing,
       warnings: health.warnings,
-      rawErrors: health.rawErrors,
       contradictions: health.contradictions,
     },
     { headers: NO_STORE },

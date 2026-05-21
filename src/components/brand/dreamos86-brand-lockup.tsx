@@ -15,6 +15,7 @@ export type DreamOS86BrandLockupVariant =
   | "sidebarCollapsed"
   | "drawer"
   | "footer"
+  | "marketingFooter"
   | "auth";
 
 const VARIANT_ICON: Record<DreamOS86BrandLockupVariant, DreamOS86BrandIconSize | DreamOS86BrandIconVariant> = {
@@ -26,6 +27,7 @@ const VARIANT_ICON: Record<DreamOS86BrandLockupVariant, DreamOS86BrandIconSize |
   sidebarCollapsed: "collapsedSidebar",
   drawer: "sidebar",
   footer: "sm",
+  marketingFooter: "lg",
   auth: "auth",
 };
 
@@ -39,6 +41,7 @@ const VARIANT_GAP: Record<DreamOS86BrandLockupVariant, string> = {
   sidebarCollapsed: "",
   drawer: "gap-1.5",
   footer: "gap-2",
+  marketingFooter: "gap-1",
 };
 
 const VARIANT_TEXT: Record<DreamOS86BrandLockupVariant, string> = {
@@ -50,6 +53,7 @@ const VARIANT_TEXT: Record<DreamOS86BrandLockupVariant, string> = {
   sidebarCollapsed: "text-[13.5px] font-bold",
   drawer: "text-[14px] font-bold",
   footer: "text-[13px] font-semibold",
+  marketingFooter: "text-[15px] sm:text-[16px] font-bold",
   auth: "text-[17px] sm:text-[18px] font-bold",
 };
 

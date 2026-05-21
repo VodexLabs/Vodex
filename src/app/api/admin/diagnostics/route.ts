@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireDreamosOwner } from "@/lib/admin/require-owner";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
-import { getChargeTokensProbeCached } from "@/lib/db/charge-probe-cache";
-import { checkRuntimeSchemaHealth } from "@/lib/db/schema-health";
+import { getAdminRuntimeHealth } from "@/lib/db/admin-runtime-health";
+import { mapAdminRuntimeToSchemaHealth } from "@/lib/db/schema-health";
+import { getLastSslDiagnostic } from "@/lib/network/ssl-diagnostics-store";
+import { validateSupabaseEnv } from "@/lib/supabase/validate-supabase-env";
 
 export const dynamic = "force-dynamic";
 
@@ -20,8 +22,15 @@ export async function GET() {
   if (gate.error) return gate.error;
 
   const admin = createServiceRoleClient();
-  const chargeProbe = await getChargeTokensProbeCached();
-  const schema = await checkRuntimeSchemaHealth();
+  const runtimeHealth = await getAdminRuntimeHealth({ refresh: true });
+  const schema = mapAdminRuntimeToSchemaHealth(runtimeHealth);
+  const chargeProbe = {
+    ok: runtimeHealth.rpcs.charge_tokens.callableByPostgrest,
+    lastError: runtimeHealth.rpcs.charge_tokens.lastError ?? null,
+    postgrestCallable: runtimeHealth.rpcs.charge_tokens.callableByPostgrest,
+    serviceRoleExecutable: runtimeHealth.rpcs.charge_tokens.executableByServiceRole,
+    postgresExists: runtimeHealth.rpcs.charge_tokens.existsInPostgres,
+  };
 
   let loggingTableOk = false;
   let loggingTableError: string | null = null;
@@ -129,6 +138,7 @@ export async function GET() {
       })),
     ],
     supabaseHealth: schema,
+    runtimeHealth,
     creditBilling: {
       chargeProbe,
       providerBlocked: categories.provider_blocked,
@@ -146,6 +156,10 @@ export async function GET() {
     },
     domWiring: categories.dom_wiring,
     frontendErrors: categories.frontend_error,
+    networkSsl: {
+      last: getLastSslDiagnostic(),
+      supabaseEnv: validateSupabaseEnv(),
+    },
   });
 }
 

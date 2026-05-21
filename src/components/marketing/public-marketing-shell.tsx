@@ -108,7 +108,7 @@ export function PublicMarketingFooter({ className }: { className?: string }) {
     <footer className={cn("border-t border-border/60 bg-background/90", className)}>
       <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 sm:flex-row sm:px-6">
         <div className="flex flex-col items-center gap-2 sm:items-start">
-          <DreamOS86BrandLockup variant="footer" />
+          <DreamOS86BrandLockup variant="marketingFooter" gapClassName="gap-1" />
           <p className="text-center text-[11px] text-muted-foreground sm:text-left">
             © {new Date().getFullYear()} DreamOS86. All rights reserved.
           </p>

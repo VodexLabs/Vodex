@@ -11,7 +11,7 @@ export type ProviderSpendGuardResult =
     };
 
 const BLOCK_MESSAGE =
-  "Credit billing unavailable. Please retry after maintenance.";
+  "AI requests are temporarily paused while billing sync finishes. Please try again shortly.";
 
 /**
  * Blocks provider API spend when charge_tokens is not callable.

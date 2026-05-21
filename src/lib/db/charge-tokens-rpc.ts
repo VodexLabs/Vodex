@@ -11,8 +11,9 @@ export const CANONICAL_CHARGE_TOKENS_ARG_NAMES = [
   "p_user_id",
 ] as const;
 
+/** Live DB signature (p_user_id first). PostgREST may list params alphabetically in errors. */
 export const CANONICAL_CHARGE_TOKENS_PG_ARGS =
-  "p_amount integer, p_conversation_id uuid, p_idempotency_key text, p_metadata jsonb, p_project_id uuid, p_reason text, p_user_id uuid";
+  "p_user_id uuid, p_amount integer, p_reason text, p_idempotency_key text, p_metadata jsonb, p_project_id uuid, p_conversation_id uuid";
 
 export const CANONICAL_ENSURE_USER_PROFILE_PG_ARGS = "p_user_id uuid, p_email text";
 
@@ -44,7 +45,7 @@ export const CHARGE_TOKENS_DUPLICATE_OVERLOADS_MESSAGE =
   "Duplicate charge_tokens overloads detected in pg_proc. Run Copy SQL fix — PostgREST may not expose overloaded functions reliably.";
 
 export const CHARGE_TOKENS_WRONG_SIGNATURE_MESSAGE =
-  "Old charge_tokens signature detected in pg_proc (p_user_id-first or wrong types). Run Copy SQL fix — the patch drops all overloads dynamically before recreating the canonical function.";
+  "charge_tokens in pg_proc has an unexpected signature. Run Copy SQL patch — it drops all overloads and recreates the canonical function.";
 
 export const ENSURE_USER_PROFILE_VOID_MESSAGE =
   "Old ensure_user_profile return type detected (void). Run Copy SQL fix — the repair patch drops old functions first.";
@@ -54,15 +55,17 @@ export function normalizePgArgs(args: string): string {
   return args.replace(/\s+/g, " ").trim().toLowerCase();
 }
 
+/** Accept p_user_id-first (production) or legacy p_amount-first overloads. */
 export function isCanonicalChargeTokensArgs(args: string): boolean {
   const n = normalizePgArgs(args);
-  return (
-    n.startsWith("integer,") &&
-    n.includes("uuid") &&
-    n.includes("jsonb") &&
-    n.endsWith("uuid") &&
-    !n.startsWith("uuid,")
-  );
+  const parts = n.split(",").map((p) => p.trim());
+  if (parts.length < 6) return false;
+  const hasUuid = parts.filter((p) => p === "uuid").length >= 3;
+  const hasInt = parts.includes("integer");
+  const hasText = parts.filter((p) => p === "text").length >= 2;
+  const hasJsonb = parts.includes("jsonb");
+  if (!hasUuid || !hasInt || !hasText || !hasJsonb) return false;
+  return n.startsWith("uuid,") || n.startsWith("integer,");
 }
 
 export function isCanonicalEnsureUserProfileArgs(args: string): boolean {

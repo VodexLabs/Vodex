@@ -1,42 +1,46 @@
 import { NextResponse } from "next/server";
 import { requireDreamosOwner } from "@/lib/admin/require-owner";
-import { checkRuntimeSchemaHealth } from "@/lib/db/schema-health";
+import { getAdminRuntimeHealth } from "@/lib/db/admin-runtime-health";
 import {
-  bustAdminSchemaHealthCache,
-  getCachedAdminSchemaHealth,
-} from "@/lib/cache/admin-schema-health-cache";
+  bustAdminRuntimeHealthCache,
+  getCachedAdminRuntimeHealth,
+} from "@/lib/cache/admin-runtime-health-cache";
+
+export const dynamic = "force-dynamic";
+
+const NO_STORE = {
+  "Cache-Control": "no-store, no-cache, must-revalidate",
+  Pragma: "no-cache",
+};
 
 export async function GET(req: Request) {
   const gate = await requireDreamosOwner();
   if (gate.error) return gate.error;
 
   const force = new URL(req.url).searchParams.get("refresh") === "1";
-  if (force) bustAdminSchemaHealthCache();
+  if (force) bustAdminRuntimeHealthCache();
 
   try {
-    const report = await getCachedAdminSchemaHealth(checkRuntimeSchemaHealth, force);
+    const report = await getCachedAdminRuntimeHealth(getAdminRuntimeHealth, force);
     return NextResponse.json(report, {
       status: report.ok ? 200 : 503,
-      headers: {
-        "Cache-Control": "no-store, max-age=0",
-      },
+      headers: NO_STORE,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "schema_health_failed";
     return NextResponse.json(
       {
         ok: false,
-        missing: [],
-        projectRef: null,
         checkedAt: new Date().toISOString(),
+        source: "fresh" as const,
+        projectRef: null,
+        missing: [],
+        warnings: [],
+        rawErrors: [msg],
+        contradictions: [],
         error: msg,
-        migrationHint:
-          "Copy and run the SQL patch below in Supabase SQL Editor, then click Reload schema.",
-        userActionHint:
-          "Copy and run the SQL patch below in Supabase SQL Editor, then click Reload schema.",
-        chargeTokensIssue: null,
       },
-      { status: 503 },
+      { status: 503, headers: NO_STORE },
     );
   }
 }

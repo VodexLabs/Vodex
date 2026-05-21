@@ -1,4 +1,5 @@
 import { isDreamosOwnerEmail } from "@/lib/admin-owner";
+import { isProviderSelectable } from "@/lib/ai/provider-availability";
 import { hasAnyLlmProviderKey, googleGenerativeApiKey } from "@/lib/llm/env-keys";
 
 const AUTOMATIC_ALIASES = new Set(["automatic", "auto", "default"]);
@@ -10,9 +11,9 @@ export function isAutomaticModelId(modelId: string | undefined | null): boolean 
 
 /** Cheapest model for understanding, chat, and lightweight JSON tasks. */
 export function pickCheapestDiscussModelId(): string {
-  if (process.env.OPENAI_API_KEY?.trim()) return "gpt-5.4-mini";
-  if (googleGenerativeApiKey()) return "gemini-flash";
-  if (process.env.ANTHROPIC_API_KEY?.trim()) return "claude-haiku-4.5";
+  if (isProviderSelectable("openai")) return "gpt-5.4-mini";
+  if (isProviderSelectable("google")) return "gemini-flash";
+  if (isProviderSelectable("anthropic")) return "claude-haiku-4.5";
   return "gpt-5.4-mini";
 }
 
@@ -25,15 +26,15 @@ export function pickAutomaticImplementationModelId(
   ownerEmail?: string | null,
 ): string {
   const c = Math.min(10, Math.max(1, complexity));
-  const hasAnthropic = Boolean(process.env.ANTHROPIC_API_KEY?.trim());
-  const hasOpenAi = Boolean(process.env.OPENAI_API_KEY?.trim());
+  const anthropicOk = isProviderSelectable("anthropic");
+  const openAiOk = isProviderSelectable("openai");
 
   if (c <= 3) {
     return pickCheapestDiscussModelId();
   }
 
-  if (!hasAnthropic) {
-    if (hasOpenAi && c >= 7) return "gpt-5.4";
+  if (!anthropicOk) {
+    if (openAiOk && c >= 7) return "gpt-5.4";
     return pickCheapestDiscussModelId();
   }
 

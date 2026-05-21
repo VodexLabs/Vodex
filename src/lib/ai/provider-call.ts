@@ -4,6 +4,17 @@ import { google } from "@ai-sdk/google";
 import { openai } from "@ai-sdk/openai";
 import { googleGenerativeApiKey } from "@/lib/llm/env-keys";
 import { checkOperationBudget } from "@/lib/ai/cost-budget";
+import {
+  classifyProviderError,
+  pickFailoverCatalogModel,
+  providerFromModelId,
+  userFacingProviderMessage,
+} from "@/lib/ai/provider-errors";
+import {
+  isProviderSelectable,
+  recordProviderFailure,
+  recordProviderSuccess,
+} from "@/lib/ai/provider-availability";
 import { routeOperation, downRouteOperation, type RouteOperationContext } from "@/lib/ai/model-router";
 import type { RoutedModelSpec } from "@/lib/ai/operation-types";
 import { estimateTokenProviderCostUsd } from "@/lib/credits/token-cost";
@@ -136,24 +147,45 @@ export async function callProviderStructured(input: ProviderCallInput): Promise<
     });
   }
 
-  try {
-    const model = resolveLanguageModel(spec.apiModelId);
+  const providersToTry: Array<{ spec: typeof spec; failover: boolean }> = [{ spec, failover: false }];
+  const primaryProvider = providerFromModelId(spec.modelId);
+  if (!isProviderSelectable(primaryProvider)) {
+    const altId = pickFailoverCatalogModel(primaryProvider, input.operationType);
+    if (altId) {
+      const altSpec = routeOperation({
+        operationType: input.operationType,
+        requestedModelId: altId,
+        complexity: input.complexity,
+        ownerEmail: input.ownerEmail,
+      });
+      providersToTry.push({ spec: altSpec, failover: true });
+    }
+  }
+
+  let lastErr: Error | null = null;
+  for (let attempt = 0; attempt < providersToTry.length; attempt++) {
+    const attemptSpec = providersToTry[attempt]!.spec;
+    const isFailover = providersToTry[attempt]!.failover;
+    try {
+    const model = resolveLanguageModel(attemptSpec.apiModelId);
     const result = await generateText({
       model,
       system: input.system,
       prompt: input.prompt,
       maxOutputTokens: maxTokens,
-      temperature: spec.temperature,
+      temperature: attemptSpec.temperature,
     });
+
+    recordProviderSuccess(providerFromModelId(attemptSpec.modelId));
 
     const raw = result.text ?? "";
     const formatViolation =
-      spec.strictJson && (!raw.trim().startsWith("{") || raw.includes("```"));
-    const text = spec.strictJson ? raw.trim() : raw;
+      attemptSpec.strictJson && (!raw.trim().startsWith("{") || raw.includes("```"));
+    const text = attemptSpec.strictJson ? raw.trim() : raw;
     const inTok = result.usage?.inputTokens ?? null;
     const outTok = result.usage?.outputTokens ?? null;
     const providerCostUsd = estimateTokenProviderCostUsd(
-      spec.modelId,
+      attemptSpec.modelId,
       inTok ?? 1500,
       outTok ?? Math.min(maxTokens, 800),
     );
@@ -163,40 +195,64 @@ export async function callProviderStructured(input: ProviderCallInput): Promise<
       input_tokens: inTok,
       output_tokens: outTok,
       provider_cost_usd: providerCostUsd,
+      failover: isFailover,
+      model: attemptSpec.modelId,
     });
 
     return {
       text,
-      spec,
+      spec: attemptSpec,
       inputTokens: inTok,
       outputTokens: outTok,
       providerCostUsd,
       truncated: (outTok ?? 0) >= maxTokens * 0.95,
       formatViolation,
     };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "provider_failed";
-    console.warn("[provider_request_failed]", {
-      operation_id: input.operationId,
-      error: msg,
-    });
-    if (input.writer) {
-      await logServerOperation({
-        writer: input.writer,
-        userId: input.userId,
-        userEmail: input.userEmail,
-        stage: "chat",
-        event: "provider_request_failed",
-        status: "error",
-        errorMessage: msg,
-        modelId: spec.modelId,
-        mode: input.operationType,
-        operationId: input.operationId,
-        projectId: input.projectId,
+    } catch (err) {
+      const classified = classifyProviderError(err);
+      recordProviderFailure(classified.provider, classified.errorClass);
+      lastErr = err instanceof Error ? err : new Error(String(err));
+      console.warn("[provider_request_failed]", {
+        operation_id: input.operationId,
+        error: classified.raw,
+        error_class: classified.errorClass,
+        failover: isFailover,
       });
+      if (input.writer) {
+        await logServerOperation({
+          writer: input.writer,
+          userId: input.userId,
+          userEmail: input.userEmail,
+          stage: "chat",
+          event: "provider_request_failed",
+          status: "error",
+          errorMessage: classified.raw,
+          modelId: attemptSpec.modelId,
+          mode: input.operationType,
+          operationId: input.operationId,
+          projectId: input.projectId,
+          metadata: { error_class: classified.errorClass, failover: isFailover },
+        });
+      }
+      if (classified.failover && attempt === 0) {
+        const altId = pickFailoverCatalogModel(classified.provider, input.operationType);
+        if (altId && altId !== attemptSpec.modelId) {
+          const altSpec = routeOperation({
+            operationType: input.operationType,
+            requestedModelId: altId,
+            complexity: input.complexity,
+            ownerEmail: input.ownerEmail,
+          });
+          providersToTry.push({ spec: altSpec, failover: true });
+          continue;
+        }
+      }
+      break;
     }
-    throw err;
   }
+
+  const classified = classifyProviderError(lastErr);
+  throw new Error(userFacingProviderMessage(classified.errorClass, providersToTry.length > 1));
 }
 
 export function parseJsonFromModel<T>(text: string): T | null {

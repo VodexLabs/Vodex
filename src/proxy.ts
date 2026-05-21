@@ -11,6 +11,32 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { buildAuthCallbackRedirectFromSearchParams } from "@/lib/auth/oauth-redirect";
+import { classifyUrlHostname } from "@/lib/network/safe-fetch";
+
+const PROXY_AUTH_WARN_MS = 30_000;
+let lastProxyAuthWarnAt = 0;
+
+function hasSupabaseSessionCookie(request: NextRequest): boolean {
+  return request.cookies.getAll().some((c) => c.name.startsWith("sb-") && c.name.includes("auth"));
+}
+
+function logProxyAuthFailure(err: unknown, supabaseHost: string): void {
+  const now = Date.now();
+  if (now - lastProxyAuthWarnAt < PROXY_AUTH_WARN_MS) return;
+  lastProxyAuthWarnAt = now;
+  const msg = err instanceof Error ? err.message : String(err);
+  const code =
+    err && typeof err === "object" && "code" in err && typeof (err as { code: string }).code === "string"
+      ? (err as { code: string }).code
+      : null;
+  console.warn("[dreamos-proxy] Supabase auth refresh failed:", {
+    errorCode: code,
+    message: msg.slice(0, 200),
+    supabaseHost,
+    hostBucket: classifyUrlHostname(supabaseHost),
+    hint: "Edge middleware cannot use Node TLS workarounds — use *.supabase.co locally.",
+  });
+}
 
 /** Routes that require authentication */
 const PROTECTED_PATHS = [
@@ -88,23 +114,32 @@ export async function proxy(request: NextRequest) {
   >["data"]["user"];
 
   let authRefreshFailed = false;
-
-  try {
-    const { data } = await supabase.auth.getUser();
-    user = data.user;
-  } catch (e) {
-    authRefreshFailed = true;
-    if (process.env.NODE_ENV !== "production") {
-      console.warn(
-        "[dreamos-proxy] Supabase auth refresh failed (Edge may not use dev TLS workaround):",
-        e instanceof Error ? e.message : e,
-      );
+  const supabaseHost = (() => {
+    try {
+      return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").hostname;
+    } catch {
+      return "unknown";
     }
+  })();
+
+  const hasSessionCookie = hasSupabaseSessionCookie(request);
+  const isAuthPage = AUTH_PATHS.some((p) => pathname.startsWith(p));
+
+  if (!hasSessionCookie && isAuthPage) {
     user = null;
+  } else if (!hasSessionCookie && !PROTECTED_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
+    user = null;
+  } else {
+    try {
+      const { data } = await supabase.auth.getUser();
+      user = data.user;
+    } catch (e) {
+      authRefreshFailed = true;
+      logProxyAuthFailure(e, supabaseHost);
+      user = null;
+    }
   }
 
-  // In local dev, Edge middleware cannot use NODE_TLS_REJECT_UNAUTHORIZED from instrumentation.
-  // Do not force logged-out redirects when refresh failed — server routes use Node + TLS workaround.
   if (authRefreshFailed && process.env.NODE_ENV !== "production") {
     return supabaseResponse;
   }

@@ -24,6 +24,17 @@ import { allocatePublishedSubdomain } from "@/lib/publish/subdomain";
 import { googleGenerativeApiKey, hasAnyLlmProviderKey } from "@/lib/llm/env-keys";
 import { isAutomaticModelId } from "@/lib/ai/resolve-automatic-model";
 import { routeModel, mapChatModeToTask, routeOperation } from "@/lib/ai/model-router";
+import {
+  classifyProviderError,
+  pickFailoverCatalogModel,
+  providerFromModelId,
+  sanitizeUserFacingAiError,
+} from "@/lib/ai/provider-errors";
+import {
+  isProviderSelectable,
+  recordProviderFailure,
+  recordProviderSuccess,
+} from "@/lib/ai/provider-availability";
 import { createStagedBuildStreamResponse } from "@/lib/chat/staged-build-response";
 import { calculateCreditsForStagedBuild } from "@/lib/credits/credit-pricing";
 import { chargeAiOperation } from "@/lib/credits/charge-ai-operation";
@@ -292,7 +303,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(
       {
-        error: "Credit billing unavailable. Please retry after maintenance.",
+        error: "AI requests are temporarily paused while billing sync finishes. Please try again shortly.",
         code: "charge_tokens_missing",
         hint: chargeProbe.nextAction ?? chargeProbe.userMessage ?? chargeProbe.hint,
       },
@@ -594,12 +605,25 @@ export async function POST(request: Request) {
 
   const buildComplexity = 5;
 
-  const streamSpec = routeOperation({
+  let streamSpec = routeOperation({
     operationType: streamOp,
     ownerEmail: userEmail,
     requestedModelId: requestedModel,
     complexity: buildComplexity,
   });
+
+  const primaryProvider = providerFromModelId(streamSpec.modelId);
+  if (!isProviderSelectable(primaryProvider)) {
+    const altId = pickFailoverCatalogModel(primaryProvider, streamOp);
+    if (altId) {
+      streamSpec = routeOperation({
+        operationType: streamOp,
+        ownerEmail: userEmail,
+        requestedModelId: altId,
+        complexity: buildComplexity,
+      });
+    }
+  }
 
   let model;
   try {
@@ -974,16 +998,19 @@ export async function POST(request: Request) {
     return response;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Model unavailable";
+    const classified = classifyProviderError(err);
+    recordProviderFailure(classified.provider, classified.errorClass);
+    const userMsg = sanitizeUserFacingAiError(msg);
     await writer.from("ai_usage_logs").insert({
       user_id: user.id,
       user_email: userEmail,
-      model_id: modelId,
+      model_id: streamSpec.modelId,
       mode,
       tokens_charged: 0,
       tokens_input: null,
       tokens_output: null,
       status: "error",
-      error_message: msg,
+      error_message: msg.slice(0, 500),
       conversation_id: conversationId ?? null,
       operation_id: opId,
     });
@@ -993,6 +1020,14 @@ export async function POST(request: Request) {
         .update({ status: "failed", error_message: msg })
         .eq("id", buildJobId);
     }
-    return NextResponse.json({ error: msg, hint: LLM_SETUP_HINT }, { status: 503 });
+    const isSetup = !hasAnyLlmProviderKey();
+    return NextResponse.json(
+      {
+        error: isSetup ? LLM_SETUP_ERROR : userMsg,
+        hint: isSetup ? LLM_SETUP_HINT : undefined,
+        code: isSetup ? "llm_setup" : undefined,
+      },
+      { status: 503 },
+    );
   }
 }

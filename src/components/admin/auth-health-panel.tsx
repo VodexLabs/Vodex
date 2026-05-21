@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { getAppUrl, getCallbackUrl } from "@/lib/auth";
 import { getSupabaseProjectRefFromUrl } from "@/lib/supabase/auth-domain";
 import type { AuthHealthResult, ProviderStatus } from "@/app/api/admin/auth-health/route";
+import { AdminProviderHealthPanel } from "@/components/admin/admin-provider-health-panel";
 
 // ─── Status atoms ─────────────────────────────────────────────────────────────
 
@@ -468,6 +469,8 @@ export function AuthHealthPanel() {
           action={{ label: "Email templates", href: `${dashboardBase}/auth/templates` }}
         />
       </Section>
+
+      <AdminProviderHealthPanel />
 
       {/* Security */}
       <Section title="Security">

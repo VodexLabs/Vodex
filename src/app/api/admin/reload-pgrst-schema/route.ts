@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireDreamosOwner } from "@/lib/admin/require-owner";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 import { runChargeTokensDebugReport } from "@/lib/db/probe-charge-tokens-rpc";
-import { bustAdminSchemaHealthCache } from "@/lib/cache/admin-schema-health-cache";
+import { bustAdminRuntimeHealthCache } from "@/lib/cache/admin-runtime-health-cache";
 import { invalidateChargeTokensProbeCache } from "@/lib/db/charge-probe-cache";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +37,7 @@ export async function POST() {
     }
 
     await new Promise((r) => setTimeout(r, 2000));
-    bustAdminSchemaHealthCache();
+    bustAdminRuntimeHealthCache();
     invalidateChargeTokensProbeCache();
     const report = await runChargeTokensDebugReport(gate.user.id);
 

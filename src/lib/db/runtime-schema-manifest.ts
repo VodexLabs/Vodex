@@ -28,7 +28,7 @@ export const RUNTIME_REQUIRED_TABLES = [
   "project_integrations",
   "project_secrets",
   "project_connection_audit",
-  "runtime_diagnostics",
+  "dreamos_diagnostic_logs",
 ] as const;
 
 export const RUNTIME_CRITICAL_TABLES = [

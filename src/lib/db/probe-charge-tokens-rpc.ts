@@ -1,4 +1,5 @@
 import { createServiceRoleClient } from "@/lib/supabase/admin";
+import { safeFetch } from "@/lib/network/safe-fetch";
 import {
   buildChargeTokensProbePayload,
   CANONICAL_CHARGE_TOKENS_PG_ARGS,
@@ -201,8 +202,9 @@ async function probePostgrestRest(
   key: string,
   payload: ChargeTokensRpcPayload,
 ): Promise<{ callable: boolean; httpStatus: number; error: string | null; data: unknown }> {
-  try {
-    const res = await fetch(`${url}/rest/v1/rpc/charge_tokens`, {
+  const { response: res, error: fetchErr } = await safeFetch(
+    `${url}/rest/v1/rpc/charge_tokens`,
+    {
       method: "POST",
       headers: {
         apikey: key,
@@ -210,7 +212,20 @@ async function probePostgrestRest(
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),
-    });
+    },
+    "probe_charge_tokens_postgrest",
+  );
+
+  if (!res) {
+    return {
+      callable: false,
+      httpStatus: 0,
+      error: fetchErr?.message ?? "rest_probe_failed",
+      data: null,
+    };
+  }
+
+  try {
     const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     const errMsg =
       (typeof body.message === "string" ? body.message : null) ??
@@ -335,7 +350,7 @@ function classifyIssue(input: {
       ok: false,
       issue: "wrong_pg_signature",
       diagnosis: CHARGE_TOKENS_WRONG_SIGNATURE_MESSAGE,
-      nextAction: "Copy SQL fix — canonical signature is p_amount-first returning jsonb.",
+      nextAction: "Copy SQL patch — recreates charge_tokens (p_user_id uuid first) returning jsonb.",
       userMessage: CHARGE_TOKENS_WRONG_SIGNATURE_MESSAGE,
       actionHint: "Run Copy SQL fix, then Reload schema.",
     };

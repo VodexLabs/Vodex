@@ -136,6 +136,16 @@ export function resolveMetadataBaseOrigin(requestUrl?: string): string {
   return resolveSiteOrigin(requestUrl);
 }
 
+function envUrlHost(name: string): string | null {
+  const raw = process.env[name]?.trim();
+  if (!raw) return null;
+  try {
+    return new URL(raw).hostname;
+  } catch {
+    return null;
+  }
+}
+
 /** Log once on server boot in development (no secrets). */
 export function logAppOriginBoot(): void {
   if (originBootLogged) return;
@@ -144,11 +154,11 @@ export function logAppOriginBoot(): void {
 
   const mode = getOriginMode();
   const resolved = resolveAppOrigin();
-  console.info(
-    "[DreamOS86][url] origin mode=%s | NODE_ENV=%s | NEXT_PUBLIC_APP_URL=%s | resolvedAppOrigin=%s",
+  console.info("[DreamOS86][url] resolved origin:", {
+    NODE_ENV: process.env.NODE_ENV ?? "(unset)",
     mode,
-    process.env.NODE_ENV ?? "(unset)",
-    process.env.NEXT_PUBLIC_APP_URL ?? "(unset)",
-    resolved,
-  );
+    resolvedOrigin: resolved,
+    NEXT_PUBLIC_APP_URL_host: envUrlHost("NEXT_PUBLIC_APP_URL"),
+    NEXT_PUBLIC_SITE_URL_host: envUrlHost("NEXT_PUBLIC_SITE_URL"),
+  });
 }

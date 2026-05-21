@@ -21,6 +21,23 @@ import type { CreationModel, Rating1to5, ModelSpecialization } from "@/lib/creat
 import { CREATION_MODELS, FLAGSHIP_MODELS } from "@/lib/creation/models";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { toast } from "@/lib/toast";
+
+type ProviderAvailability = Record<string, "available" | "unavailable" | "coming_soon">;
+
+function modelAvailability(
+  model: CreationModel,
+  providers: ProviderAvailability | null,
+): "ok" | "unavailable" | "coming_soon" {
+  if (!providers) return "ok";
+  if (model.id === "grok-4" || model.provider === "xai") {
+    return providers.xai === "coming_soon" ? "coming_soon" : providers.xai === "unavailable" ? "unavailable" : "ok";
+  }
+  const st = providers[model.provider];
+  if (st === "coming_soon") return "coming_soon";
+  if (st === "unavailable") return "unavailable";
+  return "ok";
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -91,25 +108,32 @@ function StarRating({ value, max = 5 }: { value: number; max?: number }) {
 function ModelRow({
   model,
   active,
+  availability,
   onSelect,
   onHover,
 }: {
   model: CreationModel;
   active: boolean;
+  availability: "ok" | "unavailable" | "coming_soon";
   onSelect: () => void;
   onHover: (id: string | null) => void;
 }) {
   const badge = SPEC_BADGE[model.specialization];
+  const disabled = availability !== "ok";
+  const statusLabel =
+    availability === "coming_soon" ? "Coming soon" : availability === "unavailable" ? "Temporarily unavailable" : null;
 
   return (
     <button
       type="button"
+      disabled={disabled}
       onClick={onSelect}
       onMouseEnter={() => onHover(model.id)}
       onMouseLeave={() => onHover(null)}
       className={cn(
         "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-left transition",
-        active ? "bg-accent/10 ring-1 ring-accent/20" : "hover:bg-surface",
+        disabled && "cursor-not-allowed opacity-50",
+        active ? "bg-accent/10 ring-1 ring-accent/20" : !disabled && "hover:bg-surface",
       )}
     >
       {/* Provider dot */}
@@ -123,6 +147,11 @@ function ModelRow({
             {badge.label}
           </span>
           {active && <CheckCheck className="size-3 text-accent" strokeWidth={2} />}
+          {statusLabel ? (
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[8.5px] font-semibold text-muted-foreground">
+              {statusLabel}
+            </span>
+          ) : null}
         </div>
         <p className="mt-0.5 text-[10.5px] text-muted-foreground truncate">{model.tagline}</p>
       </div>
@@ -225,9 +254,29 @@ export function ModelPicker({
   const dropRef = React.useRef<HTMLDivElement>(null);
   const searchRef = React.useRef<HTMLInputElement>(null);
   const [mounted, setMounted] = React.useState(false);
+  const [providerStatus, setProviderStatus] = React.useState<ProviderAvailability | null>(null);
   const current = CREATION_MODELS.find((m) => m.id === value) ?? CREATION_MODELS[0];
 
   React.useEffect(() => { setMounted(true); }, []);
+
+  React.useEffect(() => {
+    fetch("/api/ai/provider-status", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json: { providers?: ProviderAvailability } | null) => {
+        if (json?.providers) setProviderStatus(json.providers);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  React.useEffect(() => {
+    if (!providerStatus || value === "automatic") return;
+    const m = CREATION_MODELS.find((x) => x.id === value);
+    if (!m) return;
+    if (modelAvailability(m, providerStatus) !== "ok") {
+      onChange("automatic");
+      toast.info("Selected model is temporarily unavailable. Switched to Automatic.");
+    }
+  }, [providerStatus, value, onChange]);
 
   // Position UPWARD from trigger
   const updatePos = React.useCallback(() => {
@@ -337,7 +386,12 @@ export function ModelPicker({
                     <ModelRow
                       model={m}
                       active={m.id === value}
-                      onSelect={() => { onChange(m.id); setOpen(false); }}
+                      availability={modelAvailability(m, providerStatus)}
+                      onSelect={() => {
+                        if (modelAvailability(m, providerStatus) !== "ok") return;
+                        onChange(m.id);
+                        setOpen(false);
+                      }}
                       onHover={setHoverId}
                     />
                     <AnimatePresence>

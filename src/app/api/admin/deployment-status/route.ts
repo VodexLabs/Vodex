@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireDreamosOwner } from "@/lib/admin/require-owner";
 import { getAppUrl } from "@/lib/app-url";
+import { safeFetch } from "@/lib/network/safe-fetch";
 import { checkBuilderSchemaHealth } from "@/lib/builder/schema-health";
 import { checkOnboardingSchemaHealth } from "@/lib/onboarding/schema-health";
 import { RUNTIME_MIGRATION_FILE, RUNTIME_SQL_FALLBACK } from "@/lib/schema/runtime-required-schema";
@@ -43,19 +44,15 @@ export async function GET() {
   let termsReachable = false;
   let privacyReachable = false;
   let contactReachable = false;
-  try {
-    const base = appUrl.replace(/\/$/, "");
-    const [termsRes, privacyRes, contactRes] = await Promise.all([
-      fetch(`${base}/terms`, { method: "GET", redirect: "follow" }),
-      fetch(`${base}/privacy`, { method: "GET", redirect: "follow" }),
-      fetch(`${base}/contact`, { method: "GET", redirect: "follow" }),
-    ]);
-    termsReachable = termsRes.ok;
-    privacyReachable = privacyRes.ok;
-    contactReachable = contactRes.ok;
-  } catch {
-    /* unreachable from this runtime */
-  }
+  const base = appUrl.replace(/\/$/, "");
+  const [terms, privacy, contact] = await Promise.all([
+    safeFetch(`${base}/terms`, { method: "GET", redirect: "follow" }, "deployment_status_terms"),
+    safeFetch(`${base}/privacy`, { method: "GET", redirect: "follow" }, "deployment_status_privacy"),
+    safeFetch(`${base}/contact`, { method: "GET", redirect: "follow" }, "deployment_status_contact"),
+  ]);
+  termsReachable = terms.response?.ok ?? false;
+  privacyReachable = privacy.response?.ok ?? false;
+  contactReachable = contact.response?.ok ?? false;
 
   const [builderSchema, onboardingSchema] = await Promise.all([
     checkBuilderSchemaHealth().catch((e) => ({

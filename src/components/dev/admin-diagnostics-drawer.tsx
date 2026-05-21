@@ -11,15 +11,23 @@ import {
 import { isDreamosOwnerEmail } from "@/lib/admin-owner";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { scanDomWiringIssues } from "@/components/dev/diagnostics-bootstrap";
+import {
+  markClientFetchError,
+  markClientFetchSuccess,
+  shouldThrottleClientFetch,
+} from "@/lib/network/client-fetch-backoff";
 
 type TabId =
-  | "live"
-  | "missing"
-  | "api"
+  | "overview"
+  | "network"
   | "supabase"
   | "credit"
+  | "providers"
+  | "api"
   | "build"
   | "ui"
+  | "missing"
+  | "live"
   | "publish";
 
 type DiagnosticsPayload = {
@@ -35,17 +43,34 @@ type DiagnosticsPayload = {
   adminActions?: { pending?: unknown[]; logs?: unknown[] };
   domWiring?: unknown[];
   frontendErrors?: unknown[];
+  runtimeHealth?: import("@/lib/db/admin-runtime-health").AdminRuntimeHealth;
+  networkSsl?: {
+    last?: {
+      at: string;
+      context: string;
+      hostname: string;
+      pathname: string;
+      errorCode: string | null;
+      message: string;
+      hostBucket: string;
+      suggestedFix: string;
+    } | null;
+    supabaseEnv?: { ok?: boolean; hostname?: string | null; warnings?: string[]; errors?: string[] };
+  };
 };
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: "live", label: "Live Events" },
-  { id: "missing", label: "Missing IDs" },
-  { id: "api", label: "API Errors" },
-  { id: "supabase", label: "Supabase Health" },
-  { id: "credit", label: "Credit/Billing" },
-  { id: "build", label: "Build Pipeline" },
+  { id: "overview", label: "Overview" },
+  { id: "supabase", label: "Schema" },
+  { id: "credit", label: "Credits" },
+  { id: "providers", label: "AI Providers" },
+  { id: "api", label: "Chat/Preflight" },
+  { id: "build", label: "Build" },
+  { id: "network", label: "Network/SSL" },
   { id: "ui", label: "UI Actions" },
-  { id: "publish", label: "Publish Readiness" },
+  { id: "missing", label: "Missing IDs" },
+  { id: "live", label: "Raw Logs" },
+  { id: "publish", label: "Publish" },
 ];
 
 function LogRows({ rows, empty }: { rows: unknown[]; empty: string }) {
@@ -74,6 +99,40 @@ function LogRows({ rows, empty }: { rows: unknown[]; empty: string }) {
   );
 }
 
+function ProviderHealthTab() {
+  const [rows, setRows] = React.useState<
+    Array<{ provider: string; status: string; configured: boolean; warnings: string[] }>
+  >([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    fetch("/api/admin/provider-health", { credentials: "include", cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { providers?: typeof rows } | null) => setRows(j?.providers ?? []))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <p className="py-4 text-center text-muted-foreground">Loading provider health…</p>;
+  if (!rows.length) return <p className="py-4 text-center text-muted-foreground">No provider data.</p>;
+
+  return (
+    <div className="space-y-2">
+      {rows.map((p) => (
+        <div key={p.provider} className="rounded-lg bg-surface/80 px-2.5 py-2 ring-1 ring-border/60">
+          <p className="font-medium capitalize text-foreground">
+            {p.provider} · {p.status} · {p.configured ? "configured" : "no key"}
+          </p>
+          {p.warnings.map((w) => (
+            <p key={w} className="text-[10px] text-amber-600">
+              {w}
+            </p>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function mergeClientLive(server: unknown[], client: DreamosLogRow[]): unknown[] {
   const clientRows = client.map((c) => ({
     at: c.at,
@@ -90,19 +149,26 @@ export function AdminDiagnosticsDrawer() {
   const email = useAuthStore((s) => s.profile?.email);
   const isOwner = isDreamosOwnerEmail(email);
   const [open, setOpen] = React.useState(false);
-  const [tab, setTab] = React.useState<TabId>("live");
+  const [tab, setTab] = React.useState<TabId>("overview");
   const [data, setData] = React.useState<DiagnosticsPayload | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [clientLogs, setClientLogs] = React.useState<DreamosLogRow[]>([]);
 
   const refresh = React.useCallback(async () => {
+    const key = "admin_diagnostics";
+    if (shouldThrottleClientFetch(key)) return;
     setClientLogs(readClientDiagnosticLogs());
     setLoading(true);
     try {
       const r = await fetch("/api/admin/diagnostics", { credentials: "include", cache: "no-store" });
-      if (r.ok) setData((await r.json()) as DiagnosticsPayload);
+      if (r.ok) {
+        setData((await r.json()) as DiagnosticsPayload);
+        markClientFetchSuccess(key);
+      } else {
+        markClientFetchError(key);
+      }
     } catch {
-      /* ignore */
+      markClientFetchError(key);
     } finally {
       setLoading(false);
     }
@@ -113,7 +179,7 @@ export function AdminDiagnosticsDrawer() {
     void refresh();
     const t = setInterval(() => {
       setClientLogs(readClientDiagnosticLogs());
-    }, 2000);
+    }, 5000);
     return () => clearInterval(t);
   }, [isOwner, open, refresh]);
 
@@ -122,8 +188,109 @@ export function AdminDiagnosticsDrawer() {
   const live = mergeClientLive(data?.liveEvents ?? [], clientLogs);
   const domScan = scanDomWiringIssues();
 
+  const rh = data?.runtimeHealth;
+  const blockers =
+    (rh?.ok ? 0 : 1) +
+    (rh?.rpcs.charge_tokens.callableByPostgrest ? 0 : 1) +
+    ((data?.apiErrors as unknown[])?.length ? 1 : 0);
+
   let panel: React.ReactNode = null;
   switch (tab) {
+    case "overview":
+      panel = (
+        <div className="space-y-3 text-[11px]">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-lg bg-surface px-2.5 py-2 ring-1 ring-border">
+              <p className="text-[10px] text-muted-foreground">Critical blockers</p>
+              <p className={cn("text-lg font-semibold", blockers ? "text-destructive" : "text-positive")}>
+                {blockers}
+              </p>
+            </div>
+            <div className="rounded-lg bg-surface px-2.5 py-2 ring-1 ring-border">
+              <p className="text-[10px] text-muted-foreground">Live events</p>
+              <p className="text-lg font-semibold text-foreground">{live.length}</p>
+            </div>
+          </div>
+          <ul className="space-y-1 text-foreground/90">
+            <li>
+              Schema:{" "}
+              <span className={rh?.ok ? "text-positive" : "text-destructive"}>
+                {rh?.ok ? "OK" : `${rh?.missing.length ?? "?"} issues`}
+              </span>
+            </li>
+            <li>
+              charge_tokens:{" "}
+              <span className={rh?.rpcs.charge_tokens.callableByPostgrest ? "text-positive" : "text-destructive"}>
+                {rh?.rpcs.charge_tokens.callableByPostgrest ? "PostgREST callable" : "PostgREST blocked"}
+              </span>
+            </li>
+            <li>
+              Helper RPC:{" "}
+              <span className={rh?.helperRpcUnavailable ? "text-amber-600" : "text-positive"}>
+                {rh?.helperRpcUnavailable ? "debug helper unavailable" : "available"}
+              </span>
+            </li>
+            <li>API errors (recent): {(data?.apiErrors as unknown[])?.length ?? 0}</li>
+            <li>Build jobs: {(data?.buildPipeline?.jobs as unknown[])?.length ?? 0}</li>
+            <li>Missing ID events: {(data?.missingIds as unknown[])?.length ?? 0}</li>
+            <li>DOM wiring issues: {domScan.length}</li>
+            <li>
+              SSL fetch errors:{" "}
+              <span className={data?.networkSsl?.last ? "text-destructive" : "text-positive"}>
+                {data?.networkSsl?.last ? "yes (see Network tab)" : "none"}
+              </span>
+            </li>
+          </ul>
+          <p className="text-[10px] text-muted-foreground">
+            Use Schema, Credits, and Chat/API tabs for detail. Missing IDs is only one category — not overall health.
+          </p>
+        </div>
+      );
+      break;
+    case "network": {
+      const ssl = data?.networkSsl?.last;
+      const env = data?.networkSsl?.supabaseEnv;
+      panel = (
+        <div className="space-y-3 text-[11px]">
+          {ssl ? (
+            <div className="rounded-lg bg-destructive/5 px-3 py-2 ring-1 ring-destructive/20">
+              <p className="font-semibold text-destructive">Last SSL / fetch failure</p>
+              <p className="mt-1 text-[10px] text-muted-foreground">{ssl.at}</p>
+              <ul className="mt-2 space-y-0.5 font-mono text-[10px]">
+                <li>context: {ssl.context}</li>
+                <li>hostname: {ssl.hostname}</li>
+                <li>pathname: {ssl.pathname}</li>
+                <li>code: {ssl.errorCode ?? "—"}</li>
+                <li>bucket: {ssl.hostBucket}</li>
+              </ul>
+              <p className="mt-2 text-foreground/90">{ssl.message}</p>
+              <p className="mt-2 text-amber-700 dark:text-amber-300">{ssl.suggestedFix}</p>
+            </div>
+          ) : (
+            <p className="text-muted-foreground">No SSL fetch errors recorded on this server process yet.</p>
+          )}
+          {env ? (
+            <div className="rounded-lg bg-surface px-3 py-2 ring-1 ring-border">
+              <p className="font-semibold">Supabase env</p>
+              <p>
+                hostname: <span className="font-mono">{env.hostname ?? "—"}</span> · ok={String(env.ok)}
+              </p>
+              {(env.errors ?? []).map((e) => (
+                <p key={e} className="text-destructive">
+                  {e}
+                </p>
+              ))}
+              {(env.warnings ?? []).map((w) => (
+                <p key={w} className="text-amber-600">
+                  {w}
+                </p>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      );
+      break;
+    }
     case "live":
       panel = (
         <>
@@ -159,27 +326,37 @@ export function AdminDiagnosticsDrawer() {
     case "supabase":
       panel = (
         <div className="space-y-2 text-[11px]">
-          <p className={cn("font-semibold", data?.supabaseHealth?.ok ? "text-positive" : "text-destructive")}>
-            Schema {data?.supabaseHealth?.ok ? "OK" : "issues detected"}
+          <p className={cn("font-semibold", rh?.ok ? "text-positive" : "text-destructive")}>
+            Schema {rh?.ok ? "OK" : "issues"} · source={rh?.source ?? "—"}
           </p>
-          <LogRows rows={(data?.supabaseHealth?.missing as unknown[]) ?? []} empty="No schema gaps reported." />
+          <LogRows
+            rows={(rh?.missing ?? []).map((m) => ({
+              message: `${m.type} ${m.name}: ${m.reason}`,
+              metadata: { fix: m.fix },
+            }))}
+            empty="No schema gaps reported."
+          />
           <pre className="max-h-48 overflow-auto rounded-lg bg-surface p-2 text-[10px]">
-            {JSON.stringify(data?.supabaseHealth ?? {}, null, 2)}
+            {JSON.stringify(rh?.tables ?? {}, null, 2)}
           </pre>
         </div>
+      );
+      break;
+    case "providers":
+      panel = (
+        <ProviderHealthTab />
       );
       break;
     case "credit":
       panel = (
         <div className="space-y-2">
           <p className="text-[11px]">
-            charge_tokens:{" "}
-            <span className={data?.creditBilling?.chargeProbe?.ok ? "text-positive" : "text-destructive"}>
-              {data?.creditBilling?.chargeProbe?.ok ? "callable" : "blocked"}
-            </span>
+            charge_tokens pg: {rh?.rpcs.charge_tokens.existsInPostgres ? "yes" : "no"} · postgrest:{" "}
+            {rh?.rpcs.charge_tokens.callableByPostgrest ? "yes" : "no"} · service:{" "}
+            {rh?.rpcs.charge_tokens.executableByServiceRole ? "yes" : "no"}
           </p>
-          {data?.creditBilling?.chargeProbe?.lastError ? (
-            <p className="text-[10px] text-destructive">{data.creditBilling.chargeProbe.lastError}</p>
+          {rh?.rpcs.charge_tokens.lastError ? (
+            <p className="text-[10px] text-destructive">{rh.rpcs.charge_tokens.lastError}</p>
           ) : null}
           <LogRows
             rows={[

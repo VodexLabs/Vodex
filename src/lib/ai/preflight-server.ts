@@ -215,7 +215,7 @@ export async function runAiPreflightServer(request: Request): Promise<PreflightS
     return {
       ok: false,
       status: 503,
-      error: "Credit billing unavailable. Please retry after maintenance.",
+      error: "AI requests are temporarily paused while billing sync finishes. Please try again shortly.",
       code: "charge_tokens_missing",
       hint: chargeProbe.nextAction ?? chargeProbe.userMessage ?? chargeProbe.hint,
     };

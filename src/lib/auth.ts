@@ -7,6 +7,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { getAppUrl } from "@/lib/app-url";
+import { CONNECTION_SETUP_USER_MESSAGE } from "@/lib/network/ssl-diagnostics-store";
 import {
   getCallbackUrl as buildCallbackUrl,
   getPasswordResetUrl as buildPasswordResetUrl,
@@ -119,8 +120,12 @@ const ERROR_MAP: Array<[RegExp, string]> = [
   ],
   [/rate.?limit|too many/i, "Too many attempts. Please wait and try again."],
   [
-    /network|failed to fetch|load failed/i,
-    "Network error. Check your connection and try again.",
+    /unable to verify|certificate|UNABLE_TO_VERIFY|SELF_SIGNED_CERT/i,
+    "__CONNECTION_SETUP__",
+  ],
+  [
+    /network|failed to fetch|load failed|fetch failed/i,
+    "__CONNECTION_SETUP__",
   ],
   [
     /token.*expired|link.*expired|expired.*token|otp_expired/i,
@@ -156,11 +161,11 @@ export function humanizeLoginError(
   if (/rate.?limit|too many/i.test(raw)) {
     return { message: "Too many attempts. Please wait and try again.", kind: "rate_limit" };
   }
+  if (/unable to verify|certificate|UNABLE_TO_VERIFY|SELF_SIGNED_CERT|fetch failed/i.test(raw)) {
+    return { message: CONNECTION_SETUP_USER_MESSAGE, kind: "network" };
+  }
   if (/network|failed to fetch|load failed/i.test(raw)) {
-    return {
-      message: "Network error. Check your connection and try again.",
-      kind: "network",
-    };
+    return { message: CONNECTION_SETUP_USER_MESSAGE, kind: "network" };
   }
   if (/invalid login credentials|invalid_credentials/i.test(raw)) {
     if (options?.emailRegistered === false) {
@@ -201,6 +206,9 @@ export function humanizeAuthError(
               ? "GitHub"
               : "OAuth";
         return `${name} sign-in failed (unsupported provider). Check Supabase Auth URL config includes ${buildCallbackUrl()} and matches this origin.`;
+      }
+      if (replacement === "__CONNECTION_SETUP__") {
+        return CONNECTION_SETUP_USER_MESSAGE;
       }
       return replacement;
     }

@@ -4,6 +4,7 @@ import { requireDreamosOwner } from "@/lib/admin/require-owner";
 import { getAppUrl } from "@/lib/app-url";
 import { getCallbackUrl } from "@/lib/auth/oauth-redirect";
 import { usesDefaultSupabaseProjectHost, getSupabasePublicUrl } from "@/lib/supabase/auth-domain";
+import { safeFetch } from "@/lib/network/safe-fetch";
 
 export type ProviderStatus = "enabled" | "disabled" | "unknown";
 
@@ -56,7 +57,7 @@ async function probeProvider(
   try {
     // Use the REST API directly to get an OAuth URL — this does not redirect
     // and tells us immediately if the provider is configured.
-    const res = await fetch(
+    const { response: res } = await safeFetch(
       `${supabaseUrl}/auth/v1/authorize?provider=${provider}&redirect_to=${encodeURIComponent(redirectTo)}`,
       {
         method: "GET",
@@ -64,9 +65,12 @@ async function probeProvider(
           apikey: supabaseKey,
           "Content-Type": "application/json",
         },
-        redirect: "manual", // don't follow the redirect — just check the response code
+        redirect: "manual",
       },
+      `auth_health_oauth_probe_${provider}`,
     );
+
+    if (!res) return "unknown";
 
     // 302 → provider is configured and returned a redirect URL
     // 400 / 422 → provider not enabled or invalid

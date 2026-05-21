@@ -44,7 +44,7 @@ const geistMono = Geist_Mono({
 const SITE_URL = getMetadataBaseUrl();
 const CANONICAL_SITE_URL = getSiteUrl();
 
-const ICON_V = "14";
+const ICON_V = "16";
 
 
 
