@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireDreamosOwner } from "@/lib/admin/require-owner";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
+import { buildChargeTokensProbePayload } from "@/lib/db/charge-tokens-rpc";
 
 export const dynamic = "force-dynamic";
 
@@ -28,15 +29,14 @@ export async function GET() {
     email?: string | null;
   } | null;
 
-  const { error: rpcProbe } = await admin.rpc("charge_tokens", {
-    p_user_id: userId,
-    p_amount: 0,
-    p_reason: "probe",
-    p_idempotency_key: `probe:${userId}:${Date.now()}`,
-    p_metadata: { probe: true },
-    p_project_id: null,
-    p_conversation_id: null,
-  } as never);
+  const { error: rpcProbe } = await admin.rpc(
+    "charge_tokens",
+    buildChargeTokensProbePayload({
+      p_user_id: userId,
+      p_reason: "probe",
+      p_idempotency_key: `probe:${userId}:${Date.now()}`,
+    }) as never,
+  );
 
   const chargeTokensRpcExists =
     !rpcProbe ||

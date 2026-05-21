@@ -49,18 +49,37 @@ export default async function HomePage({
     return <PublicLanding />;
   }
 
-  const { createClient } = await import("@/lib/supabase/server");
-  const supabase = await createClient();
-  const { data: recentProjects } = await supabase
-    .from("projects")
-    .select("id, name, gradient, status, updated_at, preview_url, icon_url")
-    .eq("owner_id", user.id)
-    .order("updated_at", { ascending: false })
-    .limit(8);
+  type RecentProject = {
+    id: string;
+    name: string;
+    gradient: string;
+    status: string;
+    updated_at: string;
+    preview_url: string | null;
+    icon_url: string | null;
+  };
+
+  let recentProjects: RecentProject[] = [];
+
+  try {
+    const { createClient } = await import("@/lib/supabase/server");
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("projects")
+      .select("id, name, gradient, status, updated_at, preview_url, icon_url")
+      .eq("owner_id", user.id)
+      .order("updated_at", { ascending: false })
+      .limit(8);
+    recentProjects = (data ?? []) as RecentProject[];
+  } catch (err) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[home] recent projects load failed:", err);
+    }
+  }
 
   return (
     <Suspense fallback={<OsHomeFallback />}>
-      <OsHome recentProjects={recentProjects ?? []} />
+      <OsHome recentProjects={recentProjects} />
     </Suspense>
   );
 }

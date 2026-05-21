@@ -31,7 +31,10 @@ export async function GET(req: Request) {
         checkedAt: new Date().toISOString(),
         error: msg,
         migrationHint:
-          "Run scripts/admin-column-compat.sql in Supabase SQL Editor, then NOTIFY pgrst, 'reload schema';",
+          "Copy and run the SQL patch below in Supabase SQL Editor, then click Reload schema.",
+        userActionHint:
+          "Copy and run the SQL patch below in Supabase SQL Editor, then click Reload schema.",
+        chargeTokensIssue: null,
       },
       { status: 503 },
     );

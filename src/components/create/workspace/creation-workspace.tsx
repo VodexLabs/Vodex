@@ -53,6 +53,7 @@ import { AppDashboardPanel } from "@/components/create/workspace/app-dashboard-p
 import { DreamOS86BrandIcon } from "@/components/brand/dreamos86-brand-icon";
 import { extractFencedCode } from "@/lib/creation/extract-fenced-code";
 import { toast } from "@/lib/toast";
+import { pushRuntimeDiagnostic } from "@/lib/dev/runtime-diagnostics";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -472,7 +473,17 @@ export function CreationWorkspace({
       .insert({ user_id: profile.id, title, model_id: modelId, project_id: null, mode: null })
       .select("id")
       .single();
-    if (insertErr || !data) return null;
+    if (insertErr || !data) {
+      pushRuntimeDiagnostic("conversation_create_failed", {
+        reason: insertErr?.message?.slice(0, 160) ?? "insert_failed",
+      });
+      toast.error(
+        insertErr?.message?.includes("could not find the table")
+          ? "Chat storage is not set up yet. Run Supabase migrations, then reload schema."
+          : "Could not start a conversation. Please refresh and try again.",
+      );
+      return null;
+    }
     conversationIdRef.current = data.id;
     setConversationId(data.id);
     return data.id;
@@ -995,7 +1006,7 @@ function EmptyHero({
       className="mx-auto max-w-2xl py-10 text-center"
     >
       <div className="mx-auto mb-5 flex size-14 items-center justify-center">
-        <DreamOS86BrandIcon size={56} priority />
+        <DreamOS86BrandIcon variant="previewHero" priority />
       </div>
       <h1 className="text-[26px] font-semibold tracking-[-0.04em] text-foreground">
         {mode === "discuss"

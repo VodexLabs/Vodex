@@ -11,5 +11,14 @@ export function LogoIcon({
   size?: number;
   className?: string;
 }) {
-  return <DreamOS86BrandIcon size={size} className={className} priority />;
+  const px = Math.max(24, size);
+  const variant =
+    px >= 40 ? "auth" : px >= 34 ? "header" : px >= 30 ? "assistant" : undefined;
+  return (
+    <DreamOS86BrandIcon
+      size={variant ? undefined : px}
+      variant={variant}
+      className={className}
+    />
+  );
 }

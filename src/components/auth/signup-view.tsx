@@ -16,6 +16,7 @@ import {
   isSignupDuplicateWithoutError,
   isSignupExistingUserError,
 } from "@/lib/auth";
+import { logAuthEvent } from "@/lib/auth/auth-diagnostics";
 import { persistReferralCodeForBrowser } from "@/lib/auth/ref-cookie";
 import { cn } from "@/lib/utils";
 
@@ -72,6 +73,7 @@ export function SignupView() {
   const [loading, setLoading] = React.useState(false);
   const [oauthLoading, setOauthLoading] = React.useState<"google" | "github" | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [showLoginInstead, setShowLoginInstead] = React.useState(false);
   const [success, setSuccess] = React.useState(false);
   const [isOnline, setIsOnline] = React.useState(true);
   const [referralFromUrl, setReferralFromUrl] = React.useState<string | null>(null);
@@ -108,10 +110,22 @@ export function SignupView() {
     setLoading(true);
     setError(null);
 
-    const { error: authError } = await authSignUp(email, password, name);
+    const { data, error: authError } = await authSignUp(email, password, name);
 
     if (authError) {
-      setError(humanizeAuthError(authError.message));
+      const msg = humanizeAuthError(authError.message);
+      logAuthEvent("auth_login_failed", { flow: "signup", reason: authError.message.slice(0, 120) }, "warn");
+      setError(msg);
+      setShowLoginInstead(
+        isSignupExistingUserError(authError.message) || /already exists/i.test(msg),
+      );
+      setLoading(false);
+      return;
+    }
+
+    if (isSignupDuplicateWithoutError(data.user)) {
+      setError("Account already exists. Log in with this email instead.");
+      setShowLoginInstead(true);
       setLoading(false);
       return;
     }
@@ -128,7 +142,9 @@ export function SignupView() {
     const { error: oauthError } = await authSignInWithOAuth(provider, next);
 
     if (oauthError) {
-      setError(humanizeAuthError(oauthError.message, provider));
+      const msg = humanizeAuthError(oauthError.message, provider);
+      setError(msg);
+      setShowLoginInstead(/already exists|same method/i.test(msg));
       setOauthLoading(null);
     }
   }
@@ -176,7 +192,7 @@ export function SignupView() {
       >
         {/* Logo */}
         <div className="mb-8 flex flex-col items-center">
-          <DreamOS86BrandLockup variant="auth" compact href="/" gapClassName="gap-0" />
+          <DreamOS86BrandLockup variant="auth" href="/" priority />
         </div>
 
         <div className="overflow-hidden rounded-[var(--radius-xl)] bg-glass backdrop-blur-xl shadow-[var(--shadow-glass)] ring-1 ring-white/60 dark:ring-white/[0.08] p-8">
@@ -217,7 +233,7 @@ export function SignupView() {
                 <AlertCircle className="mt-0.5 size-3.5 shrink-0" strokeWidth={2} />
                 <span>{error}</span>
               </div>
-              {/account already exists/i.test(error) && (
+              {showLoginInstead && (
                 <Link
                   href={email ? `/auth/login?email=${encodeURIComponent(email)}` : "/auth/login"}
                   className="w-fit rounded-lg bg-accent px-3 py-1.5 text-[11px] font-semibold text-white"

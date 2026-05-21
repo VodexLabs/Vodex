@@ -41,7 +41,7 @@ export function TopBar({ mode, title, subtitle, onMenuClick }: TopBarProps) {
 
       <DreamOS86BrandLockup
         variant="header"
-        className="min-w-0 max-w-[52%] shrink lg:hidden"
+        className="min-w-0 shrink lg:hidden"
         priority
       />
 

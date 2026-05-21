@@ -17,14 +17,38 @@ export function AuthPageGuard({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = React.useState(false);
 
   React.useEffect(() => {
+    let cancelled = false;
     const supabase = createClient();
-    void supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        router.replace(safeNextPath(searchParams.get("next")));
-        return;
+
+    const failOpen = window.setTimeout(() => {
+      if (!cancelled) setReady(true);
+    }, 900);
+
+    void (async () => {
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (cancelled) return;
+
+        if (error || !user) {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session && !user) {
+            await supabase.auth.signOut({ scope: "local" });
+          }
+        } else {
+          router.replace(safeNextPath(searchParams.get("next")));
+        }
+      } catch {
+        /* show login — user can retry */
+      } finally {
+        window.clearTimeout(failOpen);
+        if (!cancelled) setReady(true);
       }
-      setReady(true);
-    });
+    })();
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(failOpen);
+    };
   }, [router, searchParams]);
 
   if (!ready) {

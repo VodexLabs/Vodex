@@ -2,6 +2,13 @@
  * Runtime + admin schema health — single source of truth for /api/admin/schema-health.
  */
 import { createServiceRoleClient } from "@/lib/supabase/admin";
+import { getChargeTokensProbeCached } from "@/lib/db/charge-probe-cache";
+import type { ChargeTokensProbeResult } from "@/lib/db/probe-charge-tokens-rpc";
+import {
+  PROJECT_IDENTITY_COLUMNS,
+  RUNTIME_REQUIRED_RPCS,
+  RUNTIME_REQUIRED_TABLES,
+} from "@/lib/db/runtime-schema-manifest";
 
 export type SchemaMissingItem = {
   type: "table" | "column" | "rpc";
@@ -11,18 +18,43 @@ export type SchemaMissingItem = {
   hint?: string;
 };
 
+export type ChargeTokensIssue =
+  | "missing"
+  | "stale_cache"
+  | "param_mismatch"
+  | "service_role"
+  | null;
+
 export type SchemaHealthResult = {
   ok: boolean;
   missing: SchemaMissingItem[];
   projectRef: string | null;
   checkedAt: string;
   migrationHint: string;
+  userActionHint: string;
   tablesChecked: number;
   chargeTokensRpc: boolean;
+  chargeTokensIssue: ChargeTokensIssue;
+  chargeTokensProbe?: {
+    postgresExists: boolean;
+    postgresCatalogReadable: boolean;
+    postgrestCallable: boolean;
+    serviceRoleExecutable: boolean;
+    lastError: string | null;
+  };
+  chargeTokensUserMessage?: string;
+  chargeTokensDiagnosis?: string;
+  chargeTokensNextAction?: string;
+  billingTables?: {
+    profiles: boolean;
+    credit_events: boolean;
+    token_ledger: boolean;
+    ai_usage_logs: boolean;
+  };
 };
 
-const MIGRATION_HINT =
-  "Run supabase/migrations/20260601120000_create_builder_product_compat.sql, scripts/full-runtime-schema-repair.sql, scripts/admin-column-compat.sql, then NOTIFY pgrst, 'reload schema';";
+const USER_ACTION_HINT =
+  "Copy and run the SQL patch below in Supabase SQL Editor, then click Reload schema.";
 
 /** Columns probed per table (idempotent migrations may add these over time). */
 export const REQUIRED_SCHEMA: Record<string, readonly string[]> = {
@@ -32,10 +64,9 @@ export const REQUIRED_SCHEMA: Record<string, readonly string[]> = {
     "credits_remaining",
     "credits_limit",
     "credits_used",
-    "credits_reset_at",
     "plan_id",
     "plan_interval",
-    "subscription_status",
+    "onboarding_completed",
   ],
   ai_usage_logs: [
     "id",
@@ -159,7 +190,7 @@ export const REQUIRED_SCHEMA: Record<string, readonly string[]> = {
   messages: ["id", "conversation_id", "project_id", "user_id", "role", "content", "mode"],
 };
 
-const REQUIRED_RPCS = ["charge_tokens"] as const;
+const REQUIRED_RPCS = [...RUNTIME_REQUIRED_RPCS] as const;
 
 function projectRefFromEnv(): string | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
@@ -209,20 +240,28 @@ async function probeTableColumns(
   return { tableMissing: false, missingColumns: [...columns] };
 }
 
-async function probeChargeTokensRpc(
-  admin: NonNullable<ReturnType<typeof createServiceRoleClient>>,
-): Promise<boolean> {
-  const { error } = await admin.rpc("charge_tokens", {
-    p_user_id: "00000000-0000-0000-0000-000000000000",
-    p_amount: 0,
-    p_reason: "schema_health_probe",
-    p_idempotency_key: `health_charge_${Date.now()}`,
-    p_metadata: {},
-  } as never);
-
-  if (!error) return true;
-  if (error.message?.includes("Could not find the function")) return false;
-  return true;
+function classifyChargeTokensIssue(probe: ChargeTokensProbeResult): ChargeTokensIssue {
+  if (probe.ok) return null;
+  switch (probe.issue) {
+    case "stale_postgrest":
+    case "catalog_unavailable":
+      return "stale_cache";
+    case "missing_in_postgres":
+    case "tables_missing":
+    case "wrong_pg_signature":
+    case "duplicate_overloads":
+    case "ensure_void_return":
+      return "missing";
+    case "service_role_missing":
+    case "permission_denied":
+      return "service_role";
+    default:
+      break;
+  }
+  if (probe.postgresExists && !probe.postgrestCallable) return "stale_cache";
+  if (!probe.postgresExists && probe.postgresCatalogReadable) return "missing";
+  if (!probe.postgresExists) return "stale_cache";
+  return "missing";
 }
 
 export async function checkRuntimeSchemaHealth(): Promise<SchemaHealthResult> {
@@ -242,14 +281,30 @@ export async function checkRuntimeSchemaHealth(): Promise<SchemaHealthResult> {
       ],
       projectRef,
       checkedAt,
-      migrationHint: MIGRATION_HINT,
+      migrationHint: USER_ACTION_HINT,
+      userActionHint: USER_ACTION_HINT,
       tablesChecked: 0,
       chargeTokensRpc: false,
+      chargeTokensIssue: "service_role",
     };
   }
 
   const missing: SchemaMissingItem[] = [];
   let tablesChecked = 0;
+
+  for (const table of RUNTIME_REQUIRED_TABLES) {
+    if (!(table in REQUIRED_SCHEMA)) {
+      const { error } = await admin.from(table as "projects").select("id").limit(0);
+      if (error && isTableMissingError(error.message, error.code)) {
+        missing.push({
+          type: "table",
+          table,
+          hint: `CREATE TABLE public.${table} — run full runtime SQL patch in Supabase SQL Editor`,
+        });
+      }
+      tablesChecked += 1;
+    }
+  }
 
   for (const [table, columns] of Object.entries(REQUIRED_SCHEMA)) {
     tablesChecked += 1;
@@ -272,50 +327,99 @@ export async function checkRuntimeSchemaHealth(): Promise<SchemaHealthResult> {
     }
   }
 
-  let chargeTokensRpc = false;
-  for (const rpc of REQUIRED_RPCS) {
-    if (rpc === "charge_tokens") {
-      chargeTokensRpc = await probeChargeTokensRpc(admin);
-      if (!chargeTokensRpc) {
+  const chargeProbe = await getChargeTokensProbeCached();
+  const chargeTokensRpc = chargeProbe.ok;
+  const chargeTokensIssue = classifyChargeTokensIssue(chargeProbe);
+  const chargeTokensUserMessage = chargeProbe.userMessage;
+  if (!chargeTokensRpc) {
+    missing.push({
+      type: "rpc",
+      rpc: "charge_tokens",
+      hint: chargeProbe.actionHint || chargeTokensUserMessage || USER_ACTION_HINT,
+    });
+  }
+
+  if (
+    !chargeProbe.ensureUserProfilePostgresExists &&
+    chargeProbe.postgresCatalogReadable &&
+    !chargeProbe.ensureUserProfileReturnsVoid
+  ) {
+    missing.push({
+      type: "rpc",
+      rpc: "ensure_user_profile",
+      hint: chargeProbe.actionHint || "Run Copy SQL fix in Supabase SQL Editor.",
+    });
+  } else if (chargeProbe.ensureUserProfileReturnsVoid) {
+    missing.push({
+      type: "rpc",
+      rpc: "ensure_user_profile",
+      hint: "Old ensure_user_profile(void) detected — run Copy SQL fix.",
+    });
+  }
+
+  for (const col of PROJECT_IDENTITY_COLUMNS) {
+    const { error } = await admin.from("projects").select(col).limit(0);
+    if (error && !isTableMissingError(error.message, error.code)) {
+      const cols = parseMissingColumnsFromError(error.message, [col]);
+      for (const c of cols) {
         missing.push({
-          type: "rpc",
-          rpc,
-          hint: "Apply supabase/migrations/20260602120000_runtime_profile_credit_publish_compat.sql",
+          type: "column",
+          table: "projects",
+          column: c,
+          hint: `ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS ${c} …`,
         });
       }
     }
   }
 
-  const ensureProbe = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/ensure_user_profile`,
-    {
-      method: "POST",
-      headers: {
-        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
-        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        p_user_id: "00000000-0000-0000-0000-000000000000",
-        p_email: "probe@dreamos86.local",
-      }),
-    },
-  );
-  if (ensureProbe.status === 404) {
+  for (const rpc of RUNTIME_REQUIRED_RPCS) {
+    if (rpc === "charge_tokens" || rpc === "ensure_user_profile") continue;
+    const { error } = await admin.rpc(rpc as "charge_tokens", {} as never);
+    if (error?.message?.includes("Could not find the function")) {
+      missing.push({
+        type: "rpc",
+        rpc,
+        hint: `Install public.${rpc} via runtime SQL patch`,
+      });
+    }
+  }
+
+  if (!chargeProbe.tables.profiles && !missing.some((m) => m.table === "profiles")) {
     missing.push({
-      type: "rpc",
-      rpc: "ensure_user_profile",
-      hint: "Apply supabase/migrations/20260602120000_runtime_profile_credit_publish_compat.sql",
+      type: "table",
+      table: "profiles",
+      hint: "Run Copy SQL fix — creates public.profiles without deleting data.",
     });
   }
 
+  const profilesOk = !missing.some((m) => m.table === "profiles");
+  const rpcOnlyBroken =
+    !chargeTokensRpc && profilesOk && missing.filter((m) => m.type !== "rpc").length === 0;
+
+  const ok = missing.length === 0 && chargeTokensRpc;
+
   return {
-    ok: missing.length === 0,
-    missing,
+    ok,
+    missing: rpcOnlyBroken ? missing.filter((m) => m.type === "rpc") : missing,
     projectRef,
     checkedAt,
-    migrationHint: MIGRATION_HINT,
+    migrationHint: USER_ACTION_HINT,
     tablesChecked,
     chargeTokensRpc,
+    chargeTokensIssue,
+    chargeTokensProbe: {
+      postgresExists: chargeProbe.postgresExists,
+      postgresCatalogReadable: chargeProbe.postgresCatalogReadable,
+      postgrestCallable: chargeProbe.postgrestCallable,
+      serviceRoleExecutable: chargeProbe.serviceRoleExecutable,
+      lastError: chargeProbe.lastError,
+    },
+    chargeTokensUserMessage,
+    chargeTokensDiagnosis: chargeProbe.diagnosis,
+    chargeTokensNextAction: chargeProbe.nextAction,
+    billingTables: chargeProbe.tables,
+    userActionHint: chargeTokensRpc
+      ? USER_ACTION_HINT
+      : (chargeProbe.nextAction || chargeProbe.actionHint || chargeTokensUserMessage || USER_ACTION_HINT),
   };
 }

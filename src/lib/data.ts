@@ -57,6 +57,7 @@ export interface AIModel {
   quality: "standard" | "premium" | "ultra";
   creditsPerGeneration: number;
   available: boolean;
+  comingSoon?: boolean;
   new?: boolean;
   badge?: string;
   color: string;
@@ -266,6 +267,21 @@ export const templates: Template[] = [
 // ─── AI Models ───────────────────────────────────────────────────────────────
 
 export const aiModels: AIModel[] = [
+  {
+    id: "automatic",
+    name: "Automatic",
+    provider: "DreamOS86",
+    providerSlug: "dreamos",
+    description:
+      "Automatically adjusts the model depending on your request to provide the best quality.",
+    contextWindow: "—",
+    speed: "fast",
+    quality: "premium",
+    creditsPerGeneration: 0,
+    available: true,
+    badge: "Recommended",
+    color: "#6366f1",
+  },
   // ─── Anthropic ───────────────────────────────────────────────────────────────
   {
     id: "claude-opus-4-7",
@@ -279,6 +295,32 @@ export const aiModels: AIModel[] = [
     creditsPerGeneration: 25,
     available: true,
     badge: "Most Powerful",
+    color: "#f97316",
+  },
+  {
+    id: "claude-opus-4-6",
+    name: "Claude Opus 4.6",
+    provider: "Anthropic",
+    providerSlug: "anthropic",
+    description: "Frontier reasoning and full-stack quality for demanding builds.",
+    contextWindow: "200K",
+    speed: "slow",
+    quality: "ultra",
+    creditsPerGeneration: 20,
+    available: true,
+    color: "#f97316",
+  },
+  {
+    id: "claude-sonnet-4-6",
+    name: "Claude Sonnet 4.6",
+    provider: "Anthropic",
+    providerSlug: "anthropic",
+    description: "Balanced intelligence and speed — strong default for manual selection.",
+    contextWindow: "200K",
+    speed: "medium",
+    quality: "premium",
+    creditsPerGeneration: 10,
+    available: true,
     color: "#f97316",
   },
   {
@@ -352,6 +394,19 @@ export const aiModels: AIModel[] = [
   },
   // ─── Google ──────────────────────────────────────────────────────────────────
   {
+    id: "gemini-2-5-pro",
+    name: "Gemini 2.5 Pro",
+    provider: "Google",
+    providerSlug: "google",
+    description: "Large-context analysis and multimodal reasoning — used for repo-scale tasks.",
+    contextWindow: "1M",
+    speed: "medium",
+    quality: "ultra",
+    creditsPerGeneration: 8,
+    available: true,
+    color: "#4285f4",
+  },
+  {
     id: "gemini-3-1-pro",
     name: "Gemini 3.1 Pro",
     provider: "Google",
@@ -389,7 +444,8 @@ export const aiModels: AIModel[] = [
     speed: "medium",
     quality: "premium",
     creditsPerGeneration: 10,
-    available: true,
+    available: false,
+    comingSoon: true,
     new: true,
     color: "#1d1f27",
   },

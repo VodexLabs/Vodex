@@ -35,6 +35,8 @@ export interface AuthHealthResult {
     supabaseUrlHost: string | null;
     hint: string | null;
   };
+  /** Shown when GitHub OAuth is enabled — favicon does not control GitHub's OAuth screen. */
+  githubOAuthLogoNote: string | null;
 }
 
 /**
@@ -160,6 +162,10 @@ export async function GET(request: Request) {
         ? "OAuth branding still uses the Supabase project URL. Configure a Supabase custom domain (e.g. auth.dreamos86.com) and set NEXT_PUBLIC_SUPABASE_URL — see docs/supabase-custom-auth-domain.md."
         : null,
     },
+    githubOAuthLogoNote:
+      githubStatus === "enabled"
+        ? "GitHub OAuth logo must be updated in GitHub Developer Settings → OAuth Apps → Application logo. Favicon and in-app icon changes do not update GitHub's OAuth screen. See docs/oauth-branding-icons.md."
+        : null,
   };
 
   return NextResponse.json(result);

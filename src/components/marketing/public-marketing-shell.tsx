@@ -26,8 +26,13 @@ export function PublicMarketingHeader({ className }: { className?: string }) {
       <div className="mx-auto w-full max-w-6xl px-3 py-2.5 sm:px-6 sm:py-3">
         <div className="flex items-center justify-between gap-2">
           <DreamOS86BrandLockup
-            variant="header"
-            className="min-w-0 shrink"
+            variant="landingDesktop"
+            className="min-w-0 shrink hidden md:flex"
+            priority
+          />
+          <DreamOS86BrandLockup
+            variant="landingMobile"
+            className="min-w-0 shrink md:hidden"
             priority
           />
 

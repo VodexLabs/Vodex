@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { loadProfileBillingRow } from "@/lib/supabase/load-profile-billing";
 import { FREE_MONTHLY_QUOTA, getMonthlyTokenQuotaForPlan } from "@/lib/stores/credits-store";
+import { getChargeTokensProbeCached } from "@/lib/db/charge-probe-cache";
 
 export async function GET() {
   const supabase = await createClient();
@@ -42,11 +43,15 @@ export async function GET() {
     remaining = Math.min(remaining, FREE_MONTHLY_QUOTA);
   }
 
+  const chargeProbe = await getChargeTokensProbeCached();
+
   return NextResponse.json({
     remaining,
     quota,
     reset_at: profile.credits_reset_at,
     plan_id: profile.plan_id,
     total_used,
+    charging_enabled: chargeProbe.ok,
+    charging_error: chargeProbe.ok ? null : chargeProbe.lastError,
   });
 }

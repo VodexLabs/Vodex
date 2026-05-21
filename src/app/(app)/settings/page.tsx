@@ -29,6 +29,7 @@ import { DreamSpaceGlyph, resolveDreamSpaceLabel } from "@/lib/dream-space";
 import { toast } from "@/lib/toast";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { AccountIdentityCard } from "@/components/identity/account-identity-card";
 
 export default function SettingsGeneralPage() {
   const router = useRouter();
@@ -379,6 +380,8 @@ export default function SettingsGeneralPage() {
           </div>
         </div>
       </div>
+
+      {signedIn ? <AccountIdentityCard /> : null}
 
       {/* Appearance */}
       <SectionCard title="Appearance" description="Customize how DreamOS86 looks and feels.">

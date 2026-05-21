@@ -219,7 +219,9 @@ revoke execute on function public.ensure_user_profile(uuid, text) from public, a
 grant execute on function public.ensure_user_profile(uuid, text) to service_role;
 
 -- ── charge_tokens (idempotent via credit_events.operation_id) ─────────────────
-drop function if exists public.charge_tokens(uuid, integer, text, text, jsonb);
+drop function if exists public.charge_tokens(uuid, integer, text, text, jsonb) cascade;
+drop function if exists public.charge_tokens(uuid, integer, text, text, jsonb, uuid, uuid) cascade;
+drop function if exists public.charge_tokens(integer, uuid, text, jsonb, uuid, text, uuid) cascade;
 
 create or replace function public.charge_tokens(
   p_user_id uuid,

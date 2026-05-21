@@ -16,7 +16,7 @@ const providerColors: Record<string, string> = {
   DeepSeek:  "bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400",
 };
 
-const providerOrder = ["Anthropic", "OpenAI", "Google", "xAI", "DeepSeek"];
+const providerOrder = ["DreamOS86", "Anthropic", "OpenAI", "Google", "xAI", "DeepSeek"];
 
 // ─── Cost stars component ─────────────────────────────────────────────────────
 
@@ -169,11 +169,10 @@ export default function ModelsSettingsPage() {
     <div className="space-y-8">
       {/* Header note */}
       <div className="rounded-[var(--radius-lg)] border border-accent/20 bg-accent/5 px-5 py-4">
-        <p className="text-[13px] font-medium text-foreground">AI Chat auto-routes to the fastest lightweight model</p>
+        <p className="text-[13px] font-medium text-foreground">Automatic uses cheap models for chat; premium only when needed</p>
         <p className="mt-0.5 text-[12px] text-muted-foreground">
-          Generation uses the model best suited for each task. Cost scales dynamically
-          with context size, reasoning depth, and tool usage. Use this library to understand
-          each model&apos;s strengths and positioning.
+          Discuss and planning run on GPT-4o mini, Gemini Flash, or Haiku. Builds upgrade to Sonnet,
+          Opus 4.6, or Opus 4.7 only at high complexity. xAI models are coming soon.
         </p>
       </div>
 

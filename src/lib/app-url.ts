@@ -1,71 +1,44 @@
 /**
  * DreamOS86 — App & site URLs
  *
- * `getAppUrl()` — Runtime base URL for the *current* deployment (OAuth redirects,
- * auth callbacks). In the browser, prefers `NEXT_PUBLIC_APP_URL` when set, else
- * `window.location.origin`.
- *
- * `getSiteUrl()` — Canonical public marketing URL (Open Graph, referral links,
- * “copy link” when developing on localhost). Prefer `NEXT_PUBLIC_SITE_URL=https://dreamos86.com`
- * in `.env.local` so local dev still shows production URLs in shares and invites.
+ * Prefer relative paths (`/create`, `/auth/login`) for in-app navigation.
+ * Use these helpers only when an absolute URL is required (OAuth, Stripe, OG, email).
  */
 
-export function getAppUrl(): string {
-  if (typeof process !== "undefined") {
-    if (process.env.NEXT_PUBLIC_APP_URL) {
-      return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
-    }
-    if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
-      return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
-    }
-  }
-  if (typeof window !== "undefined") {
-    return window.location.origin;
-  }
-  const vercelFallback = process.env.VERCEL_PROJECT_PRODUCTION_URL;
-  if (vercelFallback) return `https://${vercelFallback}`;
-  return "https://dreamos86.com";
+import {
+  resolveAppOrigin,
+  resolveMetadataBaseOrigin,
+  resolveSiteOrigin,
+} from "@/lib/url/app-origin";
+
+/** Runtime base URL for the current deployment (OAuth, callbacks, API icon URLs). */
+export function getAppUrl(requestUrl?: string): string {
+  return resolveAppOrigin(requestUrl);
 }
 
-/** Public site origin for metadata, referrals, and shared links (not auth redirects). */
-export function getSiteUrl(): string {
-  const site = typeof process !== "undefined" && process.env.NEXT_PUBLIC_SITE_URL
-    ? process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "")
-    : "";
-  if (site) return site;
-
-  const app =
-    typeof process !== "undefined" && process.env.NEXT_PUBLIC_APP_URL
-      ? process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")
-      : "";
-  if (app && !/localhost|127\.0\.0\.1/i.test(app)) return app;
-
-  const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL;
-  if (vercel) return `https://${vercel}`;
-  return "https://dreamos86.com";
+/** Public site origin for metadata, referrals, and shared links. */
+export function getSiteUrl(requestUrl?: string): string {
+  return resolveSiteOrigin(requestUrl);
 }
 
-/** Client-safe canonical URL (uses inlined NEXT_PUBLIC_*). */
+/** Root layout metadataBase origin — localhost in dev even if marketing env is production. */
+export function getMetadataBaseUrl(requestUrl?: string): string {
+  return resolveMetadataBaseOrigin(requestUrl);
+}
+
+/** Client-safe public site URL (live origin on localhost tab). */
 export function getPublicSiteUrl(): string {
-  const env = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
-  if (env) return env;
-  if (typeof window !== "undefined") {
-    const host = window.location.hostname;
-    if (host && !/localhost|127\.0\.0\.1/i.test(host)) {
-      return window.location.origin;
-    }
-  }
-  return "https://dreamos86.com";
+  return resolveSiteOrigin();
 }
 
-/** Build an absolute URL from a path (runtime app base). */
-export function appUrl(path: string): string {
-  const base = getAppUrl();
+/** Build an absolute URL from a path (runtime app base). Prefer relative paths in UI. */
+export function appUrl(path: string, requestUrl?: string): string {
+  const base = getAppUrl(requestUrl);
   return `${base}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
 /** Build an absolute URL on the canonical public site. */
-export function siteUrl(path: string): string {
-  const base = getSiteUrl();
+export function siteUrl(path: string, requestUrl?: string): string {
+  const base = getSiteUrl(requestUrl);
   return `${base}${path.startsWith("/") ? path : `/${path}`}`;
 }

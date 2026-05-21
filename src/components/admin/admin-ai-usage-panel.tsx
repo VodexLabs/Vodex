@@ -31,6 +31,8 @@ type Event = {
   mode: string;
   tokens_charged: number;
   status: string;
+  error_message?: string | null;
+  operation_id?: string | null;
 };
 
 function fmtUsd(n: number) {
@@ -254,7 +256,17 @@ export function AdminAiUsagePanel() {
               >
                 <span className="font-medium">{ev.model_id}</span>
                 <span className="text-muted-foreground"> · {ev.mode} · </span>
-                <span>{ev.tokens_charged} credits</span>
+                <span
+                  className={
+                    ev.tokens_charged > 0 ? "text-foreground" : "text-amber-600 dark:text-amber-400"
+                  }
+                >
+                  {ev.tokens_charged} credits
+                </span>
+                <span className="text-muted-foreground"> · {ev.status}</span>
+                {ev.error_message && (
+                  <span className="block text-[10.5px] text-destructive/90">{ev.error_message}</span>
+                )}
                 <span className="text-muted-foreground"> · {ev.user_email}</span>
               </div>
             ))

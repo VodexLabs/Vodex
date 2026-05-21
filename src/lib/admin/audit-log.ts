@@ -12,6 +12,7 @@ export async function logAdminAudit(
     reason?: string | null;
     metadata?: Record<string, unknown>;
     request?: Request;
+    otpVerified?: boolean;
   },
 ): Promise<void> {
   const ip =
@@ -45,7 +46,7 @@ export async function logAdminAudit(
         action_type: action,
         amount: opts.amount ?? null,
         reason: opts.reason ?? null,
-        otp_verified: false,
+        otp_verified: opts.otpVerified ?? false,
         metadata: (opts.metadata ?? {}) as Json,
       });
     }

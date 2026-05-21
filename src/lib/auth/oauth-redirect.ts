@@ -1,23 +1,22 @@
-import { getAppUrl } from "@/lib/app-url";
+import { resolveAppOrigin } from "@/lib/url/app-origin";
 
 /**
- * OAuth redirect base — browser uses live origin so localhost / port always match
- * Supabase allowlist entries. Server uses NEXT_PUBLIC_APP_URL.
+ * OAuth redirect base — browser uses live origin; server uses resolveAppOrigin (localhost in dev).
  */
-export function getOAuthBaseUrl(): string {
+export function getOAuthBaseUrl(requestUrl?: string): string {
   if (typeof window !== "undefined") {
     return window.location.origin.replace(/\/$/, "");
   }
-  return getAppUrl();
+  return resolveAppOrigin(requestUrl);
 }
 
-export function getCallbackUrl(next?: string): string {
-  const base = `${getOAuthBaseUrl()}/auth/callback`;
+export function getCallbackUrl(next?: string, requestUrl?: string): string {
+  const base = `${getOAuthBaseUrl(requestUrl)}/auth/callback`;
   return next ? `${base}?next=${encodeURIComponent(next)}` : base;
 }
 
-export function getPasswordResetUrl(): string {
-  return `${getOAuthBaseUrl()}/auth/callback?type=recovery`;
+export function getPasswordResetUrl(requestUrl?: string): string {
+  return `${getOAuthBaseUrl(requestUrl)}/auth/callback?type=recovery`;
 }
 
 /** If Supabase lands OAuth on `/?code=...`, forward to the real callback handler. */

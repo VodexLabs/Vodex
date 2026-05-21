@@ -41,7 +41,7 @@ import {
   WorkspaceIntegrationsModal,
   type IntegrationPreset,
 } from "@/components/create/workspace/workspace-integrations-modal";
-import { LogoIcon } from "@/components/ui/logo-icon";
+import { DreamOS86BrandIcon } from "@/components/brand/dreamos86-brand-icon";
 import { toast } from "@/lib/toast";
 
 export type WorkspaceRightTab = "preview" | "dashboard" | "code";
@@ -562,11 +562,11 @@ export function WorkspaceLauncher({
               }
               setPlatformMenuOpen((v) => !v);
             }}
-            className="group flex size-10 shrink-0 items-center justify-center rounded-xl bg-background/90 p-1.5 ring-1 ring-border/50 transition hover:bg-surface hover:ring-accent/25"
+            className="group flex shrink-0 items-center justify-center transition hover:opacity-90"
             aria-label="DreamOS86 platform menu"
             aria-expanded={platformMenuOpen}
           >
-            <LogoIcon size={28} className="opacity-95 transition group-hover:opacity-100" />
+            <DreamOS86BrandIcon variant="create" className="opacity-95 transition group-hover:opacity-100" />
           </button>
 
           {showAppMenu ? (

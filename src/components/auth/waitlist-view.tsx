@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { LogoIcon } from "@/components/ui/logo-icon";
+import { DreamOS86BrandLockup } from "@/components/brand/dreamos86-brand-lockup";
 import { motion } from "framer-motion";
 import { ArrowRight, Sparkles, Zap, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,9 +30,9 @@ export function WaitlistView() {
           initial={{ opacity: 0, scale: 0.85 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-          className="mx-auto mb-8 flex size-20 items-center justify-center"
+          className="mx-auto mb-8 flex justify-center"
         >
-          <LogoIcon size={80} />
+          <DreamOS86BrandLockup variant="auth" href="/" />
         </motion.div>
 
         <span className="inline-flex items-center gap-1.5 rounded-full bg-accent/12 px-3 py-1 text-[12px] font-semibold text-accent ring-1 ring-accent/20">

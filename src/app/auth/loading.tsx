@@ -1,4 +1,4 @@
-import { LogoIcon } from "@/components/ui/logo-icon";
+import { DreamOS86BrandIcon } from "@/components/brand/dreamos86-brand-icon";
 
 /**
  * Streamed auth loading UI — rendered by Next.js during any auth route
@@ -11,7 +11,7 @@ export default function AuthLoading() {
       {/* Logo mark */}
       <div className="relative">
         <div className="absolute inset-0 -z-10 animate-ping rounded-full bg-accent/20" />
-        <LogoIcon size={52} />
+        <DreamOS86BrandIcon variant="auth" />
       </div>
 
       {/* Animated progress bar */}

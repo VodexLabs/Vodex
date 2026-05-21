@@ -76,7 +76,7 @@ export function OrchestrationPreview({
           className="relative flex size-24 items-center justify-center rounded-3xl"
         >
           <div className="flex size-full items-center justify-center">
-            <DreamOS86BrandIcon size={80} alt="DreamOS86" />
+            <DreamOS86BrandIcon variant="previewHero" alt="DreamOS86" />
           </div>
 
           {/* Sweeping highlight */}

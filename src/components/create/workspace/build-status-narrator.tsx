@@ -87,7 +87,7 @@ export function BuildStatusNarrator({
                 ) : status === "active" ? (
                   <Loader2 className="size-3.5 shrink-0 animate-spin text-accent" strokeWidth={2} />
                 ) : step.brandIcon ? (
-                  <DreamOS86BrandIcon size={14} className="shrink-0 opacity-80" alt="" />
+                  <DreamOS86BrandIcon variant="assistant" className="shrink-0 opacity-90" alt="" />
                 ) : Icon ? (
                   <Icon className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
                 ) : null}

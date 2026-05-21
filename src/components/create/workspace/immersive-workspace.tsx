@@ -61,8 +61,12 @@ import { CodeExplorerPanel, type CodeExplorerFile } from "@/components/create/wo
 import { findProjectConversationId } from "@/lib/projects/project-conversation";
 import {
   consumeAutostartHandoff,
+  markAutostartDone,
+  markOperationSubmitted,
   seedPendingFromUrl,
   shouldSkipDuplicateClientSubmit,
+  wasAutostartDone,
+  wasOperationSubmitted,
 } from "@/lib/create/autostart-handoff";
 import { pushRuntimeDiagnostic } from "@/lib/dev/runtime-diagnostics";
 import { reconcileProjectBuildState } from "@/lib/build/reconcile-project-build";
@@ -201,6 +205,7 @@ function MessageBubble({
             }
             progressIndex={progressIndex}
             creditsUsed={creditsUsed}
+            buildFinalized={!streaming}
           />
         ) : (
           <div className="rounded-xl bg-surface/80 px-3 py-2.5 text-[13.5px] leading-relaxed text-foreground ring-1 ring-border/50">
@@ -421,10 +426,21 @@ export function ImmersiveWorkspace({
     transport,
     onError: (err) => {
       unlockStream();
+      pushRuntimeDiagnostic("stream_failed", {
+        message: err.message,
+        projectId: projectIdRef.current,
+        conversationId: conversationIdRef.current,
+      });
       if (process.env.NODE_ENV !== "production") {
         console.error("[create-workspace] stream error", err);
       }
-      toast.error(err.message ?? "Generation failed — try again.");
+      const msg = err.message ?? "Generation failed";
+      toast.error(
+        msg.includes("network") || msg.includes("fetch")
+          ? `${msg} — check connection and retry. Credits are not charged until success.`
+          : `${msg} — try again.`,
+      );
+      setSubmitStatusLabel(`Failed: ${msg}`);
       setTimeout(() => drainPromptQueueRef.current(), 300);
     },
     onFinish: () => {
@@ -558,7 +574,7 @@ export function ImmersiveWorkspace({
   const convHydratedRef = React.useRef<string | null>(null);
   React.useEffect(() => {
     const id = effectiveProjectId;
-    if (!id || !uid || autostartConsumedRef.current) return;
+    if (!id || !uid || autostartConsumedRef.current || autoStartedRef.current) return;
     const key = `${id}:${uid}`;
     if (convHydratedRef.current === key) return;
     let cancelled = false;
@@ -757,17 +773,14 @@ export function ImmersiveWorkspace({
     lastSubmitFingerprintRef.current = { text, at: now };
 
     const opId = pendingOperationIdRef.current ?? crypto.randomUUID();
-    pendingOperationIdRef.current = opId;
-    pushRuntimeDiagnostic("prompt_submit_started", { source, mode, operationId: opId });
-
-    if (messages.length === 0) {
-      const userMsg: UIMessage = {
-        id: `pending-user-${opId}`,
-        role: "user",
-        parts: [{ type: "text", text }],
-      };
-      setMessages([userMsg]);
+    if (wasOperationSubmitted(opId)) {
+      pushRuntimeDiagnostic("prompt_submit_skipped_duplicate", { source, operationId: opId });
+      setSubmitStatusLabel("Skipped duplicate submit");
+      return;
     }
+    pendingOperationIdRef.current = opId;
+    markOperationSubmitted(opId);
+    pushRuntimeDiagnostic("prompt_submit_started", { source, mode, operationId: opId });
 
     submitInFlightRef.current = true;
     setBuildStarting(true);
@@ -934,7 +947,9 @@ export function ImmersiveWorkspace({
     if (!hydrated || !initialAutoStart || !initialPrompt.trim()) return;
     if (autostartConsumedRef.current || autoStartedRef.current) return;
 
-    seedPendingFromUrl(initialPrompt, mode);
+    const pending = seedPendingFromUrl(initialPrompt, mode);
+    if (pending && wasAutostartDone(pending.id)) return;
+
     const handoff = consumeAutostartHandoff(initialPrompt, mode);
     if (!handoff) return;
 
@@ -1436,21 +1451,6 @@ export function ImmersiveWorkspace({
                 </button>
               </div>
             </form>
-            {preflightEstimate && mode === "build" && (
-              <p className="mt-1.5 px-1 text-[10.5px] text-muted-foreground">
-                Estimated credits:{" "}
-                <span className="font-semibold tabular-nums text-foreground">
-                  {preflightEstimate.credits}
-                  {preflightEstimate.creditsMax > preflightEstimate.credits
-                    ? `–${preflightEstimate.creditsMax}`
-                    : ""}
-                </span>
-                {" · "}
-                {preflightEstimate.provider}/{preflightEstimate.modelId}
-                {" · "}
-                Charged only after successful generation.
-              </p>
-            )}
             {queueCount > 0 && (
               <div className="mt-1.5 flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/30 px-2.5 py-1.5 text-[10.5px] text-muted-foreground">
                 <span>

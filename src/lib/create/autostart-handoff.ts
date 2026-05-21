@@ -5,7 +5,11 @@ import { pushRuntimeDiagnostic } from "@/lib/dev/runtime-diagnostics";
 export const PENDING_PROMPT_KEY = "dreamos86.pendingPrompt";
 const LEGACY_KEY = "dreamos:create-autostart";
 const DUPLICATE_PREFIX = "dreamos86.promptDup:";
-const DUPLICATE_WINDOW_MS = 3_000;
+const SUBMITTED_OP_PREFIX = "dreamos86.submittedOp:";
+const AUTOSTART_DONE_PREFIX = "dreamos86.autostartDone:";
+const CONSUMED_PROMPT_PREFIX = "dreamos86.consumedPrompt:";
+const DUPLICATE_WINDOW_MS = 2_000;
+const CONSUMED_PROMPT_TTL_MS = 10 * 60_000;
 
 export type PendingPrompt = {
   id: string;
@@ -149,6 +153,17 @@ export function consumeAutostartHandoff(
   }
 
   if (!chosen || chosen.consumed) return null;
+  if (
+    wasAutostartDone(chosen.id) ||
+    wasOperationSubmitted(chosen.id) ||
+    wasPromptIdConsumed(chosen.id)
+  ) {
+    pushRuntimeDiagnostic("prompt_submit_skipped_duplicate", { reason: "already_submitted", id: chosen.id });
+    return null;
+  }
+
+  markOperationSubmitted(chosen.id);
+  markAutostartDone(chosen.id);
 
   const marked: PendingPrompt = { ...chosen, consumed: true };
   writePending(marked);
@@ -161,6 +176,56 @@ export function consumeAutostartHandoff(
     ...marked,
     idempotencyKey: marked.id,
   };
+}
+
+/** Prevent refresh / StrictMode from resubmitting the same operation. */
+function persistKey(key: string, value: string): void {
+  if (typeof sessionStorage !== "undefined") sessionStorage.setItem(key, value);
+  try {
+    if (typeof localStorage !== "undefined") localStorage.setItem(key, value);
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+function hasPersistedKey(key: string): boolean {
+  if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(key) != null) return true;
+  try {
+    return typeof localStorage !== "undefined" && localStorage.getItem(key) != null;
+  } catch {
+    return false;
+  }
+}
+
+export function markPromptIdConsumed(promptId: string): void {
+  persistKey(`${CONSUMED_PROMPT_PREFIX}${promptId}`, String(Date.now()));
+}
+
+export function wasPromptIdConsumed(promptId: string): boolean {
+  return hasPersistedKey(`${CONSUMED_PROMPT_PREFIX}${promptId}`);
+}
+
+export function markOperationSubmitted(operationId: string): void {
+  persistKey(`${SUBMITTED_OP_PREFIX}${operationId}`, String(Date.now()));
+  markPromptIdConsumed(operationId);
+}
+
+export function wasOperationSubmitted(operationId: string): boolean {
+  return hasPersistedKey(`${SUBMITTED_OP_PREFIX}${operationId}`);
+}
+
+export function markAutostartDone(handoffId: string): void {
+  persistKey(`${AUTOSTART_DONE_PREFIX}${handoffId}`, "1");
+}
+
+export function wasAutostartDone(handoffId: string): boolean {
+  return hasPersistedKey(`${AUTOSTART_DONE_PREFIX}${handoffId}`);
+}
+
+export function clearPendingPromptStorage(): void {
+  if (typeof sessionStorage === "undefined") return;
+  sessionStorage.removeItem(PENDING_PROMPT_KEY);
+  sessionStorage.removeItem(LEGACY_KEY);
 }
 
 /** @deprecated alias */

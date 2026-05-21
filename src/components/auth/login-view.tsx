@@ -14,10 +14,12 @@ import {
   authSignInWithOAuth,
   humanizeAuthError,
   humanizeLoginError,
-  CALLBACK_ERROR_MESSAGES,
+  humanizeCallbackError,
   type LoginErrorKind,
 } from "@/lib/auth";
 import { persistReferralCodeForBrowser } from "@/lib/auth/ref-cookie";
+import { logAuthEvent } from "@/lib/auth/auth-diagnostics";
+import { ensureProfileAfterLogin } from "@/lib/auth/post-login";
 
 export function LoginView() {
   const router = useRouter();
@@ -56,14 +58,12 @@ export function LoginView() {
     return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
   }, []);
 
-  // Read ?error= forwarded by the callback route after OAuth / link failures
   const urlError = searchParams.get("error");
   const urlErrorDesc = searchParams.get("error_description");
-  const [error, setError] = React.useState<string | null>(
-    urlError
-      ? (CALLBACK_ERROR_MESSAGES[urlError] ?? urlErrorDesc ?? "Authentication error. Please try again.")
-      : null,
+  const [error, setError] = React.useState<string | null>(() =>
+    urlError ? humanizeCallbackError(urlError, urlErrorDesc) : null,
   );
+  const [accountExistsHint, setAccountExistsHint] = React.useState(false);
   const [loginErrorKind, setLoginErrorKind] = React.useState<LoginErrorKind | null>(null);
   const isNetworkError = error?.toLowerCase().includes("network") || error?.toLowerCase().includes("connection");
 
@@ -74,11 +74,27 @@ export function LoginView() {
     }
   }, [searchParams]);
 
+  React.useEffect(() => {
+    if (!urlError && !urlErrorDesc) return;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("error");
+      url.searchParams.delete("error_description");
+      const qs = url.searchParams.toString();
+      window.history.replaceState({}, "", qs ? `${url.pathname}?${qs}` : url.pathname);
+    } catch {
+      /* ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- strip once on mount
+  }, []);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!email || !password) return;
     setLoading(true);
     setError(null);
+    setAccountExistsHint(false);
+    logAuthEvent("auth_login_started", { method: "password" });
 
     const action = async () => {
       const { error: authError } = await authSignIn(email, password);
@@ -100,14 +116,32 @@ export function LoginView() {
           }
         }
         const friendly = humanizeLoginError(authError.message, { emailRegistered });
+        logAuthEvent("auth_login_failed", {
+          kind: friendly.kind,
+          reason: authError.message.slice(0, 120),
+        }, "warn");
         setError(friendly.message);
         setLoginErrorKind(friendly.kind);
+        if (/already exists|already registered/i.test(authError.message)) {
+          setAccountExistsHint(true);
+        }
         setLoading(false);
         return;
       }
+
+      const ensured = await ensureProfileAfterLogin();
+      if (!ensured.ok) {
+        setError(ensured.message);
+        setLoginErrorKind(null);
+        setLoading(false);
+        return;
+      }
+
+      logAuthEvent("auth_login_succeeded", { method: "password" });
       setLoginErrorKind(null);
+      setError(null);
       const nextDest = safeInternalPath(searchParams.get("next"));
-      router.push(nextDest);
+      router.replace(nextDest);
       router.refresh();
     };
 
@@ -118,15 +152,21 @@ export function LoginView() {
   async function handleOAuth(provider: "google" | "github") {
     setOauthLoading(provider);
     setError(null);
+    setAccountExistsHint(false);
+    logAuthEvent("oauth_started", { provider });
 
     const next = searchParams.get("next") ?? undefined;
     const { error: oauthError } = await authSignInWithOAuth(provider, next);
 
     if (oauthError) {
-      setError(humanizeAuthError(oauthError.message, provider));
+      const msg = humanizeAuthError(oauthError.message, provider);
+      logAuthEvent("oauth_callback_failed", { provider, reason: oauthError.message.slice(0, 120) }, "warn");
+      setError(msg);
+      if (/already exists|same method/i.test(msg)) {
+        setAccountExistsHint(true);
+      }
       setOauthLoading(null);
     }
-    // On success Supabase redirects — no further client action needed
   }
 
   const anyLoading = loading || oauthLoading !== null;
@@ -141,7 +181,7 @@ export function LoginView() {
       >
         {/* Logo */}
         <div className="mb-8 flex flex-col items-center">
-          <DreamOS86BrandLockup variant="auth" compact href="/" gapClassName="gap-0" />
+          <DreamOS86BrandLockup variant="auth" href="/" priority />
         </div>
 
         <div className="overflow-hidden rounded-[var(--radius-xl)] bg-glass backdrop-blur-xl shadow-[var(--shadow-glass)] ring-1 ring-white/60 dark:ring-white/[0.08] p-8">
@@ -208,6 +248,11 @@ export function LoginView() {
                 >
                   Reset password
                 </Link>
+              )}
+              {accountExistsHint && (
+                <p className="text-[11px] text-muted-foreground">
+                  Use the email and password form below, or the same provider you used when you signed up.
+                </p>
               )}
             </motion.div>
           )}

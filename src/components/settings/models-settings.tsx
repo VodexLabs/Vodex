@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Zap, Clock, Sparkles, GitBranch, Brain, Gauge, MessageSquare, Eye, Layers } from "lucide-react";
+import { Zap, Clock, Sparkles, Brain, Gauge, MessageSquare, Eye, Layers } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { aiModels, type AIModel } from "@/lib/data";
@@ -225,25 +225,6 @@ export function ModelsSettings() {
 
   return (
     <div className="space-y-6">
-      {/* Intelligent routing coming soon */}
-      <motion.div
-        variants={variants.fadeUp}
-        initial="hidden"
-        animate="show"
-        className="flex items-start gap-3 rounded-[var(--radius-lg)] border border-amber-500/20 bg-amber-500/6 px-5 py-4"
-      >
-        <GitBranch className="mt-0.5 size-4 shrink-0 text-amber-400" strokeWidth={2} />
-        <div>
-          <p className="text-[13px] font-semibold text-foreground">
-            Intelligent model routing is coming in Q3 2026
-          </p>
-          <p className="mt-0.5 text-[12px] text-muted-foreground">
-            Auto-routing based on task type, budget, and quality requirements. Cost-optimal
-            model selection, latency balancing, and fallback chains.
-          </p>
-        </div>
-      </motion.div>
-
       <motion.div variants={variants.staggerContainer} initial="hidden" animate="show" className="space-y-6">
         {/* Default model */}
         <motion.div variants={variants.staggerItem}>
@@ -304,6 +285,11 @@ export function ModelsSettings() {
                         {model.new && (
                           <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold text-accent">New</span>
                         )}
+                        {model.comingSoon && (
+                          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                            Coming soon
+                          </span>
+                        )}
                       </div>
                       <p className="mt-0.5 text-[12px] text-muted-foreground">{model.description}</p>
                     </div>
@@ -329,8 +315,12 @@ export function ModelsSettings() {
                     </div>
 
                     <Switch
-                      checked={enabled[model.id]}
-                      onCheckedChange={(v) => setEnabled((prev) => ({ ...prev, [model.id]: v }))}
+                      checked={enabled[model.id] && !model.comingSoon}
+                      disabled={model.comingSoon || !model.available}
+                      onCheckedChange={(v) => {
+                        if (model.comingSoon || !model.available) return;
+                        setEnabled((prev) => ({ ...prev, [model.id]: v }));
+                      }}
                       aria-label={`Enable ${model.name}`}
                     />
                   </div>

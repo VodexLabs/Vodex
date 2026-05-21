@@ -23,7 +23,9 @@ import { getAppUrl } from "@/lib/app-url";
 import { allocatePublishedSubdomain } from "@/lib/publish/subdomain";
 import { googleGenerativeApiKey, hasAnyLlmProviderKey } from "@/lib/llm/env-keys";
 import { isAutomaticModelId } from "@/lib/ai/resolve-automatic-model";
-import { routeModel, mapChatModeToTask } from "@/lib/ai/model-router";
+import { routeModel, mapChatModeToTask, routeOperation } from "@/lib/ai/model-router";
+import { createStagedBuildStreamResponse } from "@/lib/chat/staged-build-response";
+import { calculateCreditsForStagedBuild } from "@/lib/credits/credit-pricing";
 import { chargeAiOperation } from "@/lib/credits/charge-ai-operation";
 import { calculateCreditsToCharge } from "@/lib/credits/calculate-charge";
 import { finalizeBuildSuccess, finalizeBuildFailed } from "@/lib/build/finalize-build";
@@ -40,21 +42,11 @@ import {
   shouldStartBuildPipeline,
 } from "@/lib/ai/build-intent-classifier";
 import { ensureUserProfileServer } from "@/lib/auth/ensure-user-profile-server";
-
-const MODEL_ID_MAP: Record<string, string> = {
-  "claude-opus-4-7": "claude-opus-4-5",
-  "claude-opus-4-6": "claude-opus-4-5",
-  "claude-sonnet-4-6": "claude-sonnet-4-5",
-  "claude-haiku-4-5": "claude-haiku-4-5",
-  "gpt-5-5": "gpt-4o",
-  "gpt-5-4": "gpt-4o",
-  "gpt-4o": "gpt-4o",
-  "gpt-4o-mini": "gpt-4o-mini",
-  "gemini-2-0-flash": "gemini-2.0-flash",
-  "gemini-flash": "gemini-2.0-flash",
-};
-
-const PAID_DEFAULT_MODEL = "claude-sonnet-4-6";
+import { getChargeTokensProbeCached } from "@/lib/db/charge-probe-cache";
+import { toApiModelId } from "@/lib/ai/model-catalog";
+import { requireId } from "@/lib/diagnostics/require-ids";
+import { dreamosLog } from "@/lib/diagnostics/dreamos-logger";
+import { logServerOperation } from "@/lib/ops/server-ops-log";
 
 const LLM_SETUP_ERROR = "AI provider is not configured on this server.";
 const LLM_SETUP_HINT =
@@ -69,7 +61,7 @@ function pickFreeDiscussModelId(): string {
 }
 
 function resolveModel(modelId: string) {
-  const resolved = MODEL_ID_MAP[modelId] ?? modelId;
+  const resolved = toApiModelId(modelId);
   if (resolved.startsWith("gemini")) {
     if (!googleGenerativeApiKey()) {
       throw new Error("GOOGLE_GENERATIVE_AI_API_KEY is not configured on the server");
@@ -227,6 +219,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "messages required" }, { status: 400 });
   }
 
+  const userTextGuard = lastUserText(uiMessages).trim();
+  if (!userTextGuard) {
+    return NextResponse.json({ error: "empty_prompt", code: "empty_prompt" }, { status: 400 });
+  }
+
   let conversationId =
     typeof raw.conversationId === "string" && raw.conversationId.length > 0
       ? raw.conversationId
@@ -272,6 +269,37 @@ export async function POST(request: Request) {
 
   await ensureUserProfileServer(user.id, user.email ?? null);
 
+  const chargeProbe = await getChargeTokensProbeCached();
+  if (!chargeProbe.ok) {
+    dreamosLog({
+      source: "server",
+      category: "provider_blocked",
+      severity: "warn",
+      message: "Provider calls blocked — charge_tokens not callable",
+      userId: user.id,
+      action: "charge_tokens_missing",
+      metadata: { issue: chargeProbe.issue },
+    });
+    await logServerOperation({
+      writer,
+      userId: user.id,
+      userEmail: user.email,
+      stage: "charge",
+      event: "charge_tokens_missing",
+      status: "error",
+      errorMessage: chargeProbe.lastError,
+      mode,
+    });
+    return NextResponse.json(
+      {
+        error: "Credit billing unavailable. Please retry after maintenance.",
+        code: "charge_tokens_missing",
+        hint: chargeProbe.nextAction ?? chargeProbe.userMessage ?? chargeProbe.hint,
+      },
+      { status: 503 },
+    );
+  }
+
   const profileRow = billingRow;
 
   const userTextEarly = lastUserText(uiMessages);
@@ -281,14 +309,13 @@ export async function POST(request: Request) {
   const chargeMode: "discuss" | "edit" | "build" =
     mode === "build" && !startBuildPipeline ? "discuss" : mode;
 
-  if (buildIntent && process.env.NODE_ENV !== "production") {
-    console.info("[build-intent]", {
-      intent: buildIntent.intent,
-      confidence: buildIntent.confidence,
-      reason: buildIntent.reason,
-      startBuildPipeline,
-    });
-  }
+  console.info("[build-intent]", {
+    intent: buildIntent?.intent ?? "n/a",
+    confidence: buildIntent?.confidence,
+    reason: buildIntent?.reason,
+    startBuildPipeline,
+    chargeMode,
+  });
 
   const freePlan = planIsFree(profileRow.plan_id as string | undefined);
   const requestedModel =
@@ -312,15 +339,14 @@ export async function POST(request: Request) {
     );
   }
 
-  if (process.env.NODE_ENV !== "production") {
-    console.info("[ai-route]", {
-      mode: taskMode,
-      provider: routed.provider,
-      modelId: billedModelId,
-      isFallback: routed.isFallback,
-      tier: routed.estimatedTier,
-    });
-  }
+  console.info("[ai-route]", {
+    mode: taskMode,
+    provider: routed.provider,
+    modelId: billedModelId,
+    routeReason: routed.routeReason,
+    isFallback: routed.isFallback,
+    tier: routed.estimatedTier,
+  });
 
   let modelMessages: ModelMessage[];
   try {
@@ -361,7 +387,14 @@ export async function POST(request: Request) {
   modelMessages = appendFileLinks(modelMessages, fileLinks);
   modelMessages = injectUserImages(modelMessages, imageUrls);
 
-  const tokensNeeded = calculateTokens(modelId, chargeMode);
+  const tokensNeeded =
+    startBuildPipeline && projectId
+      ? calculateCreditsForStagedBuild({
+          providerCostUsd: 0.12,
+          complexity: 5,
+          primaryModelId: modelId,
+        }).creditsToCharge
+      : calculateTokens(modelId, chargeMode);
   const balance = profileRow.credits_remaining;
 
   if (balance < tokensNeeded) {
@@ -519,9 +552,58 @@ export async function POST(request: Request) {
     hasProject: !!projectId,
   });
 
+  if (startBuildPipeline && projectId && userText) {
+    if (!requireId("projectId", projectId, { source: "server", userId: user.id, route: "/api/chat" })) {
+      return NextResponse.json({ error: "projectId required for build", code: "missing_project_id" }, { status: 400 });
+    }
+    return createStagedBuildStreamResponse({
+      uiMessages,
+      writer,
+      userId: user.id,
+      userEmail,
+      operationId: opId,
+      projectId,
+      buildJobId,
+      userPrompt: userText,
+      memoryBlock,
+      conversationId,
+      modelId: billedModelId,
+      provider: routed.provider,
+      routeReason: routed.routeReason,
+    });
+  }
+
+  const streamOp =
+    chargeMode === "edit"
+      ? "edit_stream"
+      : chargeMode === "discuss"
+        ? "discuss_stream"
+        : "discuss_stream";
+  if (clientOpId) {
+    const alreadyDone = await hasSuccessfulChargeForOperation(writer, user.id, opId);
+    if (alreadyDone) {
+      return NextResponse.json(
+        {
+          error: "This request was already completed.",
+          code: "duplicate_operation",
+        },
+        { status: 409 },
+      );
+    }
+  }
+
+  const buildComplexity = 5;
+
+  const streamSpec = routeOperation({
+    operationType: streamOp,
+    ownerEmail: userEmail,
+    requestedModelId: requestedModel,
+    complexity: buildComplexity,
+  });
+
   let model;
   try {
-    model = resolveModel(modelId);
+    model = resolveModel(streamSpec.apiModelId);
   } catch (cfgErr) {
     const msg = cfgErr instanceof Error ? cfgErr.message : LLM_SETUP_ERROR;
     await writer.from("ai_usage_logs").insert({
@@ -562,6 +644,7 @@ export async function POST(request: Request) {
       model,
       messages: modelMessages,
       system: systemPrompt,
+      maxOutputTokens: streamSpec.maxOutputTokens,
       onFinish: async (event) => {
         const failed =
           event.finishReason === "error" ||
@@ -670,12 +753,14 @@ export async function POST(request: Request) {
               const appDescription = meta?.app?.description?.trim() ?? null;
               const rows = files.map((f) => ({
                 project_id: projectId,
+                owner_id: user.id,
                 path: f.path,
                 content: f.content,
+                language: f.path.split(".").pop() ?? "text",
                 mime_type: "text/plain",
                 size_bytes: Buffer.byteLength(f.content, "utf8"),
               }));
-              const { error: afErr } = await writer.from("app_files").upsert(rows, {
+              const { error: afErr } = await writer.from("app_files").upsert(rows as never, {
                 onConflict: "project_id,path",
               });
               if (afErr) {
@@ -722,9 +807,14 @@ export async function POST(request: Request) {
                     files: files.map((f) => ({ path: f.path, content: f.content })),
                     userPrompt: userText,
                     generate: async (repairPrompt) => {
-                      const { text } = await generateText({
-                        model: resolveModel(billedModelId),
-                        system: `${systemPrompt}\n\nRepair pass: fix quality issues only. Return fenced files.`,
+                      const repairSpec = routeOperation({
+                      operationType: "code_repair_small",
+                      ownerEmail: userEmail,
+                    });
+                    const { text } = await generateText({
+                        model: resolveModel(repairSpec.apiModelId),
+                        maxOutputTokens: repairSpec.maxOutputTokens,
+                        system: `${systemPrompt}\n\nRepair pass: fix quality issues only. Return strict JSON file payload.`,
                         prompt: repairPrompt,
                       });
                       return text;

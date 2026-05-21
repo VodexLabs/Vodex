@@ -8,15 +8,25 @@ import { createClient as createBrowserClient } from "@/lib/supabase/client";
  * Use in Server Components, route handlers, and server actions.
  */
 export async function getServerSessionUser(): Promise<User | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error && process.env.NODE_ENV !== "production") {
-    console.warn("[auth/session] getServerSessionUser:", error.message);
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+    if (error && process.env.NODE_ENV !== "production") {
+      console.warn("[auth/session] getServerSessionUser:", error.message);
+    }
+    return user ?? null;
+  } catch (err) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn(
+        "[auth/session] getServerSessionUser failed:",
+        err instanceof Error ? err.message : err,
+      );
+    }
+    return null;
   }
-  return user ?? null;
 }
 
 /** Redirects to login when no server session. */

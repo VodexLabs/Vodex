@@ -1,0 +1,154 @@
+/**
+ * DreamOS86 — safe app/site origin resolution.
+ *
+ * Development must never force production URLs for navigation or auth callbacks.
+ * Production uses NEXT_PUBLIC_APP_URL / VERCEL_URL when set.
+ */
+
+const LOCALHOST_DEFAULT = "http://localhost:3000";
+
+let originBootLogged = false;
+
+function trimOrigin(url: string): string {
+  return url.replace(/\/$/, "");
+}
+
+export function isLocalhostOrigin(url: string): boolean {
+  try {
+    const host = new URL(url).hostname;
+    return host === "localhost" || host === "127.0.0.1";
+  } catch {
+    return /localhost|127\.0\.0\.1/i.test(url);
+  }
+}
+
+function vercelPreviewOrigin(): string | null {
+  const vercel = process.env.VERCEL_URL?.trim();
+  if (!vercel) return null;
+  const host = vercel.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  return `https://${host}`;
+}
+
+function productionFallbackOrigin(): string {
+  const app = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (app) return trimOrigin(app);
+  const vercel = vercelPreviewOrigin();
+  if (vercel) return vercel;
+  const prod = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  if (prod) return `https://${prod.replace(/^https?:\/\//, "").replace(/\/$/, "")}`;
+  return LOCALHOST_DEFAULT;
+}
+
+export type OriginMode = "client-live" | "dev-local" | "env-app" | "vercel" | "production-env" | "fallback";
+
+/**
+ * Runtime origin for OAuth callbacks, API absolute URLs, and server-side redirects.
+ * Client always uses the live tab origin.
+ */
+export function resolveAppOrigin(requestUrl?: string): string {
+  if (typeof window !== "undefined") {
+    return trimOrigin(window.location.origin);
+  }
+
+  if (requestUrl) {
+    try {
+      return trimOrigin(new URL(requestUrl).origin);
+    } catch {
+      /* fall through */
+    }
+  }
+
+  const nodeEnv = process.env.NODE_ENV;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+
+  if (nodeEnv !== "production") {
+    if (appUrl && isLocalhostOrigin(appUrl)) {
+      return trimOrigin(appUrl);
+    }
+    return LOCALHOST_DEFAULT;
+  }
+
+  if (appUrl) return trimOrigin(appUrl);
+
+  const vercel = vercelPreviewOrigin();
+  if (vercel) return vercel;
+
+  return productionFallbackOrigin();
+}
+
+export function getOriginMode(requestUrl?: string): OriginMode {
+  if (typeof window !== "undefined") return "client-live";
+  if (process.env.NODE_ENV !== "production") {
+    const app = process.env.NEXT_PUBLIC_APP_URL?.trim();
+    if (app && isLocalhostOrigin(app)) return "env-app";
+    return "dev-local";
+  }
+  if (process.env.NEXT_PUBLIC_APP_URL?.trim()) return "production-env";
+  if (process.env.VERCEL_URL?.trim()) return "vercel";
+  if (requestUrl) return "client-live";
+  return "fallback";
+}
+
+/**
+ * Canonical public site URL (OG, referrals, share links).
+ * On localhost in the browser, always use the live origin — not production marketing env.
+ */
+export function resolveSiteOrigin(requestUrl?: string): string {
+  if (typeof window !== "undefined") {
+    const origin = trimOrigin(window.location.origin);
+    if (isLocalhostOrigin(origin)) return origin;
+    return origin;
+  }
+
+  const site = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (site) {
+    if (process.env.NODE_ENV !== "production" && !isLocalhostOrigin(site)) {
+      return LOCALHOST_DEFAULT;
+    }
+    return trimOrigin(site);
+  }
+
+  const app = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (app) {
+    if (process.env.NODE_ENV !== "production" && !isLocalhostOrigin(app)) {
+      return LOCALHOST_DEFAULT;
+    }
+    if (!isLocalhostOrigin(app) || process.env.NODE_ENV === "production") {
+      return trimOrigin(app);
+    }
+  }
+
+  return resolveAppOrigin(requestUrl);
+}
+
+/** metadataBase for root layout — never point dev at production. */
+export function resolveMetadataBaseOrigin(requestUrl?: string): string {
+  if (process.env.NODE_ENV !== "production") {
+    const site = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+    const app = process.env.NEXT_PUBLIC_APP_URL?.trim();
+    if (
+      (site && !isLocalhostOrigin(site)) ||
+      (app && !isLocalhostOrigin(app))
+    ) {
+      return LOCALHOST_DEFAULT;
+    }
+  }
+  return resolveSiteOrigin(requestUrl);
+}
+
+/** Log once on server boot in development (no secrets). */
+export function logAppOriginBoot(): void {
+  if (originBootLogged) return;
+  originBootLogged = true;
+  if (process.env.NODE_ENV === "production") return;
+
+  const mode = getOriginMode();
+  const resolved = resolveAppOrigin();
+  console.info(
+    "[DreamOS86][url] origin mode=%s | NODE_ENV=%s | NEXT_PUBLIC_APP_URL=%s | resolvedAppOrigin=%s",
+    mode,
+    process.env.NODE_ENV ?? "(unset)",
+    process.env.NEXT_PUBLIC_APP_URL ?? "(unset)",
+    resolved,
+  );
+}

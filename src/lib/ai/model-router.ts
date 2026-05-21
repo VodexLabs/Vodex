@@ -1,4 +1,23 @@
-import { googleGenerativeApiKey, hasAnyLlmProviderKey } from "@/lib/llm/env-keys";
+/**
+ * DreamOS86 — Cost-first deterministic model router.
+ * All provider calls must use routeOperation() — never pick Sonnet/Opus ad-hoc.
+ */
+import { isDreamosOwnerEmail } from "@/lib/admin-owner";
+import { hasAnyLlmProviderKey } from "@/lib/llm/env-keys";
+import type { AiOperationType, ModelTier, RoutedModelSpec } from "@/lib/ai/operation-types";
+import {
+  isGrokConfigured,
+  pickStandardFast,
+  providerForCatalogId,
+  toApiModelId,
+} from "@/lib/ai/model-catalog";
+import { maxBudgetForOperation } from "@/lib/ai/cost-budget";
+import {
+  isAutomaticModelId,
+  pickAutomaticImplementationModelId,
+} from "@/lib/ai/resolve-automatic-model";
+
+export type { AiOperationType, ModelTier, RoutedModelSpec } from "@/lib/ai/operation-types";
 
 export type AiTaskMode =
   | "discuss"
@@ -10,8 +29,6 @@ export type AiTaskMode =
   | "image"
   | "planning";
 
-const AUTOMATIC_ALIASES = new Set(["automatic", "auto", "default"]);
-
 export type ModelRouteResult = {
   mode: AiTaskMode;
   provider: "anthropic" | "openai" | "google" | "unknown";
@@ -22,159 +39,281 @@ export type ModelRouteResult = {
   routeReason: string;
 };
 
-function envModel(key: string, fallback: string): string {
-  const v = process.env[key]?.trim();
-  return v && v.length > 0 ? v : fallback;
-}
+export type RouteOperationContext = {
+  operationType: AiOperationType;
+  complexity?: number;
+  ownerEmail?: string | null;
+  enableUltraModels?: boolean;
+  requestedModelId?: string | null;
+};
 
-function providerForModel(modelId: string): ModelRouteResult["provider"] {
-  if (modelId.startsWith("claude")) return "anthropic";
-  if (modelId.startsWith("gpt")) return "openai";
-  if (modelId.startsWith("gemini")) return "google";
-  return "unknown";
-}
+const ULTRA_OPS = new Set<AiOperationType>([
+  "deep_architecture_review",
+  "massive_context_review",
+  "emergency_hard_repair",
+]);
 
-function strongestBuildModel(): { modelId: string; missing: string[] } {
-  const missing: string[] = [];
-  const configured = envModel("DREAMOS_BUILD_MODEL", "");
-  if (configured) return { modelId: configured, missing };
-
-  if (process.env.ANTHROPIC_API_KEY?.trim()) {
-    return { modelId: "claude-sonnet-4-6", missing };
-  }
-  if (process.env.OPENAI_API_KEY?.trim()) {
-    return { modelId: "gpt-4o", missing };
-  }
-  if (googleGenerativeApiKey()) {
-    return { modelId: "gemini-2.0-flash", missing };
-  }
-  missing.push("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY");
-  return { modelId: "claude-sonnet-4-6", missing };
-}
-
-function discussModel(): { modelId: string; missing: string[] } {
-  const configured = process.env.DREAMOS_DISCUSS_MODEL?.trim();
-  if (configured) return { modelId: configured, missing: [] };
-
-  if (process.env.OPENAI_API_KEY?.trim()) return { modelId: "gpt-4o-mini", missing: [] };
-  if (googleGenerativeApiKey()) return { modelId: "gemini-2.0-flash", missing: [] };
-  if (process.env.ANTHROPIC_API_KEY?.trim()) return { modelId: "claude-haiku-4-5", missing: [] };
-  return { modelId: "gpt-4o-mini", missing: ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"] };
-}
-
-export function isAutomaticModelId(modelId: string | undefined | null): boolean {
-  if (!modelId) return true;
-  return AUTOMATIC_ALIASES.has(modelId.trim().toLowerCase());
-}
-
-export function routeModel(
-  mode: AiTaskMode,
-  requestedModelId?: string | null,
-): ModelRouteResult {
-  const missingEnv: string[] = [];
-
-  if (!hasAnyLlmProviderKey()) {
-    return {
-      mode,
-      provider: "unknown",
-      modelId: "unconfigured",
-      estimatedTier: "fast",
-      isFallback: true,
-      missingEnv: ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"],
-      routeReason: "No LLM provider API keys configured",
-    };
-  }
-
-  if (requestedModelId && !isAutomaticModelId(requestedModelId)) {
-    return {
-      mode,
-      provider: providerForModel(requestedModelId),
-      modelId: requestedModelId,
-      estimatedTier: mode === "discuss" ? "fast" : "premium",
-      isFallback: false,
-      missingEnv: [],
-      routeReason: "User-selected model",
-    };
-  }
-
-  if (mode === "build" || mode === "code") {
-    const { modelId, missing } = strongestBuildModel();
-    const configured = process.env.DREAMOS_BUILD_MODEL?.trim();
-    return {
-      mode,
-      provider: providerForModel(modelId),
-      modelId,
-      estimatedTier: "premium",
-      isFallback: !configured && missing.length > 0,
-      missingEnv: configured ? [] : missing,
-      routeReason: configured
-        ? `DREAMOS_BUILD_MODEL=${configured}`
-        : missing.length > 0
-          ? "DREAMOS_BUILD_MODEL not set — using strongest available provider default"
-          : "Build task — premium model",
-    };
-  }
-
-  if (mode === "edit" || mode === "design" || mode === "polish" || mode === "planning") {
-    const editEnv = process.env.DREAMOS_EDIT_MODEL?.trim();
-    const designEnv = process.env.DREAMOS_DESIGN_MODEL?.trim();
-    const modelId = editEnv || designEnv || strongestBuildModel().modelId;
-    return {
-      mode,
-      provider: providerForModel(modelId),
-      modelId,
-      estimatedTier: "standard",
-      isFallback: false,
-      missingEnv: [],
-      routeReason: editEnv
-        ? `DREAMOS_EDIT_MODEL=${editEnv}`
-        : designEnv
-          ? `DREAMOS_DESIGN_MODEL=${designEnv}`
-          : "Edit/design — build-class model",
-    };
-  }
-
-  if (mode === "image") {
-    const imageModel = process.env.DREAMOS_IMAGE_MODEL?.trim();
-    if (imageModel) {
-      return {
-        mode,
-        provider: providerForModel(imageModel),
-        modelId: imageModel,
-        estimatedTier: "standard",
-        isFallback: false,
-        missingEnv: [],
-        routeReason: `DREAMOS_IMAGE_MODEL=${imageModel}`,
-      };
-    }
-    return {
-      mode,
-      provider: "unknown",
-      modelId: "svg-fallback",
-      estimatedTier: "fast",
-      isFallback: true,
-      missingEnv: [],
-      routeReason: "SVG icon fallback",
-    };
-  }
-
-  const { modelId, missing } = discussModel();
-  const discussEnv = process.env.DREAMOS_DISCUSS_MODEL?.trim();
+function spec(
+  operationType: AiOperationType,
+  modelId: string,
+  maxOutputTokens: number,
+  opts: Partial<RoutedModelSpec> = {},
+  complexity?: number,
+): RoutedModelSpec {
+  const apiModelId = toApiModelId(modelId);
   return {
-    mode: "discuss",
-    provider: providerForModel(modelId),
+    operationType,
+    tier: opts.tier ?? "standard_fast",
+    provider: providerForCatalogId(modelId),
     modelId,
-    estimatedTier: "fast",
-    isFallback: missing.length > 0,
-    missingEnv: missing,
-    routeReason: discussEnv
-      ? `DREAMOS_DISCUSS_MODEL=${discussEnv}`
-      : "Discuss — fast/cheap model",
+    apiModelId,
+    maxOutputTokens,
+    maxInputTokens: opts.maxInputTokens ?? 4000,
+    temperature: opts.temperature ?? 0,
+    strictJson: opts.strictJson ?? false,
+    maxProviderCostUsd:
+      opts.maxProviderCostUsd ?? maxBudgetForOperation(operationType, complexity),
+    routeReason: opts.routeReason ?? operationType,
+    comingSoon: opts.comingSoon,
+    ...opts,
   };
 }
+
+function canUseUltra(ctx: RouteOperationContext): boolean {
+  if (!ULTRA_OPS.has(ctx.operationType)) return false;
+  const owner = isDreamosOwnerEmail(ctx.ownerEmail);
+  return owner && Boolean(ctx.enableUltraModels);
+}
+
+function implementationModel(
+  complexity: number,
+  ownerEmail?: string | null,
+): { id: string; tier: ModelTier } {
+  const id = pickAutomaticImplementationModelId(complexity, ownerEmail);
+  if (id.includes("opus")) return { id, tier: "ultra_owner_only" };
+  if (id.includes("sonnet")) return { id, tier: "premium_implementation" };
+  return { id, tier: "standard_fast" };
+}
+
+function userSelectedSpec(
+  operationType: AiOperationType,
+  modelId: string,
+  complexity?: number,
+): RoutedModelSpec | null {
+  const normalized = modelId.trim().toLowerCase();
+  if (normalized === "grok-4" && !isGrokConfigured()) return null;
+
+  const tier: ModelTier =
+    normalized.includes("opus") || normalized.includes("gpt-5-5")
+      ? "ultra_owner_only"
+      : normalized.includes("sonnet") || normalized.includes("gpt-5-4")
+        ? "premium_implementation"
+        : "standard_fast";
+
+  const maxOut =
+    operationType.includes("implementation") || operationType === "edit_patch_hard"
+      ? implementationMaxOut(
+          operationType === "backend_implementation" ? "backend_implementation" : "frontend_implementation",
+          complexity ?? 5,
+        )
+      : operationType.startsWith("discuss")
+        ? 700
+        : 1200;
+
+  return spec(operationType, modelId, maxOut, {
+    tier,
+    routeReason: "user_selected_model",
+    temperature: operationType.includes("discuss") ? 0.3 : 0.2,
+  }, complexity);
+}
+
+function implementationMaxOut(op: "frontend_implementation" | "backend_implementation", complexity: number): number {
+  if (op === "frontend_implementation") {
+    if (complexity <= 4) return 1600;
+    if (complexity <= 7) return 2600;
+    return 4000;
+  }
+  if (complexity <= 4) return 1400;
+  if (complexity <= 7) return 2200;
+  return 3500;
+}
+
+/** Primary router — use for every AI operation. */
+export function routeOperation(ctx: RouteOperationContext): RoutedModelSpec {
+  const complexity = Math.min(10, Math.max(1, ctx.complexity ?? 5));
+
+  if (!hasAnyLlmProviderKey()) {
+    return spec(ctx.operationType, "gpt-5.4-mini", 500, {
+      routeReason: "no_provider_keys",
+      provider: "none",
+    });
+  }
+
+  if (canUseUltra(ctx)) {
+    return spec(ctx.operationType, "claude-opus-4.7", 4000, {
+      tier: "ultra_owner_only",
+      routeReason: "owner_ultra_approved",
+      maxProviderCostUsd: 1.0,
+    });
+  }
+
+  if (ctx.requestedModelId && !isAutomaticModelId(ctx.requestedModelId)) {
+    const ultraIds = ["claude-opus-4.7", "claude-opus-4-6", "gpt-5.5", "gpt-5.4", "gemini-3.1-pro"];
+    let requested = ctx.requestedModelId;
+    if (ultraIds.includes(requested) && !isDreamosOwnerEmail(ctx.ownerEmail)) {
+      requested = pickAutomaticImplementationModelId(complexity, ctx.ownerEmail);
+    }
+    const selected = userSelectedSpec(ctx.operationType, requested, complexity);
+    if (selected) return selected;
+  }
+
+  const op = ctx.operationType;
+
+  switch (op) {
+    case "classify_intent":
+      return spec(op, pickStandardFast("google"), 250, { strictJson: true, temperature: 0 });
+    case "normalize_prompt":
+      return spec(op, pickStandardFast("google"), 300, { strictJson: true, temperature: 0 });
+    case "safety_scope_check":
+      return spec(op, pickStandardFast("openai"), 300, { strictJson: true, temperature: 0 });
+    case "discuss_short":
+    case "discuss_stream":
+      return spec(op, pickStandardFast("openai"), 700, { temperature: 0.3 });
+    case "discuss_deep":
+      return spec(op, pickStandardFast("openai"), 1200, { temperature: 0.3 });
+    case "build_intake":
+      return spec(op, pickStandardFast("google"), 600, { strictJson: true, temperature: 0 });
+    case "build_plan":
+      return spec(op, pickStandardFast("openai"), 1200, { strictJson: true, temperature: 0 });
+    case "app_identity":
+      return spec(op, "claude-haiku-4.5", 600, { strictJson: true, temperature: 0 });
+    case "icon_svg_generation":
+      return spec(op, pickStandardFast("openai"), 900, { strictJson: true, temperature: 0 });
+    case "schema_design":
+      return spec(op, pickStandardFast("openai"), 1300, { strictJson: true, temperature: 0 });
+    case "ui_design_plan":
+      return spec(op, pickStandardFast("openai"), 1500, { strictJson: true, temperature: 0 });
+    case "frontend_implementation": {
+      const m = implementationModel(complexity, ctx.ownerEmail);
+      return spec(
+        op,
+        m.id,
+        implementationMaxOut(op, complexity),
+        { tier: m.tier, temperature: 0.2, routeReason: "automatic_implementation" },
+        complexity,
+      );
+    }
+    case "backend_implementation": {
+      const m = implementationModel(complexity, ctx.ownerEmail);
+      return spec(
+        op,
+        m.id,
+        implementationMaxOut(op, complexity),
+        { tier: m.tier, temperature: 0.2, routeReason: "automatic_implementation" },
+        complexity,
+      );
+    }
+    case "integration_stub":
+      return spec(op, pickStandardFast("openai"), 1200, { strictJson: true, temperature: 0 });
+    case "file_validation":
+      return spec(op, pickStandardFast("google"), 700, { strictJson: true, temperature: 0 });
+    case "preview_validation":
+      return spec(op, "gemini-flash", 700, { strictJson: true, temperature: 0 });
+    case "code_repair_small":
+      return spec(op, "claude-haiku-4.5", 1500, { temperature: 0.1 });
+    case "code_repair_hard":
+      return spec(op, pickAutomaticImplementationModelId(Math.max(7, complexity), ctx.ownerEmail), 2000, {
+        tier: "premium_implementation",
+        temperature: 0.1,
+      });
+    case "diagnostics_summary":
+      return spec(op, "gemini-flash", 600, { temperature: 0 });
+    case "publish_readiness":
+      return spec(op, "gemini-flash", 400, { strictJson: true, temperature: 0 });
+    case "admin_debug_summary":
+      return spec(op, pickStandardFast("openai"), 600, { temperature: 0 });
+    case "edit_target_detection":
+      return spec(op, pickStandardFast("google"), 500, { strictJson: true, temperature: 0 });
+    case "edit_patch_small":
+    case "edit_stream":
+      return spec(op, pickStandardFast("openai"), 1700, { temperature: 0.2 });
+    case "edit_patch_hard":
+      return spec(op, pickAutomaticImplementationModelId(Math.max(7, complexity), ctx.ownerEmail), 2200, {
+        tier: "premium_implementation",
+        temperature: 0.2,
+      });
+    default:
+      return spec(op, pickStandardFast("openai"), 800, { temperature: 0.2 });
+  }
+}
+
+/** Down-route when budget exceeded */
+export function downRouteOperation(
+  current: RoutedModelSpec,
+  complexity?: number,
+): RoutedModelSpec | null {
+  if (current.tier === "standard_fast") return null;
+  const cheaper = routeOperation({
+    operationType: current.operationType,
+    complexity: complexity ?? 5,
+  });
+  if (cheaper.modelId === current.modelId) {
+    return {
+      ...cheaper,
+      maxOutputTokens: Math.floor(current.maxOutputTokens * 0.7),
+      routeReason: `${cheaper.routeReason}; down_routed_tokens`,
+    };
+  }
+  return cheaper;
+}
+
+export { isAutomaticModelId } from "@/lib/ai/resolve-automatic-model";
 
 export function mapChatModeToTask(mode: "discuss" | "edit" | "build"): AiTaskMode {
   if (mode === "build") return "build";
   if (mode === "edit") return "edit";
   return "discuss";
+}
+
+export function routeModel(
+  mode: AiTaskMode,
+  requestedModelId?: string | null,
+  ctx?: { ownerEmail?: string | null; deep?: boolean },
+): ModelRouteResult {
+  if (requestedModelId === "grok-4" && !isGrokConfigured()) {
+    requestedModelId = "automatic";
+  }
+
+  const op: AiOperationType =
+    mode === "discuss"
+      ? ctx?.deep
+        ? "discuss_deep"
+        : "discuss_stream"
+      : mode === "edit"
+        ? "edit_stream"
+        : "build_plan";
+
+  const routed = routeOperation({
+    operationType: op,
+    requestedModelId: isAutomaticModelId(requestedModelId) ? undefined : requestedModelId,
+    ownerEmail: ctx?.ownerEmail,
+    complexity: 5,
+  });
+
+  const automatic = isAutomaticModelId(requestedModelId);
+
+  return {
+    mode,
+    provider: routed.provider === "none" ? "unknown" : routed.provider,
+    modelId: automatic ? "automatic" : routed.modelId,
+    estimatedTier:
+      routed.tier === "standard_fast"
+        ? "fast"
+        : routed.tier === "premium_implementation"
+          ? "premium"
+          : "premium",
+    isFallback: false,
+    missingEnv: [],
+    routeReason: routed.routeReason,
+  };
 }

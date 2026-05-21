@@ -110,7 +110,12 @@ export async function proxy(request: NextRequest) {
   }
 
   if (user && AUTH_PATHS.some((p) => pathname.startsWith(p))) {
-    return NextResponse.redirect(new URL("/", request.url));
+    const next = searchParams.get("next");
+    const dest =
+      next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/auth")
+        ? next
+        : "/create";
+    return NextResponse.redirect(new URL(dest, request.url));
   }
 
   if (!user && PROTECTED_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))) {

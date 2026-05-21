@@ -1,33 +1,60 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { DreamOS86BrandIcon } from "@/components/brand/dreamos86-brand-icon";
+import {
+  DreamOS86BrandIcon,
+  type DreamOS86BrandIconSize,
+  type DreamOS86BrandIconVariant,
+} from "@/components/brand/dreamos86-brand-icon";
 
-export type DreamOS86BrandLockupVariant = "header" | "sidebar" | "drawer" | "footer" | "auth";
+export type DreamOS86BrandLockupVariant =
+  | "header"
+  | "landingDesktop"
+  | "landingMobile"
+  | "create"
+  | "sidebar"
+  | "sidebarCollapsed"
+  | "drawer"
+  | "footer"
+  | "auth";
 
-export type DreamOS86BrandLockupSize = "sm" | "md" | "lg";
-
-const VARIANT_STYLES: Record<
-  DreamOS86BrandLockupVariant,
-  { icon: number; text: string }
-> = {
-  header: { icon: 30, text: "text-[13px] sm:text-[14px]" },
-  sidebar: { icon: 28, text: "text-[13.5px]" },
-  drawer: { icon: 30, text: "text-[14px]" },
-  footer: { icon: 24, text: "text-[13px]" },
-  auth: { icon: 44, text: "text-[17px]" },
+const VARIANT_ICON: Record<DreamOS86BrandLockupVariant, DreamOS86BrandIconSize | DreamOS86BrandIconVariant> = {
+  header: "mobile",
+  landingDesktop: "md",
+  landingMobile: "mobile",
+  create: "md",
+  sidebar: "sidebar",
+  sidebarCollapsed: "collapsedSidebar",
+  drawer: "sidebar",
+  footer: "sm",
+  auth: "auth",
 };
 
-const SIZE_ICON: Record<DreamOS86BrandLockupSize, number> = {
-  sm: 32,
-  md: 40,
-  lg: 44,
+const VARIANT_GAP: Record<DreamOS86BrandLockupVariant, string> = {
+  auth: "gap-1.5",
+  header: "gap-1.5",
+  landingDesktop: "gap-1.5",
+  landingMobile: "gap-1.5",
+  create: "gap-1.5",
+  sidebar: "gap-1.5",
+  sidebarCollapsed: "",
+  drawer: "gap-1.5",
+  footer: "gap-2",
+};
+
+const VARIANT_TEXT: Record<DreamOS86BrandLockupVariant, string> = {
+  header: "text-[13px] sm:text-[14px] font-bold",
+  landingDesktop: "text-[14px] sm:text-[15px] font-bold",
+  landingMobile: "text-[14px] font-bold",
+  create: "text-[14px] font-bold",
+  sidebar: "text-[13.5px] font-bold",
+  sidebarCollapsed: "text-[13.5px] font-bold",
+  drawer: "text-[14px] font-bold",
+  footer: "text-[13px] font-semibold",
+  auth: "text-[17px] sm:text-[18px] font-bold",
 };
 
 export type DreamOS86BrandLockupProps = {
   variant?: DreamOS86BrandLockupVariant;
-  size?: DreamOS86BrandLockupSize;
-  /** Tighter icon–text spacing (6–8px) for auth pages */
-  compact?: boolean;
   gapClassName?: string;
   className?: string;
   href?: string;
@@ -41,8 +68,6 @@ export type DreamOS86BrandLockupProps = {
  */
 export function DreamOS86BrandLockup({
   variant = "header",
-  size,
-  compact = false,
   gapClassName,
   className,
   href = "/",
@@ -50,17 +75,15 @@ export function DreamOS86BrandLockup({
   priority = false,
   onClick,
 }: DreamOS86BrandLockupProps) {
-  const styles = VARIANT_STYLES[variant];
-  const iconPx = size ? SIZE_ICON[size] : styles.icon;
+  const iconSize = VARIANT_ICON[variant];
   const inner = (
     <>
-      <DreamOS86BrandIcon size={iconPx} alt="" priority={priority} />
-      {showText && (
+      <DreamOS86BrandIcon size={iconSize} alt="" priority={priority} />
+      {showText && variant !== "sidebarCollapsed" && (
         <span
           className={cn(
-            "truncate font-semibold tracking-[-0.03em] text-foreground",
-            styles.text,
-            variant === "auth" && "-ml-1.5",
+            "truncate tracking-[-0.03em] text-foreground leading-none",
+            VARIANT_TEXT[variant],
           )}
         >
           DreamOS86
@@ -71,8 +94,8 @@ export function DreamOS86BrandLockup({
 
   const rootClass = cn(
     "flex min-w-0 shrink items-center",
-    variant === "auth" ? "gap-0.5" : "gap-1",
-    gapClassName,
+    variant === "sidebarCollapsed" ? "justify-center" : "items-center",
+    gapClassName ?? VARIANT_GAP[variant],
     className,
   );
 

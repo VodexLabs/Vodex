@@ -23,7 +23,7 @@ import {
   DREAMOS_REF_STORAGE_KEY,
 } from "@/lib/auth/ref-cookie";
 import { DreamOsSetupIcon } from "@/components/onboarding/dreamos-setup-icon";
-import { LogoIcon } from "@/components/ui/logo-icon";
+import { DreamOS86BrandLockup } from "@/components/brand/dreamos86-brand-lockup";
 
 const HEAR_ABOUT = [
   { id: "friend", label: "Friend / referral" },
@@ -318,9 +318,8 @@ export function OnboardingView() {
 
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center px-4 py-10 sm:px-6">
-      <div className="mb-8 flex items-center gap-2.5">
-        <LogoIcon size={36} />
-        <span className="text-[15px] font-semibold tracking-tight text-foreground">DreamOS86</span>
+      <div className="mb-8">
+        <DreamOS86BrandLockup variant="auth" href="/" />
       </div>
 
       <div className="w-full max-w-lg sm:max-w-2xl">

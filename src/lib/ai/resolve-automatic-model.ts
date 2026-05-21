@@ -1,3 +1,4 @@
+import { isDreamosOwnerEmail } from "@/lib/admin-owner";
 import { hasAnyLlmProviderKey, googleGenerativeApiKey } from "@/lib/llm/env-keys";
 
 const AUTOMATIC_ALIASES = new Set(["automatic", "auto", "default"]);
@@ -7,36 +8,57 @@ export function isAutomaticModelId(modelId: string | undefined | null): boolean 
   return AUTOMATIC_ALIASES.has(modelId.trim().toLowerCase());
 }
 
+/** Cheapest model for understanding, chat, and lightweight JSON tasks. */
+export function pickCheapestDiscussModelId(): string {
+  if (process.env.OPENAI_API_KEY?.trim()) return "gpt-5.4-mini";
+  if (googleGenerativeApiKey()) return "gemini-flash";
+  if (process.env.ANTHROPIC_API_KEY?.trim()) return "claude-haiku-4.5";
+  return "gpt-5.4-mini";
+}
+
 /**
- * Picks the highest-quality model available on the server for this request type.
- * Paid users only — free tier uses pickFreeDiscussModelId in chat route.
+ * Automatic implementation — best tier that fits complexity (Opus 4.7 → 4.6 → Sonnet 4.6).
+ * Cheap models only for trivial scope (complexity ≤ 3).
  */
+export function pickAutomaticImplementationModelId(
+  complexity: number,
+  ownerEmail?: string | null,
+): string {
+  const c = Math.min(10, Math.max(1, complexity));
+  const hasAnthropic = Boolean(process.env.ANTHROPIC_API_KEY?.trim());
+  const hasOpenAi = Boolean(process.env.OPENAI_API_KEY?.trim());
+
+  if (c <= 3) {
+    return pickCheapestDiscussModelId();
+  }
+
+  if (!hasAnthropic) {
+    if (hasOpenAi && c >= 7) return "gpt-5.4";
+    return pickCheapestDiscussModelId();
+  }
+
+  if (c >= 9) {
+    if (isDreamosOwnerEmail(ownerEmail)) return "claude-opus-4.7";
+    return "claude-opus-4.6";
+  }
+  if (c >= 7) return "claude-opus-4.6";
+  if (c >= 5) return "claude-sonnet-4.6";
+  return "claude-sonnet-4.6";
+}
+
+/** Legacy export — maps modes to tiered automatic picks (no longer forces Sonnet everywhere). */
 export function resolveAutomaticModelId(
   mode: "discuss" | "edit" | "build",
+  complexity = 5,
+  ownerEmail?: string | null,
 ): string {
-  const hasAnthropic = Boolean(process.env.ANTHROPIC_API_KEY?.trim());
-  const hasOpenai = Boolean(process.env.OPENAI_API_KEY?.trim());
-  const hasGoogle = Boolean(googleGenerativeApiKey());
-
-  if (mode === "build") {
-    if (hasAnthropic) return "claude-sonnet-4-6";
-    if (hasOpenai) return "gpt-4o";
-    if (hasGoogle) return "gemini-2.0-flash";
-    return "claude-sonnet-4-6";
-  }
-
+  if (mode === "discuss") return pickCheapestDiscussModelId();
   if (mode === "edit") {
-    if (hasAnthropic) return "claude-sonnet-4-6";
-    if (hasOpenai) return "gpt-4o";
-    if (hasGoogle) return "gemini-2.0-flash";
-    return "claude-sonnet-4-6";
+    return complexity >= 7
+      ? pickAutomaticImplementationModelId(complexity, ownerEmail)
+      : pickCheapestDiscussModelId();
   }
-
-  // discuss — strong but efficient
-  if (hasAnthropic) return "claude-sonnet-4-6";
-  if (hasOpenai) return "gpt-4o";
-  if (hasGoogle) return "gemini-2.0-flash";
-  return "gpt-4o-mini";
+  return pickAutomaticImplementationModelId(complexity, ownerEmail);
 }
 
 export function assertLlmConfigured(): void {

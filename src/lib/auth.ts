@@ -88,15 +88,22 @@ export function isSignupExistingUserError(message: string): boolean {
 }
 
 export function isSignupDuplicateWithoutError(
-  user: { identities?: { length: number }[] } | null | undefined,
+  user: { identities?: unknown[] } | null | undefined,
 ): boolean {
   return Boolean(user && Array.isArray(user.identities) && user.identities.length === 0);
 }
+
+const OAUTH_EXISTS_RE =
+  /identity.*already|already.*linked|user already registered|email.*already.*registered|account.*already.*exists|signup.*not allowed.*exist/i;
 
 const ERROR_MAP: Array<[RegExp, string]> = [
   [
     /invalid login credentials|invalid_credentials/i,
     "__LOGIN_INVALID__",
+  ],
+  [
+    OAUTH_EXISTS_RE,
+    "This account already exists. Please log in with the same method.",
   ],
   [
     /email not confirmed/i,
@@ -164,12 +171,12 @@ export function humanizeLoginError(
     }
     if (options?.emailRegistered === true) {
       return {
-        message: "Incorrect password. Try again or reset your password.",
+        message: "Email or password is incorrect.",
         kind: "wrong_password",
       };
     }
     return {
-      message: "Incorrect password. Try again or reset your password.",
+      message: "Email or password is incorrect.",
       kind: "wrong_password",
     };
   }
@@ -184,7 +191,7 @@ export function humanizeAuthError(
   for (const [pattern, replacement] of ERROR_MAP) {
     if (pattern.test(message)) {
       if (replacement === "__LOGIN_INVALID__") {
-        return "Incorrect password. Try again or reset your password.";
+        return "Email or password is incorrect.";
       }
       if (replacement === "__PROVIDER_OFF__") {
         const name =
@@ -202,13 +209,77 @@ export function humanizeAuthError(
 }
 
 export const CALLBACK_ERROR_MESSAGES: Record<string, string> = {
-  callback_failed: "Authentication failed. Please try again.",
+  callback_failed:
+    "Sign-in could not be completed. Try again, or use email and password.",
   session_exchange_failed:
-    "Your sign-in link has expired. Please request a new one.",
-  missing_code: "Invalid authentication link.",
+    "Your sign-in link has expired or was already used. Please sign in again.",
+  missing_code: "Invalid sign-in link — no authorization code was received.",
   provider_not_enabled:
-    "That sign-in method is not available. Please use email/password.",
+    "That sign-in method is not available. Please use email and password.",
   access_denied: "Sign-in was cancelled.",
-  server_error:
-    "The sign-in provider returned an error. Please try again.",
+  server_error: "The sign-in provider returned an error. Please try again.",
+  profile_setup_failed:
+    "Login succeeded, but workspace setup failed. Please refresh or contact support.",
+  auth_redirect_mismatch:
+    "Sign-in redirect URL mismatch. Add your app URL and /auth/callback to Supabase Auth redirect URLs.",
+  auth_cookie_missing:
+    "Sign-in session cookie was missing (often caused by blocked cookies or opening the link in a different browser). Try again in the same browser.",
 };
+
+/** Safe provider error_description for display (no tokens/codes). */
+export function sanitizeAuthErrorDescription(raw: string | null): string | null {
+  if (!raw?.trim()) return null;
+  const decoded = decodeURIComponent(raw.replace(/\+/g, " "))
+    .replace(/[^\w\s.,!?@\-–—'"]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!decoded || decoded.length < 4) return null;
+  if (/token|secret|code|bearer|jwt|password/i.test(decoded)) return null;
+  return decoded.slice(0, 220);
+}
+
+export function humanizeCallbackError(
+  slug: string | null,
+  errorDescription?: string | null,
+): string {
+  const safeDesc = sanitizeAuthErrorDescription(errorDescription ?? null);
+  if (safeDesc) return safeDesc;
+  if (slug && CALLBACK_ERROR_MESSAGES[slug]) {
+    return CALLBACK_ERROR_MESSAGES[slug];
+  }
+  return slug
+    ? `Sign-in failed (${slug.replace(/_/g, " ")}). Please try again.`
+    : "Sign-in failed. Please try again.";
+}
+
+export function callbackErrorSlugFromExchangeMessage(message: string): string {
+  const msg = message.toLowerCase();
+  if (
+    msg.includes("expired") ||
+    msg.includes("otp_expired") ||
+    msg.includes("already been used") ||
+    msg.includes("already used")
+  ) {
+    return "session_exchange_failed";
+  }
+  if (
+    msg.includes("redirect") ||
+    msg.includes("redirect_uri") ||
+    msg.includes("url mismatch") ||
+    msg.includes("invalid request")
+  ) {
+    return "auth_redirect_mismatch";
+  }
+  if (
+    msg.includes("code verifier") ||
+    msg.includes("pkce") ||
+    msg.includes("both auth code and code verifier") ||
+    msg.includes("nonces mismatch")
+  ) {
+    return "auth_cookie_missing";
+  }
+  if (msg.includes("provider") && msg.includes("not enabled")) {
+    return "provider_not_enabled";
+  }
+  return "callback_failed";
+}

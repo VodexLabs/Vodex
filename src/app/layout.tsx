@@ -13,7 +13,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 
 import "./globals.css";
 
-import { getSiteUrl } from "@/lib/app-url";
+import { getMetadataBaseUrl, getSiteUrl } from "@/lib/app-url";
 
 
 
@@ -41,7 +41,8 @@ const geistMono = Geist_Mono({
 
 
 
-const SITE_URL = getSiteUrl();
+const SITE_URL = getMetadataBaseUrl();
+const CANONICAL_SITE_URL = getSiteUrl();
 
 const ICON_V = "14";
 
@@ -95,9 +96,12 @@ export const metadata: Metadata = {
     icon: [
       { url: `/favicon.ico?v=${ICON_V}` },
       { url: `/brand/dreamos86-icon.png?v=${ICON_V}`, sizes: "512x512", type: "image/png" },
+      { url: `/favicon-48x48.png?v=${ICON_V}`, sizes: "48x48", type: "image/png" },
+      { url: `/favicon-64x64.png?v=${ICON_V}`, sizes: "64x64", type: "image/png" },
+      { url: `/favicon-96x96.png?v=${ICON_V}`, sizes: "96x96", type: "image/png" },
       { url: `/favicon-32x32.png?v=${ICON_V}`, sizes: "32x32", type: "image/png" },
       { url: `/favicon-192x192.png?v=${ICON_V}`, sizes: "192x192", type: "image/png" },
-      { url: `/icon.png?v=${ICON_V}`, sizes: "32x32", type: "image/png" },
+      { url: `/icon.png?v=${ICON_V}`, sizes: "48x48", type: "image/png" },
     ],
     apple: [
       { url: `/apple-touch-icon.png?v=${ICON_V}`, sizes: "180x180", type: "image/png" },
@@ -157,7 +161,7 @@ export const metadata: Metadata = {
 
   },
 
-  alternates: { canonical: SITE_URL },
+  alternates: { canonical: CANONICAL_SITE_URL },
 
 };
 

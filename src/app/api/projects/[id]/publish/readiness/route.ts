@@ -106,18 +106,29 @@ export async function GET(
     .limit(1)
     .maybeSingle();
 
+  const publicUrl =
+    published?.published_url ??
+    (typeof meta.public_url === "string" ? meta.public_url : null) ??
+    project.preview_url ??
+    null;
+
   return NextResponse.json({
     fileCount: filesCount,
     hasAppName,
     appName: hasAppName ? appName : null,
     buildStatus,
+    latestBuildStatus: latestBuild?.status ?? null,
     buildCompleted,
     buildJobId: latestBuild?.id ?? null,
+    lastBuildId: latestBuild?.id ?? null,
+    lastBuildAt: latestBuild?.completed_at ?? null,
     hasPreview,
     hasPreviewErrors,
+    previewErrors: hasPreviewErrors,
     canPublishWeb,
-    artifactsReady: canPublishWeb,
+    artifactsReady: filesCount > 0 && buildCompleted,
     publishedUrl: published?.published_url ?? null,
+    publicUrl,
     subdomain: published?.subdomain ?? null,
     issues,
     scannedAt: new Date().toISOString(),

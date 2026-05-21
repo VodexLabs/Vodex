@@ -1,4 +1,5 @@
 import { createServiceRoleClient } from "@/lib/supabase/admin";
+import { buildChargeTokensProbePayload } from "@/lib/db/charge-tokens-rpc";
 import {
   REQUIRED_COLUMNS,
   REQUIRED_RPCS,
@@ -62,13 +63,11 @@ export async function checkBuilderSchemaHealth() {
   for (const rpc of REQUIRED_RPCS) {
     let probe: Record<string, unknown>;
     if (rpc === "charge_credits" || rpc === "charge_tokens") {
-      probe = {
-        p_user_id: "00000000-0000-0000-0000-000000000000",
-        p_amount: 0,
+      probe = buildChargeTokensProbePayload({
         p_reason: "health_check",
         p_idempotency_key: `health_${rpc}`,
         p_metadata: {},
-      };
+      });
     } else if (rpc === "grant_tokens") {
       probe = {
         p_user_id: "00000000-0000-0000-0000-000000000000",

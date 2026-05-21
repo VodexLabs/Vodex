@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
 import { ensureUserProfileServer } from "@/lib/auth/ensure-user-profile-server";
+import { buildChargeTokensRpcPayload } from "@/lib/db/charge-tokens-rpc";
 
 type Writer = SupabaseClient<Database>;
 
@@ -69,23 +70,34 @@ export async function chargeAiOperation(
     user_id: input.userId,
   });
 
-  const { data: creditResultRaw, error: rpcErr } = await writer.rpc("charge_tokens", {
-    p_user_id: input.userId,
-    p_amount: input.amount,
-    p_reason: `AI ${input.mode}`,
-    p_idempotency_key: input.operationId,
-    p_metadata: {
-      model_id: input.modelId,
-      mode: input.mode,
-      conversation_id: input.conversationId,
-      project_id: input.projectId,
-      operation_id: input.operationId,
-      provider_cost_usd: input.providerCostUsd,
-      build_job_id: input.buildJobId,
-    },
-    p_project_id: input.projectId ?? null,
-    p_conversation_id: input.conversationId ?? null,
-  } as never);
+  const rpcPayload = buildChargeTokensRpcPayload({
+      p_user_id: input.userId,
+      p_amount: input.amount,
+      p_reason: `AI ${input.mode}`,
+      p_idempotency_key: input.operationId,
+      p_metadata: {
+        model_id: input.modelId,
+        mode: input.mode,
+        conversation_id: input.conversationId,
+        project_id: input.projectId,
+        operation_id: input.operationId,
+        provider_cost_usd: input.providerCostUsd,
+        build_job_id: input.buildJobId,
+      },
+      p_project_id: input.projectId ?? null,
+      p_conversation_id: input.conversationId ?? null,
+    });
+
+  const { data: creditResultRaw, error: rpcErr } = await writer.rpc(
+    "charge_tokens",
+    rpcPayload as never,
+  );
+
+  console.info("[credits] rpc result", {
+    operation_id: input.operationId,
+    error: rpcErr?.message ?? null,
+    preview: creditResultRaw,
+  });
 
   if (rpcErr) {
     logCredits("warn", "charge failed", { error: rpcErr.message, operation_id: input.operationId });
@@ -175,6 +187,20 @@ export async function chargeAiOperation(
         } as never)
         .eq("id", input.userId);
     }
+
+    await writer.from("credit_events").insert({
+      user_id: input.userId,
+      amount: -input.amount,
+      balance_after: remaining,
+      reason: input.mode,
+      operation_id: input.operationId,
+      project_id: input.projectId ?? null,
+      conversation_id: input.conversationId ?? null,
+      metadata: {
+        model_id: input.modelId,
+        provider: input.provider,
+      },
+    } as never);
 
     logCredits("info", "charge ok", {
       balance_after: remaining,

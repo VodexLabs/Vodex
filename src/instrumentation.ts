@@ -7,6 +7,8 @@
  *
  * NEVER enabled in production.
  */
+import { logAppOriginBoot } from "@/lib/url/app-origin";
+
 const EXPECTED_SUPABASE_PROJECT_REF = "xycqutvqxtkbszytaxbe";
 
 export function register() {
@@ -22,6 +24,7 @@ export function register() {
   if (process.env.NODE_ENV === "development") {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
     const matchesExpected = url.includes(EXPECTED_SUPABASE_PROJECT_REF);
+    logAppOriginBoot();
     console.info(
       "[DreamOS86][env] NEXT_PUBLIC_SUPABASE_URL=%s | expectedRef=%s | match=%s | NEXT_PUBLIC_APP_URL=%s",
       url || "(unset)",

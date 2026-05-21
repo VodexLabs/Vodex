@@ -13,8 +13,9 @@ import {
   isPostgrestSchemaOrMissingTableError,
 } from "@/lib/supabase/schema-errors";
 import type { AiPreflightMode } from "@/lib/ai/preflight-types";
+import { getChargeTokensProbeCached } from "@/lib/db/charge-probe-cache";
 
-const DEFAULT_MODEL_ID = "claude-sonnet-4-6";
+const DEFAULT_MODEL_ID = "automatic";
 
 export type PreflightServerResult =
   | {
@@ -204,6 +205,22 @@ export async function runAiPreflightServer(request: Request): Promise<PreflightS
         "Run Supabase migrations for public.profiles and set SUPABASE_SERVICE_ROLE_KEY for bootstrap.",
     };
   }
+
+  const chargeProbe = await getChargeTokensProbeCached();
+  if (!chargeProbe.ok) {
+    console.warn("[credits] preflight blocked — charge_tokens not callable", {
+      issue: chargeProbe.issue,
+      diagnosis: chargeProbe.diagnosis,
+    });
+    return {
+      ok: false,
+      status: 503,
+      error: "Credit billing unavailable. Please retry after maintenance.",
+      code: "charge_tokens_missing",
+      hint: chargeProbe.nextAction ?? chargeProbe.userMessage ?? chargeProbe.hint,
+    };
+  }
+  console.info("[credits] preflight ok — charge_tokens callable");
 
   const routedEarly = routeModel(mapChatModeToTask(mode), modelId);
   const creditEst = estimateCreditsForOperation({

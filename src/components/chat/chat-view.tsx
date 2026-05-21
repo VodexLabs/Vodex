@@ -275,8 +275,8 @@ function MessageBubble({ msg, displayName, avatarUrl, attachments = [] }: {
             <Avatar src={avatarUrl} name={displayName} size="sm" />
           </div>
         ) : (
-          <motion.div className="flex size-9 shrink-0 items-center justify-center">
-            <DreamOS86BrandIcon size={32} alt="DreamOS86" />
+          <motion.div className="flex shrink-0 items-center justify-center">
+            <DreamOS86BrandIcon size="assistantAvatar" alt="DreamOS86" />
           </motion.div>
         )}
       </div>
@@ -844,7 +844,7 @@ export function ChatView() {
             href="/"
             className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-[12px] font-medium text-white transition hover:bg-accent/90 active:scale-[0.98]"
           >
-            <DreamOS86BrandIcon size={16} alt="" />
+            <DreamOS86BrandIcon variant="assistant" alt="" />
             Create a new app
           </Link>
         </div>
@@ -946,7 +946,7 @@ export function ChatView() {
         {/* Chat label bar */}
         <div className="flex h-10 shrink-0 flex-wrap items-center gap-2 border-b border-border px-4">
           <div className="flex items-center gap-1.5 rounded-full bg-muted/50 px-2.5 py-1 text-[11.5px] font-medium text-muted-foreground ring-1 ring-border/60">
-            <DreamOS86BrandIcon size={18} alt="" />
+            <DreamOS86BrandIcon variant="assistant" alt="" />
             {freePlan ? "Discuss · automatic model" : "Discuss · choose model"}
           </div>
           {!freePlan && (
@@ -979,7 +979,7 @@ export function ChatView() {
                 className="flex flex-col items-center py-8 text-center sm:py-10"
               >
                 <div className="mb-4 flex size-14 items-center justify-center rounded-2xl bg-gradient-to-br from-accent/25 via-accent/15 to-violet-500/20 ring-1 ring-accent/25 shadow-[0_8px_28px_-12px_rgba(37,99,235,0.22)]">
-                  <DreamOS86BrandIcon size={44} alt="DreamOS86" />
+                  <DreamOS86BrandIcon variant="lg" alt="DreamOS86" />
                 </div>
                 <h2 className="text-[20px] font-semibold tracking-tight text-foreground">
                   How can I help?
@@ -1034,7 +1034,7 @@ export function ChatView() {
             {isBusy && (
               <div className="flex gap-3">
                 <div className="flex size-7 shrink-0 items-center justify-center">
-                  <DreamOS86BrandIcon size={18} alt="" />
+                  <DreamOS86BrandIcon variant="assistant" alt="" />
                 </div>
                 <div className="rounded-2xl rounded-tl-sm bg-surface px-4 py-3 ring-1 ring-border">
                   <div className="flex gap-1">

@@ -5,6 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SectionCard, FieldLabel } from "@/components/settings/shared";
+import {
+  DeveloperIdentityCard,
+  buildDreamosCurlExample,
+} from "@/components/identity/developer-identity-card";
 import { cn } from "@/lib/utils";
 import {
   Plus,
@@ -33,8 +37,6 @@ interface ApiKey {
   scopes: Scope[];
 }
 
-// Keys are loaded from /api/api-keys — no hardcoded data
-
 const scopeColors: Record<
   Scope,
   "neutral" | "accent" | "positive" | "warning"
@@ -45,8 +47,30 @@ const scopeColors: Record<
   admin: "warning",
 };
 
-const NEW_KEY_VALUE =
-  "sk-dream-live-XDz4aKpR9Qm1bTnV2wJoE5fLcHsUgA8yI7xO3";
+function formatApiKeyRow(raw: {
+  id: string;
+  name: string;
+  key_prefix?: string;
+  scopes?: string[] | Scope[];
+  created_at?: string;
+  last_used_at?: string | null;
+}): ApiKey {
+  const prefix = raw.key_prefix ?? "sk-dream-live";
+  const suffix = prefix.length >= 4 ? prefix.slice(-4) : "••••";
+  return {
+    id: raw.id,
+    name: raw.name,
+    prefix: prefix.replace(/…$/, "").slice(0, 14) || "sk-dream-live",
+    suffix,
+    created: raw.created_at
+      ? new Date(raw.created_at).toLocaleDateString()
+      : "—",
+    lastUsed: raw.last_used_at
+      ? new Date(raw.last_used_at).toLocaleDateString()
+      : "Never",
+    scopes: (raw.scopes ?? ["read"]) as Scope[],
+  };
+}
 
 export default function ApiKeysPage() {
   const [keys, setKeys] = React.useState<ApiKey[]>([]);
@@ -58,13 +82,34 @@ export default function ApiKeysPage() {
   const [copied, setCopied] = React.useState(false);
   const [creating, setCreating] = React.useState(false);
   const [revealedKeys, setRevealedKeys] = React.useState<Set<string>>(new Set());
+  const [devIdentity, setDevIdentity] = React.useState<{
+    accountId: string;
+    workspaceId: string;
+    apiBaseUrl: string;
+  } | null>(null);
 
-  React.useEffect(() => {
-    fetch("/api/api-keys")
+  const loadKeys = React.useCallback(() => {
+    setLoadingKeys(true);
+    fetch("/api/api-keys", { credentials: "include" })
       .then((r) => r.json())
-      .then((d) => { setKeys(d.keys ?? []); setLoadingKeys(false); })
+      .then((d) => {
+        const rows = (d.keys ?? []) as Array<{
+          id: string;
+          name: string;
+          key_prefix?: string;
+          scopes?: string[];
+          created_at?: string;
+          last_used_at?: string | null;
+        }>;
+        setKeys(rows.map(formatApiKeyRow));
+        setLoadingKeys(false);
+      })
       .catch(() => setLoadingKeys(false));
   }, []);
+
+  React.useEffect(() => {
+    loadKeys();
+  }, [loadKeys]);
 
   const handleCreate = async () => {
     if (!newKeyName.trim()) return;
@@ -76,35 +121,14 @@ export default function ApiKeysPage() {
     }).catch(() => null);
 
     if (res?.ok) {
-      const d = await res.json();
-      setCreatedKey(d.key ?? NEW_KEY_VALUE);
-      setKeys((prev) => [
-        {
-          id: d.id ?? `k${Date.now()}`,
-          name: newKeyName,
-          prefix: "sk-dream",
-          suffix: (d.key ?? NEW_KEY_VALUE).slice(-4),
-          created: "Just now",
-          lastUsed: "Never",
-          scopes: newKeyScopes,
-        },
-        ...prev,
-      ]);
-    } else {
-      // Optimistic fallback for dev — shows the UX without a backend
-      setCreatedKey(NEW_KEY_VALUE);
-      setKeys((prev) => [
-        {
-          id: `k${Date.now()}`,
-          name: newKeyName,
-          prefix: "sk-dream",
-          suffix: NEW_KEY_VALUE.slice(-4),
-          created: "Just now",
-          lastUsed: "Never",
-          scopes: newKeyScopes,
-        },
-        ...prev,
-      ]);
+      const d = (await res.json()) as { key?: { full_key?: string; id?: string } & Parameters<typeof formatApiKeyRow>[0] };
+      const fullKey = d.key?.full_key;
+      if (fullKey) setCreatedKey(fullKey);
+      if (d.key?.id) {
+        setKeys((prev) => [formatApiKeyRow(d.key!), ...prev]);
+      } else {
+        loadKeys();
+      }
     }
     setCreating(false);
     setNewKeyName("");
@@ -140,8 +164,24 @@ export default function ApiKeysPage() {
     await fetch(`/api/api-keys?id=${id}`, { method: "DELETE" }).catch(() => {});
   };
 
+  const curlExample =
+    devIdentity != null
+      ? buildDreamosCurlExample(
+          devIdentity.accountId,
+          devIdentity.workspaceId,
+          devIdentity.apiBaseUrl,
+        )
+      : `curl https://api.example.com/v1/chat \\
+  -H "Authorization: Bearer sk-dream-live-YOUR_KEY" \\
+  -H "X-DreamOS-Account-ID: YOUR_ACCOUNT_ID" \\
+  -H "X-DreamOS-Workspace-ID: YOUR_WORKSPACE_ID" \\
+  -H "Content-Type: application/json" \\
+  -d '{"prompt": "Build a SaaS dashboard", "mode": "build"}'`;
+
   return (
     <div className="space-y-5">
+      <DeveloperIdentityCard onIdentityLoaded={setDevIdentity} />
+
       {/* New Key Created Banner */}
       {createdKey && (
         <div className="rounded-[var(--radius-xl)] bg-positive-muted ring-1 ring-positive/25 p-5 shadow-[var(--shadow-sm)]">
@@ -371,11 +411,7 @@ export default function ApiKeysPage() {
               variant="ghost"
               size="sm"
               className="h-7 gap-1 text-[11px]"
-              onClick={() =>
-                handleCopy(
-                  `curl https://api.dreamos86.ai/v1/generate \\\n  -H "Authorization: Bearer sk-dream-live-YOUR_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"prompt": "Build a SaaS dashboard", "model": "claude-sonnet"}'`,
-                )
-              }
+              onClick={() => handleCopy(curlExample)}
             >
               {copied ? (
                 <CheckCheck className="size-3" strokeWidth={2} />
@@ -385,26 +421,8 @@ export default function ApiKeysPage() {
               Copy
             </Button>
           </div>
-          <pre className="px-4 py-4 text-[12px] font-mono text-foreground overflow-x-auto leading-relaxed">
-            <span className="text-muted-foreground">curl</span>{" "}
-            <span className="text-accent">
-              https://api.dreamos86.ai/v1/generate
-            </span>
-            {` \\\n  `}
-            <span className="text-muted-foreground">-H</span>{" "}
-            <span className="text-positive">
-              &quot;Authorization: Bearer sk-dream-live-YOUR_KEY&quot;
-            </span>
-            {` \\\n  `}
-            <span className="text-muted-foreground">-H</span>{" "}
-            <span className="text-positive">
-              &quot;Content-Type: application/json&quot;
-            </span>
-            {` \\\n  `}
-            <span className="text-muted-foreground">-d</span>{" "}
-            <span className="text-warning">
-              {`'{"prompt": "Build a SaaS dashboard", "model": "claude-sonnet"}'`}
-            </span>
+          <pre className="px-4 py-4 text-[12px] font-mono text-foreground overflow-x-auto leading-relaxed whitespace-pre-wrap break-all">
+            {curlExample}
           </pre>
         </div>
       </SectionCard>

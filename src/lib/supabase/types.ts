@@ -1073,11 +1073,13 @@ export interface Database {
       };
       charge_tokens: {
         Args: {
-          p_user_id: string;
           p_amount: number;
-          p_reason: string;
+          p_conversation_id?: string | null;
           p_idempotency_key: string;
           p_metadata?: Json;
+          p_project_id?: string | null;
+          p_reason: string;
+          p_user_id: string;
         };
         Returns: {
           success: boolean;

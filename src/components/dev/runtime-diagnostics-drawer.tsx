@@ -10,6 +10,80 @@ import {
 } from "@/lib/dev/runtime-diagnostics";
 import { isDreamosOwnerEmail } from "@/lib/admin-owner";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { truncateIdentityId } from "@/lib/identity/dreamos-identity";
+
+function IdentitySummaryStrip() {
+  const [summary, setSummary] = React.useState<{
+    accountId?: string;
+    workspaceId?: string;
+    projectRef?: string | null;
+    appEnv?: string;
+    ownerEmail?: string | null;
+  } | null>(null);
+
+  React.useEffect(() => {
+    void fetch("/api/account/identity", { credentials: "include", cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (json?.accountId) {
+          setSummary({
+            accountId: json.accountId,
+            workspaceId: json.workspaceId,
+            ownerEmail: json.ownerEmail,
+          });
+        }
+      })
+      .catch(() => {});
+    void fetch("/api/admin/runtime-diagnostics-bundle", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (json) {
+          setSummary((prev) => ({
+            accountId: json.accountId ?? prev?.accountId,
+            workspaceId: json.workspaceId ?? prev?.workspaceId,
+            projectRef: json.projectRef ?? null,
+            appEnv: json.appEnv,
+            ownerEmail: json.ownerEmail ?? prev?.ownerEmail,
+          }));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  if (!summary?.accountId) return null;
+
+  return (
+    <div className="border-b border-border px-4 py-2 text-[10px] text-muted-foreground space-y-1">
+      <p>
+        <span className="text-foreground/80">accountId</span>{" "}
+        <span className="font-mono" title={summary.accountId}>
+          {truncateIdentityId(summary.accountId)}
+        </span>
+      </p>
+      <p>
+        <span className="text-foreground/80">workspaceId</span>{" "}
+        <span className="font-mono" title={summary.workspaceId}>
+          {summary.workspaceId ? truncateIdentityId(summary.workspaceId) : "—"}
+        </span>
+      </p>
+      {summary.projectRef ? (
+        <p>
+          <span className="text-foreground/80">projectRef</span> {summary.projectRef}
+        </p>
+      ) : null}
+      {summary.appEnv ? (
+        <p>
+          <span className="text-foreground/80">appEnv</span> {summary.appEnv}
+        </p>
+      ) : null}
+      {summary.ownerEmail ? (
+        <p className="truncate">
+          <span className="text-foreground/80">email</span> {summary.ownerEmail}
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 export function RuntimeDiagnosticsDrawer() {
   const email = useAuthStore((s) => s.profile?.email);
@@ -72,16 +146,31 @@ export function RuntimeDiagnosticsDrawer() {
               </button>
             </div>
 
+            <IdentitySummaryStrip />
+
             <div className="flex gap-2 border-b border-border px-4 py-2">
               <button
                 type="button"
                 onClick={() => {
-                  void navigator.clipboard.writeText(JSON.stringify(entries, null, 2));
+                  void (async () => {
+                    const local = readRuntimeDiagnostics();
+                    let server: unknown = null;
+                    try {
+                      const r = await fetch("/api/admin/runtime-diagnostics-bundle", {
+                        credentials: "include",
+                      });
+                      if (r.ok) server = await r.json();
+                    } catch {
+                      /* ignore */
+                    }
+                    const bundle = { client: local, server, copied_at: new Date().toISOString() };
+                    await navigator.clipboard.writeText(JSON.stringify(bundle, null, 2));
+                  })();
                 }}
                 className="flex items-center gap-1.5 rounded-lg bg-surface px-2.5 py-1.5 text-[11px] font-medium ring-1 ring-border"
               >
                 <Copy className="size-3.5" />
-                Copy diagnostics JSON
+                Copy diagnostic bundle
               </button>
               <button
                 type="button"

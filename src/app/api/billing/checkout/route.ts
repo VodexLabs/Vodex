@@ -69,7 +69,8 @@ export async function POST(request: Request) {
     await supabase.from("profiles").update({ stripe_customer_id: customerId }).eq("id", user.id);
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://dreamos86.com";
+  const { getAppUrl } = await import("@/lib/app-url");
+  const appUrl = getAppUrl();
   const tokens = monthlyTokensForPlan(planId);
   const display = PLAN_DISPLAY[planId];
 

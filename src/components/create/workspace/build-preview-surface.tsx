@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { motion } from "framer-motion";
-import { LogoIcon } from "@/components/ui/logo-icon";
+import { DreamOS86BrandIcon } from "@/components/brand/dreamos86-brand-icon";
 import { cn } from "@/lib/utils";
 
 export type PreviewShellState = "idle" | "building" | "compiling";
@@ -69,7 +69,7 @@ export function BuildPreviewSurface({
 
       <div className="relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center gap-5 px-6 py-10 text-center">
         <div className="relative flex size-[88px] items-center justify-center rounded-[1.35rem] shadow-[0_20px_50px_-20px_rgba(30,107,255,0.55)] ring-2 ring-white/80">
-          <LogoIcon size={72} className="drop-shadow-md" />
+          <DreamOS86BrandIcon variant="previewHero" className="drop-shadow-md" alt="DreamOS86" />
         </div>
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-accent/90">

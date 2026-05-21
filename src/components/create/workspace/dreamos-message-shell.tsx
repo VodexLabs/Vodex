@@ -26,7 +26,7 @@ export function DreamOSMessageShell({
     <div className={cn("space-y-2", className)}>
       <div className="flex items-center gap-2">
         <div className="flex size-8 shrink-0 items-center justify-center">
-          <DreamOS86BrandIcon size={28} alt="" />
+          <DreamOS86BrandIcon variant="assistant" alt="" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">

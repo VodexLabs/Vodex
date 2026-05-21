@@ -239,7 +239,7 @@ export function BuilderResultSummary({
           animate={{ scale: [1, 1.04, 1] }}
           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         >
-          <DreamOS86BrandIcon size={28} alt="" />
+          <DreamOS86BrandIcon variant="assistant" alt="" />
         </motion.div>
         <div className="min-w-0 flex-1">
           <p className="text-[13px] font-semibold text-foreground">
@@ -271,14 +271,37 @@ export function BuilderResultSummary({
   );
 }
 
-/** Build-mode assistant message: plan cards + phases, no raw code dumps. */
+function parseActionRowsFromText(text: string): Array<{ path: string; action: string }> {
+  const rows: Array<{ path: string; action: string }> = [];
+  const re = /```[\w]*\s+file=([^\s`]+)/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    rows.push({ path: m[1]!, action: "created" });
+  }
+  const verbs = [
+    /(?:Created|Wrote)\s+([^\s\n]+\.[a-z0-9]+)/gi,
+    /(?:Edited|Updated)\s+([^\s\n]+\.[a-z0-9]+)/gi,
+    /(?:Read)\s+([^\s\n]+\.[a-z0-9]+)/gi,
+  ];
+  for (const rx of verbs) {
+    while ((m = rx.exec(text)) !== null) {
+      const path = m[1]!;
+      const action = rx.source.includes("Edited") ? "updated" : rx.source.includes("Read") ? "read" : "created";
+      if (!rows.some((r) => r.path === path)) rows.push({ path, action });
+    }
+  }
+  return rows.slice(0, 16);
+}
+
+/** Single canonical build workflow — no duplicate plan + checklist. */
 export function BuilderAssistantMessage({
   text,
   streaming,
   meta,
   plan,
-  progressIndex,
+  progressIndex: _progressIndex,
   creditsUsed,
+  buildFinalized,
 }: {
   text: string;
   streaming?: boolean;
@@ -286,31 +309,56 @@ export function BuilderAssistantMessage({
   plan: BuildPlanCard;
   progressIndex: number;
   creditsUsed?: number | null;
+  buildFinalized?: boolean;
 }) {
-  const showPlan = plan.phases.length > 0 || plan.summary;
-  const showTimeline = streaming && plan.taskLabels.length > 0;
+  const appName = meta?.app?.name ? stripMarkdownNoise(meta.app.name) : plan.summary?.slice(0, 48);
   const fileRows =
     meta?.files?.map((f) =>
-      typeof f === "string" ? { path: f, action: "created" } : { path: f.path, action: f.action },
-    ) ?? [];
+      typeof f === "string" ? { path: f, action: "created" } : { path: f.path, action: f.action ?? "created" },
+    ) ?? parseActionRowsFromText(text);
+
+  const showThinking = streaming && fileRows.length === 0;
+  const showDone = !streaming && buildFinalized !== false;
 
   return (
     <div className="space-y-2.5">
-      {(showPlan || streaming) && <BuilderPlanCard plan={plan} />}
-      {showTimeline && (
-        <BuilderProgressTimeline labels={plan.taskLabels} activeIndex={progressIndex} />
+      {(appName || plan.summary) && (
+        <div className="rounded-xl bg-gradient-to-br from-accent/[0.06] via-background to-sky-500/[0.05] px-3 py-2.5 ring-1 ring-accent/20">
+          <p className="text-[12px] font-semibold text-foreground">
+            {streaming ? "Planning" : "Build plan"}
+            {appName ? ` · ${appName}` : ""}
+          </p>
+          {plan.summary && (
+            <p className="mt-1 text-[11.5px] leading-relaxed text-muted-foreground">{plan.summary}</p>
+          )}
+        </div>
       )}
-      {fileRows.length > 0 && !streaming && <BuilderFileChangeList files={fileRows} />}
-      {!streaming && plan.phases.length > 0 && (
-        <ul className="space-y-1 rounded-xl bg-surface/60 px-3 py-2 ring-1 ring-border/50">
-          {plan.phases.map((phase) => (
-            <li key={phase} className="text-[11.5px] text-muted-foreground">
-              ✓ {phase}
-            </li>
+
+      {showThinking && (
+        <div className="flex items-center gap-2 rounded-xl bg-surface/80 px-3 py-2 ring-1 ring-border/60">
+          <Loader2 className="size-3.5 animate-spin text-accent" />
+          <span className="text-[12px] text-muted-foreground">Thinking and generating…</span>
+        </div>
+      )}
+
+      {fileRows.length > 0 && (
+        <div className="space-y-1 rounded-xl bg-white/60 px-2 py-2 ring-1 ring-border/70 dark:bg-surface/40">
+          {fileRows.map((f) => (
+            <BuilderActionRow
+              key={f.path}
+              action={
+                f.action === "updated" ? "updated" : f.action === "read" ? "read" : "created"
+              }
+              path={f.path}
+            />
           ))}
-        </ul>
+        </div>
       )}
-      {!streaming && <BuilderResultSummary meta={meta} creditsUsed={creditsUsed} />}
+
+      {showDone && <BuilderResultSummary meta={meta} creditsUsed={creditsUsed} />}
+      {streaming && !showDone && fileRows.length > 0 && (
+        <p className="text-[10.5px] text-muted-foreground">Saving files and preparing preview…</p>
+      )}
     </div>
   );
 }

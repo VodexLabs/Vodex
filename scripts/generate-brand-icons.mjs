@@ -33,10 +33,10 @@ const MASKABLE_OUT = path.join(BRAND_DIR, "dreamos86-icon-maskable.png");
 const PUBLIC_DIR = path.join(ROOT, "public");
 const APP_DIR = path.join(ROOT, "src/app");
 
-/** Browser tab favicons — balanced, not oversized in 16–48px tabs. */
-const FAVICON_FILL_RATIO = 0.65;
+/** Browser tab + icon.png / apple-icon — maximize glyph fill on small canvases. */
+const FAVICON_FILL_RATIO = 0.96;
 
-/** App icons / PWA / apple-touch — larger cloud fill. */
+/** PWA manifest + canonical brand PNG — slightly larger for home-screen tiles. */
 const APP_ICON_FILL_RATIO = 0.86;
 
 const FAVICON_PNG_SIZES = [
@@ -44,10 +44,11 @@ const FAVICON_PNG_SIZES = [
   { file: "favicon-32x32.png", size: 32 },
   { file: "favicon-48x48.png", size: 48 },
   { file: "favicon-64x64.png", size: 64 },
+  { file: "favicon-96x96.png", size: 96 },
 ];
 
 const APP_PNG_SIZES = [
-  { file: "icon.png", size: 32 },
+  { file: "icon.png", size: 48 },
   { file: "favicon.png", size: 32 },
   { file: "apple-touch-icon.png", size: 180 },
   { file: "favicon-192x192.png", size: 192 },
@@ -180,7 +181,7 @@ async function writeMaskableIcon(input, canvasSize, output) {
 }
 
 async function writeFaviconIco(master) {
-  const sizes = [16, 32, 48];
+  const sizes = [16, 32, 48, 64];
   const pngBuffers = await Promise.all(
     sizes.map(async (size) => {
       const inner = Math.max(8, Math.round(size * FAVICON_FILL_RATIO));
@@ -258,15 +259,17 @@ async function main() {
   await writeMaskableIcon(master, 512, MASKABLE_OUT);
   console.log("  wrote brand/dreamos86-icon-maskable.png (maskable only)");
 
-  await resizeTransparentPng(master, 32, path.join(PUBLIC_DIR, "icon.png"), APP_ICON_FILL_RATIO);
-  await resizeTransparentPng(master, 32, path.join(APP_DIR, "icon.png"), APP_ICON_FILL_RATIO);
-  await resizeTransparentPng(master, 180, path.join(APP_DIR, "apple-icon.png"), APP_ICON_FILL_RATIO);
+  await resizeTransparentPng(master, 32, path.join(PUBLIC_DIR, "icon.png"), FAVICON_FILL_RATIO);
+  await resizeTransparentPng(master, 32, path.join(APP_DIR, "icon.png"), FAVICON_FILL_RATIO);
+  await resizeTransparentPng(master, 180, path.join(APP_DIR, "apple-icon.png"), FAVICON_FILL_RATIO);
   await resizeTransparentPng(
     master,
     180,
     path.join(PUBLIC_DIR, "apple-touch-icon.png"),
-    APP_ICON_FILL_RATIO,
+    FAVICON_FILL_RATIO,
   );
+  const publicAppleIcon = path.join(PUBLIC_DIR, "apple-icon.png");
+  await resizeTransparentPng(master, 180, publicAppleIcon, FAVICON_FILL_RATIO);
 
   console.log("  generating favicon.ico from master (favicon fill) …");
   await writeFaviconIco(master);

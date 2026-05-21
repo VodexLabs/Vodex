@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { DreamOS86BrandLockup } from "@/components/brand/dreamos86-brand-lockup";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -26,21 +25,23 @@ function NavSection({
   pathname,
   onMobileClose,
   collapsed,
+  showLabels,
 }: {
   label?: string;
   items: typeof navSections[0]["items"];
   pathname: string;
   onMobileClose: () => void;
   collapsed: boolean;
+  showLabels: boolean;
 }) {
   return (
     <div className="flex flex-col gap-0.5">
-      {label && !collapsed && (
+      {label && showLabels && (
         <p className="mb-1 px-3 text-[10px] font-semibold tracking-[0.14em] text-muted-foreground/60 uppercase">
           {label}
         </p>
       )}
-      {label && collapsed && (
+      {label && !showLabels && (
         <div className="mx-auto my-1.5 h-px w-6 bg-border/60" />
       )}
       {items.map((item) => {
@@ -59,7 +60,7 @@ function NavSection({
             onClick={onMobileClose}
             className={cn(
               "group relative flex items-center gap-3 rounded-[var(--radius-md)] text-[13px] font-medium tracking-[-0.01em] transition duration-150 ease-out",
-              collapsed
+              !showLabels
                 ? "mx-auto w-10 justify-center px-0 py-2.5"
                 : "px-3 py-2",
               active
@@ -78,10 +79,10 @@ function NavSection({
               className="relative z-10 size-[17px] shrink-0"
               strokeWidth={active ? 1.75 : 1.5}
             />
-            {!collapsed && (
+            {showLabels && (
               <span className="relative z-10 truncate">{item.title}</span>
             )}
-            {!collapsed && item.badge && (
+            {showLabels && item.badge && (
               <span className="relative z-10 ml-auto rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold text-accent">
                 {item.badge}
               </span>
@@ -126,6 +127,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           pathname={pathname}
           onMobileClose={onMobileClose}
           collapsed={collapsed}
+          showLabels={!collapsed || mobileOpen}
         />
       ))}
     </nav>
@@ -166,14 +168,22 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
         <div
           className={cn(
             "flex h-14 shrink-0 items-center border-b border-border",
-            showBrandWordmark ? "justify-between gap-2 px-3" : "justify-center px-2",
+            showBrandWordmark ? "justify-between gap-2 px-3" : "justify-center px-2 py-2",
           )}
         >
           <DreamOS86BrandLockup
-            variant={mobileOpen ? "drawer" : "sidebar"}
+            variant={
+              !showBrandWordmark && !mobileOpen
+                ? "sidebarCollapsed"
+                : mobileOpen
+                  ? "drawer"
+                  : "sidebar"
+            }
             showText={showBrandWordmark}
+            href="/"
             onClick={onMobileClose}
-            className="min-w-0 flex-1"
+            className={cn(showBrandWordmark ? "min-w-0 flex-1" : "mx-auto")}
+            priority
           />
           <button
             type="button"

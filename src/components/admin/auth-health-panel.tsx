@@ -375,6 +375,23 @@ export function AuthHealthPanel() {
             </p>
           </div>
         )}
+        {data?.githubOAuthLogoNote ? (
+          <div className="border-t border-border/60 py-3">
+            <p className="text-[11px] font-medium text-foreground">GitHub OAuth application logo</p>
+            <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+              {data.githubOAuthLogoNote}
+            </p>
+            <a
+              href="https://github.com/settings/developers"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-accent hover:underline underline-offset-4"
+            >
+              GitHub Developer Settings
+              <ExternalLink className="size-2.5" />
+            </a>
+          </div>
+        ) : null}
       </Section>
 
       {/* Auth Routes */}
