@@ -515,9 +515,40 @@ This removes DreamOS86's access to your repositories. Existing code is unaffecte
     description: "Understand how DreamOS86 credits are calculated, why different actions cost different amounts, and how to use them efficiently.",
     category: "Billing",
     readMinutes: 5,
-    content: `## What are credits?
+    content: `## Two credit types
 
-Credits are DreamOS86's unit of AI usage. When you send a message, generate code, deploy an app, or run an agent, the platform consumes credits. Your plan includes a monthly credit allowance, and you can purchase more at any time.
+DreamOS86 uses two separate credit pools so building and live app actions stay predictable:
+
+### Build Credits
+
+Used for everything inside DreamOS86 while you design and ship apps:
+
+- **Discuss** mode — planning, Q&A, brainstorming
+- **Create** page AI help
+- **Build** generation and compilation
+- **Edit / fix / update** work on your app
+
+Build Credits = for building inside DreamOS86.
+
+### Action Credits
+
+Used when your live or generated apps perform runtime actions:
+
+- Runtime AI calls
+- Email sending
+- Image generation
+- Automations and workflows
+- File processing and similar app actions
+
+Action Credits = for actions performed by live/generated apps.
+
+Each pool has its own **monthly allowance**, **bonus credits** (when granted), and **reset date** on your plan.
+
+---
+
+## What are credits?
+
+Credits are DreamOS86's unit of AI and platform usage. Your plan includes a monthly allowance for each pool. Bonus credits appear when your balance exceeds the plan allowance (for example after a top-up or admin grant).
 
 ## Why do different actions cost different amounts?
 
@@ -537,7 +568,7 @@ A more powerful model (like Claude Opus or GPT-4.5) produces higher-quality resu
 
 You can always switch models in the chat input bar.
 
-### Modes affect cost too
+### Modes affect Build Credit cost
 
 DreamOS86 has four modes — **Discuss**, **Edit**, **Agent**, and **Build** — each with different capabilities and costs.
 
@@ -548,7 +579,7 @@ DreamOS86 has four modes — **Discuss**, **Edit**, **Agent**, and **Build** —
 | Agent | Autonomously completes multi-step tasks. | High |
 | Build | Compiles, deploys, and publishes your app. | Highest |
 
-**Discuss mode** is the most cost-efficient. If you're planning features, reviewing code, or exploring options — use Discuss mode to conserve credits.
+**Discuss mode** is the most cost-efficient. If you're planning features, reviewing code, or exploring options — use Discuss mode to conserve Build Credits.
 
 **Build mode** is the most expensive because it runs real compilation and deployment pipelines, not just inference.
 
@@ -563,6 +594,14 @@ When you take an action, DreamOS86 measures:
 
 These are combined into a single credit total, rounded to a clean whole number.
 
+## Monthly allowance, bonus, and reset
+
+- **Monthly allowance** — included with your plan each billing cycle
+- **Bonus credits** — extra balance above your allowance (shown as \`+X bonus\` in the tracker)
+- **Reset date** — both pools refresh on your plan renewal date
+
+Your renewal date is exactly one billing cycle after your subscription started (e.g., if you subscribed on May 16, your credits refresh every June 16, July 16, etc.).
+
 ## How to reduce your credit usage
 
 - **Use Discuss mode for planning.** Don't use Agent mode to answer a question you could ask in Discuss.
@@ -572,23 +611,21 @@ These are combined into a single credit total, rounded to a clean whole number.
 
 ## What happens when I run out of credits?
 
-When your balance reaches zero, AI actions are paused. You can:
+When a pool reaches zero, related actions are paused. You can:
 
 - **Upgrade your plan** to get more monthly credits at a lower per-credit rate
 - **Purchase a credit top-up** for additional credits without changing your plan
 - **Wait for your monthly reset** — credits refresh automatically on your renewal date
 
-Your renewal date is exactly one billing cycle after your subscription started (e.g., if you subscribed on May 16, your credits refresh every June 16, July 16, etc.).
-
 ## Do unused credits carry over?
 
 Monthly plan credits reset each billing cycle. They do not roll over.
 
-If you upgrade your plan mid-cycle, your used credits carry forward — you won't lose progress. For example, if you used 100 out of 500 credits on the Starter plan and upgrade to Pro (5,000 credits), your balance becomes 100 / 5,000 used — not 0 / 5,000.
+If you upgrade your plan mid-cycle, your used credits carry forward — you won't lose progress. For example, if you used 100 out of 500 Build Credits on the Starter plan and upgrade to Pro (5,000 credits), your balance becomes 100 / 5,000 used — not 0 / 5,000.
 
 ## Credit packs
 
-Credit packs let you purchase additional credits that never expire, separately from your plan. They're charged once and available until consumed. Packs are useful for one-time large projects (like migrating an existing app or running a complex build pipeline).
+Credit packs let you purchase additional Build Credits that never expire, separately from your plan. They're charged once and available until consumed. Packs are useful for one-time large projects (like migrating an existing app or running a complex build pipeline).
 
 ## Questions?
 

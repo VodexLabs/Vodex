@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { createSupabaseAdmin } from "@/lib/supabase/admin";
-import type { Database } from "@/lib/supabase/types";
+import { createContactRequest } from "@/lib/contact/save-contact-request";
+import { checkRateLimit, rateLimitedResponse } from "@/lib/security/rate-limit";
 
 const bodySchema = z.object({
   kind: z.enum(["sales", "support"]),
@@ -19,6 +19,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const rl = checkRateLimit(`contact-sales:${ip}`, 6, 15 * 60_000);
+  if (!rl.allowed) return rateLimitedResponse(rl.retryAfterSec);
+
   let json: unknown;
   try {
     json = await request.json();
@@ -36,38 +40,32 @@ export async function POST(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  let admin;
-  try {
-    admin = createSupabaseAdmin();
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "Server misconfigured";
-    return NextResponse.json({ error: msg }, { status: 503 });
-  }
-
-  const row: Database["public"]["Tables"]["contact_requests"]["Insert"] = {
+  const result = await createContactRequest({
     user_id: user?.id ?? null,
+    source: parsed.data.kind === "sales" ? "sales" : "support",
     kind: parsed.data.kind,
     name: parsed.data.name.trim(),
     email: parsed.data.email.trim(),
     company: parsed.data.company?.trim() || null,
-    team_size: parsed.data.team_size?.trim() || null,
-    expected_usage: parsed.data.expected_usage?.trim() || null,
-    current_plan: parsed.data.current_plan?.trim() || null,
     message: parsed.data.message.trim(),
     reason: parsed.data.kind === "sales" ? "Sales" : "Support",
+    subject: parsed.data.kind === "sales" ? "Sales inquiry" : "Support request",
     plan_interest: parsed.data.current_plan?.trim() || null,
-    status: "new",
-    source: "pricing_modal",
-    metadata: {},
-  };
+    isPlatformContact: true,
+    metadata: {
+      form: "pricing_modal",
+      team_size: parsed.data.team_size?.trim() || null,
+      expected_usage: parsed.data.expected_usage?.trim() || null,
+      current_plan: parsed.data.current_plan?.trim() || null,
+    },
+  });
 
-  const { error } = await admin.from("contact_requests").insert(row);
-  if (error) {
+  if (!result.ok) {
     return NextResponse.json(
-      { error: error.message, hint: "Apply the contact_requests migration if this table is missing." },
+      { error: result.error, hint: "Apply the contact_requests migration if this table is missing." },
       { status: 500 },
     );
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, id: result.request.id, emailStatus: result.emailStatus });
 }

@@ -431,9 +431,8 @@ export function applyBlueprintArchetype(
     previewAssumptions: ["Preview uses mock/seed data", "No live backend until configured"],
     publishAssumptions: ["Path-mode URL /p/slug when publish succeeds", "No fake subdomain"],
     exclusions: [
-      "Native iOS/Android binaries",
-      "Production payment without Stripe keys",
-      "Live backend until Supabase connected",
+      "This first version focuses on the main app experience.",
+      "You can add payments, mobile app packaging, and advanced integrations later from your app workspace.",
     ],
     acceptanceCriteria: [
       ...(base.qualityChecklist ?? []),

@@ -1,13 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getSiteUrl } from "@/lib/app-url";
 import {
   loadProfileOptionalFields,
   loadUserProfileCore,
 } from "@/lib/supabase/load-user-profile";
 import { resolveWorkspaceIdForUser } from "@/lib/identity/resolve-workspace-id";
-import { monthlyTokensForPlan } from "@/lib/billing/plans";
+import { monthlyTokensForPlan, normalizePlanId } from "@/lib/billing/plans";
+import { loadCanonicalCredits } from "@/lib/credits/canonical-credits";
+import { createSupabaseAdmin } from "@/lib/supabase/admin";
+import { ensurePersonalWorkspace } from "@/lib/identity/ensure-personal-workspace";
 
 const FREE_CREDITS_FALLBACK = monthlyTokensForPlan("free");
+const CANONICAL_PUBLIC_API = "https://dreamos86.com/api";
 
 export type DreamosIdentity = {
   accountId: string;
@@ -33,8 +36,23 @@ export type DreamosIdentityApiPayload = {
 };
 
 export function getDreamosApiBaseUrl(): string {
-  const app = getSiteUrl().replace(/\/$/, "");
-  return `${app}/api`;
+  if (typeof window !== "undefined") {
+    const origin = window.location.origin.replace(/\/$/, "");
+    if (/localhost|127\.0\.0\.1/i.test(origin)) {
+      return CANONICAL_PUBLIC_API;
+    }
+    return `${origin}/api`;
+  }
+
+  const site = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (site) return `${site.replace(/\/$/, "")}/api`;
+
+  const app = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (app && !/localhost|127\.0\.0\.1/i.test(app)) {
+    return `${app.replace(/\/$/, "")}/api`;
+  }
+
+  return CANONICAL_PUBLIC_API;
 }
 
 export function truncateIdentityId(value: string, head = 8, tail = 4): string {
@@ -68,22 +86,46 @@ export async function buildDreamosIdentity(
   accountId: string,
   ownerEmail?: string | null,
 ): Promise<DreamosIdentity> {
-  const [{ profile }, optional, workspaceId] = await Promise.all([
+  const [{ profile }, optional, workspaceIdRaw] = await Promise.all([
     loadUserProfileCore(supabase, accountId),
     loadProfileOptionalFields(supabase, accountId),
     resolveWorkspaceIdForUser(supabase, accountId),
   ]);
+
+  const workspaceId =
+    workspaceIdRaw === accountId
+      ? await ensurePersonalWorkspace(supabase, accountId, ownerEmail ?? profile?.email, optional.full_name)
+      : workspaceIdRaw;
 
   const email =
     (ownerEmail ?? "").trim() ||
     (typeof profile?.email === "string" ? profile.email : "") ||
     "";
 
-  const creditsRemaining =
+  const planId = normalizePlanId(typeof profile?.plan_id === "string" ? profile.plan_id : "free");
+  const rawRemaining =
     typeof profile?.credits_remaining === "number" ? profile.credits_remaining : FREE_CREDITS_FALLBACK;
-  const profileRecord = profile as { credits_limit?: number } | null | undefined;
-  const creditsLimit =
-    typeof profileRecord?.credits_limit === "number" ? profileRecord.credits_limit : FREE_CREDITS_FALLBACK;
+
+  let creditsRemaining = rawRemaining;
+  let creditsLimit = monthlyTokensForPlan(planId);
+
+  try {
+    const admin = createSupabaseAdmin();
+    const canonical = await loadCanonicalCredits({
+      userId: accountId,
+      planId,
+      email,
+      buildAvailable: rawRemaining,
+      skipLedger: false,
+    });
+    creditsRemaining = canonical.build.available;
+    creditsLimit = canonical.build.planAllowance;
+  } catch {
+    const profileRecord = profile as { credits_limit?: number } | null | undefined;
+    if (typeof profileRecord?.credits_limit === "number") {
+      creditsLimit = profileRecord.credits_limit;
+    }
+  }
 
   let createdAt: string | null = null;
   try {
@@ -101,7 +143,7 @@ export async function buildDreamosIdentity(
     accountId,
     workspaceId,
     ownerEmail: email,
-    planId: typeof profile?.plan_id === "string" ? profile.plan_id : "free",
+    planId,
     planInterval: optional.plan_interval ?? "monthly",
     creditsRemaining,
     creditsLimit,

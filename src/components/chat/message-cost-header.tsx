@@ -1,71 +1,22 @@
 "use client";
 
 import * as React from "react";
-import { Copy, MoreHorizontal, Loader2 } from "lucide-react";
+import { Copy, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 
 export type MessageCostState = "idle" | "pending" | "final" | "finalizing";
 
 export function MessageCostBadge({
-  state,
-  credits,
-  className,
+  state: _state,
+  credits: _credits,
+  className: _className,
 }: {
   state: MessageCostState;
   credits: number | null;
   className?: string;
 }) {
-  if (state === "idle") return null;
-
-  if (state === "pending") {
-    return (
-      <span
-        data-testid="message-cost-pending"
-        className={cn(
-          "inline-flex items-center gap-1 rounded-md bg-surface px-2 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-border/70",
-          className,
-        )}
-      >
-        <Loader2 className="size-3 animate-spin" />
-        Calculating credits…
-      </span>
-    );
-  }
-
-  if (state === "finalizing") {
-    return (
-      <span
-        data-testid="message-cost-finalizing"
-        className={cn(
-          "text-[10px] font-medium text-muted-foreground",
-          className,
-        )}
-      >
-        Cost finalizing… unused credits return automatically.
-      </span>
-    );
-  }
-
-  if (credits != null && credits > 0) {
-    return (
-      <span
-        data-testid="message-cost-final"
-        className={cn(
-          "rounded-md bg-accent/10 px-2 py-0.5 text-[10px] font-semibold text-accent ring-1 ring-accent/20",
-          className,
-        )}
-      >
-        {credits} credits used
-      </span>
-    );
-  }
-
-  return (
-    <span className={cn("text-[10px] text-muted-foreground", className)} data-testid="message-cost-zero">
-      No charge
-    </span>
-  );
+  return null;
 }
 
 export function MessageActionsMenu({

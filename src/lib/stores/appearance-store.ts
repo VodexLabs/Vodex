@@ -14,11 +14,13 @@ interface AppearanceState {
   density: Density;
   reducedMotion: boolean;
   sidebarCollapsed: boolean;
+  hideDreamosBranding: boolean;
 
   setFontScale: (scale: FontScale) => void;
   setDensity: (density: Density) => void;
   setReducedMotion: (reduced: boolean) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
+  setHideDreamosBranding: (hide: boolean) => void;
 }
 
 export const useAppearanceStore = create<AppearanceState>()(
@@ -28,11 +30,13 @@ export const useAppearanceStore = create<AppearanceState>()(
       density: "comfortable",
       reducedMotion: false,
       sidebarCollapsed: true,
+      hideDreamosBranding: false,
 
       setFontScale: (fontScale) => set({ fontScale }),
       setDensity: (density) => set({ density }),
       setReducedMotion: (reducedMotion) => set({ reducedMotion }),
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
+      setHideDreamosBranding: (hideDreamosBranding) => set({ hideDreamosBranding }),
     }),
     {
       name: "dreamos-appearance",

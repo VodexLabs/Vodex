@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Loader2, Plug, CheckCircle2, AlertCircle, GitBranch } from "lucide-react";
 import { IntegrationIconWell } from "@/components/brand/integration-icons";
 import { toast } from "@/lib/toast";
+import { canUseIntegrations } from "@/lib/billing/plan-features";
 
 type IntegrationRow = {
   provider: string;
@@ -310,7 +311,14 @@ function SupabaseConnectForm({
   );
 }
 
-export function ProjectIntegrationsPanel({ projectId }: { projectId: string }) {
+export function ProjectIntegrationsPanel({
+  projectId,
+  planId = "free",
+}: {
+  projectId: string;
+  planId?: string;
+}) {
+  const paid = canUseIntegrations(planId);
   const [rows, setRows] = React.useState<IntegrationRow[]>([]);
   const [githubOAuth, setGithubOAuth] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
@@ -387,6 +395,24 @@ export function ProjectIntegrationsPanel({ projectId }: { projectId: string }) {
       <div className="flex items-center justify-center gap-2 p-8 text-muted-foreground">
         <Loader2 className="size-4 animate-spin" />
         <span className="text-[13px]">Loading integrations…</span>
+      </div>
+    );
+  }
+
+  if (!paid) {
+    return (
+      <div className="rounded-2xl border border-accent/20 bg-gradient-to-br from-accent/5 via-background to-teal-500/5 p-6 text-center">
+        <Plug className="mx-auto size-8 text-accent" strokeWidth={1.5} />
+        <p className="mt-3 text-[14px] font-semibold text-foreground">Connect your tools</p>
+        <p className="mx-auto mt-2 max-w-sm text-[12px] leading-relaxed text-muted-foreground">
+          Connect tools like email, payments, storage, and analytics after upgrading.
+        </p>
+        <Link
+          href="/settings/billing"
+          className="mt-4 inline-flex rounded-xl bg-accent px-4 py-2 text-[12px] font-semibold text-white shadow-sm hover:bg-accent/90"
+        >
+          Upgrade to connect integrations
+        </Link>
       </div>
     );
   }

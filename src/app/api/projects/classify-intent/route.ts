@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { classifyCreateIntent } from "@/lib/intent/create-intent-classifier";
+import { classifyFirstCreatePrompt } from "@/lib/intent/create-intent-classifier";
 import { requireProjectId, jsonUnauthorized } from "@/lib/ids/required-ids";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +26,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
   }
 
-  const result = classifyCreateIntent(prompt, Boolean(projectId));
+  const result = classifyFirstCreatePrompt(prompt);
   return NextResponse.json(result);
 }

@@ -3,7 +3,8 @@ import {
   GLOBAL_MAX_VISIBLE_OUTPUT_TOKENS,
   FULL_BUILD_CAP_USD,
 } from "@/lib/ai/cost-budget";
-import { classifyBuildIntent } from "@/lib/ai/build-intent-classifier";
+import { buildIntakeFromPrompt } from "@/lib/ai/huge-prompt-intake";
+import { classifyBuildCredits, effectivePromptLengthForCredits } from "@/lib/ai/build-credit-classifier";
 import { pickStandardFast } from "@/lib/ai/model-catalog";
 import { quoteDiscussCost, quoteGenerationCost } from "@/lib/billing/credit-profit-guard";
 import type { GenerationMode } from "@/lib/billing/pricing-config";
@@ -36,14 +37,15 @@ export type GenerationBudgetPlan = {
 };
 
 function estimateComplexity(prompt: string, fileCount: number): number {
-  const intent = classifyBuildIntent(prompt);
-  let c = 4;
-  if (intent.intent === "build_app") c += 2;
-  if (intent.intent === "edit_app") c += 1;
-  if (prompt.length > 600) c += 1;
-  if (prompt.length > 1200) c += 1;
-  if (fileCount > 8) c += 2;
-  if (/\b(auth|payment|stripe|admin|dashboard|realtime|supabase)\b/i.test(prompt)) c += 1;
+  const intake = buildIntakeFromPrompt(prompt);
+  const creditClass = classifyBuildCredits({
+    firstPassTier: intake.firstPassScope.tier,
+    scopeComplexity: intake.firstPassScope.complexity,
+    rawPromptLength: prompt.length,
+    promptWasCompressed: intake.wasHuge,
+  });
+  let c = creditClass.complexity;
+  if (fileCount > 8) c += 1;
   return Math.min(10, Math.max(1, c));
 }
 
@@ -52,9 +54,11 @@ export function planGenerationBudget(input: GenerationBudgetInput): GenerationBu
   const selectedModel = input.selectedModel ?? pickStandardFast("openai");
 
   if (input.mode === "discuss") {
+    const estIn = Math.min(4000, input.prompt.length * 2 + 800);
     const creditQuote = quoteDiscussCost({
       selectedModel,
-      estimatedProviderCostUsd: 0.003,
+      inputTokens: estIn,
+      outputTokens: 800,
     });
     return {
       maxSteps: 2,
@@ -72,6 +76,11 @@ export function planGenerationBudget(input: GenerationBudgetInput): GenerationBu
   }
 
   const complexity = estimateComplexity(input.prompt, files);
+  const intakePreview = buildIntakeFromPrompt(input.prompt);
+  const effectivePromptLength = effectivePromptLengthForCredits(
+    input.prompt.length,
+    intakePreview.wasHuge,
+  );
   const quality = input.qualityLevel ?? "balanced";
 
   const maxSteps =
@@ -111,7 +120,8 @@ export function planGenerationBudget(input: GenerationBudgetInput): GenerationBu
     mode: input.mode === "full_build" ? "full_build" : input.mode,
     complexity,
     selectedModel: resolvedModel,
-    promptLength: input.prompt.length,
+    promptLength: effectivePromptLength,
+    promptWasCompressed: intakePreview.wasHuge,
     expectedFiles: files || (input.mode === "build" ? 12 : 2),
     userPlan: input.userPlan,
     estimatedProviderCostUsd: providerBudgetUsd * 0.85,

@@ -1,47 +1,94 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { loadProfileBillingRow } from "@/lib/supabase/load-profile-billing";
-import { loadCreditSummary } from "@/lib/credits/credit-summary";
+import { createSupabaseAdmin } from "@/lib/supabase/admin";
+import { normalizePlanId } from "@/lib/billing/plans";
+import { monthlyActionCreditsForPlan } from "@/lib/action-credits/action-credit-allowances";
+import { loadCanonicalCredits, serializeCanonicalCredits } from "@/lib/credits/canonical-credits";
 import { getChargeTokensProbeCached } from "@/lib/db/charge-probe-cache";
 
 export async function GET() {
+  const t0 = performance.now();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const tAuth = performance.now();
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { row: profile, hint } = await loadProfileBillingRow(supabase, user);
-  if (!profile) {
+  const admin = createSupabaseAdmin();
+
+  const [{ data: profile }, { data: actionRow }] = await Promise.all([
+    admin
+      .from("profiles")
+      .select("plan_id, credits_remaining, credits_reset_at, email")
+      .eq("id", user.id)
+      .maybeSingle(),
+    admin
+      .from("action_credit_balances" as never)
+      .select("balance")
+      .eq("owner_user_id" as never, user.id)
+      .is("project_id" as never, null)
+      .maybeSingle(),
+  ]);
+
+  const tDb = performance.now();
+
+  if (!profile || typeof profile.credits_remaining !== "number") {
     return NextResponse.json(
       {
         error: "Profile not available",
-        hint:
-          hint ??
-          "Apply Supabase migrations for public.profiles and ensure SUPABASE_SERVICE_ROLE_KEY is set.",
+        hint: "Ensure public.profiles exists and SUPABASE_SERVICE_ROLE_KEY is set.",
       },
       { status: 503 },
     );
   }
 
-  const summary = await loadCreditSummary(supabase, user.id, profile);
-  const chargeProbe = await getChargeTokensProbeCached();
+  const planId = normalizePlanId(profile.plan_id ?? "free");
+  const actionPlanAllowance = monthlyActionCreditsForPlan(planId);
+  const actionBalance = (actionRow as { balance: number } | null)?.balance;
+  const actionAvailable = typeof actionBalance === "number" ? actionBalance : actionPlanAllowance;
 
-  return NextResponse.json({
-    remaining: summary.available,
-    balance: summary.available,
-    available: summary.available,
-    quota: summary.planAllowance,
-    plan_allowance: summary.planAllowance,
-    used_this_period: summary.usedThisPeriod,
-    reserved: summary.reserved,
-    reset_at: summary.resetAt,
-    plan_id: summary.planId,
-    total_used: summary.usedThisPeriod,
-    charging_enabled: chargeProbe.ok,
-    charging_error: chargeProbe.ok ? null : chargeProbe.lastError,
+  const canonical = await loadCanonicalCredits({
+    userId: user.id,
+    planId: profile.plan_id,
+    email: profile.email,
+    creditsResetAt: profile.credits_reset_at,
+    buildAvailable: profile.credits_remaining,
+    actionAvailable,
+    skipLedger: true,
   });
+
+  const tCanonical = performance.now();
+  const chargeProbe = await getChargeTokensProbeCached();
+  const tDone = performance.now();
+
+  return NextResponse.json(
+    {
+      ...serializeCanonicalCredits(canonical),
+      charging_enabled: chargeProbe.ok,
+      charging_error: chargeProbe.ok ? null : chargeProbe.lastError,
+      ...(process.env.NODE_ENV === "development"
+        ? {
+            _debug: {
+              timings_ms: {
+                auth: Math.round(tAuth - t0),
+                db_parallel: Math.round(tDb - tAuth),
+                canonical_compute: Math.round(tCanonical - tDb),
+                charge_probe: Math.round(tDone - tCanonical),
+                total: Math.round(tDone - t0),
+              },
+            },
+          }
+        : {}),
+    },
+    {
+      headers: {
+        "Cache-Control": "private, no-store",
+        "X-Credits-Timing-Ms": String(Math.round(tDone - t0)),
+      },
+    },
+  );
 }

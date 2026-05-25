@@ -1,15 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { monthlyTokensForPlan, normalizePlanId } from "@/lib/billing/plans";
+import { loadCanonicalCredits } from "@/lib/credits/canonical-credits";
 import type { ProfileBillingRow } from "@/lib/supabase/load-profile-billing";
 
-export type CreditSummary = {
-  /** Spendable balance — same field as profiles.credits_remaining. */
+export type CreditSummary = Awaited<ReturnType<typeof loadCanonicalCredits>>["build"] & {
   available: number;
-  /** Monthly plan allowance (informational). */
   planAllowance: number;
-  usedThisPeriod: number;
-  reserved: number;
-  resetAt: string | null;
   planId: string;
 };
 
@@ -23,45 +18,31 @@ export function formatCreditAmount(value: number): string {
   return rounded.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 }
 
+/** @deprecated Use loadCanonicalCredits directly. */
 export async function loadCreditSummary(
-  supabase: SupabaseClient,
+  _supabase: SupabaseClient,
   userId: string,
   profile: ProfileBillingRow,
-): Promise<CreditSummary> {
-  const planId = normalizePlanId(profile.plan_id ?? "free");
-  const planAllowance = profile.credits_limit ?? monthlyTokensForPlan(planId);
-  const available = Math.max(0, profile.credits_remaining ?? 0);
-
-  const periodStart = profile.credits_reset_at
-    ? new Date(profile.credits_reset_at)
-    : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-
-  const [{ data: usage }, { data: reservations }] = await Promise.all([
-    supabase
-      .from("credit_events")
-      .select("credits_consumed")
-      .eq("user_id", userId)
-      .eq("event_type", "generation")
-      .gte("created_at", periodStart.toISOString()),
-    supabase
-      .from("credit_reservations")
-      .select("reserved_user_credits")
-      .eq("user_id", userId)
-      .eq("status", "reserved"),
-  ]);
-
-  const usedThisPeriod =
-    usage?.reduce((sum, row) => sum + (row.credits_consumed ?? 0), 0) ?? 0;
-
-  const reserved =
-    reservations?.reduce((sum, row) => sum + (row.reserved_user_credits ?? 0), 0) ?? 0;
+): Promise<CreditSummary & { bonusCredits: number; purchasedCredits: number; usedThisPeriod: number; reserved: number; resetAt: string | null; isTestOrGrantAccount: boolean; staleSeedCorrected: boolean }> {
+  const canonical = await loadCanonicalCredits({
+    userId,
+    planId: profile.plan_id,
+    email: profile.email,
+    creditsResetAt: profile.credits_reset_at,
+    buildAvailable: profile.credits_remaining,
+  });
 
   return {
-    available,
-    planAllowance,
-    usedThisPeriod,
-    reserved,
-    resetAt: profile.credits_reset_at,
-    planId,
+    ...canonical.build,
+    available: canonical.build.available,
+    planAllowance: canonical.build.planAllowance,
+    planId: canonical.planId,
+    bonusCredits: canonical.build.bonusActive,
+    purchasedCredits: 0,
+    usedThisPeriod: canonical.build.usedThisPeriod,
+    reserved: canonical.build.reserved,
+    resetAt: canonical.build.resetDate,
+    isTestOrGrantAccount: canonical.build.bonusActive > 0,
+    staleSeedCorrected: false,
   };
 }

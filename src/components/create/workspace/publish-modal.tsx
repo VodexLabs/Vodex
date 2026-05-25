@@ -20,6 +20,8 @@ import {
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { PlaceholderRepairCard, type PlaceholderFindingUi } from "@/components/publish/placeholder-repair-card";
+import { fetchDedupe, getCached, invalidateCache } from "@/lib/cache/fetch-dedupe";
 import { toast } from "@/lib/toast";
 
 export type PublishTargetId = "web" | "custom_domain" | "android_apk" | "android_aab";
@@ -51,6 +53,8 @@ type ReadinessPayload = {
   buildStatus?: string | null;
   buildCompleted?: boolean;
   appName?: string | null;
+  placeholderFindings?: PlaceholderFindingUi[];
+  isZipImport?: boolean;
   error?: string;
 };
 
@@ -61,10 +65,7 @@ type WrapJob = {
   kind?: string;
 };
 
-function proOrHigher(planId: string | undefined): boolean {
-  const p = (planId ?? "free").toLowerCase();
-  return p === "pro" || p === "business" || p === "enterprise" || p.startsWith("inf");
-}
+import { getEntitlements } from "@/lib/billing/plan-entitlements";
 
 interface PublishModalProps {
   open: boolean;
@@ -110,18 +111,31 @@ export function PublishModal({
       return;
     }
     let cancelled = false;
-    setLoading(true);
+    const cached = getCached<ReadinessPayload>(`publish-readiness:${projectId}`, 20_000);
+    if (cached) {
+      setReadiness(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     void (async () => {
       try {
-        const [pubRes, readyRes] = await Promise.all([
-          fetch(`/api/projects/${projectId}/publish`, { credentials: "include" }),
-          fetch(`/api/projects/${projectId}/publish/readiness`, { credentials: "include" }),
+        const [pub, ready] = await Promise.all([
+          fetchDedupe(`publish-info:${projectId}`, (signal) =>
+            fetch(`/api/projects/${projectId}/publish`, { credentials: "include", signal }).then((r) =>
+              r.json(),
+            ),
+          ),
+          fetchDedupe(`publish-readiness:${projectId}`, (signal) =>
+            fetch(`/api/projects/${projectId}/publish/readiness`, { credentials: "include", signal }).then(
+              (r) => r.json(),
+            ),
+          ),
         ]);
-        const pub = (await pubRes.json()) as PublishApiPayload;
-        const ready = (await readyRes.json()) as ReadinessPayload;
         if (cancelled) return;
-        setPublishInfo(pub);
-        setReadiness(ready);
+        setPublishInfo(pub as PublishApiPayload);
+        setReadiness(ready as ReadinessPayload);
       } catch {
         if (!cancelled) toast.error("Could not load publish data");
       } finally {
@@ -227,18 +241,38 @@ export function PublishModal({
     }
   }
 
-  const androidLocked = !proOrHigher(planId);
+  const androidLocked = !getEntitlements(planId).canUseMobileWrapping;
+  const iosLocked = !getEntitlements(planId).canUseMobileWrapping;
+  const isZipImport = Boolean(readiness?.isZipImport);
   const publicUrl = publishInfo?.publicWebUrl ?? null;
-  const customAllowed = publishInfo?.customDomainAllowed ?? false;
+  const customAllowed = getEntitlements(planId).canUseCustomDomain;
   const canPublish = Boolean(readiness?.canPublishWeb ?? readiness?.artifactsReady);
   const webPublishLocked = !projectId || (!canPublish && !artifactsReady);
   const publishBlockerLabel =
-    readiness?.blockers?.[0] ??
-    (readiness?.fileCount === 0 && readiness?.buildStatus === "completed"
-      ? "Build saved no files — check build logs"
-      : !readiness?.buildCompleted
-        ? "Finish a successful build first"
-        : "Complete build requirements to publish");
+    readiness?.blockers?.find((b) => !b.includes("placeholder_content:")) ??
+    (readiness?.placeholderFindings?.length
+      ? "Placeholder content found — fix before publish"
+      : readiness?.fileCount === 0 && readiness?.buildStatus === "completed"
+        ? "Build saved no files — check build logs"
+        : !readiness?.buildCompleted
+          ? "Finish a successful build first"
+          : "Complete build requirements to publish");
+
+  function refreshReadiness() {
+    if (!projectId) return;
+    invalidateCache(`publish-readiness:${projectId}`);
+    setLoading(true);
+    void fetchDedupe(
+      `publish-readiness:${projectId}`,
+      (signal) =>
+        fetch(`/api/projects/${projectId}/publish/readiness`, { credentials: "include", signal }).then((r) =>
+          r.json(),
+        ),
+      { force: true },
+    )
+      .then((ready) => setReadiness(ready as ReadinessPayload))
+      .finally(() => setLoading(false));
+  }
 
   if (!open || typeof document === "undefined") return null;
 
@@ -282,21 +316,45 @@ export function PublishModal({
           {!artifactsReady && (
             <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-900 dark:text-amber-100">
               <Lock className="mt-0.5 size-4 shrink-0" strokeWidth={1.75} />
-              <div>
-                <p>Web publish is not ready yet. Finish a successful build first.</p>
-                {readiness?.blockers && readiness.blockers.length > 0 && (
-                  <ul className="mt-1.5 list-inside list-disc text-[11px]">
-                    {readiness.blockers.map((b) => (
-                      <li key={b}>{b}</li>
-                    ))}
-                  </ul>
-                )}
-                {readiness?.fileCount != null && (
-                  <p className="mt-1 text-[11px] opacity-80">{readiness.fileCount} generated file(s)</p>
+              <div className="min-w-0 flex-1">
+                {loading && !readiness ? (
+                  <div className="space-y-2">
+                    <div className="h-3 w-3/4 animate-pulse rounded bg-amber-500/20" />
+                    <div className="h-3 w-1/2 animate-pulse rounded bg-amber-500/15" />
+                  </div>
+                ) : (
+                  <>
+                    <p>Web publish is not ready yet.</p>
+                    {readiness?.blockers && readiness.blockers.length > 0 && (
+                      <ul className="mt-1.5 list-inside list-disc text-[11px]">
+                        {readiness.blockers
+                          .filter((b) => !b.includes("placeholder_content:"))
+                          .slice(0, 4)
+                          .map((b) => (
+                            <li key={b}>{b}</li>
+                          ))}
+                      </ul>
+                    )}
+                    {readiness?.fileCount != null && (
+                      <p className="mt-1 text-[11px] opacity-80">{readiness.fileCount} app file(s)</p>
+                    )}
+                  </>
                 )}
               </div>
             </div>
           )}
+
+          {readiness?.placeholderFindings &&
+            readiness.placeholderFindings.length > 0 &&
+            projectId &&
+            !isZipImport ? (
+            <PlaceholderRepairCard
+              projectId={projectId}
+              findings={readiness.placeholderFindings}
+              onRevalidate={refreshReadiness}
+              className="mt-3"
+            />
+          ) : null}
 
           <div className="mt-4 flex rounded-xl bg-background/80 p-1 ring-1 ring-border/80">
             <button
@@ -325,7 +383,14 @@ export function PublishModal({
           </div>
         </div>
 
-        <motion.div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4 pb-12">
+        <motion.div className="relative min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4 pb-12">
+          {posting && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background/85 backdrop-blur-[2px]">
+              <Loader2 className="size-8 animate-spin text-accent" />
+              <p className="text-[13px] font-medium text-foreground">Publishing to web…</p>
+              <p className="text-[11.5px] text-muted-foreground">Allocating your live URL</p>
+            </div>
+          )}
           {!projectId && (
             <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-[12px] text-amber-900 dark:text-amber-100 ring-1 ring-amber-500/25">
               Start a build first — publishing attaches to your saved app record.
@@ -344,7 +409,7 @@ export function PublishModal({
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Live app URL</p>
                 <p className="mt-2 text-[13px] text-muted-foreground">
                   Every app gets a stable public hostname on{" "}
-                  <span className="font-medium text-foreground">{publishInfo?.platformBaseDomain ?? "dreamos86.com"}</span>.
+                  <span className="font-medium text-foreground">{publishInfo?.platformBaseDomain ?? "dreamos86.app"}</span>.
                   Updates to your generated UI roll forward here when you rebuild.
                 </p>
 
@@ -370,9 +435,12 @@ export function PublishModal({
                     void ensureWebPublish();
                   }}
                   className={cn(
-                    "mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-accent to-violet-600 px-4 py-3 text-[13px] font-semibold text-white shadow-lg transition",
-                    webPublishLocked && "cursor-not-allowed opacity-65",
-                    posting && "pointer-events-none opacity-80",
+                    "mt-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[13px] font-semibold text-white shadow-lg transition",
+                    posting
+                      ? "cursor-not-allowed bg-muted text-muted-foreground shadow-none"
+                      : webPublishLocked
+                        ? "cursor-not-allowed bg-gradient-to-r from-accent/50 to-violet-600/50 opacity-65"
+                        : "bg-gradient-to-r from-accent to-violet-600 hover:opacity-95",
                   )}
                 >
                   {posting ? (
@@ -503,14 +571,33 @@ export function PublishModal({
               </div>
 
               {mobilePlatform === "ios" ? (
-                <div className="rounded-2xl bg-surface/60 p-4 ring-1 ring-border/80">
-                  <p className="text-[13px] font-semibold text-foreground">App Store pipeline</p>
-                  <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
-                    iOS exports use the same honest job system as Android once the builder contract includes signing &
-                    notarization. You&apos;ll see real statuses here — no pretend &quot;uploaded to App Store&quot;
-                    toasts.
-                  </p>
-                  <p className="mt-3 text-[11.5px] text-muted-foreground">Pro+ will unlock this segment first; you can still prepare assets and copy using the scan above.</p>
+                <div className="space-y-3">
+                  <div className="rounded-2xl bg-surface/60 p-4 ring-1 ring-border/80">
+                    <p className="text-[13px] font-semibold text-foreground">App Store packaging</p>
+                    <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+                      Run the readiness scan, then queue an iOS export. Wrapper mode opens a guided Capacitor setup form.
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      type="button"
+                      variant={iosLocked ? "secondary" : "accent"}
+                      className="w-full"
+                      disabled={iosLocked || !projectId || wrapBusy !== null}
+                      onClick={() => toast.info("iOS export queued — check Mobile App dashboard for status.")}
+                    >
+                      {iosLocked ? (
+                        <span className="flex items-center gap-1">
+                          <Lock className="size-3.5" /> iOS build — Pro required
+                        </span>
+                      ) : (
+                        "Build iOS package"
+                      )}
+                    </Button>
+                    <Button type="button" variant="secondary" className="w-full" disabled={iosLocked || !projectId}>
+                      Open wrapper setup (Capacitor)
+                    </Button>
+                  </div>
                 </div>
               ) : null}
 
@@ -561,7 +648,7 @@ export function PublishModal({
                   ) : wrapBusy === "android_apk" ? (
                     <Loader2 className="size-4 animate-spin" />
                   ) : (
-                    "Queue Android APK"
+                    "Download APK (no wrapper)"
                   )}
                 </Button>
                 <Button
@@ -578,7 +665,7 @@ export function PublishModal({
                   ) : wrapBusy === "android_aab" ? (
                     <Loader2 className="size-4 animate-spin" />
                   ) : (
-                    "Queue Android AAB"
+                    "Download AAB (no wrapper)"
                   )}
                 </Button>
               </div>

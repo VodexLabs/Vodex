@@ -634,6 +634,7 @@ export interface Database {
           result_summary: string | null;
           error_message: string | null;
           meta: Json;
+          started_at: string | null;
           completed_at: string | null;
           credits_charged: number | null;
         };
@@ -642,6 +643,28 @@ export interface Database {
           "id" | "created_at" | "updated_at" | "meta"
         > & { meta?: Json };
         Update: Partial<Database["public"]["Tables"]["build_jobs"]["Row"]>;
+        Relationships: [];
+      };
+
+      build_job_events: {
+        Row: {
+          id: string;
+          created_at: string;
+          job_id: string;
+          project_id: string;
+          user_id: string;
+          type: string;
+          title: string;
+          detail: string | null;
+          file_path: string | null;
+          progress_percent: number | null;
+          metadata: Json;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["build_job_events"]["Row"],
+          "id" | "created_at" | "metadata"
+        > & { metadata?: Json };
+        Update: Partial<Database["public"]["Tables"]["build_job_events"]["Row"]>;
         Relationships: [];
       };
 
@@ -905,6 +928,46 @@ export interface Database {
           importance?: number;
         };
         Update: Partial<Database["public"]["Tables"]["project_memory"]["Row"]>;
+        Relationships: [];
+      };
+
+      project_build_backlog: {
+        Row: {
+          id: string;
+          project_id: string;
+          user_id: string;
+          title: string;
+          description: string;
+          category:
+            | "ui"
+            | "backend"
+            | "auth"
+            | "database"
+            | "integration"
+            | "analytics"
+            | "polish"
+            | "mobile"
+            | "payments"
+            | "deployment";
+          priority: "now" | "next" | "later";
+          estimated_complexity: number;
+          estimated_credits: number;
+          status: "queued" | "in_progress" | "completed" | "skipped";
+          source_prompt_excerpt: string | null;
+          created_at: string;
+          completed_at: string | null;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["project_build_backlog"]["Row"],
+          "id" | "created_at" | "completed_at" | "description" | "status"
+        > & {
+          id?: string;
+          created_at?: string;
+          completed_at?: string | null;
+          description?: string;
+          status?: "queued" | "in_progress" | "completed" | "skipped";
+        };
+        Update: Partial<Database["public"]["Tables"]["project_build_backlog"]["Row"]>;
         Relationships: [];
       };
 

@@ -38,8 +38,8 @@ create table if not exists public.profiles (
   workspace_name text default 'My Workspace',
   plan_id text default 'free',
   plan_interval text default 'monthly',
-  credits_remaining integer default 100,
-  credits_limit integer default 100,
+  credits_remaining integer default 30,
+  credits_limit integer default 30,
   credits_used integer default 0,
   onboarding_completed boolean default false,
   created_at timestamptz not null default now(),
@@ -100,8 +100,8 @@ alter table public.profiles add column if not exists email text default '';
 alter table public.profiles add column if not exists workspace_name text default 'My Workspace';
 alter table public.profiles add column if not exists plan_id text default 'free';
 alter table public.profiles add column if not exists plan_interval text default 'monthly';
-alter table public.profiles add column if not exists credits_remaining integer default 100;
-alter table public.profiles add column if not exists credits_limit integer default 100;
+alter table public.profiles add column if not exists credits_remaining integer default 30;
+alter table public.profiles add column if not exists credits_limit integer default 30;
 alter table public.profiles add column if not exists credits_used integer default 0;
 alter table public.profiles add column if not exists onboarding_completed boolean default false;
 alter table public.profiles add column if not exists created_at timestamptz default now();
@@ -389,7 +389,7 @@ $$;
 
 create or replace function public.charge_tokens(
   p_user_id uuid,
-  p_amount integer,
+  p_amount numeric,
   p_reason text default null,
   p_idempotency_key text default null,
   p_metadata jsonb default '{}'::jsonb,
@@ -402,17 +402,15 @@ security definer
 set search_path = public
 as $$
 declare
-  v_remaining integer;
+  v_remaining numeric;
   v_op text;
-  v_balance_after integer;
-  v_provider text;
+  v_balance_after numeric;
+  v_provider_usd numeric;
+  v_model text;
 begin
-  if p_user_id is null then
-    return jsonb_build_object('ok', false, 'success', false, 'error', 'user_id_required');
-  end if;
-
   v_op := nullif(trim(coalesce(p_idempotency_key, '')), '');
-  v_provider := nullif(trim(coalesce(p_metadata->>'provider', '')), '');
+  v_provider_usd := coalesce((p_metadata->>'provider_cost_usd')::numeric, 0);
+  v_model := coalesce(nullif(trim(p_metadata->>'model_id'), ''), 'unknown');
 
   perform public.ensure_user_profile(p_user_id, null);
 
@@ -431,7 +429,7 @@ begin
     );
   end if;
 
-  if p_amount < 1 then
+  if p_amount is null or p_amount <= 0 then
     select credits_remaining into v_remaining from public.profiles where id = p_user_id;
     return jsonb_build_object(
       'ok', false,
@@ -461,17 +459,17 @@ begin
     );
   end if;
 
-  v_balance_after := v_remaining - p_amount;
+  v_balance_after := round(v_remaining - p_amount, 1);
 
   update public.profiles
     set credits_remaining = v_balance_after,
-        credits_used = coalesce(credits_used, 0) + p_amount,
+        credits_used = round(coalesce(credits_used, 0) + p_amount, 1),
         updated_at = now()
     where id = p_user_id;
 
   insert into public.credit_events (
-    user_id, operation_id, amount, balance_after, reason,
-    project_id, conversation_id, model_id, provider, metadata
+    user_id, operation_id, amount, balance_after, reason, project_id, conversation_id, metadata,
+    model_id, credits_consumed, event_type, provider_cost_usd, status
   )
   values (
     p_user_id,
@@ -481,50 +479,31 @@ begin
     coalesce(p_reason, 'AI usage'),
     p_project_id,
     p_conversation_id,
-    coalesce(p_metadata->>'model_id', null),
-    v_provider,
-    coalesce(p_metadata, '{}'::jsonb)
-  );
-
-  insert into public.token_ledger (
-    user_id, amount, reason, source, metadata, idempotency_key
-  )
-  values (
-    p_user_id,
-    p_amount,
-    coalesce(p_reason, 'Token charge'),
-    'ai_usage',
     coalesce(p_metadata, '{}'::jsonb),
-    v_op
+    v_model,
+    p_amount,
+    'generation',
+    v_provider_usd,
+    'finalized'
   );
 
   return jsonb_build_object(
     'ok', true,
     'success', true,
     'charged', true,
-    'operation_id', v_op,
+    'balance_after', v_balance_after,
     'remaining', v_balance_after,
-    'balance_after', v_balance_after
+    'operation_id', v_op,
+    'idempotent', false
   );
-exception
-  when unique_violation then
-    select credits_remaining into v_remaining from public.profiles where id = p_user_id;
-    return jsonb_build_object(
-      'ok', true,
-      'success', true,
-      'charged', false,
-      'balance_after', coalesce(v_remaining, 0),
-      'remaining', coalesce(v_remaining, 0),
-      'idempotent', true
-    );
 end;
 $$;
 
 revoke execute on function public.ensure_user_profile(uuid, text) from public, anon;
 grant execute on function public.ensure_user_profile(uuid, text) to service_role;
 
-revoke execute on function public.charge_tokens(uuid, integer, text, text, jsonb, uuid, uuid) from public, anon;
-grant execute on function public.charge_tokens(uuid, integer, text, text, jsonb, uuid, uuid) to service_role;
+revoke execute on function public.charge_tokens(uuid, numeric, text, text, jsonb, uuid, uuid) from public, anon;
+grant execute on function public.charge_tokens(uuid, numeric, text, text, jsonb, uuid, uuid) to service_role;
 
 create or replace function public.dreamos_reload_pgrst_schema()
 returns jsonb
@@ -793,6 +772,44 @@ grant execute on function public.grant_credits_admin(uuid, uuid, integer, text) 
 
 revoke execute on function public.grant_credits(uuid, uuid, integer, text) from public, anon;
 grant execute on function public.grant_credits(uuid, uuid, integer, text) to authenticated, service_role;
+
+-- app_files import metadata (ZIP import / builder — must match PostgREST cache)
+alter table public.app_files add column if not exists mime_type text default 'text/plain';
+alter table public.app_files add column if not exists size_bytes bigint default 0;
+alter table public.app_files add column if not exists source text default 'generated';
+alter table public.app_files add column if not exists file_type text default 'file';
+alter table public.app_files add column if not exists language text;
+alter table public.app_files add column if not exists metadata jsonb default '{}'::jsonb;
+alter table public.app_files add column if not exists import_id uuid;
+alter table public.app_files add column if not exists storage_path text;
+alter table public.app_files add column if not exists encoding text;
+alter table public.app_files add column if not exists content_hash text;
+alter table public.app_files add column if not exists owner_id uuid references auth.users (id) on delete set null;
+
+update public.app_files
+set mime_type = coalesce(nullif(trim(mime_type), ''), 'text/plain')
+where mime_type is null;
+
+update public.app_files
+set size_bytes = coalesce(octet_length(content), 0)
+where size_bytes is null or size_bytes = 0;
+
+update public.app_files
+set source = coalesce(nullif(trim(source), ''), 'generated')
+where source is null;
+
+alter table public.profiles alter column credits_remaining set default 30;
+alter table public.profiles alter column credits_limit set default 30;
+
+update public.profiles p
+set credits_remaining = 30, credits_limit = 30, monthly_token_limit = coalesce(p.monthly_token_limit, 30), updated_at = now()
+where coalesce(p.plan_id, 'free') = 'free'
+  and p.credits_remaining = 100
+  and coalesce(p.credits_limit, 100) = 100
+  and not exists (
+    select 1 from public.credit_events ce
+    where ce.user_id = p.id and coalesce(ce.event_type, '') in ('grant', 'purchase', 'admin_grant')
+  );
 
 notify pgrst, 'reload schema';
 select pg_notify('pgrst', 'reload schema');

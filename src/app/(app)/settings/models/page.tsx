@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { aiModels, type AIModel } from "@/lib/data";
+import { listUserVisibleCatalogModels } from "@/lib/ai/model-catalog-availability";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Zap, BrainCircuit, Gauge, Eye, Code2, MessageCircle } from "lucide-react";
@@ -160,9 +161,10 @@ function ModelCard({ model }: { model: AIModel }) {
 // ─── Page component ───────────────────────────────────────────────────────────
 
 export default function ModelsSettingsPage() {
+  const visibleModels = listUserVisibleCatalogModels();
   const grouped = providerOrder.map((provider) => ({
     provider,
-    models: aiModels.filter((m) => m.provider === provider),
+    models: visibleModels.filter((m) => m.provider === provider),
   }));
 
   return (
@@ -171,8 +173,8 @@ export default function ModelsSettingsPage() {
       <div className="rounded-[var(--radius-lg)] border border-accent/20 bg-accent/5 px-5 py-4">
         <p className="text-[13px] font-medium text-foreground">Automatic uses cheap models for chat; premium only when needed</p>
         <p className="mt-0.5 text-[12px] text-muted-foreground">
-          Discuss and planning run on GPT-4o mini, Gemini Flash, or Haiku. Builds upgrade to Sonnet,
-          Opus 4.6, or Opus 4.7 only at high complexity. xAI models are coming soon.
+          Discuss and planning run on GPT-5.4 Mini or Gemini Flash. Builds upgrade to stronger models only at
+          high complexity. xAI Grok is coming soon.
         </p>
       </div>
 

@@ -54,7 +54,12 @@ export type RuntimeDiagnosticEvent =
   | "publish_readiness"
   | "queue_add"
   | "queue_drain"
-  | "error_boundary";
+  | "error_boundary"
+  | "handoff_consumed"
+  | "handoff_failed"
+  | "project_reused"
+  | "project_created"
+  | "project_create_deferred_plan_first";
 
 export type RuntimeDiagnosticEntry = {
   event: RuntimeDiagnosticEvent;

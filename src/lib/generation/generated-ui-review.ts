@@ -4,6 +4,7 @@ import {
   UI_QUALITY_THRESHOLDS,
   type UiQualityDimension,
 } from "@/lib/generation/ui-quality-spec";
+import { BASIC_UI_FAILURE_PATTERNS } from "@/lib/build/ui-quality-contract";
 import { scoreAppTypeCompliance } from "@/lib/generation/app-type-ui-requirements";
 import { scoreStylePresetApplication } from "@/lib/generation/design-token-presets";
 
@@ -56,6 +57,15 @@ export function reviewGeneratedUi(input: {
       issues.push(`banned:${banned.source}`);
       placeholderLike = true;
     }
+  }
+
+  const welcomeOnlyBasic =
+    /welcome to/i.test(uiContent) &&
+    BASIC_UI_FAILURE_PATTERNS.noNavigation(uiContent) &&
+    !/table|thead|metric|dashboard|sidebar/i.test(uiContent);
+  if (welcomeOnlyBasic) {
+    issues.push("welcome_only_basic_layout");
+    placeholderLike = true;
   }
 
   const onlyHero =

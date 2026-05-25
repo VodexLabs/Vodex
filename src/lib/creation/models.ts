@@ -6,7 +6,7 @@
  * Ratings 1–5 reflect public benchmarks — never inflated.
  */
 
-export type Rating1to5 = 1 | 2 | 3 | 4 | 5;
+export type Rating1to5 = number; /** 1.0–5.0 with one decimal; 5.0 = best (cost: 5.0 = cheapest) */
 
 export type ModelSpecialization =
   | "architecture"
@@ -41,6 +41,8 @@ export interface CreationModel {
   idealFor: string[];
   weaknesses: string[];
   accent: string;
+  /** Shown as "Coming soon" in picker — not yet wired to providers */
+  comingSoon?: boolean;
 }
 
 // ─── Top 8 flagship models ────────────────────────────────────────────────────
@@ -53,7 +55,7 @@ export const CREATION_MODELS: CreationModel[] = [
     provider: "anthropic",
     tagline: "Maximum intelligence — frontier architecture & reasoning",
     flagship: true,
-    ratings: { intelligence: 5, reasoning: 5, frontend: 5, backend: 5, speed: 2, cost: 1, orchestration: 5 },
+    ratings: { intelligence: 5.0, reasoning: 5.0, frontend: 4.9, backend: 5.0, speed: 2.0, cost: 1.1, orchestration: 5.0 },
     multimodal: true,
     contextK: 200,
     credits: 15,
@@ -70,7 +72,7 @@ export const CREATION_MODELS: CreationModel[] = [
     provider: "anthropic",
     tagline: "Deep reasoning + code quality — the proven workhorse",
     flagship: true,
-    ratings: { intelligence: 5, reasoning: 5, frontend: 5, backend: 5, speed: 2, cost: 2, orchestration: 5 },
+    ratings: { intelligence: 4.9, reasoning: 4.9, frontend: 4.8, backend: 4.9, speed: 2.2, cost: 1.5, orchestration: 4.9 },
     multimodal: true,
     contextK: 200,
     credits: 10,
@@ -87,7 +89,7 @@ export const CREATION_MODELS: CreationModel[] = [
     provider: "anthropic",
     tagline: "Best balance of intelligence, speed, and cost",
     flagship: true,
-    ratings: { intelligence: 5, reasoning: 4, frontend: 5, backend: 4, speed: 4, cost: 3, orchestration: 5 },
+    ratings: { intelligence: 4.6, reasoning: 4.4, frontend: 4.7, backend: 4.5, speed: 4.2, cost: 3.2, orchestration: 4.8 },
     multimodal: true,
     contextK: 200,
     credits: 3,
@@ -104,7 +106,7 @@ export const CREATION_MODELS: CreationModel[] = [
     provider: "openai",
     tagline: "OpenAI's most capable — deep reasoning + multimodal",
     flagship: true,
-    ratings: { intelligence: 5, reasoning: 5, frontend: 4, backend: 5, speed: 2, cost: 1, orchestration: 5 },
+    ratings: { intelligence: 4.9, reasoning: 4.9, frontend: 4.3, backend: 4.8, speed: 2.3, cost: 1.2, orchestration: 4.9 },
     multimodal: true,
     contextK: 128,
     credits: 12,
@@ -121,7 +123,7 @@ export const CREATION_MODELS: CreationModel[] = [
     provider: "openai",
     tagline: "Vision-first — design to code, multimodal generation",
     flagship: true,
-    ratings: { intelligence: 5, reasoning: 4, frontend: 5, backend: 4, speed: 3, cost: 2, orchestration: 4 },
+    ratings: { intelligence: 4.7, reasoning: 4.5, frontend: 4.8, backend: 4.4, speed: 3.4, cost: 2.1, orchestration: 4.5 },
     multimodal: true,
     contextK: 128,
     credits: 6,
@@ -138,7 +140,7 @@ export const CREATION_MODELS: CreationModel[] = [
     provider: "google",
     tagline: "1M context — ingests entire codebases at once",
     flagship: true,
-    ratings: { intelligence: 5, reasoning: 5, frontend: 4, backend: 4, speed: 3, cost: 2, orchestration: 4 },
+    ratings: { intelligence: 4.8, reasoning: 4.7, frontend: 4.2, backend: 4.4, speed: 3.1, cost: 2.3, orchestration: 4.3 },
     multimodal: true,
     contextK: 1000,
     credits: 5,
@@ -155,7 +157,7 @@ export const CREATION_MODELS: CreationModel[] = [
     provider: "google",
     tagline: "Fastest multimodal — 1M context at near-zero cost",
     flagship: true,
-    ratings: { intelligence: 3, reasoning: 3, frontend: 3, backend: 3, speed: 5, cost: 5, orchestration: 3 },
+    ratings: { intelligence: 3.6, reasoning: 3.2, frontend: 3.4, backend: 3.3, speed: 4.8, cost: 4.9, orchestration: 3.4 },
     multimodal: true,
     contextK: 1000,
     credits: 1,
@@ -172,7 +174,7 @@ export const CREATION_MODELS: CreationModel[] = [
     provider: "deepseek",
     tagline: "Frontier reasoning at near-zero cost",
     flagship: true,
-    ratings: { intelligence: 4, reasoning: 5, frontend: 4, backend: 5, speed: 3, cost: 5, orchestration: 4 },
+    ratings: { intelligence: 4.3, reasoning: 4.6, frontend: 4.1, backend: 4.7, speed: 3.2, cost: 4.8, orchestration: 4.2 },
     multimodal: false,
     contextK: 64,
     credits: 1,
@@ -191,7 +193,7 @@ export const CREATION_MODELS: CreationModel[] = [
     name: "Claude Haiku 4.5",
     provider: "anthropic",
     tagline: "Fastest Anthropic model — rapid iteration",
-    ratings: { intelligence: 3, reasoning: 3, frontend: 3, backend: 3, speed: 5, cost: 5, orchestration: 3 },
+    ratings: { intelligence: 3.5, reasoning: 3.3, frontend: 3.4, backend: 3.3, speed: 4.9, cost: 4.8, orchestration: 3.2 },
     multimodal: false,
     contextK: 200,
     credits: 1,
@@ -207,7 +209,7 @@ export const CREATION_MODELS: CreationModel[] = [
     name: "GPT-4o",
     provider: "openai",
     tagline: "Strong all-rounder with excellent vision",
-    ratings: { intelligence: 4, reasoning: 4, frontend: 4, backend: 4, speed: 4, cost: 3, orchestration: 4 },
+    ratings: { intelligence: 4.1, reasoning: 4.0, frontend: 4.0, backend: 3.9, speed: 4.1, cost: 3.4, orchestration: 4.0 },
     multimodal: true,
     contextK: 128,
     credits: 4,
@@ -223,7 +225,7 @@ export const CREATION_MODELS: CreationModel[] = [
     name: "GPT-4o mini",
     provider: "openai",
     tagline: "Fastest OpenAI model — high-volume subtasks",
-    ratings: { intelligence: 3, reasoning: 3, frontend: 3, backend: 3, speed: 5, cost: 5, orchestration: 2 },
+    ratings: { intelligence: 3.3, reasoning: 3.0, frontend: 3.1, backend: 3.0, speed: 4.8, cost: 4.9, orchestration: 2.2 },
     multimodal: true,
     contextK: 128,
     credits: 1,
@@ -239,7 +241,7 @@ export const CREATION_MODELS: CreationModel[] = [
     name: "Gemini 1.5 Flash",
     provider: "google",
     tagline: "Ultra fast, very low cost, 1M context",
-    ratings: { intelligence: 3, reasoning: 2, frontend: 2, backend: 3, speed: 5, cost: 5, orchestration: 2 },
+    ratings: { intelligence: 3.2, reasoning: 2.8, frontend: 2.6, backend: 3.0, speed: 4.9, cost: 4.9, orchestration: 2.1 },
     multimodal: false,
     contextK: 1000,
     credits: 1,
@@ -255,7 +257,8 @@ export const CREATION_MODELS: CreationModel[] = [
     name: "DeepSeek R1",
     provider: "deepseek",
     tagline: "Chain-of-thought reasoning at OpenAI o1 quality",
-    ratings: { intelligence: 5, reasoning: 5, frontend: 3, backend: 5, speed: 2, cost: 4, orchestration: 4 },
+    comingSoon: true,
+    ratings: { intelligence: 4.7, reasoning: 4.9, frontend: 3.2, backend: 4.8, speed: 2.1, cost: 4.2, orchestration: 4.1 },
     multimodal: false,
     contextK: 64,
     credits: 3,
@@ -272,7 +275,8 @@ export const CREATION_MODELS: CreationModel[] = [
     name: "Grok 4",
     provider: "xai",
     tagline: "Real-time web access + strong coding & reasoning",
-    ratings: { intelligence: 5, reasoning: 5, frontend: 4, backend: 5, speed: 3, cost: 2, orchestration: 4 },
+    comingSoon: true,
+    ratings: { intelligence: 4.8, reasoning: 4.7, frontend: 4.1, backend: 4.6, speed: 3.2, cost: 2.2, orchestration: 4.2 },
     multimodal: true,
     contextK: 256,
     credits: 8,
@@ -289,7 +293,8 @@ export const CREATION_MODELS: CreationModel[] = [
     name: "Llama 4 Maverick",
     provider: "meta",
     tagline: "Open frontier model — vision + fast long-context",
-    ratings: { intelligence: 4, reasoning: 4, frontend: 4, backend: 4, speed: 4, cost: 5, orchestration: 3 },
+    comingSoon: true,
+    ratings: { intelligence: 4.1, reasoning: 4.0, frontend: 4.0, backend: 3.9, speed: 4.2, cost: 4.7, orchestration: 3.3 },
     multimodal: true,
     contextK: 128,
     credits: 2,
@@ -306,7 +311,8 @@ export const CREATION_MODELS: CreationModel[] = [
     name: "Command R+",
     provider: "cohere",
     tagline: "RAG-optimized reasoning with citation grounding",
-    ratings: { intelligence: 4, reasoning: 4, frontend: 3, backend: 4, speed: 4, cost: 4, orchestration: 4 },
+    comingSoon: true,
+    ratings: { intelligence: 4.0, reasoning: 4.1, frontend: 3.3, backend: 4.0, speed: 4.0, cost: 3.8, orchestration: 4.0 },
     multimodal: false,
     contextK: 128,
     credits: 3,
@@ -323,7 +329,8 @@ export const CREATION_MODELS: CreationModel[] = [
     name: "Mistral Large",
     provider: "mistral",
     tagline: "European frontier model — fast, capable, cost-effective",
-    ratings: { intelligence: 4, reasoning: 4, frontend: 4, backend: 4, speed: 4, cost: 4, orchestration: 3 },
+    comingSoon: true,
+    ratings: { intelligence: 4.0, reasoning: 4.0, frontend: 4.0, backend: 3.9, speed: 4.1, cost: 3.9, orchestration: 3.2 },
     multimodal: false,
     contextK: 128,
     credits: 2,

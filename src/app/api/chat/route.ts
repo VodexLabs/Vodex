@@ -1,9 +1,9 @@
 import { streamText, generateText, convertToModelMessages, type ModelMessage } from "ai";
 import type { UIMessage } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
-import { google } from "@ai-sdk/google";
+import { resolveGoogleLanguageModel } from "@/lib/llm/google-provider";
 import { openai } from "@ai-sdk/openai";
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 import { loadMemory, formatMemoryForPrompt } from "@/lib/creation/memory";
@@ -29,9 +29,15 @@ import { allocatePublishedSubdomain } from "@/lib/publish/subdomain";
 import { googleGenerativeApiKey, hasAnyLlmProviderKey } from "@/lib/llm/env-keys";
 import { isAutomaticModelId } from "@/lib/ai/resolve-automatic-model";
 import { routeModel, mapChatModeToTask, routeOperation } from "@/lib/ai/model-router";
+import { routeMainModelSpec } from "@/lib/ai/model-mix-router";
 import { resolveStageModel } from "@/lib/ai/model-cost-runtime";
 import { completeBuildWithValidation } from "@/lib/build/complete-build-with-validation";
-import { classifyCreateIntent } from "@/lib/intent/create-intent-classifier";
+import { guardDiscussProviderCall } from "@/lib/ai/discuss-profit-guard";
+import {
+  classifyFirstCreatePrompt,
+  classifyCreateIntent,
+  shouldChargeCreateQuestion,
+} from "@/lib/intent/create-intent-classifier";
 import {
   classifyProviderError,
   pickFailoverCatalogModel,
@@ -43,7 +49,19 @@ import {
   recordProviderFailure,
   recordProviderSuccess,
 } from "@/lib/ai/provider-availability";
-import { createStagedBuildStreamResponse } from "@/lib/chat/staged-build-response";
+import { executeStagedBuildJob } from "@/lib/build/execute-staged-build-job";
+import { emitInitialBuildEvents } from "@/lib/build/build-job-events";
+import { buildIntakeFromPrompt } from "@/lib/ai/huge-prompt-intake";
+import { effectivePromptLengthForCredits } from "@/lib/ai/build-credit-classifier";
+import {
+  formatFinishEverythingEstimate,
+  parseContinueIntent,
+} from "@/lib/build/build-continuation-plan";
+import {
+  estimateContinuationCredits,
+  loadBuildBacklog,
+  pickNextBacklogItems,
+} from "@/lib/build/build-backlog";
 import { calculateCreditsForStagedBuild } from "@/lib/credits/credit-pricing";
 import { chargeAiOperation } from "@/lib/credits/charge-ai-operation";
 import { calculateCreditsToCharge } from "@/lib/credits/calculate-charge";
@@ -52,6 +70,7 @@ import { runBuildQualityRepair } from "@/lib/build/quality-repair";
 import { ensureProjectConversation } from "@/lib/projects/project-conversation";
 import { loadProjectContextBlock, refineAppName } from "@/lib/projects/project-context";
 import { parseAppBlueprint, requiresBlueprintApproval } from "@/lib/build/blueprint-schema";
+import { buildDeterministicBlueprint } from "@/lib/build/blueprint-deterministic";
 import { readCreateFlowConfig, buildTierToQualityLevel } from "@/lib/create/create-flow-config";
 import { formatBlueprintForBuild } from "@/lib/build/format-blueprint-prompt";
 import { maybeCreatePendingDiffFromChatEdit } from "@/lib/chat/post-edit-pending-diff";
@@ -66,23 +85,23 @@ import {
 } from "@/lib/ai/build-intent-classifier";
 import { ensureUserProfileServer } from "@/lib/auth/ensure-user-profile-server";
 import { getChargeTokensProbeCached } from "@/lib/db/charge-probe-cache";
+import { resolveDiscussModel, userSafeAiUnavailableMessage } from "@/lib/ai/provider-fallback";
+import { anyProviderSelectable } from "@/lib/ai/provider-health";
 import { toApiModelId } from "@/lib/ai/model-catalog";
 import { requireId } from "@/lib/diagnostics/require-ids";
 import { dreamosLog } from "@/lib/diagnostics/dreamos-logger";
 import { logServerOperation } from "@/lib/ops/server-ops-log";
 import { requireAuthUser, isNextResponse } from "@/lib/ids/api-mutation-guard";
+import { googleProviderOptionsForApiModel, withGoogleProviderOptions } from "@/lib/ai/gemini-generate-options";
 import { guardExpensiveRoute } from "@/lib/security/route-guard";
 
 const LLM_SETUP_ERROR = "AI provider is not configured on this server.";
 const LLM_SETUP_HINT =
   "Add at least one of OPENAI_API_KEY, ANTHROPIC_API_KEY, or GOOGLE_GENERATIVE_AI_API_KEY to the server environment, then restart.";
 
-/** Cheapest available discuss model based on which provider keys exist. */
+/** Cheapest available discuss model — skips exhausted providers (Anthropic quota → OpenAI). */
 function pickFreeDiscussModelId(): string {
-  if (process.env.OPENAI_API_KEY) return "gpt-4o-mini";
-  if (googleGenerativeApiKey()) return "gemini-2.0-flash";
-  if (process.env.ANTHROPIC_API_KEY) return "claude-haiku-4-5";
-  return "gpt-4o-mini";
+  return resolveDiscussModel(null).modelId;
 }
 
 function resolveModel(modelId: string) {
@@ -91,7 +110,7 @@ function resolveModel(modelId: string) {
     if (!googleGenerativeApiKey()) {
       throw new Error("GOOGLE_GENERATIVE_AI_API_KEY is not configured on the server");
     }
-    return google(resolved);
+    return resolveGoogleLanguageModel(resolved);
   }
   if (resolved.startsWith("claude")) {
     if (!process.env.ANTHROPIC_API_KEY) {
@@ -106,7 +125,7 @@ function resolveModel(modelId: string) {
     return openai(resolved);
   }
   if (process.env.OPENAI_API_KEY) return openai("gpt-4o-mini");
-  if (googleGenerativeApiKey()) return google("gemini-2.0-flash");
+  if (googleGenerativeApiKey()) return resolveGoogleLanguageModel("gemini-2.0-flash");
   if (process.env.ANTHROPIC_API_KEY) return anthropic("claude-haiku-4-5");
   throw new Error("No LLM API key configured (OpenAI, Google, or Anthropic)");
 }
@@ -231,6 +250,8 @@ export async function POST(request: Request) {
     qualityLevel?: string;
     templateId?: string;
     stylePresetId?: string;
+    createQuestion?: boolean;
+    planFirstOnly?: boolean;
   };
 
   try {
@@ -351,12 +372,64 @@ export async function POST(request: Request) {
 
   const profileRow = billingRow;
 
+  if (!hasAnyLlmProviderKey()) {
+    return NextResponse.json(
+      {
+        error: LLM_SETUP_ERROR,
+        hint: LLM_SETUP_HINT,
+      },
+      { status: 503 },
+    );
+  }
+
+  if (!anyProviderSelectable()) {
+    return NextResponse.json(
+      {
+        error: userSafeAiUnavailableMessage(),
+        code: "provider_unavailable",
+      },
+      { status: 503 },
+    );
+  }
+
   const userTextEarly = lastUserText(uiMessages);
+  const createQuestionRequest = raw.createQuestion === true;
+  const planFirstOnly = raw.planFirstOnly === true;
   const buildIntent =
     mode === "build" && userTextEarly ? classifyBuildIntent(userTextEarly) : null;
-  const startBuildPipeline = shouldStartBuildPipeline(mode, buildIntent);
-  const chargeMode: "discuss" | "edit" | "build" =
+  let startBuildPipeline = shouldStartBuildPipeline(mode, buildIntent);
+  if (planFirstOnly) {
+    startBuildPipeline = false;
+  }
+  const firstCreateIntent =
+    userTextEarly && (createQuestionRequest || mode === "build")
+      ? classifyFirstCreatePrompt(userTextEarly)
+      : null;
+
+  let chargeMode: "discuss" | "create_question" | "edit" | "build" =
     mode === "build" && !startBuildPipeline ? "discuss" : mode;
+
+  if (createQuestionRequest && firstCreateIntent && shouldChargeCreateQuestion(firstCreateIntent)) {
+    startBuildPipeline = false;
+    chargeMode = "create_question";
+  } else if (
+    firstCreateIntent &&
+    shouldChargeCreateQuestion(firstCreateIntent) &&
+    mode === "build" &&
+    startBuildPipeline &&
+    !createQuestionRequest &&
+    !planFirstOnly
+  ) {
+    return NextResponse.json(
+      {
+        error: "This looks like a question — use Get answer on Create or rephrase as a build request.",
+        code: "question_only",
+        intent: firstCreateIntent.intent,
+        userMessage: firstCreateIntent.userMessage,
+      },
+      { status: 400 },
+    );
+  }
 
   console.info("[build-intent]", {
     intent: buildIntent?.intent ?? "n/a",
@@ -364,25 +437,20 @@ export async function POST(request: Request) {
     reason: buildIntent?.reason,
     startBuildPipeline,
     chargeMode,
+    createQuestion: createQuestionRequest,
+    firstCreateIntent: firstCreateIntent?.intent,
   });
 
   const freePlan = planIsFree(profileRow.plan_id as string | undefined);
   const requestedModel =
     typeof raw.modelId === "string" && raw.modelId.length > 0 ? raw.modelId : undefined;
+  const manualModelSelection = Boolean(requestedModel && !isAutomaticModelId(requestedModel));
   const taskMode = mapChatModeToTask(mode);
   const createIntent =
-    userTextEarly && mode === "build"
+    firstCreateIntent?.intent ??
+    (userTextEarly && mode === "build"
       ? classifyCreateIntent(userTextEarly, Boolean(projectId)).intent
-      : undefined;
-  if (createIntent === "question_only" && mode === "build" && startBuildPipeline) {
-    return NextResponse.json(
-      {
-        error: "This looks like a question — use Discuss mode or rephrase as a build request.",
-        code: "question_only",
-      },
-      { status: 400 },
-    );
-  }
+      : undefined);
   let projectQuality: "quick" | "standard" | "production" | "premium" = "standard";
   if (projectId) {
     const { data: projQ } = await writer
@@ -401,7 +469,7 @@ export async function POST(request: Request) {
   const costRuntime = resolveStageModel({
     stage: mode === "build" ? "ui_generation" : mode === "edit" ? "file_plan" : "intent",
     intent: createIntent,
-    mode: chargeMode,
+    mode: chargeMode === "create_question" ? "discuss" : chargeMode,
     userCreditsBalance: profileRow.credits_remaining ?? 0,
     requestedModelId: requestedModel,
     qualityLevel: projectQuality,
@@ -475,7 +543,11 @@ export async function POST(request: Request) {
   const userText = lastUserText(uiMessages);
   const budgetPlan = planGenerationBudget({
     prompt: userText || userTextEarly || "",
-    mode: startBuildPipeline ? "full_build" : chargeMode,
+    mode: startBuildPipeline
+      ? "full_build"
+      : chargeMode === "create_question"
+        ? "discuss"
+        : chargeMode,
     selectedModel: modelId,
     userPlan: profileRow.plan_id as string | undefined,
     hasExistingProject: Boolean(projectId),
@@ -487,7 +559,7 @@ export async function POST(request: Request) {
           : "balanced",
   });
   const tokensNeeded = budgetPlan.creditQuote.userCreditsReserved;
-  const balance = profileRow.credits_remaining;
+  const balance = profileRow.credits_remaining ?? 0;
 
   if (balance < tokensNeeded) {
     return NextResponse.json(
@@ -496,11 +568,40 @@ export async function POST(request: Request) {
         tokens_remaining: balance,
         tokens_required: tokensNeeded,
         estimated_cost: budgetPlan.creditQuote.userCreditsRequired,
-        hint: "Add credits or use a cheaper build mode.",
+        hint:
+          chargeMode === "discuss"
+            ? "Discuss charges 3× our provider cost based on actual usage."
+            : chargeMode === "create_question"
+              ? "Create questions charge 3× our provider cost based on actual usage."
+              : "Add credits or use a cheaper build mode.",
       },
       { status: 402 },
     );
   }
+
+  if (chargeMode === "discuss" || chargeMode === "create_question") {
+    const estIn = Math.min(4000, userText.length * 2 + 800);
+    const discussGuard = guardDiscussProviderCall({
+      modelId: billedModelId,
+      estimatedInputTokens: estIn,
+      estimatedOutputTokens: 800,
+      mode: "discuss",
+      respectManualSelection: manualModelSelection,
+    });
+    if (!discussGuard.allowed) {
+      return NextResponse.json(
+        {
+          error: discussGuard.userMessage ?? "Discuss request too large for this mode.",
+          code: "discuss_context_too_large",
+        },
+        { status: 400 },
+      );
+    }
+    if (discussGuard.action === "fallback_cheap") {
+      console.info("[discuss-guard]", discussGuard.adminNote, { cheapId: discussGuard.modelId });
+    }
+  }
+
   const userEmail = profileRow.email || user.email || "";
 
   const attachmentsJson: Json = attachmentRows.map((r) => ({
@@ -553,9 +654,27 @@ export async function POST(request: Request) {
   if (startBuildPipeline && projectId && userText) {
     const dupBuild = await hasRecentRunningBuildJob(writer, projectId, userText);
     if (!dupBuild) {
+    const { data: projMetaRow } = await writer
+      .from("projects")
+      .select("metadata")
+      .eq("id", projectId)
+      .eq("owner_id", user.id)
+      .maybeSingle();
+    const prevBuildMeta =
+      projMetaRow?.metadata && typeof projMetaRow.metadata === "object" && !Array.isArray(projMetaRow.metadata)
+        ? (projMetaRow.metadata as Record<string, unknown>)
+        : {};
     await writer
       .from("projects")
-      .update({ build_status: "building" } as never)
+      .update({
+        build_status: "building",
+        metadata: {
+          ...prevBuildMeta,
+          shell_only: false,
+          hide_from_list: false,
+          hide_from_home: false,
+        },
+      } as never)
       .eq("id", projectId)
       .eq("owner_id", user.id);
 
@@ -678,13 +797,56 @@ export async function POST(request: Request) {
     }
 
     if (!blueprintBlock && requiresBlueprintApproval(projectQuality)) {
-      return NextResponse.json(
-        {
-          error: "Approve your blueprint before starting a full build.",
-          code: "blueprint_not_approved",
-        },
-        { status: 400 },
-      );
+      if (planFirstOnly) {
+        return NextResponse.json(
+          {
+            error: "Approve your blueprint before starting a full build.",
+            code: "blueprint_not_approved",
+          },
+          { status: 400 },
+        );
+      }
+      const autoBlueprint = buildDeterministicBlueprint({
+        prompt: userText,
+        templateId: buildCfg.templateId,
+        stylePresetId: buildCfg.stylePresetId,
+        modelId,
+        qualityLevel: projectQuality,
+      });
+      blueprintBlock = formatBlueprintForBuild(autoBlueprint, buildUiCtx);
+      try {
+        await writer
+          .from("projects")
+          .update({
+            metadata: {
+              ...buildMeta,
+              approved_blueprint: autoBlueprint,
+              blueprint_auto_approved: true,
+            } as never,
+          })
+          .eq("id", projectId)
+          .eq("owner_id", user.id);
+      } catch {
+        /* non-fatal — build can proceed with in-memory blueprint */
+      }
+    }
+
+    const intakePreview = buildIntakeFromPrompt(userText);
+    const reservePromptLength = effectivePromptLengthForCredits(
+      userText.length,
+      intakePreview.wasHuge,
+    );
+
+    const continueIntent = parseContinueIntent(userText);
+    if (continueIntent.kind === "finish_everything" && projectId) {
+      const backlog = await loadBuildBacklog(writer, projectId);
+      const total = estimateContinuationCredits(backlog);
+      return NextResponse.json({
+        message: formatFinishEverythingEstimate(total),
+        code: "finish_everything_estimate",
+        estimatedCredits: total,
+        backlogCount: backlog.length,
+      });
     }
 
     const reserve = await reserveCreditsForGeneration(writer, {
@@ -698,7 +860,7 @@ export async function POST(request: Request) {
       selectedModel: modelId,
       complexity: budgetPlan.complexity,
       estimatedProviderCostUsd: budgetPlan.providerBudgetUsd,
-      promptLength: userText.length,
+      promptLength: reservePromptLength,
       expectedFiles: 12,
       userPlan: profileRow.plan_id as string | undefined,
     });
@@ -715,29 +877,77 @@ export async function POST(request: Request) {
       );
     }
 
-    return createStagedBuildStreamResponse({
-      uiMessages,
+    let buildPrompt = userText;
+    if (continueIntent.kind === "continue_all" || continueIntent.kind === "continue_category") {
+      const nextItems = await pickNextBacklogItems(
+        writer,
+        projectId,
+        5,
+        continueIntent.category as import("@/lib/build/build-backlog").BacklogCategory | undefined,
+      );
+      if (nextItems.length) {
+        buildPrompt = `Continue building these queued items:\n${nextItems.map((i) => `- ${i.title} (${i.category})`).join("\n")}\n\nFocus on delivering working code for this pass.`;
+      }
+    }
+
+    if (!buildJobId) {
+      return NextResponse.json(
+        { error: "Could not start build job", code: "build_job_failed" },
+        { status: 503 },
+      );
+    }
+
+    await emitInitialBuildEvents(writer, {
+      jobId: buildJobId,
+      projectId,
+      userId: user.id,
+    });
+
+    const jobInput = {
       writer,
       userId: user.id,
       userEmail,
       operationId: opId,
       projectId,
       buildJobId,
-      userPrompt: userText,
+      userPrompt: buildPrompt,
       memoryBlock,
       conversationId,
       modelId: billedModelId,
-      provider: routed.provider,
-      routeReason: routed.routeReason,
       reservedCredits: reserve.reserved,
       blueprintBlock: blueprintBlock || undefined,
+      userSelectedModelId: requestedModel,
+    };
+
+    after(async () => {
+      await executeStagedBuildJob(jobInput);
     });
+
+    return NextResponse.json(
+      {
+        ok: true,
+        asyncBuild: true,
+        buildJobId,
+        operationId: opId,
+        projectId,
+        conversationId: conversationId ?? null,
+        eventsUrl: `/api/projects/${projectId}/build-jobs/${buildJobId}/events`,
+        message: "Build started — track progress via events.",
+      },
+      {
+        status: 202,
+        headers: {
+          "X-DreamOS-Async-Build": "1",
+          "X-DreamOS-Build-Job-Id": buildJobId,
+        },
+      },
+    );
   }
 
   const streamOp =
     chargeMode === "edit"
       ? "edit_stream"
-      : chargeMode === "discuss"
+      : chargeMode === "discuss" || chargeMode === "create_question"
         ? "discuss_stream"
         : "discuss_stream";
   if (clientOpId) {
@@ -755,15 +965,45 @@ export async function POST(request: Request) {
 
   const buildComplexity = 5;
 
-  let streamSpec = routeOperation({
+  const mixRouted = routeMainModelSpec({
     operationType: streamOp,
-    ownerEmail: userEmail,
-    requestedModelId: requestedModel,
+    userSelectedModelId: requestedModel,
     complexity: buildComplexity,
+    ownerEmail: userEmail,
   });
+  let streamSpec = mixRouted.spec;
+
+  if (chargeMode === "discuss" || chargeMode === "create_question") {
+    const estIn = Math.min(4000, userText.length * 2 + 800);
+    const discussGuard = guardDiscussProviderCall({
+      modelId: streamSpec.modelId,
+      estimatedInputTokens: estIn,
+      estimatedOutputTokens: 800,
+      mode: "discuss",
+      respectManualSelection: manualModelSelection,
+    });
+    if (discussGuard.action === "fallback_cheap" && !manualModelSelection) {
+      streamSpec = routeOperation({
+        operationType: streamOp,
+        ownerEmail: userEmail,
+        requestedModelId: discussGuard.modelId,
+        complexity: buildComplexity,
+      });
+    }
+  }
 
   const primaryProvider = providerFromModelId(streamSpec.modelId);
   if (!isProviderSelectable(primaryProvider)) {
+    if (!isAutomaticModelId(requestedModel)) {
+      return NextResponse.json(
+        {
+          error:
+            "Selected model is temporarily unavailable. Use Automatic or choose another model.",
+          code: "selected_model_unavailable",
+        },
+        { status: 503 },
+      );
+    }
     const altId = pickFailoverCatalogModel(primaryProvider, streamOp);
     if (altId) {
       streamSpec = routeOperation({
@@ -774,6 +1014,9 @@ export async function POST(request: Request) {
       });
     }
   }
+
+  const billedStreamModelId = streamSpec.modelId;
+  const streamProvider = providerFromModelId(billedStreamModelId);
 
   let model;
   try {
@@ -819,6 +1062,9 @@ export async function POST(request: Request) {
       messages: modelMessages,
       system: systemPrompt,
       maxOutputTokens: streamSpec.maxOutputTokens,
+      ...(googleProviderOptionsForApiModel(streamSpec.apiModelId)
+        ? { providerOptions: googleProviderOptionsForApiModel(streamSpec.apiModelId) }
+        : {}),
       onFinish: async (event) => {
         const failed =
           event.finishReason === "error" ||
@@ -828,7 +1074,7 @@ export async function POST(request: Request) {
           await writer.from("ai_usage_logs").insert({
             user_id: user.id,
             user_email: userEmail,
-            model_id: modelId,
+            model_id: billedStreamModelId,
             mode,
             tokens_charged: 0,
             tokens_input: event.usage?.inputTokens ?? null,
@@ -860,7 +1106,7 @@ export async function POST(request: Request) {
             user_id: user.id,
             role: "assistant",
             content: event.text,
-            model_id: modelId,
+            model_id: billedStreamModelId,
             credits_used: 0,
             finish_reason: event.finishReason,
             tokens_input: event.usage?.inputTokens ?? null,
@@ -990,12 +1236,14 @@ export async function POST(request: Request) {
                       operationType: "code_repair_small",
                       ownerEmail: userEmail,
                     });
-                    const { text } = await generateText({
+                    const { text } = await generateText(
+                      withGoogleProviderOptions(repairSpec.apiModelId, {
                         model: resolveModel(repairSpec.apiModelId),
                         maxOutputTokens: repairSpec.maxOutputTokens,
                         system: `${systemPrompt}\n\nRepair pass: fix quality issues only. Return strict JSON file payload.`,
                         prompt: repairPrompt,
-                      });
+                      }),
+                    );
                       return text;
                     },
                   });
@@ -1026,7 +1274,7 @@ export async function POST(request: Request) {
 
         if (shouldCharge && !alreadyCharged) {
           const chargeCalc = calculateCreditsToCharge({
-            modelId: billedModelId,
+            modelId: billedStreamModelId,
             mode: chargeMode,
             inputTokens: event.usage?.inputTokens ?? null,
             outputTokens: event.usage?.outputTokens ?? null,
@@ -1036,8 +1284,9 @@ export async function POST(request: Request) {
 
           console.info("[credits] charge start", {
             operation_id: opId,
-            provider: routed.provider,
-            model: billedModelId,
+            provider: streamProvider,
+            model: billedStreamModelId,
+            userSelectedModel: requestedModel ?? "automatic",
             mode: chargeMode,
             credits: creditsToCharge,
           });
@@ -1046,7 +1295,7 @@ export async function POST(request: Request) {
             userId: user.id,
             userEmail,
             amount: creditsToCharge,
-            modelId: billedModelId,
+            modelId: billedStreamModelId,
             mode: chargeMode,
             operationId: opId,
             conversationId,
@@ -1055,8 +1304,10 @@ export async function POST(request: Request) {
             providerCostUsd: chargeCalc.estimatedProviderCostUsd,
             tokensInput: event.usage?.inputTokens ?? null,
             tokensOutput: event.usage?.outputTokens ?? null,
-            provider: routed.provider,
-            routeReason: buildIntent?.reason ?? routed.routeReason ?? null,
+            provider: streamProvider,
+            routeReason: manualModelSelection
+              ? "user_selected_model"
+              : (buildIntent?.reason ?? routed.routeReason ?? null),
           });
           charged = charge.charged;
           chargeError = charge.error ?? null;
@@ -1113,7 +1364,7 @@ export async function POST(request: Request) {
             await writer.from("ai_usage_logs").insert({
               user_id: user.id,
               user_email: userEmail,
-              model_id: billedModelId,
+              model_id: billedStreamModelId,
               mode: chargeMode,
               tokens_charged: 0,
               credits_charged: 0,
@@ -1137,7 +1388,7 @@ export async function POST(request: Request) {
             await writer.from("ai_usage_logs").insert({
               user_id: user.id,
               user_email: userEmail,
-              model_id: billedModelId,
+              model_id: billedStreamModelId,
               mode: chargeMode,
               tokens_charged: 0,
               status: "skipped",
@@ -1180,8 +1431,11 @@ export async function POST(request: Request) {
     const response = result.toUIMessageStreamResponse();
     if (process.env.NODE_ENV !== "production") {
       response.headers.set("X-DreamOS-Mode", taskMode);
-      response.headers.set("X-DreamOS-Model", billedModelId);
-      response.headers.set("X-DreamOS-Provider", routed.provider);
+      response.headers.set("X-DreamOS-Model", billedStreamModelId);
+      response.headers.set("X-DreamOS-Provider", streamProvider);
+      if (manualModelSelection && requestedModel) {
+        response.headers.set("X-DreamOS-User-Model", requestedModel);
+      }
       response.headers.set("X-DreamOS-Credits-Estimate", String(tokensNeeded));
     }
     return response;

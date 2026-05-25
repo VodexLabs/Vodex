@@ -125,12 +125,13 @@ export async function GET(
   }
   if (hasPreviewErrors) blockers.push("Preview has compile errors — fix before publish");
 
-  const canPublishWeb =
-    readiness.ok &&
-    filesCount > 0 &&
-    buildCompleted &&
-    hasAppName &&
-    !hasPreviewErrors;
+  const canPublishWeb = isImport
+    ? filesCount > 0 && !hasPreviewErrors && Boolean(hasAppName || project.name?.trim())
+    : readiness.ok &&
+      filesCount > 0 &&
+      buildCompleted &&
+      hasAppName &&
+      !hasPreviewErrors;
 
   const { data: published } = await admin
     .from("published_apps" as never)
@@ -184,5 +185,12 @@ export async function GET(
     secretsOk: readiness.secretsOk,
     routeRenderable: readiness.routeRenderable,
     canPublish: canPublishWeb,
+    placeholderFindings: readiness.placeholderFindings.map((f) => ({
+      path: f.path,
+      line: f.line,
+      snippet: f.snippet,
+      label: f.label,
+    })),
+    isZipImport: isImport,
   });
 }

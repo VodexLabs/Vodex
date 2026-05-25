@@ -6,6 +6,23 @@ import {
   type AdminActionPayload,
 } from "@/lib/admin/otp-confirmation";
 import { dreamosLog } from "@/lib/diagnostics/dreamos-logger";
+import { roundCreditOneDecimal } from "@/lib/credits/parse-credit-amount";
+
+const creditAmountSchema = z
+  .number()
+  .min(0.1)
+  .max(1_000_000)
+  .refine((n) => Math.abs(n * 10 - Math.round(n * 10)) < 1e-6, {
+    message: "Max one decimal place",
+  });
+
+const creditBalanceSchema = z
+  .number()
+  .min(0)
+  .max(10_000_000)
+  .refine((n) => Math.abs(n * 10 - Math.round(n * 10)) < 1e-6, {
+    message: "Max one decimal place",
+  });
 
 const bodySchema = z.object({
   targetUserId: z.string().uuid(),
@@ -14,12 +31,15 @@ const bodySchema = z.object({
     "set_balance",
     "reset_monthly",
     "set_plan",
+    "add_action_credits",
+    "set_action_credits",
+    "reset_action_credits_monthly",
     "suspend",
     "unsuspend",
   ]),
   reason: z.string().min(1).max(500).optional(),
-  amount: z.number().int().min(1).max(1_000_000).optional(),
-  balance: z.number().int().min(0).max(10_000_000).optional(),
+  amount: creditAmountSchema.optional(),
+  balance: creditBalanceSchema.optional(),
   planId: z.enum(["free", "starter", "pro", "business", "infinity", "enterprise"]).optional(),
 });
 
@@ -73,7 +93,10 @@ export async function POST(request: Request) {
     ok: true,
     pendingId: result.pendingId,
     expiresAt: result.expiresAt,
-    message: "Confirmation code sent to dreamos86app@gmail.com",
+    message: result.message,
+    deliveryChannel: result.deliveryChannel,
+    deliveredToInbox: result.deliveredToInbox,
     devOtpHint: result.devOtpHint,
+    emailError: result.emailError,
   });
 }

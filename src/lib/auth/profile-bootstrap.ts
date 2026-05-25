@@ -4,6 +4,7 @@ import { createSupabaseAdmin, type SupabaseAdminClient } from "@/lib/supabase/ad
 import { attachReferralByCode } from "@/lib/referrals/server-referral";
 import { isMissingProfileColumnError } from "@/lib/supabase/schema-errors";
 import { ensureUserProfileServer } from "@/lib/auth/ensure-user-profile-server";
+import { ensureWelcomeNotification } from "@/lib/notifications/welcome-notification";
 
 import { monthlyTokensForPlan } from "@/lib/billing/plans";
 
@@ -140,6 +141,8 @@ export async function bootstrapProfileFromOAuth(
     if (insertErr) {
       throw new Error(insertErr.message);
     }
+
+    await ensureWelcomeNotification(admin, user.id, displayName);
 
     if (refCodeFromCookie) {
       await attachReferralByCode(user.id, refCodeFromCookie);

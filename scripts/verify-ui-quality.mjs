@@ -46,8 +46,8 @@ if (review.includes("passesGate") && review.includes("placeholderRisk") && revie
 }
 
 const spec = fs.readFileSync(path.join(root, "src/lib/generation/ui-quality-spec.ts"), "utf8");
-if (spec.includes("minOverall: 82") && spec.includes("buildSuccessRate: 0.9") && spec.includes("averageUiScore: 88")) {
-  ok.push("UI quality thresholds 82+ with live benchmark targets (90%/5%/88)");
+if (spec.includes("minOverall: 85") && spec.includes("buildSuccessRate: 0.9") && spec.includes("averageUiScore: 88")) {
+  ok.push("UI quality thresholds 85+ with live benchmark targets (90%/5%/88)");
 } else {
   errors.push("ui-quality-spec missing updated thresholds or benchmark targets");
 }

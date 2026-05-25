@@ -30,21 +30,25 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { IntegrationIcon } from "@/components/brand/integration-icons";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useCreditsStore } from "@/lib/stores/credits-store";
+import { CreditsTracker } from "@/components/credits/credits-tracker";
 import { resolveDisplayName } from "@/lib/profile-display";
 import { useHydrated } from "@/lib/hooks/use-hydrated";
-import { FREE_MONTHLY_QUOTA, getMonthlyTokenQuotaForPlan } from "@/lib/stores/credits-store";
+import { PlanBadge } from "@/components/billing/plan-badge";
+import { normalizePlanId } from "@/lib/billing/plans";
 import { PublishModal, type PublishUiState } from "@/components/create/workspace/publish-modal";
 import {
   WorkspaceIntegrationsModal,
   type IntegrationPreset,
 } from "@/components/create/workspace/workspace-integrations-modal";
 import { DreamOS86BrandIcon } from "@/components/brand/dreamos86-brand-icon";
+import { resolveWorkspaceDisplayName } from "@/lib/profile/default-workspace-name";
 import { toast } from "@/lib/toast";
 
-export type WorkspaceRightTab = "preview" | "dashboard" | "code";
+export type WorkspaceRightTab = "preview" | "dashboard" | "code" | "mobile";
 
 export type LauncherProject = {
   id: string;
@@ -55,52 +59,6 @@ export type LauncherProject = {
   metadata: unknown;
   status?: string | null;
 };
-
-function CreditRing({
-  used,
-  limit,
-  size = 40,
-  center,
-}: {
-  used: number;
-  limit: number;
-  size?: number;
-  center?: React.ReactNode;
-}) {
-  const pct = Math.min(1, limit > 0 ? used / limit : 0);
-  const r = (size - 6) / 2;
-  const circ = 2 * Math.PI * r;
-  const dash = circ * pct;
-
-  return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={3}
-          className="text-muted/30"
-        />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={3}
-          strokeDasharray={`${dash} ${circ}`}
-          className="text-accent transition-all duration-500"
-        />
-      </svg>
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center [&>*]:pointer-events-auto">
-        {center}
-      </div>
-    </div>
-  );
-}
 
 interface PlatformDropdownProps {
   onClose: () => void;
@@ -167,24 +125,20 @@ function WorkspaceDropdown({
   const router = useRouter();
   const supabase = createClient();
   const { profile, user, reset } = useAuthStore();
-  const remaining = useCreditsStore((s) => s.remaining);
+  const build = useCreditsStore((s) => s.build);
+  const action = useCreditsStore((s) => s.action);
+  const planId = useCreditsStore((s) => s.planId);
+  const loading = useCreditsStore((s) => s.loading);
+  const isConfirmed = useCreditsStore((s) => s.isConfirmed);
+  const syncFromDB = useCreditsStore((s) => s.syncFromDB);
   const hydrated = useHydrated();
   const launcherName = resolveDisplayName(profile, user);
 
-  const plan = profile?.plan_id ?? "free";
-  const planLabel = plan === "free" ? "Free" : plan.charAt(0).toUpperCase() + plan.slice(1);
-  const planQuota = getMonthlyTokenQuotaForPlan(plan);
-  const FREE_QUOTA = planQuota;
-  const used = Math.max(0, FREE_QUOTA - remaining);
+  const effectivePlanId = normalizePlanId(planId || profile?.plan_id || "free");
 
-  const ringCenter = workspaceIconUrl ? (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={workspaceIconUrl} alt="" className="size-6 rounded-lg object-cover ring-1 ring-border" />
-  ) : (
-    <span className="flex size-6 items-center justify-center rounded-lg bg-accent/15 text-[10px] font-bold text-accent ring-1 ring-border">
-      {workspaceInitial}
-    </span>
-  );
+  React.useEffect(() => {
+    void syncFromDB({ reason: "popover-open" });
+  }, [syncFromDB]);
 
   if (!anchorRect) return null;
 
@@ -203,84 +157,57 @@ function WorkspaceDropdown({
         top,
         left: Math.max(8, Math.min(left, typeof window !== "undefined" ? window.innerWidth - 304 : left)),
         zIndex: 10000,
-        width: 296,
-        maxHeight: "min(85vh, 520px)",
+        width: 280,
       }}
-      className="flex flex-col overflow-hidden rounded-2xl bg-background shadow-[0_24px_64px_-12px_rgba(15,23,42,0.35)] ring-1 ring-border"
+      className="overflow-hidden rounded-2xl bg-background shadow-[0_24px_64px_-12px_rgba(15,23,42,0.35)] ring-1 ring-border"
       onClick={(e) => e.stopPropagation()}
     >
-      <motion.div className="border-b border-border/80 px-4 py-2">
+      <div className="border-b border-border/80 px-3 py-1.5">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Dream Space</p>
-        <p className="mt-0.5 truncate text-[13px] font-semibold text-foreground">{workspaceLabel}</p>
-      </motion.div>
-      <div className="border-b border-border px-4 py-3.5">
-        <div className="flex items-center gap-3">
+        <p className="truncate text-[12px] font-semibold text-foreground">{workspaceLabel}</p>
+      </div>
+      <div className="border-b border-border px-3 py-1.5">
+        <div className="flex items-center gap-2">
           {profile?.avatar_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={profile.avatar_url}
               alt={launcherName}
-              className="size-10 shrink-0 rounded-full object-cover ring-1 ring-border"
+              className="size-8 shrink-0 rounded-full object-cover ring-1 ring-border"
             />
           ) : (
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent/50 to-violet-500/50 text-[14px] font-bold text-white">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent to-violet-600 text-[12px] font-bold text-white">
               {launcherName.charAt(0).toUpperCase()}
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-semibold text-foreground">{launcherName}</p>
-            <div className="flex items-center gap-1.5">
-              <span className="inline-flex items-center rounded-full bg-accent/10 px-1.5 py-0.5 text-[10.5px] font-semibold text-accent">
-                {planLabel}
-              </span>
-              <span className="truncate text-[10.5px] text-muted-foreground/80">{profile?.email ?? ""}</span>
+            <div className="flex min-w-0 items-center gap-2">
+              <p className="truncate text-[12px] font-semibold text-foreground">{launcherName}</p>
+              <PlanBadge planId={effectivePlanId} size="xs" className="shrink-0" />
             </div>
+            <p className="truncate text-[9.5px] text-muted-foreground/80">{profile?.email ?? ""}</p>
           </div>
         </div>
       </div>
 
       {hydrated && (
-        <div className="border-b border-border px-4 py-3">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Credits</p>
-            <Link
-              href="/credits"
-              onClick={onClose}
-              className="flex items-center gap-1 text-[10.5px] font-medium text-accent hover:underline underline-offset-2"
-            >
-              <TrendingUp className="size-3" strokeWidth={1.75} />
-              Usage
-            </Link>
-          </div>
-          <div className="flex items-center gap-3">
-            <CreditRing used={used} limit={FREE_QUOTA} size={44} center={ringCenter} />
-            <div className="min-w-0 flex-1">
-              <p className="text-[14px] font-semibold tabular-nums text-foreground">
-                {remaining.toLocaleString()}
-                <span className="ml-1 text-[11px] font-normal text-muted-foreground">
-                  / {FREE_QUOTA.toLocaleString()}
-                </span>
-              </p>
-              <p className="text-[11px] text-muted-foreground">This month</p>
-            </div>
-          </div>
-          <div className="mt-2.5 h-1 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className={cn(
-                "h-full rounded-full transition-all duration-500",
-                remaining / FREE_QUOTA < 0.2 ? "bg-destructive/70" : "bg-accent",
-              )}
-              style={{ width: `${Math.min(100, (remaining / FREE_QUOTA) * 100)}%` }}
-            />
-          </div>
+        <div className="border-b border-border px-3 py-1.5">
+          <CreditsTracker
+            build={build}
+            action={action}
+            planId={effectivePlanId}
+            isConfirmed={isConfirmed}
+            loading={loading && !isConfirmed}
+            variant="popover"
+          />
         </div>
       )}
 
-      <div className="p-1.5">
+      <div className="p-1">
         <Link
           href="/projects"
           onClick={onClose}
-          className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[12.5px] font-medium text-foreground transition hover:bg-surface"
+          className="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium text-foreground transition hover:bg-surface"
         >
           <LayoutGrid className="size-3.5 shrink-0 text-accent" strokeWidth={1.65} />
           Your apps
@@ -288,7 +215,7 @@ function WorkspaceDropdown({
         <Link
           href="/settings"
           onClick={onClose}
-          className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[12.5px] text-muted-foreground transition hover:bg-surface hover:text-foreground"
+          className="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[12px] text-muted-foreground transition hover:bg-surface hover:text-foreground"
         >
           <Settings className="size-3.5 shrink-0" strokeWidth={1.65} />
           Account & settings
@@ -296,7 +223,7 @@ function WorkspaceDropdown({
         <Link
           href="/settings/billing"
           onClick={onClose}
-          className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[12.5px] text-muted-foreground transition hover:bg-surface hover:text-foreground"
+          className="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[12px] text-muted-foreground transition hover:bg-surface hover:text-foreground"
         >
           <CreditCard className="size-3.5 shrink-0" strokeWidth={1.65} />
           Billing
@@ -304,7 +231,7 @@ function WorkspaceDropdown({
         <Link
           href="/referrals"
           onClick={onClose}
-          className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[12.5px] text-muted-foreground transition hover:bg-surface hover:text-foreground"
+          className="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[12px] text-muted-foreground transition hover:bg-surface hover:text-foreground"
         >
           <Gift className="size-3.5 shrink-0" strokeWidth={1.65} />
           Referrals
@@ -312,7 +239,7 @@ function WorkspaceDropdown({
         <Link
           href="/help"
           onClick={onClose}
-          className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[12.5px] text-muted-foreground transition hover:bg-surface hover:text-foreground"
+          className="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[12px] text-muted-foreground transition hover:bg-surface hover:text-foreground"
         >
           <HelpCircle className="size-3.5 shrink-0" strokeWidth={1.65} />
           Help
@@ -325,7 +252,7 @@ function WorkspaceDropdown({
             reset();
             router.push("/auth/login");
           }}
-          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[12.5px] text-muted-foreground transition hover:bg-surface hover:text-foreground"
+          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[12px] text-muted-foreground transition hover:bg-surface hover:text-foreground"
         >
           <LogOut className="size-3.5 shrink-0" strokeWidth={1.65} />
           Log out
@@ -362,6 +289,7 @@ export function WorkspaceLauncher({
   onAppSection: (section: string) => void;
 }) {
   const { profile, user } = useAuthStore();
+  const effectivePlanId = normalizePlanId(planId || profile?.plan_id || "free");
   const [platformMenuOpen, setPlatformMenuOpen] = React.useState(false);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = React.useState(false);
   const [appMenuOpen, setAppMenuOpen] = React.useState(false);
@@ -382,14 +310,8 @@ export function WorkspaceLauncher({
     setAppMenuOpen(false);
   }, []);
 
-  const workspaceName = (() => {
-    const dn = resolveDisplayName(profile, user);
-    if (dn && dn !== "User") return `${dn.split(/\s+/)[0]}'s workspace`;
-    return profile?.email?.split("@")[0] ?? "Workspace";
-  })();
-
+  const workspaceLabel = resolveWorkspaceDisplayName(profile?.workspace_name, profile?.email ?? user?.email);
   const workspaceIconUrl = profile?.workspace_icon_url ?? null;
-  const workspaceLabel = profile?.workspace_name?.trim() || workspaceName;
   const workspaceInitial = workspaceLabel.charAt(0).toUpperCase();
 
   React.useEffect(() => {
@@ -424,6 +346,7 @@ export function WorkspaceLauncher({
 
   const appTitle = project?.name ?? "New build";
   const showAppMenu = Boolean(project?.id);
+  const showAppIcon = Boolean(project?.icon_url?.trim());
   const [publishReady, setPublishReady] = React.useState(false);
 
   React.useEffect(() => {
@@ -449,33 +372,42 @@ export function WorkspaceLauncher({
     };
   }, [project?.id, isBusy, project?.name]);
 
-  const appInitial = (project?.name ?? "A").charAt(0).toUpperCase();
+  const openAppMenu = React.useCallback(() => {
+    setPlatformMenuOpen(false);
+    setWorkspaceMenuOpen(false);
+    if (!appMenuOpen && appRef.current) {
+      setAppRect(appRef.current.getBoundingClientRect());
+    }
+    setAppMenuOpen((v) => !v);
+  }, [appMenuOpen]);
 
-  const appSections: Array<{ id: string; label: string; icon: React.ElementType; tab?: WorkspaceRightTab }> = [
+  const appSections: Array<{
+    id: string;
+    label: string;
+    icon: React.ElementType;
+    tab?: WorkspaceRightTab;
+    section?: string;
+  }> = [
+    { id: "overview", label: "Dashboard", icon: LayoutGrid, tab: "dashboard", section: "overview" },
     { id: "preview", label: "Preview", icon: Monitor, tab: "preview" },
-    { id: "dashboard", label: "Dashboard", icon: LayoutGrid, tab: "dashboard" },
     { id: "code", label: "Code", icon: Code2, tab: "code" },
     { id: "publish", label: "Publish", icon: Rocket },
-    { id: "settings", label: "App settings", icon: Settings },
-    { id: "domains", label: "Domains", icon: Globe },
-    { id: "integrations", label: "Integrations", icon: Plug },
-    { id: "secrets", label: "Secrets", icon: KeyRound },
-    { id: "logs", label: "Logs", icon: ScrollText },
+    { id: "settings", label: "Settings", icon: Settings, tab: "dashboard", section: "settings" },
+    { id: "domains", label: "Domains", icon: Globe, tab: "dashboard", section: "domains" },
+    { id: "integrations", label: "Integrations", icon: Plug, tab: "dashboard", section: "integrations" },
+    { id: "secrets", label: "Secrets", icon: KeyRound, tab: "dashboard", section: "secrets" },
+    { id: "logs", label: "Activity", icon: ScrollText, tab: "dashboard", section: "logs" },
   ];
 
-  function handleAppNav(id: string, tab?: WorkspaceRightTab) {
+  function handleAppNav(id: string, tab?: WorkspaceRightTab, section?: string) {
     setAppMenuOpen(false);
     if (id === "publish") {
       setPublishOpen(true);
       return;
     }
-    if (tab) {
-      onRightTab(tab);
-      onAppSection(id);
-      return;
-    }
-    onRightTab("dashboard");
-    onAppSection(id);
+    if (tab) onRightTab(tab);
+    if (section) onAppSection(section);
+    else if (tab === "dashboard") onAppSection("overview");
   }
 
   const dropdownPlatform = mounted ? (
@@ -523,13 +455,13 @@ export function WorkspaceLauncher({
           </p>
           {appSections.map((row) => {
             const Icon = row.icon;
-            const disabledDash = row.id === "dashboard" && !project?.id;
+            const disabledDash = row.id === "overview" && !project?.id;
             return (
               <button
                 key={row.id}
                 type="button"
                 disabled={disabledDash}
-                onClick={() => !disabledDash && handleAppNav(row.id, row.tab)}
+                onClick={() => !disabledDash && handleAppNav(row.id, row.tab, row.section)}
                 className={cn(
                   "flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12.5px] transition",
                   disabledDash
@@ -549,8 +481,8 @@ export function WorkspaceLauncher({
 
   return (
     <>
-      <div className="flex min-h-[56px] shrink-0 items-center gap-3 border-b border-border/60 bg-gradient-to-r from-accent/[0.06] via-background to-background px-3 py-2 backdrop-blur-xl sm:px-4">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
+      <div className="flex min-h-[52px] shrink-0 items-center gap-2.5 border-b border-border/60 bg-gradient-to-r from-accent/[0.06] via-background to-background px-3 py-1.5 backdrop-blur-xl sm:gap-3 sm:px-4 sm:py-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
                     <button
             ref={logoRef}
             type="button"
@@ -569,37 +501,19 @@ export function WorkspaceLauncher({
             <DreamOS86BrandIcon variant="create" className="opacity-95 transition group-hover:opacity-100" />
           </button>
 
-          {showAppMenu ? (
+          {showAppMenu && showAppIcon && project?.icon_url ? (
             <button
               ref={appRef}
               type="button"
-              onClick={() => {
-                setPlatformMenuOpen(false);
-                setWorkspaceMenuOpen(false);
-                if (!appMenuOpen && appRef.current) {
-                  setAppRect(appRef.current.getBoundingClientRect());
-                }
-                setAppMenuOpen((v) => !v);
-              }}
+              onClick={openAppMenu}
               className={cn(
-                "relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-background shadow-md ring-2 transition",
+                "relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-background shadow-md ring-2 transition",
                 appMenuOpen ? "ring-accent/40" : "ring-accent/15 hover:ring-accent/30",
               )}
               aria-label={`${appTitle} app menu`}
               aria-expanded={appMenuOpen}
             >
-              {project?.icon_url ? (
-                <Image src={project.icon_url} alt="" width={40} height={40} className="size-full object-cover" unoptimized />
-              ) : (
-                <span
-                  className={cn(
-                    "flex size-full items-center justify-center bg-gradient-to-br text-[14px] font-bold text-white",
-                    project?.gradient ?? "from-accent/50 to-violet-500/50",
-                  )}
-                >
-                  {appInitial}
-                </span>
-              )}
+              <Image src={project.icon_url} alt="" width={36} height={36} className="size-full object-cover" unoptimized />
             </button>
           ) : null}
 
@@ -624,11 +538,29 @@ export function WorkspaceLauncher({
                 <ChevronDown className="size-3 shrink-0 opacity-60" strokeWidth={2} />
               </button>
             </div>
-            <p className="truncate text-[15px] font-semibold tracking-tight text-foreground sm:text-[16px]">{appTitle}</p>
+            {showAppMenu ? (
+              <button
+                ref={showAppIcon ? undefined : appRef}
+                type="button"
+                onClick={openAppMenu}
+                className={cn(
+                  "max-w-full truncate text-left text-[15px] font-semibold tracking-tight text-foreground transition sm:text-[16px]",
+                  "rounded-md px-0.5 hover:text-accent",
+                  appMenuOpen && "text-accent",
+                )}
+                aria-label={`${appTitle} app menu`}
+                aria-expanded={appMenuOpen}
+              >
+                {appTitle}
+              </button>
+            ) : (
+              <p className="truncate text-[15px] font-semibold tracking-tight text-foreground sm:text-[16px]">{appTitle}</p>
+            )}
           </div>
         </div>
 
         <motion.div layout={false} className="flex shrink-0 items-center gap-2">
+          <ThemeToggle className="hidden md:inline-flex" />
           <div className="hidden items-center gap-1 md:flex">
             <button
               type="button"
@@ -689,7 +621,7 @@ export function WorkspaceLauncher({
         open={publishOpen}
         onClose={() => setPublishOpen(false)}
         projectId={project?.id ?? null}
-        planId={planId}
+        planId={effectivePlanId}
         initialDraft={publishDraft}
         onSaved={(d) => setPublishDraft(d)}
         artifactsReady={publishReady}

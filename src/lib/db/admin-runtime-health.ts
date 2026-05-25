@@ -16,6 +16,11 @@ import { invalidateChargeTokensProbeCache } from "@/lib/db/charge-probe-cache";
 import { safeFetch } from "@/lib/network/safe-fetch";
 import { pushRuntimeDiagnostic } from "@/lib/dev/runtime-diagnostics";
 import { dreamosLog } from "@/lib/diagnostics/dreamos-logger";
+import {
+  isOptionalAdminTable,
+  isOptionalRpc,
+  ZIP_IMPORT_REST_COLUMNS,
+} from "@/lib/runtime/runtime-schema-contract";
 
 export type TableHealth = { exists: boolean; lastError?: string };
 
@@ -65,6 +70,14 @@ export type AdminRuntimeHealth = {
     dreamos_debug_credit_rpc: RpcHealth;
   };
   missing: AdminRuntimeMissingItem[];
+  criticalBlockers: AdminRuntimeMissingItem[];
+  optionalIssues: AdminRuntimeMissingItem[];
+  appFilesColumns: {
+    mime_type: boolean;
+    size_bytes: boolean;
+    source: boolean;
+    lastError?: string;
+  };
   warnings: string[];
   rawErrors: string[];
   contradictions: string[];
@@ -265,42 +278,58 @@ function buildMissingFromCanonical(
   tables: AdminRuntimeHealth["tables"],
   rpcs: AdminRuntimeHealth["rpcs"],
   helperRpcUnavailable: boolean,
-): AdminRuntimeMissingItem[] {
-  const missing: AdminRuntimeMissingItem[] = [];
+  appFilesColumns: AdminRuntimeHealth["appFilesColumns"],
+): { criticalBlockers: AdminRuntimeMissingItem[]; optionalIssues: AdminRuntimeMissingItem[] } {
+  const criticalBlockers: AdminRuntimeMissingItem[] = [];
+  const optionalIssues: AdminRuntimeMissingItem[] = [];
 
   for (const [name, t] of Object.entries(tables) as [AdminTableKey, TableHealth][]) {
-    if (!t.exists) {
-      missing.push({
-        type: "table",
-        name,
-        reason: "not_visible_via_postgrest",
-        fix: TABLE_FIX,
-      });
-    }
+    if (t.exists) continue;
+    const item: AdminRuntimeMissingItem = {
+      type: "table",
+      name,
+      reason: "not_visible_via_postgrest",
+      fix: TABLE_FIX,
+    };
+    if (isOptionalAdminTable(name)) optionalIssues.push(item);
+    else criticalBlockers.push(item);
+  }
+
+  if (!appFilesColumns.mime_type || !appFilesColumns.size_bytes || !appFilesColumns.source) {
+    criticalBlockers.push({
+      type: "table",
+      name: "app_files.mime_type",
+      reason: "column_missing_from_postgrest_cache",
+      fix: TABLE_FIX,
+    });
   }
 
   for (const [name, r] of Object.entries(rpcs) as [keyof AdminRuntimeHealth["rpcs"], RpcHealth][]) {
     if (r.existsInPostgres && !r.callableByPostgrest) {
-      missing.push({
+      const item: AdminRuntimeMissingItem = {
         type: "rpc",
         name,
         reason: "exists_in_postgres_but_not_callable_by_postgrest",
         fix: RPC_POSTGREST_FIX,
-      });
+      };
+      if (isOptionalRpc(name)) optionalIssues.push(item);
+      else criticalBlockers.push(item);
       continue;
     }
     if (!r.existsInPostgres && !r.callableByPostgrest && !r.executableByServiceRole) {
       if (name === "dreamos_debug_credit_rpc" && helperRpcUnavailable) continue;
-      missing.push({
+      const item: AdminRuntimeMissingItem = {
         type: "rpc",
         name,
         reason: helperRpcUnavailable ? "not_verified_helper_unavailable" : "missing_from_postgres_and_postgrest",
         fix: TABLE_FIX,
-      });
+      };
+      if (isOptionalRpc(name)) optionalIssues.push(item);
+      else criticalBlockers.push(item);
     }
   }
 
-  return missing;
+  return { criticalBlockers, optionalIssues };
 }
 
 function detectContradictions(
@@ -316,6 +345,26 @@ function detectContradictions(
     }
   }
   return out;
+}
+
+async function probeAppFilesColumns(
+  admin: NonNullable<ReturnType<typeof createServiceRoleClient>>,
+): Promise<AdminRuntimeHealth["appFilesColumns"]> {
+  const cols = ZIP_IMPORT_REST_COLUMNS.join(", ");
+  const { error } = await admin.from("app_files" as "profiles").select(cols).limit(0);
+  if (!error) {
+    return { mime_type: true, size_bytes: true, source: true };
+  }
+  const msg = error.message.slice(0, 240);
+  const missingMime = /mime_type/i.test(msg);
+  const missingSize = /size_bytes/i.test(msg);
+  const missingSource = /source/i.test(msg);
+  return {
+    mime_type: !missingMime && !/schema cache|column/i.test(msg),
+    size_bytes: !missingSize && !/schema cache|column/i.test(msg),
+    source: !missingSource && !/schema cache|column/i.test(msg),
+    lastError: msg,
+  };
 }
 
 export async function getAdminRuntimeHealth(opts?: {
@@ -348,6 +397,16 @@ export async function getAdminRuntimeHealth(opts?: {
           fix: "Set SUPABASE_SERVICE_ROLE_KEY in server environment.",
         },
       ],
+      criticalBlockers: [
+        {
+          type: "table",
+          name: "(service)",
+          reason: "service_role_missing",
+          fix: "Set SUPABASE_SERVICE_ROLE_KEY in server environment.",
+        },
+      ],
+      optionalIssues: [],
+      appFilesColumns: { mime_type: false, size_bytes: false, source: false },
       warnings: ["SUPABASE_SERVICE_ROLE_KEY not configured"],
       rawErrors: ["SUPABASE_SERVICE_ROLE_KEY not configured"],
       contradictions: [],
@@ -367,6 +426,8 @@ export async function getAdminRuntimeHealth(opts?: {
     if (!tables[t].exists && tables[t].lastError) rawErrors.push(`${t}: ${tables[t].lastError}`);
   }
   tables.runtime_diagnostics = await probeRuntimeDiagnosticsTable(adminClient);
+  const appFilesColumns = await probeAppFilesColumns(adminClient);
+  if (appFilesColumns.lastError) rawErrors.push(`app_files columns: ${appFilesColumns.lastError}`);
 
   let probeUserId: string | null = null;
   const { data: probeProfile } = await adminClient
@@ -478,7 +539,13 @@ export async function getAdminRuntimeHealth(opts?: {
     }),
   };
 
-  const missing = buildMissingFromCanonical(tables, rpcs, catalog.helperRpcUnavailable);
+  const { criticalBlockers, optionalIssues } = buildMissingFromCanonical(
+    tables,
+    rpcs,
+    catalog.helperRpcUnavailable,
+    appFilesColumns,
+  );
+  const missing = criticalBlockers;
   const contradictions = detectContradictions(tables, missing);
 
   if (contradictions.length > 0) {
@@ -493,11 +560,12 @@ export async function getAdminRuntimeHealth(opts?: {
     });
   }
 
-  const ok = missing.length === 0 && contradictions.length === 0;
+  const ok = criticalBlockers.length === 0 && contradictions.length === 0;
 
   if (!ok) {
     pushRuntimeDiagnostic("schema_check_failed", {
-      missingCount: missing.length,
+      missingCount: criticalBlockers.length,
+      optionalCount: optionalIssues.length,
       chargeCallable: rpcs.charge_tokens.callableByPostgrest,
     });
   }
@@ -511,6 +579,9 @@ export async function getAdminRuntimeHealth(opts?: {
     tables,
     rpcs,
     missing,
+    criticalBlockers,
+    optionalIssues,
+    appFilesColumns,
     warnings,
     rawErrors,
     contradictions,

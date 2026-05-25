@@ -1,112 +1,256 @@
-/**
- * DreamOS86 — Credits Store
- * Single source of truth for credit balance across the entire app.
- * Topbar, credits page, and AI actions all read from here.
- */
 import { create } from "zustand";
+import { monthlyTokensForPlan, normalizePlanId } from "@/lib/billing/plans";
+import type { CanonicalCreditBucket, CanonicalCreditsPayload } from "@/lib/credits/canonical-credits";
+import { dispatchCreditUpdated } from "@/lib/credits/credit-events-client";
+
+export type { CanonicalCreditBucket, CanonicalCreditsPayload };
+
+/** Data older than this is refreshed on explicit triggers (popover open, etc.). */
+export const CREDITS_STALE_MS = 90_000;
+
+/** Optional background refresh — only when tab is visible and data is very stale. */
+export const CREDITS_BACKGROUND_STALE_MS = 120_000;
+
+export type CreditSyncReason =
+  | "bootstrap"
+  | "popover-open"
+  | "charge"
+  | "admin-action"
+  | "plan-change"
+  | "profile-realtime"
+  | "manual"
+  | "invalidated";
+
+export type CreditSyncOptions = {
+  force?: boolean;
+  reason?: CreditSyncReason;
+};
+
+const EMPTY_BUCKET: CanonicalCreditBucket = {
+  available: 0,
+  planAllowance: 0,
+  usedThisPeriod: 0,
+  bonusActive: 0,
+  bonusLabel: null,
+  bonusExpiresAt: null,
+  resetDate: null,
+  reserved: 0,
+  source: "canonical_balance",
+};
 
 interface CreditsState {
-  remaining: number;
-  planAllowance: number;
-  resetAt: string | null;
-  totalUsedThisPeriod: number;
+  build: CanonicalCreditBucket;
+  action: CanonicalCreditBucket;
+  planId: string;
   loading: boolean;
+  error: string | null;
   lastSyncedAt: number | null;
   isConfirmed: boolean;
 
-  setCredits: (remaining: number, resetAt?: string | null, planAllowance?: number) => void;
-  setUsed: (used: number) => void;
+  applyCanonical: (payload: CanonicalCreditsPayload) => void;
+  syncFromDB: (options?: CreditSyncOptions) => Promise<CanonicalCreditsPayload | null>;
   deductOptimistic: (amount: number) => void;
-  setLoading: (loading: boolean) => void;
-  syncFromDB: (userId: string, options?: { force?: boolean }) => Promise<void>;
   reset: () => void;
+
+  /** @deprecated use build.available */
+  remaining: number;
+  /** @deprecated use build.planAllowance */
+  planAllowance: number;
+  /** @deprecated use build.bonusActive */
+  bonusCredits: number;
+  /** @deprecated use action.available */
+  actionCreditsRemaining: number;
+  /** @deprecated use action.planAllowance */
+  actionCreditsPlanAllowance: number;
+  /** @deprecated use action.bonusActive */
+  actionCreditsBonus: number;
+  /** @deprecated use build.resetDate */
+  resetAt: string | null;
+  /** @deprecated use build.usedThisPeriod */
+  totalUsedThisPeriod: number;
 }
 
-import { monthlyTokensForPlan, normalizePlanId } from "@/lib/billing/plans";
+let inFlightRequest: Promise<CanonicalCreditsPayload | null> | null = null;
 
-/** Monthly quota for the free plan — used as default before first DB sync. */
-export const FREE_MONTHLY_QUOTA = 30;
+function roundCredit(value: number): number {
+  return Math.round(value * 10) / 10;
+}
 
-/** Monthly token allowance shown in UI for each plan tier. */
-export function getMonthlyTokenQuotaForPlan(planId: string | undefined): number {
-  return monthlyTokensForPlan(normalizePlanId(planId ?? "free"));
+function withLegacyFields(state: {
+  build: CanonicalCreditBucket;
+  action: CanonicalCreditBucket;
+  planId: string;
+  loading: boolean;
+  error: string | null;
+  lastSyncedAt: number | null;
+  isConfirmed: boolean;
+}) {
+  return {
+    ...state,
+    remaining: state.build.available,
+    planAllowance: state.build.planAllowance,
+    bonusCredits: state.build.bonusActive,
+    actionCreditsRemaining: state.action.available,
+    actionCreditsPlanAllowance: state.action.planAllowance,
+    actionCreditsBonus: state.action.bonusActive,
+    resetAt: state.build.resetDate,
+    totalUsedThisPeriod: state.build.usedThisPeriod,
+  };
+}
+
+function logCreditSync(reason: CreditSyncReason | undefined, detail: string) {
+  if (process.env.NODE_ENV !== "development") return;
+  if (process.env.NEXT_PUBLIC_CREDITS_DEBUG !== "1") return;
+  console.debug(`[credits] ${reason ?? "sync"}: ${detail}`);
 }
 
 export const useCreditsStore = create<CreditsState>()((set, get) => ({
-  remaining: FREE_MONTHLY_QUOTA,
-  planAllowance: FREE_MONTHLY_QUOTA,
-  resetAt: null,
-  totalUsedThisPeriod: 0,
-  loading: false,
-  lastSyncedAt: null,
-  isConfirmed: false,
+  ...withLegacyFields({
+    build: { ...EMPTY_BUCKET, planAllowance: 30 },
+    action: { ...EMPTY_BUCKET, planAllowance: 25 },
+    planId: "free",
+    loading: false,
+    error: null,
+    lastSyncedAt: null,
+    isConfirmed: false,
+  }),
 
-  setCredits: (remaining, resetAt, planAllowance) =>
-    set({
-      remaining,
-      resetAt: resetAt ?? get().resetAt,
-      planAllowance: planAllowance ?? get().planAllowance,
-      lastSyncedAt: Date.now(),
-      isConfirmed: true,
-    }),
-
-  setUsed: (totalUsedThisPeriod) => set({ totalUsedThisPeriod }),
+  applyCanonical: (payload) => {
+    set(
+      withLegacyFields({
+        build: payload.build,
+        action: payload.action,
+        planId: payload.planId,
+        loading: false,
+        error: null,
+        lastSyncedAt: Date.now(),
+        isConfirmed: true,
+      }),
+    );
+  },
 
   deductOptimistic: (amount) =>
-    set((s) => ({
-      remaining: Math.max(0, s.remaining - amount),
-      totalUsedThisPeriod: s.totalUsedThisPeriod + amount,
-    })),
+    set((s) =>
+      withLegacyFields({
+        build: {
+          ...s.build,
+          available: Math.max(0, roundCredit(s.build.available - amount)),
+          usedThisPeriod: roundCredit(s.build.usedThisPeriod + amount),
+        },
+        action: s.action,
+        planId: s.planId,
+        loading: s.loading,
+        error: s.error,
+        lastSyncedAt: s.lastSyncedAt,
+        isConfirmed: s.isConfirmed,
+      }),
+    ),
 
-  setLoading: (loading) => set({ loading }),
+  syncFromDB: async (options) => {
+    const force = options?.force ?? false;
+    const reason = options?.reason;
+    const { lastSyncedAt, loading, isConfirmed } = get();
 
-  syncFromDB: async (_userId: string, options?: { force?: boolean }) => {
-    const { lastSyncedAt, loading } = get();
-    if (!options?.force && (loading || (lastSyncedAt && Date.now() - lastSyncedAt < 30_000))) return;
-
-    set({ loading: true });
-    try {
-      const res = await fetch("/api/credits");
-      if (!res.ok) throw new Error("Failed to fetch credits");
-      const data = await res.json();
-
-      // Only treat as 0 if the server explicitly returned a confirmed 0.
-      // If data.remaining is undefined/null the wallet may not be initialized yet
-      // — fall back to the free plan quota so we don't block generation.
-      const serverValue = data.balance ?? data.remaining;
-      const remaining = typeof serverValue === "number"
-        ? Math.max(0, serverValue)
-        : FREE_MONTHLY_QUOTA;
-      const planAllowance =
-        typeof data.plan_allowance === "number"
-          ? data.plan_allowance
-          : typeof data.quota === "number"
-            ? data.quota
-            : FREE_MONTHLY_QUOTA;
-
-      set({
-        remaining,
-        planAllowance,
-        resetAt: data.reset_at ?? null,
-        totalUsedThisPeriod: data.used_this_period ?? data.total_used ?? 0,
-        loading: false,
-        lastSyncedAt: Date.now(),
-        isConfirmed: typeof serverValue === "number",
-      });
-    } catch {
-      // On network error, don't mark as confirmed — keep the default quota
-      set({ loading: false });
+    if (!force && isConfirmed && lastSyncedAt && Date.now() - lastSyncedAt < CREDITS_STALE_MS) {
+      logCreditSync(reason, "skipped — fresh cache");
+      return {
+        build: get().build,
+        action: get().action,
+        planId: normalizePlanId(get().planId) as CanonicalCreditsPayload["planId"],
+      };
     }
+
+    if (inFlightRequest) {
+      logCreditSync(reason, "deduped — joined in-flight request");
+      return inFlightRequest;
+    }
+
+    if (loading && !force) {
+      logCreditSync(reason, "skipped — already loading");
+      return inFlightRequest;
+    }
+
+    set({ loading: true, error: null });
+
+    inFlightRequest = (async () => {
+      try {
+        const res = await fetch("/api/credits", {
+          credentials: "include",
+          cache: "no-store",
+          headers: { "X-Credit-Sync-Reason": reason ?? "sync" },
+        });
+        if (!res.ok) throw new Error(`Failed to fetch credits (${res.status})`);
+
+        const data = (await res.json()) as CanonicalCreditsPayload & {
+          build?: CanonicalCreditBucket;
+          action?: CanonicalCreditBucket;
+          plan_id?: string;
+        };
+
+        if (!data.build || !data.action) {
+          throw new Error("Invalid canonical credits response");
+        }
+
+        const payload: CanonicalCreditsPayload = {
+          build: data.build,
+          action: data.action,
+          planId: normalizePlanId(data.plan_id ?? "free") as CanonicalCreditsPayload["planId"],
+        };
+
+        get().applyCanonical(payload);
+        dispatchCreditUpdated(payload);
+        logCreditSync(reason, "fetched ok");
+        return payload;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Credit sync failed";
+        set({ loading: false, error: msg });
+        logCreditSync(reason, `error — ${msg}`);
+        return null;
+      } finally {
+        inFlightRequest = null;
+      }
+    })();
+
+    return inFlightRequest;
   },
 
   reset: () =>
-    set({
-      remaining: FREE_MONTHLY_QUOTA,
-      planAllowance: FREE_MONTHLY_QUOTA,
-      resetAt: null,
-      totalUsedThisPeriod: 0,
-      loading: false,
-      lastSyncedAt: null,
-      isConfirmed: false,
-    }),
+    set(
+      withLegacyFields({
+        build: { ...EMPTY_BUCKET, planAllowance: 30 },
+        action: { ...EMPTY_BUCKET, planAllowance: 25 },
+        planId: "free",
+        loading: false,
+        error: null,
+        lastSyncedAt: null,
+        isConfirmed: false,
+      }),
+    ),
 }));
+
+/** Refresh credits after charge/admin/plan change — single forced fetch. */
+export function refreshCredits(options?: CreditSyncOptions) {
+  return useCreditsStore.getState().syncFromDB({
+    force: true,
+    reason: options?.reason ?? "manual",
+    ...options,
+  });
+}
+
+/** Resolve monthly build cap for display before canonical sync confirms. */
+export function resolveBuildCreditCap(
+  bucket: CanonicalCreditBucket | undefined,
+  planId: string | undefined,
+  isConfirmed: boolean,
+): number {
+  const planCap = monthlyTokensForPlan(normalizePlanId(planId ?? "free"));
+  if (!isConfirmed || !bucket?.planAllowance) return planCap;
+  return Math.max(bucket.planAllowance, planCap);
+}
+
+export const FREE_MONTHLY_QUOTA = 30;
+
+/** @deprecated Prefer canonical plan allowance from store */
+export function getMonthlyTokenQuotaForPlan(planId: string | undefined): number {
+  return monthlyTokensForPlan(normalizePlanId(planId ?? "free"));
+}

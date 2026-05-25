@@ -1,7 +1,10 @@
 import { createHash, randomInt } from "crypto";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { DREAMOS_OWNER_EMAIL } from "@/lib/admin-owner";
-import { sendOwnerOtpEmail } from "@/lib/admin/send-owner-otp-email";
+import {
+  sendOwnerOtpEmail,
+  type OwnerOtpDeliveryChannel,
+} from "@/lib/admin/send-owner-otp-email";
 import { sanitizeDiagnosticMetadata } from "@/lib/diagnostics/sanitize-metadata";
 
 const OTP_TTL_MS = 10 * 60 * 1000;
@@ -12,6 +15,9 @@ export type AdminPendingActionType =
   | "set_balance"
   | "reset_monthly"
   | "set_plan"
+  | "add_action_credits"
+  | "set_action_credits"
+  | "reset_action_credits_monthly"
   | "suspend"
   | "unsuspend";
 
@@ -45,13 +51,19 @@ function generateOtp(): string {
 function actionSummary(payload: AdminActionPayload): string {
   switch (payload.action) {
     case "add_tokens":
-      return `Add ${payload.amount} credits to user ${payload.targetUserId.slice(0, 8)}…`;
+      return `Add ${payload.amount} Build Credits to user ${payload.targetUserId.slice(0, 8)}…`;
     case "set_balance":
-      return `Set balance to ${payload.balance} for user ${payload.targetUserId.slice(0, 8)}…`;
+      return `Set Build Credit balance to ${payload.balance} for user ${payload.targetUserId.slice(0, 8)}…`;
     case "reset_monthly":
-      return `Reset monthly credits for user ${payload.targetUserId.slice(0, 8)}…`;
+      return `Reset monthly Build Credits for user ${payload.targetUserId.slice(0, 8)}…`;
     case "set_plan":
       return `Set plan to ${payload.planId} for user ${payload.targetUserId.slice(0, 8)}…`;
+    case "add_action_credits":
+      return `Add ${payload.amount} Action Credits to user ${payload.targetUserId.slice(0, 8)}…`;
+    case "set_action_credits":
+      return `Set Action Credit balance to ${payload.balance} for user ${payload.targetUserId.slice(0, 8)}…`;
+    case "reset_action_credits_monthly":
+      return `Reset monthly Action Credits for user ${payload.targetUserId.slice(0, 8)}…`;
     case "suspend":
       return `Suspend user ${payload.targetUserId.slice(0, 8)}…`;
     case "unsuspend":
@@ -66,7 +78,16 @@ export async function createAdminPendingConfirmation(input: {
   adminEmail: string | null;
   payload: AdminActionPayload;
 }): Promise<
-  | { ok: true; pendingId: string; expiresAt: string; devOtpHint?: string }
+  | {
+      ok: true;
+      pendingId: string;
+      expiresAt: string;
+      deliveryChannel: OwnerOtpDeliveryChannel;
+      deliveredToInbox: boolean;
+      message: string;
+      devOtpHint?: string;
+      emailError?: string;
+    }
   | { ok: false; error: string }
 > {
   const db = createSupabaseAdmin() as unknown as {
@@ -144,7 +165,11 @@ export async function createAdminPendingConfirmation(input: {
     ok: true,
     pendingId,
     expiresAt,
+    deliveryChannel: emailResult.channel,
+    deliveredToInbox: emailResult.deliveredToInbox,
+    message: emailResult.message,
     devOtpHint: emailResult.channel === "dev_console" ? otp : undefined,
+    emailError: emailResult.error,
   };
 }
 

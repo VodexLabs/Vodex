@@ -8,10 +8,12 @@ import {
   ShieldCheck,
   Mail,
   Activity,
+  Zap,
   HardDriveUpload,
   CreditCard,
   Shield,
   Trophy,
+  Smartphone,
 } from "lucide-react";
 import { CompetitiveScorePanel } from "@/components/admin/competitive-score-panel";
 import { variants } from "@/lib/motion";
@@ -24,12 +26,16 @@ import { AdminBillingPanel } from "@/components/admin/admin-billing-panel";
 import { AdminCreditEconomyPanel } from "@/components/admin/admin-credit-economy-panel";
 import { AdminAiUsagePanel } from "@/components/admin/admin-ai-usage-panel";
 import { AdminAuditPanel, AdminStoragePanel } from "@/components/admin/admin-lazy-panels";
+import { ActionUsagePanel } from "@/components/admin/action-usage-panel";
+import { AdminMobileBuildsPanel } from "@/components/admin/admin-mobile-builds-panel";
 import { AdminSchemaHealthBanner } from "@/components/admin/admin-schema-health-banner";
 
 export type AdminTab =
   | "users"
   | "contacts"
   | "ai"
+  | "action"
+  | "mobile"
   | "storage"
   | "audit"
   | "auth"
@@ -49,6 +55,8 @@ export function AdminView({ initialTab = "users" }: { initialTab?: AdminTab }) {
     { id: "users", label: "Users", icon: Users },
     { id: "contacts", label: "Contacts", icon: Mail },
     { id: "ai", label: "AI usage", icon: Activity },
+    { id: "action", label: "Action usage", icon: Zap },
+    { id: "mobile", label: "Mobile builds", icon: Smartphone },
     { id: "storage", label: "Uploads", icon: HardDriveUpload },
     { id: "audit", label: "Audit log", icon: Shield },
     { id: "billing", label: "Billing", icon: CreditCard },
@@ -105,6 +113,8 @@ export function AdminView({ initialTab = "users" }: { initialTab?: AdminTab }) {
         </div>
       )}
       {activeTab === "ai" && <AdminAiUsagePanel />}
+      {activeTab === "action" && <ActionUsagePanel />}
+      {activeTab === "mobile" && <AdminMobileBuildsPanel />}
       {activeTab === "storage" && <AdminStoragePanel />}
       {activeTab === "audit" && <AdminAuditPanel />}
 

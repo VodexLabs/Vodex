@@ -6,6 +6,7 @@ import { Zap, Clock, Sparkles, Brain, Gauge, MessageSquare, Eye, Layers } from "
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { aiModels, type AIModel } from "@/lib/data";
+import { listUserVisibleCatalogModels } from "@/lib/ai/model-catalog-availability";
 import { variants } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -218,9 +219,11 @@ export function ModelsSettings() {
     Object.fromEntries(aiModels.map((m) => [m.id, m.available]))
   );
 
+  const visibleModels = React.useMemo(() => listUserVisibleCatalogModels(), []);
+
   const byProvider = providerOrder.map((provider) => ({
     provider,
-    models: aiModels.filter((m) => m.provider === provider),
+    models: visibleModels.filter((m) => m.provider === provider),
   }));
 
   return (
@@ -235,7 +238,7 @@ export function ModelsSettings() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-3 sm:grid-cols-2">
-                {aiModels.slice(0, 4).map((model) => (
+                {visibleModels.filter((m) => m.id !== "automatic").slice(0, 4).map((model) => (
                   <button
                     key={model.id}
                     type="button"

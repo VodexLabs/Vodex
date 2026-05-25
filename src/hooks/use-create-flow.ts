@@ -26,6 +26,13 @@ import { isAiPreflightSuccess } from "@/lib/ai/preflight-types";
 import { DEFAULT_MODEL_ID } from "@/lib/creation/models";
 import type { TimelineStage } from "@/components/create/create-progress-timeline";
 import { toast } from "@/lib/toast";
+import { formatRejectionReason } from "@/lib/diagnostics/format-rejection-reason";
+
+function reportCreateFlowError(setError: (msg: string | null) => void, err: unknown, fallback: string) {
+  const msg = formatRejectionReason(err) || fallback;
+  setError(msg);
+  toast.error(msg);
+}
 
 export type UseCreateFlowOptions = {
   initialPrompt?: string;
@@ -54,6 +61,8 @@ export function useCreateFlow({ initialPrompt = "", initialProjectId = null }: U
   const [projectCreating, setProjectCreating] = React.useState(false);
   const [projectJustCreated, setProjectJustCreated] = React.useState(false);
 
+  const [questionAnswered, setQuestionAnswered] = React.useState(false);
+  const createQuestionRef = React.useRef(false);
   const approvedBlueprintRef = React.useRef<Record<string, unknown> | null>(null);
   const projectIdRef = React.useRef<string | null>(projectId);
   const buildTierRef = React.useRef(buildTier);
@@ -71,20 +80,30 @@ export function useCreateFlow({ initialPrompt = "", initialProjectId = null }: U
         getBody: () => ({
           modelId: DEFAULT_MODEL_ID,
           mode: "build",
-          projectId: projectIdRef.current ?? undefined,
+          projectId: createQuestionRef.current ? undefined : (projectIdRef.current ?? undefined),
           approvedBlueprint: approvedBlueprintRef.current ?? undefined,
           qualityLevel: buildTierToQualityLevel(buildTierRef.current),
           templateId: templateIdRef.current ?? undefined,
           stylePresetId: stylePresetIdRef.current ?? undefined,
+          createQuestion: createQuestionRef.current || undefined,
         }),
       }),
     [],
   );
 
-  const { sendMessage, status, error: chatError } = useChat({
+  const { sendMessage, status, error: chatError, messages } = useChat({
     id: `create-funnel-${projectId ?? "new"}`,
     transport,
+    onError: (err) => {
+      reportCreateFlowError(setError, err, "Could not complete the request.");
+    },
   });
+
+  React.useEffect(() => {
+    if (status !== "error" || chatError == null) return;
+    if (chatError instanceof Error) return;
+    reportCreateFlowError(setError, chatError, "Could not complete the request.");
+  }, [status, chatError]);
 
   const isStreaming = status === "submitted" || status === "streaming";
 
@@ -172,23 +191,37 @@ export function useCreateFlow({ initialPrompt = "", initialProjectId = null }: U
   const classifyIntent = React.useCallback(async () => {
     setLocalPhase("classifying_intent");
     setError(null);
-    const res = await fetch("/api/projects/classify-intent", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: prompt.trim(), projectId }),
-    });
-    const data = (await res.json()) as CreateIntentResult;
-    setIntent(data);
-    if (data.intent === "question_only" || data.intent === "unsafe_or_invalid") {
+    try {
+      const res = await fetch("/api/projects/classify-intent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: prompt.trim(), projectId }),
+      });
+      const data = (await res.json()) as CreateIntentResult;
+      setIntent(data);
+      if (data.intent === "question_only" || data.intent === "unsafe_or_invalid") {
+        setLocalPhase("intent_ready");
+        return data;
+      }
+      if (data.needsClarification && !data.shouldCreateProject) {
+        setLocalPhase("needs_clarification");
+        return data;
+      }
       setLocalPhase("intent_ready");
       return data;
+    } catch (err) {
+      setLocalPhase("failed");
+      reportCreateFlowError(setError, err, "Could not classify intent.");
+      return {
+        intent: "ambiguous" as const,
+        confidence: 0,
+        shouldCreateProject: false,
+        shouldReserveBuildCredits: false,
+        shouldFullBuild: false,
+        needsClarification: true,
+        userMessage: "Could not classify intent. Try again.",
+      };
     }
-    if (data.needsClarification && !data.shouldCreateProject) {
-      setLocalPhase("needs_clarification");
-      return data;
-    }
-    setLocalPhase("intent_ready");
-    return data;
   }, [prompt, projectId]);
 
   const createProjectOnce = React.useCallback(async () => {
@@ -317,21 +350,26 @@ export function useCreateFlow({ initialPrompt = "", initialProjectId = null }: U
     }
     setLocalPhase("building");
     setError(null);
-    const pre = await runAiPreflightDeduped({
-      mode: "build",
-      prompt: prompt.trim(),
-      projectId,
-      modelId: DEFAULT_MODEL_ID,
-    });
-    if (!isAiPreflightSuccess(pre)) {
+    try {
+      const pre = await runAiPreflightDeduped({
+        mode: "build",
+        prompt: prompt.trim(),
+        projectId,
+        modelId: DEFAULT_MODEL_ID,
+      });
+      if (!isAiPreflightSuccess(pre)) {
+        setLocalPhase("awaiting_build_confirmation");
+        setError(pre.error);
+        toast.error(pre.error);
+        return;
+      }
+      await persistConfig({ createFlowState: "building", buildTier });
+      await sendMessage({ text: prompt.trim() });
+    } catch (err) {
       setLocalPhase("awaiting_build_confirmation");
-      setError(pre.error);
-      toast.error(pre.error);
-      return;
+      reportCreateFlowError(setError, err, "Build could not start.");
     }
-    await persistConfig({ createFlowState: "building", buildTier });
-    await sendMessage({ text: prompt.trim() });
-  }, [projectId, blueprintApproved, prompt, persistConfig, sendMessage]);
+  }, [projectId, blueprintApproved, prompt, persistConfig, sendMessage, buildTier]);
 
   const applyTemplate = React.useCallback(
     (t: CreateTemplate) => {
@@ -359,9 +397,27 @@ export function useCreateFlow({ initialPrompt = "", initialProjectId = null }: U
     [persistConfig, fetchQuote],
   );
 
+  const answerCreateQuestion = React.useCallback(async () => {
+    if (!prompt.trim()) return;
+    setError(null);
+    setLocalPhase("intent_ready");
+    createQuestionRef.current = true;
+    try {
+      await sendMessage(
+        { text: prompt.trim() },
+        { body: { createQuestion: true } },
+      );
+      setQuestionAnswered(true);
+    } catch (err) {
+      reportCreateFlowError(setError, err, "Could not get an answer.");
+    } finally {
+      createQuestionRef.current = false;
+    }
+  }, [prompt, sendMessage]);
+
   const continueFromIdea = React.useCallback(async () => {
     const classified = await classifyIntent();
-    if (classified.intent === "question_only") return;
+    if (classified.intent === "question_only" || classified.shouldAnswerQuestion) return;
     if (classified.needsClarification && !classified.shouldCreateProject) return;
     setLocalPhase("intent_ready");
   }, [classifyIntent]);
@@ -421,6 +477,16 @@ export function useCreateFlow({ initialPrompt = "", initialProjectId = null }: U
     }
   }, [isStreaming, fileCount]);
 
+  const questionAnswer = React.useMemo(() => {
+    const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
+    if (!lastAssistant) return null;
+    return lastAssistant.parts
+      .filter((part): part is { type: "text"; text: string } => part.type === "text")
+      .map((part) => part.text)
+      .join("")
+      .trim();
+  }, [messages]);
+
   return {
     prompt,
     setPrompt,
@@ -440,7 +506,7 @@ export function useCreateFlow({ initialPrompt = "", initialProjectId = null }: U
     isStreaming,
     projectCreating,
     projectJustCreated,
-    error: error ?? (chatError?.message ?? null),
+    error: error ?? (chatError ? formatRejectionReason(chatError) : null),
     lifecycle,
     fileCount,
     summaryLoaded,
@@ -456,6 +522,9 @@ export function useCreateFlow({ initialPrompt = "", initialProjectId = null }: U
     applyBuildTier,
     continueFromIdea,
     continueFromIntent,
+    answerCreateQuestion,
+    questionAnswered,
+    questionAnswer,
     continueFromTemplate,
     persistConfig,
     refreshSummary,

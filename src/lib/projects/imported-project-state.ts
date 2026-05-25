@@ -27,7 +27,11 @@ export function isZipImportProject(metadata: unknown): boolean {
   const m = readLifecycleFromMetadata(metadata);
   if (m.source === "zip_import") return true;
   if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return false;
-  const imp = (metadata as Record<string, unknown>).import;
+  const rec = metadata as Record<string, unknown>;
+  if (rec.source === "zip_import") return true;
+  const ls = rec.lifecycle_status;
+  if (typeof ls === "string" && (ls === "importing" || ls.startsWith("imported"))) return true;
+  const imp = rec.import;
   return imp != null && typeof imp === "object";
 }
 
@@ -72,7 +76,7 @@ export function importedStatusLabel(status: ImportedLifecycleStatus): string {
     case "importing":
       return "Importing";
     case "imported":
-      return "Imported";
+      return "Imported app";
     case "imported_needs_setup":
       return "Needs setup";
     case "imported_preview_ready":
@@ -90,7 +94,7 @@ export function projectCardBadge(metadata: unknown, lifecycle?: string | null): 
     const imp = readImportMeta(metadata);
     const st = resolveImportedLifecycleStatus(metadata, imp.file_count ?? 0, false);
     if (st) return importedStatusLabel(st);
-    return "Imported ZIP";
+    return "Imported app";
   }
   if (lifecycle && isLifecycleStatus(lifecycle)) {
     if (lifecycle === "preview_ready") return "Preview ready";

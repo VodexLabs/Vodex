@@ -11,8 +11,12 @@ export const CANONICAL_CHARGE_TOKENS_ARG_NAMES = [
   "p_user_id",
 ] as const;
 
-/** Live DB signature (p_user_id first). PostgREST may list params alphabetically in errors. */
+/** Live DB signature (p_user_id first). Supports decimal Discuss charges (0.4). */
 export const CANONICAL_CHARGE_TOKENS_PG_ARGS =
+  "p_user_id uuid, p_amount numeric, p_reason text, p_idempotency_key text, p_metadata jsonb, p_project_id uuid, p_conversation_id uuid";
+
+/** Legacy integer signature — still accepted for probe compatibility during migration. */
+export const LEGACY_CHARGE_TOKENS_INTEGER_PG_ARGS =
   "p_user_id uuid, p_amount integer, p_reason text, p_idempotency_key text, p_metadata jsonb, p_project_id uuid, p_conversation_id uuid";
 
 export const CANONICAL_ENSURE_USER_PROFILE_PG_ARGS = "p_user_id uuid, p_email text";
@@ -55,19 +59,22 @@ export function normalizePgArgs(args: string): string {
   return args.replace(/\s+/g, " ").trim().toLowerCase();
 }
 
-/** Accept p_user_id-first (production) or legacy p_amount-first overloads. */
+/** Accept numeric (production) or legacy integer overloads with p_user_id first. */
 export function isCanonicalChargeTokensArgs(args: string): boolean {
   const n = normalizePgArgs(args);
   if (n === normalizePgArgs(CANONICAL_CHARGE_TOKENS_PG_ARGS)) return true;
+  if (n === normalizePgArgs(LEGACY_CHARGE_TOKENS_INTEGER_PG_ARGS)) return true;
   const parts = n.split(",").map((p) => p.trim());
   if (parts.length < 6) return false;
   const hasUserIdFirst = parts[0]?.startsWith("p_user_id uuid") || parts[0] === "uuid";
-  const hasAmountFirst = parts[0]?.startsWith("p_amount integer") || parts[0] === "integer";
+  const hasAmountFirst = parts[0]?.startsWith("p_amount ");
   const hasUuid = parts.filter((p) => p.endsWith(" uuid") || p === "uuid").length >= 3;
-  const hasInt = parts.some((p) => p.endsWith(" integer") || p === "integer");
+  const hasAmount =
+    parts.some((p) => p.startsWith("p_amount numeric") || p.endsWith(" numeric")) ||
+    parts.some((p) => p.startsWith("p_amount integer") || p.endsWith(" integer"));
   const hasText = parts.filter((p) => p.endsWith(" text") || p === "text").length >= 2;
   const hasJsonb = parts.some((p) => p.endsWith(" jsonb") || p === "jsonb");
-  if (!hasUuid || !hasInt || !hasText || !hasJsonb) return false;
+  if (!hasUuid || !hasAmount || !hasText || !hasJsonb) return false;
   return hasUserIdFirst || hasAmountFirst;
 }
 

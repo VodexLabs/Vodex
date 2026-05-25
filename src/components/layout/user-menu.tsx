@@ -10,122 +10,108 @@ import {
   LogOut,
   Gift,
   ChevronRight,
-  Zap,
   ArrowUpRight,
-  CalendarClock,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { useCreditsStore, getMonthlyTokenQuotaForPlan } from "@/lib/stores/credits-store";
-import { DreamSpaceGlyph, resolveDreamSpaceLabel } from "@/lib/dream-space";
+import { useCreditsStore } from "@/lib/stores/credits-store";
+import { CreditsTracker } from "@/components/credits/credits-tracker";
+import { PlanBadge } from "@/components/billing/plan-badge";
+import { getEntitlements } from "@/lib/billing/plan-entitlements";
+import { normalizePlanId } from "@/lib/billing/plans";
+import { resolveEffectivePlanId } from "@/lib/billing/resolve-effective-plan-id";
+import { resolveDreamSpaceLabel } from "@/lib/dream-space";
+import { resolveDisplayName } from "@/lib/profile-display";
 import { cn } from "@/lib/utils";
 import { useHydrated } from "@/lib/hooks/use-hydrated";
 import { LogoutConfirmModal } from "@/components/auth/logout-confirm-modal";
 
-// ─── Menu item types ──────────────────────────────────────────────────────────
-
-interface MenuItem {
+type MenuItem = {
   id: string;
   label: string;
   icon: React.ElementType;
   href?: string;
   onClick?: () => void;
   danger?: boolean;
-}
+};
 
 function MenuRow({ item, onClose }: { item: MenuItem; onClose: () => void }) {
   const Icon = item.icon;
-
   const inner = (
     <div
       className={cn(
-        "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition",
+        "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-[13px] transition",
         item.danger
-          ? "text-red-500 hover:bg-red-500/8 hover:text-red-500"
-          : "text-foreground hover:bg-surface",
+          ? "text-red-500 hover:bg-red-500/8"
+          : "text-foreground hover:bg-muted/50",
       )}
     >
       <Icon className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.65} />
       <span className="flex-1">{item.label}</span>
-      {item.href && (
-        <ChevronRight className="size-3.5 text-muted-foreground/50" strokeWidth={1.75} />
-      )}
+      {item.href && <ChevronRight className="size-3.5 text-muted-foreground/40" strokeWidth={1.75} />}
     </div>
   );
 
   if (item.href) {
     return (
-      <Link
-        href={item.href}
-        onClick={onClose}
-        className="block cursor-pointer rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
+      <Link href={item.href} onClick={onClose} className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         {inner}
       </Link>
     );
   }
 
   return (
-    <button
-      type="button"
-      onClick={() => {
-        item.onClick?.();
-        onClose();
-      }}
-      className="w-full cursor-pointer rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    >
+    <button type="button" onClick={() => { item.onClick?.(); onClose(); }} className="w-full rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
       {inner}
     </button>
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
-
 export function UserMenu() {
   const { profile, user } = useAuthStore();
-  const { remaining, resetAt } = useCreditsStore();
+  const build = useCreditsStore((s) => s.build);
+  const action = useCreditsStore((s) => s.action);
+  const planId = useCreditsStore((s) => s.planId);
+  const loading = useCreditsStore((s) => s.loading);
+  const error = useCreditsStore((s) => s.error);
+  const isConfirmed = useCreditsStore((s) => s.isConfirmed);
+  const syncFromDB = useCreditsStore((s) => s.syncFromDB);
   const hydrated = useHydrated();
   const [open, setOpen] = React.useState(false);
   const [showLogoutModal, setShowLogoutModal] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
 
   const safeProfile = hydrated ? profile : null;
+  const effectivePlanId = resolveEffectivePlanId({
+    profilePlanId: safeProfile?.plan_id,
+    storePlanId: planId,
+    isCreditsConfirmed: isConfirmed,
+  });
+  const entitlements = getEntitlements(effectivePlanId);
   const dreamLabel = resolveDreamSpaceLabel(safeProfile, hydrated ? user : null);
-  const quota = getMonthlyTokenQuotaForPlan(safeProfile?.plan_id);
-  const planLabel = safeProfile
-    ? safeProfile.plan_id === "free"
-      ? "Free plan"
-      : `${safeProfile.plan_id.charAt(0).toUpperCase() + safeProfile.plan_id.slice(1)} plan`
-    : "";
-  const isFree = !safeProfile || safeProfile.plan_id === "free";
-  const resetDate =
-    hydrated && resetAt
-      ? new Date(resetAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-      : null;
+  const displayName = resolveDisplayName(safeProfile, hydrated ? user : null);
+  const avatarInitial = (displayName || dreamLabel).charAt(0).toUpperCase();
+  const isFree = entitlements.tier === "free";
+
+  React.useEffect(() => {
+    if (!open || isConfirmed) return;
+    void syncFromDB({ reason: "popover-open" });
+  }, [open, syncFromDB, isConfirmed]);
 
   React.useEffect(() => {
     if (!open) return;
-    function handler(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
+    };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
   React.useEffect(() => {
     if (!open) return;
-    function handler(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [open]);
-
-  function handleLogout() {
-    setOpen(false);
-    setShowLogoutModal(true);
-  }
 
   const menuItems: MenuItem[] = [
     { id: "space", label: "Space settings", icon: Settings, href: "/settings" },
@@ -139,100 +125,95 @@ export function UserMenu() {
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="hidden cursor-pointer items-center gap-2 rounded-[var(--radius-md)] px-2 py-1 transition hover:bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98] sm:flex"
+        className="hidden cursor-pointer items-center gap-2 rounded-[var(--radius-md)] px-2 py-1 transition hover:bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex"
         aria-label="Account menu"
         aria-expanded={open}
-        aria-haspopup="true"
       >
-        <div className="text-right leading-tight">
-          <p className="max-w-[140px] truncate text-[12px] font-medium tracking-[-0.01em] text-foreground">
-            {dreamLabel}
-          </p>
-          {planLabel && <p className="text-[11px] text-muted-foreground">{planLabel}</p>}
+        <div className="flex max-w-[200px] min-w-0 items-center gap-2 text-right leading-tight">
+          <p className="truncate text-[12px] font-medium tracking-[-0.01em]">{dreamLabel}</p>
+          {hydrated ? <PlanBadge planId={effectivePlanId} size="xs" className="shrink-0" /> : null}
         </div>
-        <DreamSpaceGlyph
-          iconUrl={safeProfile?.workspace_icon_url}
-          label={dreamLabel}
-          sizeClass="size-8"
-          textClassName="text-[12px]"
-        />
+        {safeProfile?.avatar_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={safeProfile.avatar_url}
+            alt=""
+            className="size-8 shrink-0 rounded-full object-cover ring-2 ring-accent/20"
+          />
+        ) : (
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent to-violet-600 text-[12px] font-bold text-white ring-2 ring-accent/20">
+            {avatarInitial}
+          </span>
+        )}
       </button>
 
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: -6, scale: 0.97 }}
+            initial={{ opacity: 0, y: -8, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -6, scale: 0.97 }}
-            transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
-            className="absolute right-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-[var(--radius-xl)] bg-background shadow-2xl ring-1 ring-border"
+            exit={{ opacity: 0, y: -8, scale: 0.98 }}
+            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+            className="absolute right-0 top-full z-50 mt-2 flex w-[320px] flex-col overflow-hidden rounded-[var(--radius-xl)] bg-background shadow-2xl ring-1 ring-border/80"
           >
-            <div className="flex items-start gap-3 border-b border-border bg-gradient-to-br from-accent/[0.07] via-background to-background px-4 py-3.5">
-              <DreamSpaceGlyph
-                iconUrl={safeProfile?.workspace_icon_url}
-                label={dreamLabel}
-                sizeClass="size-11"
-                textClassName="text-sm"
-                className="rounded-2xl ring-border-strong shadow-sm"
-              />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-semibold text-foreground">{dreamLabel}</p>
-                {(safeProfile?.email || (hydrated ? user?.email : null)) && (
-                  <p className="truncate text-[11px] text-muted-foreground">
-                    {safeProfile?.email || user?.email}
-                  </p>
-                )}
-                {planLabel && (
-                  <span className="mt-1 inline-flex rounded-full bg-accent/12 px-2 py-0.5 text-[10px] font-semibold text-accent ring-1 ring-accent/15">
-                    {planLabel}
+            <div className="shrink-0 border-b border-border/60 bg-gradient-to-br from-accent/[0.06] via-background to-background px-4 py-3">
+              <div className="flex items-start gap-3">
+                {safeProfile?.avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={safeProfile.avatar_url}
+                    alt=""
+                    className="size-10 shrink-0 rounded-full object-cover ring-1 ring-border/80 shadow-sm"
+                  />
+                ) : (
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent to-violet-600 text-sm font-bold text-white ring-1 ring-border/80 shadow-sm">
+                    {avatarInitial}
                   </span>
                 )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <p className="truncate text-[13.5px] font-semibold tracking-[-0.02em]">{dreamLabel}</p>
+                    {hydrated ? <PlanBadge planId={effectivePlanId} size="xs" className="shrink-0" /> : null}
+                  </div>
+                  {(safeProfile?.email || user?.email) && (
+                    <p className="truncate text-[11px] text-muted-foreground">{safeProfile?.email || user?.email}</p>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="space-y-2 border-b border-border px-4 py-2.5">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-                  <Zap className="size-3.5 shrink-0 text-accent" strokeWidth={1.75} />
-                  Credits remaining
-                </div>
-                <span className="text-[13px] font-semibold tabular-nums text-foreground">{remaining.toLocaleString()}</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                <span className="tabular-nums">{remaining.toLocaleString()}</span>
-                <span className="mx-1 text-muted-foreground/60">/</span>
-                <span className="tabular-nums">{quota.toLocaleString()}</span>
-                <span className="ml-1">this billing period</span>
-              </p>
-              {resetDate && (
-                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                  <CalendarClock className="size-3 shrink-0" strokeWidth={1.75} />
-                  Allowance resets {resetDate}
-                </div>
-              )}
+            <div className="shrink-0 border-b border-border/60 px-3 py-2">
+              <CreditsTracker
+                build={build}
+                action={action}
+                planId={effectivePlanId}
+                isConfirmed={isConfirmed}
+                loading={loading && !isConfirmed}
+                error={error}
+                variant="popover"
+                onRetry={() => void syncFromDB({ force: true, reason: "manual" })}
+              />
+            </div>
+
+            <div className="p-2">
               {isFree && (
                 <Link
                   href="/pricing"
                   onClick={() => setOpen(false)}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-accent/90"
+                  className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-xl bg-accent px-3 py-2 text-[12px] font-semibold text-white transition hover:bg-accent/90"
                 >
                   <ArrowUpRight className="size-3.5" strokeWidth={2.5} />
                   Upgrade
                 </Link>
               )}
-            </div>
-
-            <div className="p-1.5">
               {menuItems.map((item) => (
                 <MenuRow key={item.id} item={item} onClose={() => setOpen(false)} />
               ))}
-
-              <div className="my-1 h-px bg-border/60 mx-1" />
-
+              <div className="my-1.5 mx-1 h-px bg-border/50" />
               <button
                 type="button"
-                onClick={handleLogout}
-                className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-[13px] text-red-500 transition hover:bg-red-500/8 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => { setOpen(false); setShowLogoutModal(true); }}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-[13px] text-red-500 transition hover:bg-red-500/8"
               >
                 <LogOut className="size-4 shrink-0" strokeWidth={1.65} />
                 Log out

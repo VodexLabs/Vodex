@@ -33,6 +33,8 @@ import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { runFullSignOut } from "@/lib/auth/sign-out-client";
 import { DreamTemplatesNavIcon } from "@/components/ui/dream-templates-nav-icon";
+import { matchCommands, SITE_COMMANDS, appCommandDef, type SiteCommandDef } from "@/lib/navigation/site-command-index";
+import { getRecentPages } from "@/lib/navigation/recent-pages";
 
 // ─── Command item types ───────────────────────────────────────────────────────
 
@@ -128,105 +130,114 @@ export function CommandCenter() {
     }
   }, [open]);
 
+  const [apps, setApps] = React.useState<Array<{ id: string; name: string }>>([]);
+  const [recentTick, setRecentTick] = React.useState(0);
+
+  React.useEffect(() => {
+    if (!open) return;
+    setRecentTick((t) => t + 1);
+    void fetch("/api/projects", { credentials: "include", cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { projects?: Array<{ id: string; name: string }> } | null) => {
+        setApps((data?.projects ?? []).slice(0, 40));
+      })
+      .catch(() => setApps([]));
+  }, [open]);
+
   function navigate(path: string) {
     notifyListeners(false);
     router.push(path);
   }
 
-  const groups: CommandGroup[] = [
-    {
-      label: "Create",
-      items: [
-        {
-          id: "new-app",
-          label: "New app",
-          description: "Start building with AI",
-          icon: Plus,
-          shortcut: "N",
-          action: () => navigate("/"),
-          keywords: ["build", "create", "new", "app", "project"],
-        },
-        {
-          id: "workspace",
-          label: "Open workspace",
-          description: "AI creation workspace",
-          icon: Sparkles,
-          action: () => navigate("/"),
-          keywords: ["workspace", "chat", "ai"],
-        },
-      ],
-    },
-    {
-      label: "Navigate",
-      items: [
-        { id: "apps", label: "My Apps", description: "All your projects", icon: LayoutGrid, action: () => navigate("/projects"), keywords: ["projects", "apps"] },
-        { id: "templates", label: "Templates", description: "Start from a foundation", icon: DreamTemplatesNavIcon, action: () => navigate("/templates"), keywords: ["template", "starter"] },
-        { id: "explore", label: "Explore", description: "Discover community builds", icon: Compass, action: () => navigate("/explore"), keywords: ["discover", "explore", "browse"] },
-        { id: "chat", label: "AI Chat", description: "Talk to any model", icon: MessageSquare, action: () => navigate("/chat"), keywords: ["chat", "message", "model"] },
-        { id: "deploy", label: "Deploy", description: "Deployment center", icon: Rocket, action: () => navigate("/deploy"), keywords: ["deploy", "ship", "release"] },
-        { id: "marketplace", label: "Marketplace", description: "Extensions and plugins", icon: Store, action: () => navigate("/marketplace"), keywords: ["marketplace", "plugin", "extension"] },
-        { id: "community", label: "Community", description: "Forums and showcases", icon: Users, action: () => navigate("/community"), keywords: ["community", "forum", "social"] },
-        { id: "analytics", label: "Analytics", description: "Usage and insights", icon: BarChart3, action: () => navigate("/analytics"), keywords: ["analytics", "usage", "stats"] },
-      ],
-    },
-    {
-      label: "Settings",
-      items: [
-        { id: "settings", label: "Settings", description: "Workspace preferences", icon: Settings2, action: () => navigate("/settings"), keywords: ["settings", "preferences"] },
-        { id: "api-keys", label: "API Keys", description: "Manage access keys", icon: Key, action: () => navigate("/settings/api-keys"), keywords: ["api", "keys", "token"] },
-        { id: "billing", label: "Billing", description: "Subscription and usage", icon: CreditCard, action: () => navigate("/settings/billing"), keywords: ["billing", "subscription", "plan"] },
-        { id: "referrals", label: "Referrals", description: "Invite and earn credits", icon: Gift, action: () => navigate("/referrals"), keywords: ["referral", "invite", "share"] },
-        { id: "integrations", label: "Integrations", description: "Connect services", icon: Globe, action: () => navigate("/settings/integrations"), keywords: ["github", "vercel", "stripe"] },
-      ],
-    },
-    {
-      label: "Actions",
-      items: [
+  function toCommandItem(cmd: SiteCommandDef): CommandItem {
+    return {
+      id: cmd.id,
+      label: cmd.label,
+      description: cmd.breadcrumb,
+      icon: cmd.icon,
+      action: () => navigate(cmd.href),
+      keywords: [...cmd.keywords, cmd.category.toLowerCase(), cmd.breadcrumb.toLowerCase()],
+    };
+  }
+
+  const groups: CommandGroup[] = React.useMemo(() => {
+    const q = query.trim();
+    if (!q) {
+      const recent = getRecentPages(6);
+      const recentItems: CommandItem[] = recent.map((r) => ({
+        id: `recent-${r.id}`,
+        label: r.label,
+        description: r.breadcrumb,
+        icon: r.category === "Apps" ? Building : r.category === "Keys" ? Key : Sparkles,
+        action: () => navigate(r.href),
+        keywords: [r.category.toLowerCase()],
+      }));
+
+      const actionItems: CommandItem[] = [
         {
           id: "theme",
           label: resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode",
+          description: "Appearance",
           icon: resolvedTheme === "dark" ? Sun : Moon,
-          action: () => { setTheme(resolvedTheme === "dark" ? "light" : "dark"); notifyListeners(false); },
-          keywords: ["theme", "dark", "light", "appearance"],
+          action: () => {
+            setTheme(resolvedTheme === "dark" ? "light" : "dark");
+            notifyListeners(false);
+          },
+          keywords: ["theme", "dark", "light"],
         },
-        { id: "help", label: "Help Center", description: "Docs and guides", icon: HelpCircle, action: () => navigate("/help"), keywords: ["help", "docs", "guide"] },
-        { id: "changelog", label: "Changelog", description: "What's new", icon: ScrollText, action: () => navigate("/changelog"), keywords: ["changelog", "updates", "new"] },
         {
           id: "logout",
           label: "Sign out",
+          description: "Account",
           icon: LogOut,
           action: () => {
             notifyListeners(false);
             void runFullSignOut();
           },
-          keywords: ["logout", "sign out", "exit"],
+          keywords: ["logout"],
         },
-      ],
-    },
-  ];
+      ];
 
-  // Filter groups based on query
-  const filteredGroups = React.useMemo(() => {
-    if (!query.trim()) return groups;
-    const q = query.toLowerCase();
-    return groups
-      .map((g) => ({
-        ...g,
-        items: g.items.filter(
-          (item) =>
-            item.label.toLowerCase().includes(q) ||
-            item.description?.toLowerCase().includes(q) ||
-            item.keywords?.some((k) => k.includes(q)),
-        ),
-      }))
-      .filter((g) => g.items.length > 0);
+      const byCategory = new Map<string, CommandItem[]>();
+      for (const cmd of SITE_COMMANDS) {
+        const item = toCommandItem(cmd);
+        const list = byCategory.get(cmd.category) ?? [];
+        list.push(item);
+        byCategory.set(cmd.category, list);
+      }
+      for (const app of apps.slice(0, 12)) {
+        const item = toCommandItem(appCommandDef(app));
+        const list = byCategory.get("Apps") ?? [];
+        list.push(item);
+        byCategory.set("Apps", list);
+      }
+
+      const out: CommandGroup[] = [];
+      if (recentItems.length) out.push({ label: "Recent", items: recentItems });
+      out.push({ label: "Actions", items: actionItems });
+      for (const [label, items] of byCategory) {
+        out.push({ label, items });
+      }
+      return out;
+    }
+
+    const matched = matchCommands(q, apps).map(toCommandItem);
+    const byCategory = new Map<string, CommandItem[]>();
+    for (const item of matched) {
+      const cmd = [...SITE_COMMANDS, ...apps.map(appCommandDef)].find((c) => c.id === item.id);
+      const cat = cmd?.category ?? "Results";
+      const list = byCategory.get(cat) ?? [];
+      list.push(item);
+      byCategory.set(cat, list);
+    }
+    return Array.from(byCategory.entries()).map(([label, items]) => ({ label, items }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, resolvedTheme]);
+  }, [query, resolvedTheme, apps, recentTick]);
 
   // Flat list for keyboard navigation
   const flatItems = React.useMemo(
-    () => filteredGroups.flatMap((g) => g.items),
-    [filteredGroups],
+    () => groups.flatMap((g) => g.items),
+    [groups],
   );
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -289,12 +300,12 @@ export function CommandCenter() {
 
               {/* Results */}
               <div className="max-h-[420px] overflow-y-auto py-2 scrollbar-none">
-                {filteredGroups.length === 0 ? (
+                {groups.length === 0 ? (
                   <div className="px-4 py-8 text-center text-[13px] text-muted-foreground">
                     No results for &ldquo;{query}&rdquo;
                   </div>
                 ) : (
-                  filteredGroups.map((group) => (
+                  groups.map((group) => (
                     <div key={group.label}>
                       <p className="px-4 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">
                         {group.label}
@@ -324,14 +335,21 @@ export function CommandCenter() {
                               />
                             </div>
                             <div className="min-w-0 flex-1">
-                              <p className={cn(
-                                "text-[13px] font-medium",
-                                selected ? "text-foreground" : "text-foreground/80",
-                              )}>
-                                {item.label}
-                              </p>
+                              <div className="flex items-center gap-2">
+                                <p className={cn(
+                                  "truncate text-[13px] font-medium",
+                                  selected ? "text-foreground" : "text-foreground/80",
+                                )}>
+                                  {item.label}
+                                </p>
+                                {group.label !== "Recent" && group.label !== "Actions" ? (
+                                  <span className="shrink-0 rounded-full bg-muted px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                    {group.label}
+                                  </span>
+                                ) : null}
+                              </div>
                               {item.description && (
-                                <p className="text-[11.5px] text-muted-foreground">{item.description}</p>
+                                <p className="truncate text-[11px] text-muted-foreground">{item.description}</p>
                               )}
                             </div>
                             {item.shortcut && (

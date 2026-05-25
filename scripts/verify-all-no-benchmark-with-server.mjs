@@ -9,6 +9,7 @@ import {
   devServerBaseUrl,
   diagnoseDevServer,
   waitForDevServer,
+  killPortProcessSafely,
   READINESS_TIMEOUT_MS,
 } from "./lib/dev-server.mjs";
 import { runStep, formatElapsed } from "./lib/verify-runner.mjs";
@@ -77,9 +78,20 @@ const diag = await diagnoseDevServer(base);
 if (diag.state === "healthy") {
   console.log(`[dev-server] ✓ Reusing running server: ${diag.message}\n`);
 } else if (diag.state === "broken") {
-  console.error(`✗ Port 3000 occupied but not healthy: ${diag.message}`);
-  console.error("  Fix with: npm run doctor:dev-server\n");
-  process.exit(1);
+  console.warn(`⚠ Port 3000 occupied but not healthy: ${diag.message}`);
+  const kill = killPortProcessSafely(3000);
+  if (kill.killed) {
+    console.log(`[dev-server] Killed stuck Node process PID ${kill.pid}, restarting…\n`);
+    await new Promise((r) => setTimeout(r, 2000));
+    await startDevServer();
+  } else if (kill.pid && kill.reason === "not_node_dev_server") {
+    console.error(`✗ Port 3000 held by non-Node PID ${kill.pid} — stop it manually, then retry.\n`);
+    process.exit(1);
+  } else {
+    console.error(`✗ Could not recover port 3000 (${kill.reason ?? "unknown"}).\n`);
+    console.error("  Try: npm run doctor:dev-server\n");
+    process.exit(1);
+  }
 } else {
   await startDevServer();
 }

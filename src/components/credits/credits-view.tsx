@@ -3,11 +3,12 @@
 import * as React from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Zap, ArrowRight, Loader2, BarChart2, Clock, Cpu } from "lucide-react";
+import { ArrowRight, Loader2, BarChart2, Clock, Cpu, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { variants } from "@/lib/motion";
 import { cn } from "@/lib/utils";
-import { useCreditsStore } from "@/lib/stores/credits-store";
+import { CreditsOverviewHeader, CreditsTracker } from "@/components/credits/credits-tracker";
+import { refreshCredits, useCreditsStore } from "@/lib/stores/credits-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { createClient } from "@/lib/supabase/client";
 import type { CreditEvent } from "@/lib/supabase/types";
@@ -26,7 +27,7 @@ function getModelColor(modelId: string) {
 }
 
 export function CreditsView() {
-  const { remaining, resetAt, totalUsedThisPeriod, loading: creditsLoading } = useCreditsStore();
+  const { build, action, planId, loading: creditsLoading, error: creditsError, isConfirmed } = useCreditsStore();
   const { profile } = useAuthStore();
   const supabase = createClient();
 
@@ -62,10 +63,10 @@ export function CreditsView() {
       });
   }, [profile?.id]);
 
-  const planCredits = profile?.plan_id === "free" ? 0 : remaining + totalUsedThisPeriod;
-  const usagePct = planCredits > 0 ? Math.min((totalUsedThisPeriod / planCredits) * 100, 100) : 0;
-  const daysUntilReset = resetAt
-    ? Math.max(0, Math.ceil((new Date(resetAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+  const planCredits = build.planAllowance + build.bonusActive;
+  const usagePct = planCredits > 0 ? Math.min((build.usedThisPeriod / planCredits) * 100, 100) : 0;
+  const daysUntilReset = build.resetDate
+    ? Math.max(0, Math.ceil((new Date(build.resetDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
     : null;
 
   const topModels = Object.entries(modelUsage)
@@ -80,41 +81,54 @@ export function CreditsView() {
       animate="show"
       className="mx-auto max-w-3xl space-y-6 pb-10"
     >
-      {/* Balance card */}
-      <motion.div
-        variants={variants.fadeUp}
-        className="rounded-[var(--radius-2xl)] bg-accent/6 p-6 ring-1 ring-accent/20"
-      >
+      {/* Credits overview */}
+      <motion.div variants={variants.fadeUp} className="space-y-3">
+        <CreditsOverviewHeader />
+        <CreditsTracker
+          build={build}
+          action={action}
+          planId={planId}
+          loading={creditsLoading && !isConfirmed}
+          error={creditsError}
+          variant="full"
+          showUpgrade={(profile?.plan_id ?? planId) === "free" || build.available < build.planAllowance * 0.15}
+          onRetry={() => void refreshCredits({ reason: "manual", force: true })}
+        />
+      </motion.div>
+
+      {/* Build usage detail (legacy ledger) */}
+      <motion.div variants={variants.fadeUp} className="rounded-[var(--radius-2xl)] bg-surface p-5 ring-1 ring-border">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <Zap className="size-4 text-accent" strokeWidth={1.75} />
-              <span className="text-[12px] font-medium text-accent/80">Current balance</span>
+              <Clock className="size-4 text-muted-foreground" strokeWidth={1.75} />
+              <span className="text-[12px] font-medium text-muted-foreground">Build usage this period</span>
             </div>
             {creditsLoading ? (
               <div className="h-10 flex items-center">
                 <Loader2 className="size-5 animate-spin text-muted-foreground" />
               </div>
             ) : (
-              <p className="text-[36px] font-semibold tracking-tight text-foreground tabular-nums">
-                {remaining.toLocaleString()}
-                <span className="ml-1.5 text-[16px] font-normal text-muted-foreground">credits</span>
+              <p className="text-[28px] font-semibold tracking-tight text-foreground tabular-nums">
+                {build.usedThisPeriod.toLocaleString()}
+                <span className="ml-1.5 text-[14px] font-normal text-muted-foreground">
+                  / {planCredits.toLocaleString()} allowance
+                </span>
               </p>
             )}
             {daysUntilReset !== null && (
               <div className="mt-1 flex items-center gap-1.5 text-[12px] text-muted-foreground">
-                <Clock className="size-3.5" strokeWidth={1.75} />
                 Resets in {daysUntilReset} day{daysUntilReset !== 1 ? "s" : ""}
-                {resetAt && (
+                {build.resetDate && (
                   <span className="text-muted-foreground/60">
-                    · {new Date(resetAt).toLocaleDateString()}
+                    · {new Date(build.resetDate).toLocaleDateString()}
                   </span>
                 )}
               </div>
             )}
           </div>
 
-          {profile?.plan_id === "free" && (
+          {(profile?.plan_id ?? planId) === "free" && (
             <Button variant="accent" size="sm" asChild>
               <Link href="/pricing">
                 Upgrade plan <ArrowRight className="ml-1.5 size-3.5" strokeWidth={2} />
@@ -123,13 +137,12 @@ export function CreditsView() {
           )}
         </div>
 
-        {/* Usage bar */}
         {planCredits > 0 && (
           <div className="mt-5">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-[12px] text-muted-foreground">Used this period</span>
               <span className="text-[12px] font-medium tabular-nums text-foreground">
-                {totalUsedThisPeriod.toLocaleString()} / {planCredits.toLocaleString()}
+                {build.usedThisPeriod.toLocaleString()} / {planCredits.toLocaleString()}
               </span>
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-accent/15">

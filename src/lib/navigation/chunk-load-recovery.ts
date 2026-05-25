@@ -1,6 +1,8 @@
+import { formatRejectionReason, isDomEventRejection } from "@/lib/diagnostics/format-rejection-reason";
+
 /** Detect Next/webpack chunk load failures (stale deploy, dev compile timeout). */
 export function isChunkLoadError(error: unknown): boolean {
-  const msg = error instanceof Error ? error.message : String(error ?? "");
+  const msg = formatRejectionReason(error);
   return /ChunkLoadError|Loading chunk|Failed to fetch dynamically imported module|Importing a module script failed|timeout.*\/_next\/static\/chunks/i.test(
     msg,
   );
@@ -32,7 +34,10 @@ export function installChunkLoadRecovery(): () => void {
 
   const onRejection = (event: PromiseRejectionEvent) => {
     if (isChunkLoadError(event.reason)) {
-      console.warn("[dreamos] Chunk load promise rejection");
+      console.warn("[dreamos] Chunk load promise rejection:", formatRejectionReason(event.reason));
+      if (isDomEventRejection(event.reason)) {
+        event.preventDefault();
+      }
     }
   };
 

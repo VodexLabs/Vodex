@@ -28,7 +28,7 @@ export function ProjectIcon({
   return (
     <div
       className={cn(
-        "relative shrink-0 overflow-hidden bg-background ring-1 ring-border",
+        "relative shrink-0 overflow-hidden bg-surface ring-1 ring-border/80 shadow-sm",
         circular ? "rounded-full" : "rounded-xl",
         className,
       )}

@@ -17,11 +17,12 @@ import { cn } from "@/lib/utils";
 import { appUrl, getPublicSiteUrl } from "@/lib/app-url";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { useCreditsStore } from "@/lib/stores/credits-store";
+import { refreshCredits, useCreditsStore } from "@/lib/stores/credits-store";
 import type { Conversation, Message } from "@/lib/supabase/types";
 import { variants } from "@/lib/motion";
 import { CreditsUpgradeModal } from "@/components/chat/credits-upgrade-modal";
-import { calculateTokens } from "@/lib/credits/cost-engine";
+import { DISCUSS_FLAT_CREDITS, discussInputHintLabel } from "@/lib/billing/credit-pricing";
+import { formatCreditAmount } from "@/lib/credits/credit-summary";
 import { resolveDisplayName } from "@/lib/profile-display";
 import { toast } from "@/lib/toast";
 import { createDreamChatTransport } from "@/lib/chat/create-chat-transport";
@@ -38,6 +39,11 @@ import { pushSubmitTrace } from "@/lib/dev/submit-pipeline-trace";
 import { SubmitPipelinePanel } from "@/components/dev/submit-pipeline-panel";
 import { CHAT_BUILD_BUNDLE } from "@/lib/dev/chat-build-bundle";
 import { isSubmitDebugEnabled } from "@/lib/dev/submit-debug-enabled";
+import {
+  beginConversationLoad,
+  endConversationLoad,
+  useChatConversationStore,
+} from "@/lib/stores/chat-conversation-store";
 
 const DISCUSS_MODEL_ID_FREE = "gpt-4o-mini";
 
@@ -67,7 +73,7 @@ const MSG_LOAD_TIMEOUT_MS = 8_000;
 
 function useConversations(userId: string | undefined, sessionReady: boolean) {
   const [conversations, setConversations] = React.useState<Conversation[]>([]);
-  const [loading, setLoading] = React.useState(true);
+  const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [reloadTick, setReloadTick] = React.useState(0);
 
@@ -138,77 +144,99 @@ function useConversations(userId: string | undefined, sessionReady: boolean) {
   return { conversations, setConversations, loading, error, reload };
 }
 
-function useMessages(conversationId: string | null, userId: string | undefined, reloadTick: number, sessionReady: boolean) {
-  const [history, setHistory] = React.useState<Message[]>([]);
-  const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+function useMessages(
+  conversationId: string | null,
+  userId: string | undefined,
+  reloadTick: number,
+  sessionReady: boolean,
+  activeConvRef: React.RefObject<string | null>,
+) {
+  const history = useChatConversationStore((s) =>
+    conversationId ? (s.messagesByConversationId[conversationId] ?? []) : [],
+  );
+  const loading = useChatConversationStore((s) =>
+    conversationId ? (s.loadingByConversationId[conversationId] ?? false) : false,
+  );
+  const error = useChatConversationStore((s) =>
+    conversationId ? (s.errorByConversationId[conversationId] ?? null) : null,
+  );
+  const hasCache = useChatConversationStore((s) =>
+    conversationId ? s.hasCachedMessages(conversationId) : false,
+  );
 
   React.useEffect(() => {
     if (!sessionReady) return;
-    if (!conversationId || !userId) {
-      setHistory([]);
-      setLoading(false);
-      setError(null);
-      return;
-    }
+    if (!conversationId || !userId) return;
 
-    let cancelled = false;
-    const ac = new AbortController();
-    setLoading(true);
-    setError(null);
+    const targetId = conversationId;
+    const ac = beginConversationLoad(targetId);
+    const { hasCachedMessages, setLoading, setError, setCachedMessages } =
+      useChatConversationStore.getState();
+    if (!hasCachedMessages(targetId)) {
+      setLoading(targetId, true);
+    }
+    setError(targetId, null);
 
     const timeout = window.setTimeout(() => {
       ac.abort();
-      if (!cancelled) {
-        setError("Messages took too long to load — tap retry.");
-        setLoading(false);
-      }
     }, MSG_LOAD_TIMEOUT_MS);
 
     void (async () => {
       try {
-        const res = await fetch(`/api/conversations/${conversationId}/messages`, {
+        const res = await fetch(`/api/conversations/${targetId}/messages`, {
           credentials: "include",
           signal: ac.signal,
           cache: "no-store",
         });
-        if (cancelled) return;
         window.clearTimeout(timeout);
+        if (ac.signal.aborted || activeConvRef.current !== targetId) return;
+
         const body = (await res.json()) as { messages?: Message[]; error?: string; code?: string };
+        if (activeConvRef.current !== targetId) return;
+
+        const store = useChatConversationStore.getState();
         if (res.status === 401 || body.code === "auth_required") {
-          setError("Sign in again to load this conversation.");
-          setHistory([]);
+          store.setError(targetId, "Sign in again to load this conversation.");
+          store.setCachedMessages(targetId, []);
         } else if (res.status === 404) {
-          setError("Conversation not found.");
-          setHistory([]);
+          store.setError(targetId, "Conversation not found.");
+          store.setCachedMessages(targetId, []);
         } else if (!res.ok) {
-          setError(body.error ?? "Could not load this conversation.");
-          setHistory([]);
+          store.setError(targetId, body.error ?? "Could not load this conversation.");
         } else {
-          setHistory((body.messages as Message[]) ?? []);
+          store.setCachedMessages(targetId, (body.messages as Message[]) ?? []);
+          store.setError(targetId, null);
         }
       } catch (err) {
-        if (cancelled) return;
         window.clearTimeout(timeout);
+        if (ac.signal.aborted || activeConvRef.current !== targetId) return;
+        const store = useChatConversationStore.getState();
         if (err instanceof Error && err.name === "AbortError") {
-          setError("Messages took too long to load — tap retry.");
+          if (!store.hasCachedMessages(targetId)) {
+            store.setError(targetId, "Messages took too long to load — tap retry.");
+          }
         } else {
-          setError(err instanceof Error ? err.message : "Could not load this conversation.");
+          store.setError(
+            targetId,
+            err instanceof Error ? err.message : "Could not load this conversation.",
+          );
         }
-        setHistory([]);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (activeConvRef.current === targetId) {
+          useChatConversationStore.getState().setLoading(targetId, false);
+        }
+        endConversationLoad(targetId, ac);
       }
     })();
 
     return () => {
-      cancelled = true;
-      ac.abort();
       window.clearTimeout(timeout);
+      ac.abort();
+      endConversationLoad(targetId, ac);
     };
-  }, [conversationId, userId, reloadTick, sessionReady]);
+  }, [conversationId, userId, reloadTick, sessionReady, activeConvRef]);
 
-  return { history, loading, error };
+  return { history, loading: loading && !hasCache, error, hasCache };
 }
 
 function messageText(msg: { content?: string; parts?: UIMessage["parts"] }): string {
@@ -422,10 +450,7 @@ export function ChatView() {
   const freePlan = planIsFree(profile?.plan_id);
   const [paidDiscussModel, setPaidDiscussModel] = React.useState("claude-sonnet-4-6");
   const effectiveDiscussModel = freePlan ? DISCUSS_MODEL_ID_FREE : paidDiscussModel;
-  const discussTokens = React.useMemo(
-    () => calculateTokens(effectiveDiscussModel, "discuss"),
-    [effectiveDiscussModel],
-  );
+  const discussTokens = DISCUSS_FLAT_CREDITS;
   /** Block sends only after server confirmed balance; avoids false zero before /api/credits hydrates. */
   const tokenBlocked = isConfirmed && remaining < discussTokens;
   const userId = user?.id ?? profile?.id;
@@ -449,6 +474,7 @@ export function ChatView() {
   const [chatState, setChatState] = React.useState("idle");
   const [debugBlocked, setDebugBlocked] = React.useState("no");
   const [submitStatusLabel, setSubmitStatusLabel] = React.useState("Ready");
+  const [isSending, setIsSending] = React.useState(false);
   const composerRootRef = React.useRef<HTMLDivElement>(null);
   const submitInFlightRef = React.useRef(false);
   const formRef = React.useRef<HTMLFormElement>(null);
@@ -459,19 +485,19 @@ export function ChatView() {
   const pendingAttachmentIdsRef = React.useRef<string[]>([]);
 
   const [histReload, setHistReload] = React.useState(0);
+  const convRef = React.useRef(activeConvId);
+  convRef.current = activeConvId;
   const { conversations, setConversations, loading: convLoading, error: convError, reload: reloadConversations } =
     useConversations(userId, sessionReady);
-  const { history, loading: histLoading, error: histError } = useMessages(
+  const { history, loading: histLoading, error: histError, hasCache: histHasCache } = useMessages(
     activeConvId,
     userId,
     histReload,
     sessionReady,
+    convRef,
   );
   const switchingConvRef = React.useRef(false);
   const streamConvRef = React.useRef<string | null>(null);
-
-  const convRef = React.useRef(activeConvId);
-  convRef.current = activeConvId;
 
   /** Stable for component lifetime — never tie to activeConvId or send wipes mid-flight. */
   const chatSessionId = React.useId();
@@ -528,11 +554,19 @@ export function ChatView() {
     onFinish: () => {
       pendingAttachmentIdsRef.current = [];
       useCreditsStore.getState().deductOptimistic(1);
-      if (userId) void syncFromDB(userId, { force: true });
+      if (userId) void refreshCredits({ reason: "charge" });
       void reloadConversations();
     },
   });
   const isBusy = status === "submitted" || status === "streaming";
+  const chatWorkingLabel = React.useMemo(() => {
+    if (isSending && preflightState === "pending") return "Understanding your request…";
+    if (isSending || preflightState === "pending") return "Preparing the best response…";
+    if (isBusy && status === "submitted") return "Understanding your request…";
+    if (isBusy && status === "streaming") return "Writing response…";
+    if (isBusy) return "Preparing the best response…";
+    return null;
+  }, [isSending, preflightState, isBusy, status]);
   const lastMessage = messages[messages.length - 1];
   const showStreamLoader = isBusy && (!lastMessage || lastMessage.role === "user");
 
@@ -553,23 +587,44 @@ export function ChatView() {
       switchingConvRef.current = true;
       streamConvRef.current = null;
       clearError();
-      setMessages([]);
       setActiveConvId(conversationId);
       convRef.current = conversationId;
       updateChatUrl(conversationId);
+
+      const cached = useChatConversationStore.getState().getCachedMessages(conversationId);
+      if (cached?.length) {
+        setMessages(
+          cached.map((m) => ({
+            id: m.id,
+            role: m.role as "user" | "assistant",
+            parts: [{ type: "text" as const, text: m.content }],
+          })),
+        );
+        switchingConvRef.current = false;
+      } else {
+        setMessages([]);
+      }
     },
     [activeConvId, clearError, setMessages, updateChatUrl],
   );
 
   React.useEffect(() => {
     const fromUrl = searchParams?.get("c");
-    if (fromUrl && fromUrl !== activeConvId && userId) {
+    if (!userId) return;
+    if (fromUrl && fromUrl !== activeConvId) {
       switchConversation(fromUrl);
+      return;
     }
-  }, [searchParams, userId]); // eslint-disable-line react-hooks/exhaustive-deps -- only hydrate from URL once params available
+    if (!fromUrl && activeConvId) {
+      setActiveConvId(null);
+      convRef.current = null;
+      streamConvRef.current = null;
+      if (!isBusy && !submitInFlightRef.current) setMessages([]);
+    }
+  }, [searchParams, userId, activeConvId, isBusy, switchConversation, setMessages]);
 
   const trimmedInput = input.trim();
-  const submitDisabledReason = !trimmedInput ? "empty" : isBusy ? "busy" : null;
+  const submitDisabledReason = !trimmedInput ? "empty" : isBusy || isSending ? "busy" : null;
 
   const tokensStatus = !isConfirmed
     ? "loading"
@@ -590,8 +645,9 @@ export function ChatView() {
       if (!isBusy) setMessages([]);
       return;
     }
-    if (histLoading) return;
-    if (histError) return;
+    if (histLoading && !histHasCache) return;
+    if (histError && !histHasCache) return;
+    if (submitInFlightRef.current) return;
     if (isBusy && streamConvRef.current === activeConvId && messages.length > 0) return;
     setMessages(
       history.map((m) => ({
@@ -601,7 +657,7 @@ export function ChatView() {
       })),
     );
     switchingConvRef.current = false;
-  }, [history, activeConvId, histLoading, histError, isBusy, setMessages]); // messages intentionally omitted — avoid loop during stream
+  }, [history, activeConvId, histLoading, histError, histHasCache, isBusy, setMessages]); // messages intentionally omitted — avoid loop during stream
 
   React.useEffect(() => {
     if (isBusy && activeConvId) streamConvRef.current = activeConvId;
@@ -682,6 +738,7 @@ export function ChatView() {
     }
 
     submitInFlightRef.current = true;
+    setIsSending(true);
     const draft = presetText ?? input;
     setLastSubmitAt(Date.now());
     setSubmitBlocker(null);
@@ -780,6 +837,8 @@ export function ChatView() {
         const r = await fetch("/api/chat/attachments", { method: "POST", body: fd });
         const j = (await r.json()) as { id?: string; error?: string };
         if (!r.ok) {
+          setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+          if (!presetText) setInput(draft);
           failSend("blocked:server", j.error ?? "Could not upload attachment");
           setSubmitStatusLabel(`Failed: ${j.error ?? "Could not upload attachment"}`);
           return;
@@ -795,7 +854,6 @@ export function ChatView() {
       setLastApiUrl("/api/chat");
       setLastApiStatus("pending");
       setChatState("pending");
-      setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
       await sendMessage({ text });
       setLastApiStatus((s) => (s === "pending" ? "ok" : s));
       setChatState("ok");
@@ -817,6 +875,7 @@ export function ChatView() {
       if (!presetText) setInput(draft);
     } finally {
       submitInFlightRef.current = false;
+      setIsSending(false);
     }
   }, [
     input,
@@ -913,16 +972,24 @@ export function ChatView() {
             />
           </div>
           <button
+            type="button"
             onClick={startNewConversation}
             className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground ring-1 ring-border transition hover:bg-surface hover:text-foreground active:scale-95"
             title="New conversation"
+            aria-label="New conversation"
           >
             <Plus className="size-4" strokeWidth={1.75} />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto py-1">
-          {convLoading || !sessionReady ? (
+          {!sessionReady && authLoading ? (
+            <div className="space-y-2 px-3 py-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-10 animate-pulse rounded-lg bg-muted/40" />
+              ))}
+            </div>
+          ) : convLoading && userId ? (
             <div className="space-y-2 px-3 py-4">
               {[1, 2, 3].map((i) => (
                 <div key={i} className="h-10 animate-pulse rounded-lg bg-muted/40" />
@@ -937,7 +1004,7 @@ export function ChatView() {
             </div>
           ) : convError ? (
             <div className="px-4 py-6 text-center">
-              <p className="text-[12px] text-destructive">Could not load conversations</p>
+              <p className="text-[12px] text-destructive">{convError}</p>
               <button
                 type="button"
                 onClick={() => reloadConversations()}
@@ -963,6 +1030,7 @@ export function ChatView() {
             filteredConvs.map((conv) => (
               <button
                 key={conv.id}
+                type="button"
                 onClick={() => switchConversation(conv.id)}
                 className={cn(
                   "group w-full cursor-pointer px-3 py-2.5 text-left transition hover:bg-surface",
@@ -1109,7 +1177,7 @@ export function ChatView() {
             </select>
           )}
           <span className="ml-auto hidden text-[11px] text-muted-foreground/60 sm:inline">
-            Friendly answers about DreamOS86 — no coding jargon unless you want it
+            {discussInputHintLabel()}
           </span>
         </div>
 
@@ -1155,11 +1223,19 @@ export function ChatView() {
               </motion.div>
             )}
 
-            {histLoading && (messages.length === 0 || switchingConvRef.current) ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            {histLoading && messages.length === 0 ? (
+              <div className="space-y-3 py-4" data-testid="chat-message-skeleton">
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className={cn(
+                      "h-12 animate-pulse rounded-2xl bg-muted/40",
+                      i % 2 === 0 ? "ml-auto w-[72%]" : "w-[68%]",
+                    )}
+                  />
+                ))}
               </div>
-            ) : histError ? (
+            ) : histError && activeConvId ? (
               <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-6 text-center">
                 <p className="text-[13px] text-destructive">Could not load this conversation.</p>
                 <button
@@ -1192,6 +1268,9 @@ export function ChatView() {
                   <DreamOS86BrandIcon variant="assistant" alt="" />
                 </div>
                 <div className="rounded-2xl rounded-tl-sm bg-surface px-4 py-3 ring-1 ring-border">
+                  {chatWorkingLabel && (
+                    <p className="mb-2 text-[12px] font-medium text-muted-foreground">{chatWorkingLabel}</p>
+                  )}
                   <div className="flex gap-1">
                     {[0, 1, 2].map((i) => (
                       <span

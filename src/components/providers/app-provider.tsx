@@ -13,11 +13,13 @@ import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { useCreditsStore, FREE_MONTHLY_QUOTA } from "@/lib/stores/credits-store";
+import { useCreditsStore, refreshCredits } from "@/lib/stores/credits-store";
+import { useCreditsSync } from "@/hooks/use-credits-sync";
 import { useNotificationsStore } from "@/lib/stores/notifications-store";
 import type { Notification } from "@/lib/supabase/types";
 import { ReferralCapture } from "@/components/referrals/referral-capture";
 import { CommandCenter } from "@/components/command/command-center";
+import { RecentPagesTracker } from "@/components/navigation/recent-pages-tracker";
 import { NavigationProgress } from "@/components/layout/navigation-progress";
 import { AuthStateDebug } from "@/components/dev/auth-state-debug";
 import { hasActiveSession, isStalePersistedProfile } from "@/lib/auth/client-identity";
@@ -26,7 +28,10 @@ import {
   invalidateBootstrapCache,
   setCachedBootstrap,
 } from "@/lib/cache/session-bootstrap-cache";
-import { loadUserProfileCoreDeduped } from "@/lib/supabase/load-user-profile";
+import { seedCreditsFromProfile } from "@/lib/credits/seed-credits-from-profile";
+import {
+  loadUserProfileCoreDeduped,
+} from "@/lib/supabase/load-user-profile";
 import type { Profile } from "@/lib/supabase/types";
 import { installChunkLoadRecovery } from "@/lib/navigation/chunk-load-recovery";
 
@@ -35,22 +40,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { setUser, setSession, setProfile, setLoading, reset: resetAuth } =
     useAuthStore();
-  const { syncFromDB: syncCredits, reset: resetCredits } = useCreditsStore();
+  const { reset: resetCredits } = useCreditsStore();
   const { setNotifications, addNotification, reset: resetNotifications } =
     useNotificationsStore();
-
-  // Rehydrate persisted Zustand state AFTER mount. The store is created
-  // with `skipHydration: true` so SSR and first client paint match. We
-  // trigger rehydration here, then bootstrap the live session below.
-  React.useEffect(() => {
-    void useAuthStore.persist.rehydrate();
-    return installChunkLoadRecovery();
-  }, []);
 
   const profile = useAuthStore((s) => s.profile);
   const session = useAuthStore((s) => s.session);
   const user = useAuthStore((s) => s.user);
   const loading = useAuthStore((s) => s.loading);
+  const hasSession = Boolean(session && user);
+  useCreditsSync(hasSession);
+
+  React.useEffect(() => {
+    if (!profile?.id) return;
+    const { isConfirmed } = useCreditsStore.getState();
+    if (!isConfirmed) seedCreditsFromProfile(profile);
+  }, [profile?.id, profile?.plan_id, profile?.credits_remaining, profile]);
+
+  React.useEffect(() => {
+    void useAuthStore.persist.rehydrate();
+    return installChunkLoadRecovery();
+  }, []);
 
   React.useEffect(() => {
     if (loading) return;
@@ -73,22 +83,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const supabase = createClient();
 
     async function bootstrapUser(userId: string): Promise<() => void> {
+      let creditRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+
       const cached = getCachedBootstrap(userId);
       if (cached?.profile) {
         setProfile(cached.profile);
-        if (typeof cached.profile.credits_remaining === "number") {
-          useCreditsStore.getState().setCredits(
-            Math.max(0, cached.profile.credits_remaining),
-            cached.profile.credits_reset_at ?? null,
-            undefined,
-          );
-        }
-        if (cached.notifications.length > 0) {
-          setNotifications(cached.notifications);
-        }
+        seedCreditsFromProfile(cached.profile);
+      }
+      if (cached?.notifications.length) {
+        setNotifications(cached.notifications);
       }
 
-      let { profile: coreProfile } = await loadUserProfileCoreDeduped(supabase, userId);
+      const profilePromise = loadUserProfileCoreDeduped(supabase, userId);
+      const notificationsPromise = supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      let { profile: coreProfile } = await profilePromise;
 
       if (!coreProfile && typeof fetch !== "undefined") {
         try {
@@ -112,30 +126,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (coreProfile) {
         const profile = coreProfile as Profile;
         setProfile(profile);
-        if (typeof profile.credits_remaining === "number") {
-          useCreditsStore.getState().setCredits(
-            Math.max(0, profile.credits_remaining),
-            profile.credits_reset_at ?? null,
-          );
+        seedCreditsFromProfile(profile);
+      }
+
+      let notificationRows = (await notificationsPromise).data ?? [];
+
+      if (coreProfile) {
+        try {
+          const welcomeRes = await fetch("/api/notifications/welcome", {
+            method: "POST",
+            credentials: "include",
+          });
+          if (welcomeRes.ok) {
+            const payload = (await welcomeRes.json()) as { created?: boolean };
+            if (payload.created) {
+              const { data: refreshed } = await supabase
+                .from("notifications")
+                .select("*")
+                .eq("user_id", userId)
+                .order("created_at", { ascending: false })
+                .limit(50);
+              if (refreshed) notificationRows = refreshed;
+            }
+          }
+        } catch {
+          /* welcome is best-effort */
         }
-        void syncCredits(userId, { force: true });
       }
 
-      const { data: notifications } = await supabase
-        .from("notifications")
-        .select("*")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(50);
-
-      if (notifications) {
-        setNotifications(notifications as Notification[]);
+      if (notificationRows.length >= 0) {
+        setNotifications(notificationRows as Notification[]);
       }
 
-      if (profile) {
+      if (coreProfile) {
         setCachedBootstrap(userId, {
-          profile,
-          notifications: (notifications ?? []) as Notification[],
+          profile: coreProfile as Profile,
+          notifications: notificationRows as Notification[],
         });
       }
 
@@ -166,17 +192,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             filter: `id=eq.${userId}`,
           },
           (payload) => {
-            const p = payload.new as {
-              credits_remaining: number;
-              credits_reset_at: string;
-            };
-            useCreditsStore
-              .getState()
-              .setCredits(p.credits_remaining, p.credits_reset_at);
             setProfile({
               ...useAuthStore.getState().profile!,
               ...payload.new,
             });
+            if (creditRefreshTimer) clearTimeout(creditRefreshTimer);
+            creditRefreshTimer = setTimeout(
+              () => void refreshCredits({ reason: "profile-realtime" }),
+              1500,
+            );
           },
         )
         .subscribe();
@@ -188,6 +212,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     let disposeRealtime: (() => void) | undefined;
+
+    let disposed = false;
+    const authTimeout = window.setTimeout(() => {
+      if (!disposed) setLoading(false);
+    }, 10_000);
 
     void supabase.auth.getUser().then(async ({ data: { user: liveUser } }) => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -215,6 +244,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       setLoading(false);
+      window.clearTimeout(authTimeout);
+    }).catch(() => {
+      setLoading(false);
+      window.clearTimeout(authTimeout);
     });
 
     const {
@@ -249,16 +282,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         resetAuth();
         resetCredits();
         resetNotifications();
-        // Only push if not already on an auth page — the logout modal does a full
-        // window.location.href redirect which is more reliable. This is a fallback
-        // for programmatic/server-side sign-outs that don't use the modal.
         if (typeof window !== "undefined" && !window.location.pathname.startsWith("/auth")) {
           router.push("/auth/login");
         }
       }
 
       if (event === "TOKEN_REFRESHED" && session?.user) {
-        syncCredits(session.user.id);
+        void refreshCredits({ reason: "bootstrap" });
       }
 
       if (event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") {
@@ -276,6 +306,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => {
+      disposed = true;
+      window.clearTimeout(authTimeout);
       disposeRealtime?.();
       subscription.unsubscribe();
     };
@@ -285,6 +317,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   return (
     <>
       <NavigationProgress />
+      <RecentPagesTracker />
       <ReferralCapture />
       <CommandCenter />
       <AuthStateDebug />

@@ -211,6 +211,56 @@
 }
 
 /* Skeleton shimmer */
+@keyframes plan-badge-shimmer {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(120%); }
+}
+
+.plan-badge-pattern::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.35;
+  pointer-events: none;
+  background-size: 200% 200%;
+  animation: plan-pattern-drift 6s ease-in-out infinite;
+}
+
+.plan-badge-starter::before {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 6px,
+    rgba(6, 182, 212, 0.22) 6px,
+    rgba(6, 182, 212, 0.22) 12px
+  );
+}
+
+.plan-badge-pro::before {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 5px,
+    rgba(139, 92, 246, 0.2) 5px,
+    rgba(59, 130, 246, 0.18) 10px
+  );
+}
+
+.plan-badge-infinity::before {
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent 4px,
+    rgba(251, 191, 36, 0.16) 4px,
+    rgba(168, 85, 247, 0.14) 8px
+  );
+}
+
+@keyframes plan-pattern-drift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
 @keyframes shimmer {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(300%); }

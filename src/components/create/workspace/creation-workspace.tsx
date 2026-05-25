@@ -25,7 +25,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { useCreditsStore } from "@/lib/stores/credits-store";
+import { refreshCredits, useCreditsStore } from "@/lib/stores/credits-store";
 import { createClient } from "@/lib/supabase/client";
 
 import {
@@ -34,6 +34,7 @@ import {
   type CreationMode,
 } from "@/lib/creation/models";
 import { CreditQuoteBanner, type CreditQuoteDisplay } from "@/components/billing/credit-quote-banner";
+import { CreditsTracker } from "@/components/credits/credits-tracker";
 import { BlueprintConfirmationModal } from "@/components/build/blueprint-confirmation-modal";
 import type { AppBlueprint } from "@/lib/build/blueprint-schema";
 import { ModelPicker } from "@/components/create/workspace/model-picker";
@@ -365,7 +366,7 @@ export function CreationWorkspace({
 }: CreationWorkspaceProps) {
   const supabase = createClient();
   const { profile } = useAuthStore();
-  const { syncFromDB, remaining, isConfirmed, totalUsedThisPeriod, resetAt } = useCreditsStore();
+  const { build, action, planId, loading: creditsLoading, isConfirmed, remaining, totalUsedThisPeriod, resetAt } = useCreditsStore();
   const [creditQuote, setCreditQuote] = React.useState<CreditQuoteDisplay | null>(null);
   const [quoteLoading, setQuoteLoading] = React.useState(false);
   const [blueprint, setBlueprint] = React.useState<AppBlueprint | null>(null);
@@ -377,7 +378,7 @@ export function CreationWorkspace({
   // ─── UI state ───────────────────────────────────────────────────────────────
   const [input, setInput] = React.useState(initialPrompt);
   const [mode, setMode] = React.useState<CreationMode>("discuss");
-  const [modelId, setModelId] = React.useState(DEFAULT_MODEL_ID);
+  const [modelId, setModelId] = React.useState("automatic");
   const [scope, setScope] = React.useState<EditScope | null>(null);
   const [attachments, setAttachments] = React.useState<Attachment[]>([]);
   const [showPreview, setShowPreview] = React.useState(true);
@@ -408,7 +409,7 @@ export function CreationWorkspace({
           } else if (res.ok) {
             setCreditError(false);
             const uid = useAuthStore.getState().user?.id;
-            if (uid) void syncFromDB(uid, { force: true });
+            if (uid) void refreshCredits({ reason: "charge" });
           }
           return res;
         },
@@ -427,7 +428,7 @@ export function CreationWorkspace({
           },
         }),
       }),
-    [modelId, syncFromDB, project?.id],
+    [modelId, project?.id],
   );
 
   React.useEffect(() => {
@@ -830,6 +831,15 @@ export function CreationWorkspace({
         {/* Composer */}
         <div className="shrink-0 border-t border-border/60 bg-background/90 px-3 py-3 backdrop-blur-xl">
           <div className="mx-auto max-w-3xl">
+            <CreditsTracker
+              build={build}
+              action={action}
+              planId={planId}
+              loading={creditsLoading && !isConfirmed}
+              variant="compact"
+              className="mb-3"
+              showUpgrade={build.available < build.planAllowance * 0.15}
+            />
             {(creditQuote || quoteLoading) && (
               <CreditQuoteBanner quote={creditQuote} loading={quoteLoading} className="mb-2" />
             )}
@@ -1056,18 +1066,12 @@ export function CreationWorkspace({
         }}
         onBuildNow={() => void confirmBlueprintBuild()}
         onEditBlueprint={() => setBlueprintOpen(false)}
-        onCheaperMode={() => {
-          setBlueprintApproved(true);
+        onStartSmaller={() => {
           setBlueprintOpen(false);
           const t = pendingSubmitRef.current;
-          pendingSubmitRef.current = t ? `${t}\n\n[Cheaper build mode: reduce scope, fewer pages, standard components only]` : null;
-          void confirmBlueprintBuild();
-        }}
-        onPremiumMode={() => {
-          setBlueprintApproved(true);
-          setBlueprintOpen(false);
-          const t = pendingSubmitRef.current;
-          pendingSubmitRef.current = t ? `${t}\n\n[Premium quality: richer UI, more polish, stronger error handling]` : null;
+          pendingSubmitRef.current = t
+            ? `${t}\n\n[Start with a smaller first version: fewer screens and core features only]`
+            : null;
           void confirmBlueprintBuild();
         }}
       />

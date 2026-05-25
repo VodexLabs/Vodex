@@ -71,6 +71,9 @@ export async function finalizeBuildSuccess(input: FinalizeBuildInput): Promise<v
       build_status: completion.validationOk ? "completed" : "needs_repair",
     }),
     app_name: appName,
+    shell_only: false,
+    hide_from_list: false,
+    hide_from_home: false,
     last_build_at: now,
     ...(buildJobId ? { last_build_id: buildJobId } : {}),
     builder: {
@@ -162,7 +165,13 @@ export async function finalizeBuildFailed(input: {
       .update({
         build_status: "failed",
         status: "error",
-        metadata: { ...prevMeta, ...lifecyclePatch("failed", { error: input.errorMessage.slice(0, 500) }) },
+        metadata: {
+          ...prevMeta,
+          ...lifecyclePatch("failed", { error: input.errorMessage.slice(0, 500) }),
+          hide_from_list: true,
+          hide_from_home: true,
+          shell_only: false,
+        },
       } as never)
       .eq("id", input.projectId)
       .eq("owner_id", input.userId);

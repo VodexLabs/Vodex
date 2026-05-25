@@ -41,9 +41,9 @@ export const UI_QUALITY_BENCHMARK_TARGETS = {
 
 /** Gate for generated / preview_ready — apps below this stay needs_attention. */
 export const UI_QUALITY_THRESHOLDS: UiQualityThresholds = {
-  minOverall: 82,
+  minOverall: 85,
   minPerDimension: 50,
-  polishIfBelow: 88,
+  polishIfBelow: 90,
   minAppTypeCompliance: 72,
   minStylePresetScore: 40,
   minRouteCompleteness: 70,

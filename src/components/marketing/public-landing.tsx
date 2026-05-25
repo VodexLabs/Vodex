@@ -63,7 +63,7 @@ function PublicAuthModal({
             </button>
             <p className="pr-10 text-[15px] font-semibold text-foreground">Sign in to build</p>
             <p className="mt-1 text-[12.5px] text-muted-foreground">
-              Save projects, shape blueprints, and preview — unlock the full create workflow after sign in.
+              Save projects, preview live, and publish — unlock the full create workflow after sign in.
             </p>
             <label
               htmlFor="auth-gate-prompt"
@@ -137,8 +137,7 @@ export function PublicLanding() {
             Turn ideas into apps you can preview, polish, and launch.
           </h1>
           <p className="mt-4 text-pretty text-[15px] leading-relaxed text-muted-foreground sm:text-[17px]">
-            Describe what you want in plain language. Review the plan, watch it build in stages, accept changes, and
-            publish when it&apos;s truly ready.
+            Describe what you want in plain language. Watch it build, preview the result, and publish when it&apos;s ready.
           </p>
 
           <div className="mx-auto mt-8 max-w-xl rounded-2xl border border-accent/20 bg-gradient-to-b from-accent/[0.08] to-background p-1 shadow-[0_24px_64px_-28px_rgba(30,107,255,0.35)] ring-1 ring-border/80">
@@ -157,7 +156,7 @@ export function PublicLanding() {
                 >
                   {draft.trim()
                     ? draft
-                    : "Build me a CRM for dentists with appointments and patient notes…"}
+                    : "Create me a management food inventory app for my restaurant…"}
                 </div>
               </button>
               <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">

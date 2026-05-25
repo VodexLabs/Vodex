@@ -16,11 +16,17 @@ const state: Record<ProviderName, ProviderState> = {
   unknown: { status: "unknown", lastErrorAt: null, lastSuccessAt: null, lastErrorClass: null },
 };
 
-function envDisabled(p: ProviderName): boolean {
-  if (p === "anthropic") return process.env.AI_PROVIDER_DISABLE_ANTHROPIC === "1";
-  if (p === "openai") return process.env.AI_PROVIDER_DISABLE_OPENAI === "1";
-  if (p === "google") return process.env.AI_PROVIDER_DISABLE_GOOGLE === "1";
-  return false;
+function envDisabled(p: ProviderName): { disabled: boolean; reason: string | null } {
+  if (p === "anthropic" && process.env.AI_PROVIDER_DISABLE_ANTHROPIC === "1") {
+    return { disabled: true, reason: "AI_PROVIDER_DISABLE_ANTHROPIC=1" };
+  }
+  if (p === "openai" && process.env.AI_PROVIDER_DISABLE_OPENAI === "1") {
+    return { disabled: true, reason: "AI_PROVIDER_DISABLE_OPENAI=1" };
+  }
+  if (p === "google" && process.env.AI_PROVIDER_DISABLE_GOOGLE === "1") {
+    return { disabled: true, reason: "AI_PROVIDER_DISABLE_GOOGLE=1" };
+  }
+  return { disabled: false, reason: null };
 }
 
 export function isProviderConfigured(p: ProviderName): boolean {
@@ -50,14 +56,19 @@ export function recordProviderFailure(provider: ProviderName, errorClass: Provid
   }
 }
 
-export function getProviderStatus(provider: ProviderName): ProviderState & { configured: boolean; disabled: boolean } {
-  const disabled = envDisabled(provider);
+export function getProviderStatus(provider: ProviderName): ProviderState & {
+  configured: boolean;
+  disabled: boolean;
+  disabledReason: string | null;
+} {
+  const env = envDisabled(provider);
+  const disabled = env.disabled;
   const configured = isProviderConfigured(provider);
   let status = state[provider].status;
   if (disabled) status = "disabled";
   else if (!configured) status = "disabled";
   else if (provider === "xai") status = "coming_soon";
-  return { ...state[provider], status, configured, disabled };
+  return { ...state[provider], status, configured, disabled, disabledReason: env.reason };
 }
 
 export function isProviderSelectable(provider: ProviderName): boolean {
@@ -69,6 +80,7 @@ export function listProviderHealthSummary(): Array<{
   provider: ProviderName;
   configured: boolean;
   status: ProviderErrorClass | "coming_soon" | "disabled";
+  disabledReason: string | null;
   lastSuccessAt: string | null;
   lastErrorAt: string | null;
   lastErrorClass: ProviderErrorClass | null;
@@ -79,6 +91,7 @@ export function listProviderHealthSummary(): Array<{
       provider,
       configured: s.configured,
       status: s.status,
+      disabledReason: s.disabledReason,
       lastSuccessAt: s.lastSuccessAt,
       lastErrorAt: s.lastErrorAt,
       lastErrorClass: s.lastErrorClass,

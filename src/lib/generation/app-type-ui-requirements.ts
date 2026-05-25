@@ -232,7 +232,8 @@ export function resolveAppTypeRequirement(appType: string | null | undefined): A
 export function resolveAppTypeFromPrompt(prompt: string): AppTypeUiRequirement | null {
   const lower = prompt.toLowerCase();
   const ordered = [
-    { id: "habit_tracker", hints: [/habit tracker|daily check-in|streaks/i] },
+    { id: "restaurant_inventory", hints: [/restaurant|food inventory|kitchen|pantry|supplier|waste|stock/i] },
+    { id: "marina_operations", hints: [/marina|slip|dock|boat|mooring|harbor/i] },
     { id: "ecommerce", hints: [/e-commerce|ecommerce|storefront|product grid|cart/i] },
     { id: "admin_panel", hints: [/admin panel|audit log|user management|roles/i] },
     { id: "community", hints: [/community|forum|posts.*comments/i] },

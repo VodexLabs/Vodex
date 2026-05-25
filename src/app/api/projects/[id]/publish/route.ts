@@ -4,7 +4,7 @@ import { createServiceRoleClient } from "@/lib/supabase/admin";
 import { publicWebUrlForSubdomain } from "@/lib/publish/subdomain";
 import { getAppUrl } from "@/lib/app-url";
 import { startPublish, resolveDisplayPublicUrl } from "@/lib/publish/publish-service";
-import { wildcardSubdomainEnabled } from "@/lib/publish/publish-config";
+import { wildcardSubdomainEnabled, getPublicAppRootDomain } from "@/lib/publish/publish-config";
 import { requireProjectId, jsonMissingId } from "@/lib/ids/required-ids";
 import { requireAuthUser, requireMutationProjectId, isNextResponse } from "@/lib/ids/api-mutation-guard";
 import { guardExpensiveRoute } from "@/lib/security/route-guard";
@@ -52,7 +52,7 @@ export async function GET(
     publicWebUrl,
     customDomain: project.custom_domain ?? null,
     customDomainAllowed,
-    platformBaseDomain: "dreamos86.com",
+    platformBaseDomain: getPublicAppRootDomain(),
     publishMode: wildcardSubdomainEnabled() ? "subdomain" : "path",
   });
 }

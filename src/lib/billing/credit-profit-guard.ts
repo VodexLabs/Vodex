@@ -1,8 +1,6 @@
 import { FULL_BUILD_CAP_USD } from "@/lib/ai/cost-budget";
 import {
   TARGET_REVENUE_MULTIPLIER,
-  USER_CREDIT_FLOORS,
-  complexityFloorKey,
   grossMarginFromCharge,
   minimumUserCreditsForProviderCost,
   providerUsdToInternalCredits,
@@ -21,6 +19,7 @@ export type QuoteGenerationCostInput = {
   estimatedInputTokens?: number | null;
   estimatedOutputTokens?: number | null;
   promptLength?: number;
+  promptWasCompressed?: boolean;
   expectedFiles?: number;
   userPlan?: string | null;
   reserveBuffer?: number;
@@ -51,18 +50,6 @@ export type GenerationCostQuote = {
     complexity: number;
   };
 };
-
-function promptBump(mode: GenerationMode, promptLength: number): number {
-  if (mode !== "build" && mode !== "full_build") return 0;
-  if (promptLength <= 800) return 0;
-  return Math.min(8, Math.floor(promptLength / 400));
-}
-
-function fileBump(mode: GenerationMode, expectedFiles: number): number {
-  if (mode !== "build" && mode !== "full_build") return 0;
-  if (expectedFiles <= 6) return 0;
-  return Math.min(10, Math.floor(expectedFiles / 3));
-}
 
 function resolveProviderCostUsd(input: QuoteGenerationCostInput): number {
   if (input.estimatedProviderCostUsd != null && input.estimatedProviderCostUsd > 0) {
@@ -100,9 +87,7 @@ export function providerHardCapForMode(mode: GenerationMode): number {
   return 0.02;
 }
 
-/** Discuss uses ~5× provider cost target; still enforces global 3× minimum. */
-export const DISCUSS_TARGET_REVENUE_MULTIPLIER = 5;
-
+/** Discuss / create-question — charge provider cost × 3 from actual or estimated usage. */
 export function quoteDiscussCost(input: {
   selectedModel: string;
   estimatedProviderCostUsd?: number;
@@ -116,37 +101,77 @@ export function quoteDiscussCost(input: {
         ? estimateTokenProviderCostUsd(input.selectedModel, input.inputTokens, input.outputTokens)
         : Math.min(estimateProviderCostUsd(input.selectedModel, "discuss"), 0.012);
 
+  const userCreditsRequired = Math.max(0.1, minimumUserCreditsForProviderCost(providerUsd));
   const minProfitable = minimumUserCreditsForProviderCost(providerUsd);
-  const discussTarget = Math.max(
-    1,
-    Math.ceil(providerUsd * DISCUSS_TARGET_REVENUE_MULTIPLIER * USER_CREDITS_PER_USD),
-  );
-  const userCreditsRequired = Math.max(1, Math.min(discussTarget, Math.max(minProfitable, 1)));
-
   const revenueMultiplier = revenueMultiplierFromCharge(userCreditsRequired, providerUsd);
   const grossMargin = grossMarginFromCharge(userCreditsRequired, providerUsd);
 
   return {
     userCreditsRequired,
-    userCreditsReserved: userCreditsRequired,
+    userCreditsReserved: Math.max(userCreditsRequired, Math.ceil(userCreditsRequired * 1.1)),
     internalCostCredits: providerUsdToInternalCredits(providerUsd),
     revenueMultiplier,
     estimatedGrossMargin: grossMargin,
     providerHardCapUsd: 0.012,
     estimatedProviderCostUsd: providerUsd,
-    floorReason: userCreditsRequired <= 1 ? "discuss_microcharge" : "discuss_5x_target",
-    safeToRun: userCreditsRequired >= minProfitable || minProfitable <= 1,
-    userFacingLabel: `Conversation · ${userCreditsRequired} credit${userCreditsRequired === 1 ? "" : "s"}`,
+    floorReason: "target_revenue_3x",
+    safeToRun: userCreditsRequired >= minProfitable,
+    userFacingLabel: `Discuss · ~${userCreditsRequired} credits (3× provider cost)`,
     adminBreakdown: {
-      productFloorCredits: USER_CREDIT_FLOORS.discuss,
+      productFloorCredits: 0,
       minimumProfitableCredits: minProfitable,
       promptBump: 0,
       fileBump: 0,
-      bufferApplied: 1,
+      bufferApplied: 1.1,
       revenueUsd: userCreditsRequired / USER_CREDITS_PER_USD,
       costUsd: providerUsd,
       modelId: input.selectedModel,
       mode: "discuss",
+      complexity: 1,
+    },
+  };
+}
+
+/** Create-page question — same 3× provider cost rule as Discuss. */
+export function quoteCreateQuestionCost(input: {
+  selectedModel: string;
+  estimatedProviderCostUsd?: number;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+}): GenerationCostQuote {
+  const providerUsd =
+    input.estimatedProviderCostUsd != null && input.estimatedProviderCostUsd > 0
+      ? input.estimatedProviderCostUsd
+      : input.inputTokens != null && input.outputTokens != null
+        ? estimateTokenProviderCostUsd(input.selectedModel, input.inputTokens, input.outputTokens)
+        : Math.min(estimateProviderCostUsd(input.selectedModel, "discuss"), 0.015);
+
+  const userCreditsRequired = Math.max(0.1, minimumUserCreditsForProviderCost(providerUsd));
+  const minProfitable = minimumUserCreditsForProviderCost(providerUsd);
+  const revenueMultiplier = revenueMultiplierFromCharge(userCreditsRequired, providerUsd);
+  const grossMargin = grossMarginFromCharge(userCreditsRequired, providerUsd);
+
+  return {
+    userCreditsRequired,
+    userCreditsReserved: Math.max(userCreditsRequired, Math.ceil(userCreditsRequired * 1.1)),
+    internalCostCredits: providerUsdToInternalCredits(providerUsd),
+    revenueMultiplier,
+    estimatedGrossMargin: grossMargin,
+    providerHardCapUsd: 0.015,
+    estimatedProviderCostUsd: providerUsd,
+    floorReason: "target_revenue_3x",
+    safeToRun: userCreditsRequired >= minProfitable,
+    userFacingLabel: `Create question · ~${userCreditsRequired} credits (3× provider cost)`,
+    adminBreakdown: {
+      productFloorCredits: 0,
+      minimumProfitableCredits: minProfitable,
+      promptBump: 0,
+      fileBump: 0,
+      bufferApplied: 1.1,
+      revenueUsd: userCreditsRequired / USER_CREDITS_PER_USD,
+      costUsd: providerUsd,
+      modelId: input.selectedModel,
+      mode: "discuss" as GenerationMode,
       complexity: 1,
     },
   };
@@ -166,13 +191,8 @@ export function quoteGenerationCost(input: QuoteGenerationCostInput): Generation
   const providerUsd = resolveProviderCostUsd(input);
   const internalCostCredits = providerUsdToInternalCredits(providerUsd);
   const minimumProfitable = minimumUserCreditsForProviderCost(providerUsd);
-  const floorKey = complexityFloorKey(input.mode, complexity);
-  const productFloor = USER_CREDIT_FLOORS[floorKey];
-  const pBump = promptBump(input.mode, input.promptLength ?? 0);
-  const fBump = fileBump(input.mode, input.expectedFiles ?? 0);
-  const baseRequired = Math.max(productFloor, minimumProfitable) + pBump + fBump;
-  const buffer = input.reserveBuffer ?? (input.mode === "build" || input.mode === "full_build" ? 1.15 : 1);
-  const userCreditsRequired = Math.max(1, Math.ceil(baseRequired));
+  const userCreditsRequired = Math.max(1, minimumProfitable);
+  const buffer = input.reserveBuffer ?? 1.1;
   const userCreditsReserved = Math.max(
     userCreditsRequired,
     Math.ceil(userCreditsRequired * buffer),
@@ -196,12 +216,7 @@ export function quoteGenerationCost(input: QuoteGenerationCostInput): Generation
               ? "AI repair"
               : "Conversation";
 
-  let floorReason = "combined";
-  if (userCreditsRequired === productFloor + pBump + fBump && minimumProfitable <= productFloor) {
-    floorReason = `product_floor:${floorKey}`;
-  } else if (userCreditsRequired === minimumProfitable + pBump + fBump) {
-    floorReason = "target_revenue_3x";
-  }
+  const floorReason = "target_revenue_3x";
 
   return {
     userCreditsRequired,
@@ -217,12 +232,12 @@ export function quoteGenerationCost(input: QuoteGenerationCostInput): Generation
       revenueMultiplier >= TARGET_REVENUE_MULTIPLIER - 0.001,
     userFacingLabel: `${modeLabel} · ~${userCreditsRequired} credits`,
     adminBreakdown: {
-      productFloorCredits: productFloor,
+      productFloorCredits: 0,
       minimumProfitableCredits: minimumProfitable,
-      promptBump: pBump,
-      fileBump: fBump,
+      promptBump: 0,
+      fileBump: 0,
       bufferApplied: buffer,
-      revenueUsd: userCreditsRequired / 10,
+      revenueUsd: userCreditsRequired / USER_CREDITS_PER_USD,
       costUsd: providerUsd,
       modelId: input.selectedModel,
       mode: input.mode,
@@ -246,11 +261,7 @@ export function assertProfitableCharge(
 }
 
 export function creditsFromProviderCostUsd(providerCostUsd: number): number {
-  return quoteGenerationCost({
-    mode: "discuss",
-    selectedModel: "gemini-flash",
-    estimatedProviderCostUsd: providerCostUsd,
-  }).userCreditsRequired;
+  return Math.max(1, minimumUserCreditsForProviderCost(providerCostUsd));
 }
 
 /** @deprecated Use revenueMultiplier on quote */

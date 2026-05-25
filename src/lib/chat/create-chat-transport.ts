@@ -18,6 +18,8 @@ export type ChatTransportBody = {
   qualityLevel?: string;
   templateId?: string;
   stylePresetId?: string;
+  /** Create-page question answer — flat 0.8 credit pricing, no project creation. */
+  createQuestion?: boolean;
 };
 
 export function createDreamChatTransport({
@@ -47,23 +49,38 @@ export function createDreamChatTransport({
       }),
     prepareSendMessagesRequest: ({ id, messages, body, trigger, messageId }) => {
       const extra = getBody();
+      const requestBody = (body ?? {}) as Partial<ChatTransportBody>;
+      const isCreateQuestion =
+        requestBody.createQuestion === true || extra.createQuestion === true;
       return {
         body: {
-          ...(body ?? {}),
+          ...requestBody,
           id,
           messages,
           trigger,
           messageId,
           modelId: extra.modelId,
           mode: extra.mode,
-          scope: extra.scope ?? undefined,
-          editTarget: extra.editTarget ?? undefined,
-          projectId: extra.projectId,
-          conversationId: extra.conversationId,
-          attachmentIds: extra.attachmentIds,
-          operationId: extra.operationId ?? extra.idempotencyKey,
-          idempotencyKey: extra.idempotencyKey ?? extra.operationId,
-          approvedBlueprint: extra.approvedBlueprint ?? undefined,
+          scope: requestBody.scope ?? extra.scope ?? undefined,
+          editTarget: requestBody.editTarget ?? extra.editTarget ?? undefined,
+          projectId: isCreateQuestion
+            ? undefined
+            : (requestBody.projectId ?? extra.projectId),
+          conversationId: requestBody.conversationId ?? extra.conversationId,
+          attachmentIds: requestBody.attachmentIds ?? extra.attachmentIds,
+          operationId:
+            requestBody.operationId ??
+            requestBody.idempotencyKey ??
+            extra.operationId ??
+            extra.idempotencyKey,
+          idempotencyKey:
+            requestBody.idempotencyKey ??
+            requestBody.operationId ??
+            extra.idempotencyKey ??
+            extra.operationId,
+          approvedBlueprint:
+            requestBody.approvedBlueprint ?? extra.approvedBlueprint ?? undefined,
+          createQuestion: isCreateQuestion ? true : undefined,
         },
       };
     },

@@ -7,7 +7,7 @@ type BootstrapSnapshot = {
   fetchedAt: number;
 };
 
-const TTL_MS = 60_000;
+const TTL_MS = 5 * 60_000;
 const cache = new Map<string, BootstrapSnapshot>();
 const inflight = new Map<string, Promise<BootstrapSnapshot | null>>();
 

@@ -24,8 +24,11 @@ import {
   isStalePersistedProfile,
   resolveAccountEmail,
 } from "@/lib/auth/client-identity";
-import { useCreditsStore, getMonthlyTokenQuotaForPlan } from "@/lib/stores/credits-store";
+import { useCreditsStore, getMonthlyTokenQuotaForPlan, resolveBuildCreditCap } from "@/lib/stores/credits-store";
+import { useAppearanceStore, FONT_SCALE_MAP, type FontScale } from "@/lib/stores/appearance-store";
 import { DreamSpaceGlyph, resolveDreamSpaceLabel } from "@/lib/dream-space";
+import { resolveWorkspaceDisplayName, defaultWorkspaceNameFromEmail } from "@/lib/profile/default-workspace-name";
+import { notifyUserActionComplete } from "@/lib/notify/console-chime";
 import { toast } from "@/lib/toast";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -34,7 +37,13 @@ import { AccountIdentityCard } from "@/components/identity/account-identity-card
 export default function SettingsGeneralPage() {
   const router = useRouter();
   const { profile, user, session, loading: authLoading, setProfile } = useAuthStore();
-  const { remaining } = useCreditsStore();
+  const { remaining, bonusCredits, totalUsedThisPeriod, build, isConfirmed, syncFromDB } = useCreditsStore();
+  const fontScale = useAppearanceStore((s) => s.fontScale);
+  const sidebarCollapsed = useAppearanceStore((s) => s.sidebarCollapsed);
+  const hideDreamosBranding = useAppearanceStore((s) => s.hideDreamosBranding);
+  const setFontScale = useAppearanceStore((s) => s.setFontScale);
+  const setSidebarCollapsed = useAppearanceStore((s) => s.setSidebarCollapsed);
+  const setHideDreamosBranding = useAppearanceStore((s) => s.setHideDreamosBranding);
   const { theme, setTheme } = useTheme();
   const hydrated = useHydrated();
 
@@ -49,12 +58,14 @@ export default function SettingsGeneralPage() {
     return resolveClientUserId(supabase, user, profile);
   }
 
-  const [sidebarStyle, setSidebarStyle] = React.useState(true);
-  const [fontSize, setFontSize] = React.useState("15");
-  const [workspaceName, setWorkspaceName] = React.useState("My Workspace");
+  const [sidebarStyle, setSidebarStyle] = React.useState(sidebarCollapsed);
+  const [fontSize, setFontSize] = React.useState(FONT_SCALE_MAP[fontScale].replace("px", ""));
+  const [workspaceName, setWorkspaceName] = React.useState(
+    defaultWorkspaceNameFromEmail(accountEmail),
+  );
   const [description, setDescription] = React.useState("");
   const [workspaceIconUrl, setWorkspaceIconUrl] = React.useState<string | null>(null);
-  const [showBranding, setShowBranding] = React.useState(true);
+  const [showBranding, setShowBranding] = React.useState(!hideDreamosBranding);
   const [deleteConfirm, setDeleteConfirm] = React.useState(false);
   const [deleteInput, setDeleteInput] = React.useState("");
   const [saving, setSaving] = React.useState(false);
@@ -63,7 +74,20 @@ export default function SettingsGeneralPage() {
 
   const isPaidPlan = profile && profile.plan_id !== "free";
   const dreamLabelResolved = resolveDreamSpaceLabel(profile, user);
+  React.useEffect(() => {
+    setSidebarStyle(sidebarCollapsed);
+    setFontSize(FONT_SCALE_MAP[fontScale].replace("px", ""));
+    setShowBranding(!hideDreamosBranding);
+  }, [fontScale, sidebarCollapsed, hideDreamosBranding]);
+
+  const creditAvailable = build?.available ?? remaining;
   const tokenQuota = getMonthlyTokenQuotaForPlan(profile?.plan_id);
+  const creditPlanCap = resolveBuildCreditCap(build, profile?.plan_id, isConfirmed);
+
+  React.useEffect(() => {
+    if (!signedIn) return;
+    void syncFromDB({ reason: "bootstrap" });
+  }, [signedIn, syncFromDB]);
   const planBadge =
     profile &&
     (profile.plan_id === "free"
@@ -85,14 +109,16 @@ export default function SettingsGeneralPage() {
   React.useEffect(() => {
     if (!profile) return;
     /* eslint-disable react-hooks/set-state-in-effect -- sync form from server profile */
-    setWorkspaceName(profile.workspace_name ?? "My Workspace");
+    setWorkspaceName(
+      resolveWorkspaceDisplayName(profile.workspace_name, profile.email ?? accountEmail),
+    );
     setDescription(profile.workspace_description ?? "");
     setWorkspaceIconUrl(profile.workspace_icon_url ?? null);
     /* eslint-enable react-hooks/set-state-in-effect */
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileId]);
 
-  const baselineName = profile?.workspace_name ?? "My Workspace";
+  const baselineName = resolveWorkspaceDisplayName(profile?.workspace_name, accountEmail);
   const baselineDesc = profile?.workspace_description ?? "";
   const baselineIcon = profile?.workspace_icon_url ?? null;
 
@@ -208,6 +234,7 @@ export default function SettingsGeneralPage() {
           setWorkspaceIconUrl(payload.profile.workspace_icon_url);
         }
         toast.success("Dream Space saved");
+        notifyUserActionComplete("Dream Space saved");
         router.refresh();
       }
     } catch (err) {
@@ -302,12 +329,27 @@ export default function SettingsGeneralPage() {
                     {planBadge} plan
                   </span>
                 )}
-                <div className="flex min-w-0 items-center gap-1.5 rounded-full bg-muted/50 px-2.5 py-1 text-[11px] text-muted-foreground ring-1 ring-border/60">
-                  <Zap className="size-3 shrink-0 text-accent" strokeWidth={1.75} />
-                  <span className="tabular-nums font-medium text-foreground">{remaining.toLocaleString()}</span>
-                  <span className="text-muted-foreground/70">/</span>
-                  <span className="tabular-nums">{tokenQuota.toLocaleString()}</span>
-                  <span className="ml-0.5">tokens this period</span>
+                <div className="flex min-w-0 flex-col gap-0.5 rounded-full bg-muted/50 px-2.5 py-1.5 text-[11px] text-muted-foreground ring-1 ring-border/60 sm:flex-row sm:items-center sm:gap-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <Zap className="size-3 shrink-0 text-accent" strokeWidth={1.75} />
+                    <span className="tabular-nums font-medium text-foreground">
+                      {creditAvailable.toLocaleString()} / {creditPlanCap.toLocaleString()}
+                    </span>
+                  </div>
+                  <span className="hidden text-muted-foreground/50 sm:inline">·</span>
+                  <span>Build credits this period</span>
+                  {bonusCredits > 0 ? (
+                    <>
+                      <span className="hidden text-muted-foreground/50 sm:inline">·</span>
+                      <span className="text-accent">Bonus +{bonusCredits.toLocaleString()}</span>
+                    </>
+                  ) : null}
+                  {totalUsedThisPeriod > 0 ? (
+                    <>
+                      <span className="hidden text-muted-foreground/50 sm:inline">·</span>
+                      <span>{totalUsedThisPeriod.toLocaleString()} used</span>
+                    </>
+                  ) : null}
                 </div>
               </div>
 
@@ -361,7 +403,9 @@ export default function SettingsGeneralPage() {
               variant="ghost"
               size="md"
               onClick={() => {
-                setWorkspaceName(profile?.workspace_name ?? "My Workspace");
+                setWorkspaceName(
+                  resolveWorkspaceDisplayName(profile?.workspace_name, accountEmail),
+                );
                 setDescription(profile?.workspace_description ?? "");
                 setWorkspaceIconUrl(profile?.workspace_icon_url ?? null);
               }}
@@ -415,7 +459,18 @@ export default function SettingsGeneralPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <FieldLabel>Font Size</FieldLabel>
-              <select value={fontSize} onChange={(e) => setFontSize(e.target.value)} className={selectCls}>
+              <select
+                value={fontSize}
+                onChange={(e) => {
+                  const px = e.target.value;
+                  setFontSize(px);
+                  const scale: FontScale =
+                    px === "13" ? "sm" : px === "14" ? "md" : px === "15" ? "lg" : "lg";
+                  setFontScale(scale);
+                  notifyUserActionComplete("Font size updated");
+                }}
+                className={selectCls}
+              >
                 <option value="13">Small (13px)</option>
                 <option value="14">Normal (14px)</option>
                 <option value="15">Medium (15px)</option>
@@ -425,7 +480,15 @@ export default function SettingsGeneralPage() {
           </div>
 
           <SettingRow title="Compact sidebar" description="Show icons only in the sidebar to maximize workspace area.">
-            <Switch checked={sidebarStyle} onCheckedChange={setSidebarStyle} aria-label="Compact sidebar" />
+            <Switch
+              checked={sidebarStyle}
+              onCheckedChange={(v) => {
+                setSidebarStyle(v);
+                setSidebarCollapsed(v);
+                notifyUserActionComplete("Sidebar layout updated");
+              }}
+              aria-label="Compact sidebar"
+            />
           </SettingRow>
         </div>
       </SectionCard>
@@ -443,7 +506,15 @@ export default function SettingsGeneralPage() {
           >
             <Switch
               checked={isPaidPlan ? showBranding : true}
-              onCheckedChange={isPaidPlan ? setShowBranding : undefined}
+              onCheckedChange={
+                isPaidPlan
+                  ? (v) => {
+                      setShowBranding(v);
+                      setHideDreamosBranding(!v);
+                      notifyUserActionComplete("App branding updated");
+                    }
+                  : undefined
+              }
               disabled={!isPaidPlan}
               aria-label="Show DreamOS86 branding"
             />

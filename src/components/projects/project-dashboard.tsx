@@ -38,11 +38,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
-import {
-  ArchitectureGraph,
-  type GraphNode,
-  type GraphEdge,
-} from "@/components/projects/architecture-graph";
+import type { GraphNode, GraphEdge } from "@/components/projects/architecture-graph";
+import { ArchitectureWorkflowView } from "@/components/projects/architecture-workflow-view";
+import { ProjectIntegrationsPanel } from "@/components/integrations/project-integrations-panel";
+import { readLifecycleFromMetadata } from "@/lib/projects/project-lifecycle";
+import { resolveDisplayPublicUrl } from "@/lib/publish/publish-service";
 
 interface ProjectRow {
   id: string;
@@ -52,6 +52,7 @@ interface ProjectRow {
   status: "live" | "staging" | "draft" | "building" | "error";
   framework: string;
   preview_url: string | null;
+  published_subdomain?: string | null;
   custom_domain: string | null;
   gradient: string;
   is_public: boolean;
@@ -250,7 +251,7 @@ function OverviewTab({ project, deployments }: { project: ProjectRow; deployment
         </div>
 
         <Link
-          href={`/?project=${project.id}`}
+          href={`/apps/${project.id}/builder`}
           className="group flex items-center gap-3 rounded-[var(--radius-xl)] bg-background p-4 ring-1 ring-border transition hover:ring-accent/40"
         >
           <div className="flex size-9 items-center justify-center rounded-lg bg-accent/10 text-accent">
@@ -282,7 +283,7 @@ function ArchitectureTab({ project, deployments }: { project: ProjectRow; deploy
           Every node is a real entity. Solid edges are wired connections; dashed edges are inferred.
         </p>
       </div>
-      <ArchitectureGraph nodes={nodes} edges={edges} />
+      <ArchitectureWorkflowView nodes={nodes} edges={edges} />
     </div>
   );
 }
@@ -712,6 +713,7 @@ function UsersTab({ project }: { project: ProjectRow }) {
 
 function DomainsTab({ project }: { project: ProjectRow }) {
   const [domainInput, setDomainInput] = React.useState("");
+  const publicUrl = resolveDisplayPublicUrl(project);
 
   return (
     <div className="space-y-4">
@@ -749,11 +751,11 @@ function DomainsTab({ project }: { project: ProjectRow }) {
               <p className="text-[12px] text-muted-foreground">Your app is live on a DreamOS86 subdomain</p>
             </div>
           </div>
-          {project.preview_url && (
+          {(publicUrl || project.preview_url) && (
             <div className="mb-4 flex items-center gap-2 rounded-lg bg-surface px-3 py-2 ring-1 ring-border text-[12.5px]">
               <Globe className="size-3.5 text-muted-foreground/60 shrink-0" strokeWidth={1.75} />
-              <span className="truncate text-muted-foreground">{project.preview_url}</span>
-              <a href={project.preview_url} target="_blank" rel="noopener noreferrer"
+              <span className="truncate text-muted-foreground">{publicUrl ?? project.preview_url}</span>
+              <a href={publicUrl ?? project.preview_url!} target="_blank" rel="noopener noreferrer"
                 className="ml-auto shrink-0 text-accent transition hover:text-accent/70">
                 <ExternalLink className="size-3.5" strokeWidth={1.75} />
               </a>
@@ -816,9 +818,40 @@ function SecurityTab({ project }: { project: ProjectRow }) {
 // ─── Logs tab ─────────────────────────────────────────────────────────────────
 
 function LogsTab({ project }: { project: ProjectRow }) {
-  const isLive = project.status === "live";
+  const [loading, setLoading] = React.useState(true);
+  const [lines, setLines] = React.useState<string[]>([]);
+  const lifecycle = readLifecycleFromMetadata(project.metadata).lifecycle_status;
+  const hasActivity =
+    project.status === "live" ||
+    Boolean(project.preview_url) ||
+    lifecycle === "published" ||
+    lifecycle === "preview_ready";
 
-  if (!isLive) {
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/projects/${project.id}/preview-errors`)
+      .then((r) => r.json())
+      .then((body: { errors?: Array<{ message: string; file?: string }>; buildError?: string | null; buildStatus?: string | null }) => {
+        if (cancelled) return;
+        const out: string[] = [];
+        if (body.buildStatus) out.push(`Build status: ${body.buildStatus}`);
+        if (body.buildError) out.push(`Build error: ${body.buildError}`);
+        for (const err of body.errors ?? []) {
+          const loc = err.file ? ` (${err.file})` : "";
+          out.push(`${err.message}${loc}`);
+        }
+        setLines(out);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id]);
+
+  if (!hasActivity && lines.length === 0 && !loading) {
     return (
       <div className="rounded-[var(--radius-xl)] bg-background p-8 text-center ring-1 ring-border">
         <div className="flex justify-center">
@@ -828,7 +861,7 @@ function LogsTab({ project }: { project: ProjectRow }) {
         </div>
         <h3 className="mt-4 text-[14px] font-semibold text-foreground">No logs yet</h3>
         <p className="mx-auto mt-2 max-w-sm text-[12.5px] leading-relaxed text-muted-foreground">
-          Deploy your app to start collecting runtime logs, errors, and API request traces.
+          Build or deploy your app to start collecting runtime logs, errors, and API request traces.
         </p>
       </div>
     );
@@ -837,19 +870,28 @@ function LogsTab({ project }: { project: ProjectRow }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-[13px] font-semibold text-foreground">Runtime logs</p>
-        <span className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
-          <span className="size-1.5 animate-pulse rounded-full bg-emerald-400" />
-          Live
-        </span>
+        <p className="text-[13px] font-semibold text-foreground">Build & preview logs</p>
+        {hasActivity && (
+          <span className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+            <span className="size-1.5 animate-pulse rounded-full bg-emerald-400" />
+            Active
+          </span>
+        )}
       </div>
-      <div className="rounded-[var(--radius-xl)] bg-[#080c12] p-4 ring-1 ring-border font-mono">
-        <p className="text-[11.5px] text-emerald-400/70">
-          {new Date().toISOString()} — App initialized · waiting for requests
-        </p>
-        <p className="mt-1 text-[11.5px] text-muted-foreground/50">
-          Logs will appear here as your app receives traffic.
-        </p>
+      <div className="max-h-[min(60vh,480px)] overflow-y-auto rounded-[var(--radius-xl)] bg-[#080c12] p-4 ring-1 ring-border font-mono">
+        {loading ? (
+          <p className="text-[11.5px] text-muted-foreground/50">Loading logs…</p>
+        ) : lines.length === 0 ? (
+          <p className="text-[11.5px] text-emerald-400/70">
+            {new Date().toISOString()} — No errors recorded. App is healthy.
+          </p>
+        ) : (
+          lines.map((line, i) => (
+            <p key={i} className="text-[11.5px] text-emerald-400/80">
+              {line}
+            </p>
+          ))
+        )}
       </div>
     </div>
   );
@@ -858,6 +900,35 @@ function LogsTab({ project }: { project: ProjectRow }) {
 // ─── Billing tab ─────────────────────────────────────────────────────────────
 
 function BillingTab({ project }: { project: ProjectRow }) {
+  const [loading, setLoading] = React.useState(true);
+  const [totalCredits, setTotalCredits] = React.useState(0);
+  const [jobCount, setJobCount] = React.useState(0);
+  const [lastBuildAt, setLastBuildAt] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/projects/${project.id}/summary`)
+      .then((r) => r.json())
+      .then((body: {
+        buildJobCount?: number;
+        usage?: { totalCredits?: number; lastBuildAt?: string | null };
+      }) => {
+        if (cancelled) return;
+        setJobCount(body.buildJobCount ?? 0);
+        setTotalCredits(body.usage?.totalCredits ?? 0);
+        setLastBuildAt(body.usage?.lastBuildAt ?? null);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id]);
+
+  const avgPerJob = jobCount > 0 ? Math.round(totalCredits / jobCount) : 0;
+
   return (
     <div className="space-y-4">
       <div>
@@ -867,9 +938,9 @@ function BillingTab({ project }: { project: ProjectRow }) {
 
       <div className="grid gap-3 sm:grid-cols-3">
         {[
-          { label: "Credits used (total)", value: "—", hint: "Since creation" },
-          { label: "Last generation", value: "—", hint: "Last build event" },
-          { label: "Avg. per session", value: "—", hint: "Rolling average" },
+          { label: "Credits used (total)", value: loading ? "…" : String(totalCredits), hint: "All build jobs" },
+          { label: "Build runs", value: loading ? "…" : String(jobCount), hint: "Since creation" },
+          { label: "Avg. per build", value: loading ? "…" : jobCount ? String(avgPerJob) : "—", hint: "Rolling average" },
         ].map(({ label, value, hint }) => (
           <div key={label} className="rounded-[var(--radius-xl)] bg-background p-4 ring-1 ring-border">
             <p className="text-[11.5px] text-muted-foreground">{label}</p>
@@ -881,10 +952,19 @@ function BillingTab({ project }: { project: ProjectRow }) {
 
       <div className="rounded-[var(--radius-xl)] bg-background p-5 ring-1 ring-border">
         <p className="text-[13px] font-semibold text-foreground mb-2">Credit history</p>
-        <p className="text-[12.5px] text-muted-foreground">
-          No generation events recorded for this app yet.
-          Each orchestration run will appear here with a timestamp and credit cost.
-        </p>
+        {loading ? (
+          <p className="text-[12.5px] text-muted-foreground">Loading usage…</p>
+        ) : jobCount === 0 ? (
+          <p className="text-[12.5px] text-muted-foreground">
+            No generation events recorded for this app yet.
+            Each orchestration run will appear here with a timestamp and credit cost.
+          </p>
+        ) : (
+          <p className="text-[12.5px] text-muted-foreground">
+            {jobCount} build run{jobCount !== 1 ? "s" : ""} recorded
+            {lastBuildAt ? ` · Last build ${new Date(lastBuildAt).toLocaleString()}` : ""}.
+          </p>
+        )}
         <Link
           href="/credits"
           className="mt-3 inline-flex items-center gap-1.5 text-[12.5px] text-accent transition hover:underline"
@@ -898,49 +978,14 @@ function BillingTab({ project }: { project: ProjectRow }) {
 
 // ─── Integrations tab ────────────────────────────────────────────────────────
 
-const INTEGRATIONS = [
-  { name: "Supabase", desc: "Database, Auth, Storage, and Realtime", icon: "⚡", connected: false },
-  { name: "Stripe", desc: "Payment processing, subscriptions, and billing", icon: "💳", connected: false },
-  { name: "Resend", desc: "Transactional email delivery", icon: "📧", connected: false },
-  { name: "Cloudinary", desc: "Image and video optimization CDN", icon: "🖼️", connected: false },
-  { name: "OpenAI", desc: "Embed AI completions and assistants", icon: "🤖", connected: false },
-  { name: "Slack", desc: "Notifications, alerts, and workflow triggers", icon: "💬", connected: false },
-  { name: "GitHub", desc: "Source control, CI/CD, and deployments", icon: "🐱", connected: false },
-  { name: "Twilio", desc: "SMS, voice, and WhatsApp messaging", icon: "📱", connected: false },
-];
-
-function IntegrationsTab() {
+function IntegrationsTab({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-4">
       <div>
         <h3 className="text-[13.5px] font-semibold text-foreground">Integrations</h3>
         <p className="text-[12px] text-muted-foreground">Connect third-party services to extend your app</p>
       </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        {INTEGRATIONS.map(({ name, desc, icon, connected }) => (
-          <div key={name} className="flex items-center gap-3 rounded-[var(--radius-xl)] bg-background p-4 ring-1 ring-border transition hover:ring-accent/20">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-surface text-lg">
-              {icon}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-semibold text-foreground">{name}</p>
-              <p className="text-[11.5px] text-muted-foreground">{desc}</p>
-            </div>
-            <button
-              type="button"
-              className={cn(
-                "shrink-0 rounded-lg px-2.5 py-1 text-[11.5px] font-semibold transition",
-                connected
-                  ? "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20"
-                  : "bg-surface text-muted-foreground ring-1 ring-border hover:bg-accent/10 hover:text-accent hover:ring-accent/20",
-              )}
-            >
-              {connected ? "Connected" : "Connect"}
-            </button>
-          </div>
-        ))}
-      </div>
+      <ProjectIntegrationsPanel projectId={projectId} />
     </div>
   );
 }
@@ -948,7 +993,22 @@ function IntegrationsTab() {
 // ─── Analytics tab ───────────────────────────────────────────────────────────
 
 function AnalyticsTab({ project }: { project: ProjectRow }) {
-  const isLive = project.status === "live";
+  const [loading, setLoading] = React.useState(true);
+  const [fileCount, setFileCount] = React.useState(0);
+  const [lifecycleLabel, setLifecycleLabel] = React.useState<string | null>(null);
+  const publicUrl = resolveDisplayPublicUrl(project);
+  const isLive = project.status === "live" || Boolean(publicUrl);
+
+  React.useEffect(() => {
+    fetch(`/api/projects/${project.id}/summary`)
+      .then((r) => r.json())
+      .then((body: { fileCount?: number; lifecycle?: { userLabel?: string } }) => {
+        setFileCount(body.fileCount ?? 0);
+        setLifecycleLabel(body.lifecycle?.userLabel ?? null);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [project.id]);
 
   if (!isLive) {
     return (
@@ -963,6 +1023,11 @@ function AnalyticsTab({ project }: { project: ProjectRow }) {
           <p className="mx-auto mt-2 max-w-sm text-[12.5px] leading-relaxed text-muted-foreground">
             Once your app is live, DreamOS86 tracks page views, API latency, error rates, and active users in real time.
           </p>
+          {!loading && (
+            <p className="mt-3 text-[11.5px] text-muted-foreground">
+              Current status: {lifecycleLabel ?? "Draft"} · {fileCount} generated file{fileCount !== 1 ? "s" : ""}
+            </p>
+          )}
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
           {[
@@ -983,10 +1048,10 @@ function AnalyticsTab({ project }: { project: ProjectRow }) {
 
   // Live: show analytics metrics with mock-real structure
   const stats = [
-    { label: "Page views (7d)", value: "—", icon: TrendingUp, hint: "Collecting data…" },
-    { label: "Active users", value: "—", icon: Users, hint: "Waiting for traffic" },
-    { label: "API latency (P95)", value: "—", icon: Zap, hint: "Measuring…" },
-    { label: "Error rate", value: "—", icon: AlertTriangle, hint: "All clear" },
+    { label: "Page views (7d)", value: loading ? "…" : "—", icon: TrendingUp, hint: "Collecting data…" },
+    { label: "Active users", value: loading ? "…" : "—", icon: Users, hint: "Waiting for traffic" },
+    { label: "Generated files", value: loading ? "…" : String(fileCount), icon: Zap, hint: lifecycleLabel ?? "App" },
+    { label: "Public URL", value: publicUrl ? "Live" : "—", icon: AlertTriangle, hint: publicUrl ?? "Not published" },
   ];
 
   return (
@@ -1022,16 +1087,35 @@ interface EnvVar {
 }
 
 function EnvironmentTab({ project }: { project: ProjectRow }) {
-  const [vars, setVars] = React.useState<EnvVar[]>(() => {
-    const stored = typeof window !== "undefined"
-      ? localStorage.getItem(`env-${project.id}`)
-      : null;
-    return stored ? (JSON.parse(stored) as EnvVar[]) : [];
-  });
+  const [vars, setVars] = React.useState<EnvVar[]>([]);
+  const [loaded, setLoaded] = React.useState(false);
   const [newKey, setNewKey] = React.useState("");
   const [newValue, setNewValue] = React.useState("");
   const [adding, setAdding] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+
+  React.useEffect(() => {
+    fetch(`/api/projects/${project.id}/secrets`)
+      .then((r) => r.json())
+      .then((body: { keys?: Array<{ name: string }> }) => {
+        const remote = (body.keys ?? []).map((k) => ({
+          key: k.name,
+          value: "••••••••",
+          visible: false,
+        }));
+        const stored = typeof window !== "undefined"
+          ? localStorage.getItem(`env-${project.id}`)
+          : null;
+        const local = stored ? (JSON.parse(stored) as EnvVar[]) : [];
+        const merged = [...remote];
+        for (const v of local) {
+          if (!merged.some((m) => m.key === v.key)) merged.push(v);
+        }
+        setVars(merged);
+        setLoaded(true);
+      })
+      .catch(() => setLoaded(true));
+  }, [project.id]);
 
   function persist(next: EnvVar[]) {
     setVars(next);
@@ -1040,9 +1124,18 @@ function EnvironmentTab({ project }: { project: ProjectRow }) {
     setTimeout(() => setSaved(false), 2000);
   }
 
-  function addVar() {
+  async function addVar() {
     const k = newKey.trim().toUpperCase().replace(/\s+/g, "_");
     if (!k || !newValue.trim()) return;
+    try {
+      await fetch(`/api/projects/${project.id}/secrets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keyName: k, value: newValue.trim() }),
+      });
+    } catch {
+      /* local fallback still applies */
+    }
     persist([...vars, { key: k, value: newValue.trim(), visible: false }]);
     setNewKey("");
     setNewValue("");
@@ -1064,7 +1157,7 @@ function EnvironmentTab({ project }: { project: ProjectRow }) {
           <div>
             <h3 className="text-[13px] font-semibold text-foreground">Environment Variables</h3>
             <p className="mt-0.5 text-[11.5px] text-muted-foreground">
-              Stored locally. Sync with your deployment provider to propagate to production.
+              Synced with project secrets. Values are encrypted at rest.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -1085,7 +1178,9 @@ function EnvironmentTab({ project }: { project: ProjectRow }) {
         {vars.length === 0 && !adding ? (
           <div className="flex flex-col items-center py-8 text-center">
             <Terminal className="size-7 text-muted-foreground/30" strokeWidth={1.5} />
-            <p className="mt-3 text-[12.5px] font-medium text-foreground">No environment variables</p>
+            <p className="mt-3 text-[12.5px] font-medium text-foreground">
+              {loaded ? "No environment variables" : "Loading variables…"}
+            </p>
             <p className="mt-1 max-w-sm text-[11.5px] text-muted-foreground">
               Add variables like API keys, database URLs, or feature flags.
               These are injected into your runtime environment.
@@ -1152,7 +1247,7 @@ function EnvironmentTab({ project }: { project: ProjectRow }) {
             <p className="text-[12px] font-semibold text-foreground">Security reminder</p>
             <p className="mt-0.5 text-[11.5px] text-muted-foreground">
               Never commit secret keys to source control. Use environment variables for all credentials,
-              API keys, and connection strings. Values shown above are stored locally.
+              API keys, and connection strings. Values are encrypted in project secrets.
             </p>
           </div>
         </div>
@@ -1392,10 +1487,15 @@ export function ProjectDashboard({
 
   async function handlePublish() {
     setPublishState("publishing");
-    // Simulate publish pipeline (real implementation would call /api/deploy)
-    await new Promise((r) => setTimeout(r, 2200));
-    setPublishState("published");
-    setTimeout(() => setPublishState("idle"), 5000);
+    try {
+      const res = await fetch(`/api/projects/${project.id}/publish`, { method: "POST" });
+      const body = (await res.json()) as { error?: string; publicWebUrl?: string };
+      if (!res.ok) throw new Error(body.error ?? "Publish failed");
+      setPublishState("published");
+      setTimeout(() => setPublishState("idle"), 5000);
+    } catch {
+      setPublishState("failed");
+    }
   }
 
   return (
@@ -1450,6 +1550,14 @@ export function ProjectDashboard({
               Preview
             </a>
           )}
+
+          <Link
+            href={`/apps/${project.id}/dashboard`}
+            className="flex items-center gap-1.5 rounded-xl bg-surface px-3 py-2 text-[12.5px] font-medium text-foreground ring-1 ring-border transition hover:bg-surface-raised"
+          >
+            <Activity className="size-3.5" strokeWidth={1.75} />
+            App hub
+          </Link>
 
           {/* Open in workspace */}
           <Link
@@ -1556,7 +1664,7 @@ export function ProjectDashboard({
           {tab === "environment" && <EnvironmentTab project={project} />}
           {tab === "logs" && <LogsTab project={project} />}
           {tab === "billing" && <BillingTab project={project} />}
-          {tab === "integrations" && <IntegrationsTab />}
+          {tab === "integrations" && <IntegrationsTab projectId={project.id} />}
           {tab === "media" && <MediaTab projectId={project.id} />}
           {tab === "memory" && <MemoryTab memory={memory} />}
           {tab === "settings" && <SettingsTab project={project} />}

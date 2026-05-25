@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Profile } from "@/lib/supabase/types";
 import {
+  defaultWorkspaceNameFromEmail,
+  isGenericWorkspaceName,
+} from "@/lib/profile/default-workspace-name";
+import {
   isOptionalProfileSchemaError,
   parseMissingProfileColumn,
 } from "@/lib/supabase/schema-errors";
@@ -139,8 +143,13 @@ export async function loadUserProfileCore(
     credits_remaining:
       typeof data.credits_remaining === "number" ? data.credits_remaining : FREE_CREDITS_FALLBACK,
     onboarding_completed: Boolean(data.onboarding_completed),
-    workspace_name:
-      typeof data.workspace_name === "string" ? data.workspace_name : "My Workspace",
+    workspace_name: isGenericWorkspaceName(
+      typeof data.workspace_name === "string" ? data.workspace_name : null,
+    )
+      ? defaultWorkspaceNameFromEmail(typeof data.email === "string" ? data.email : "")
+      : typeof data.workspace_name === "string"
+        ? data.workspace_name
+        : defaultWorkspaceNameFromEmail(typeof data.email === "string" ? data.email : ""),
     plan_interval: optional.plan_interval,
     credits_reset_at: optional.credits_reset_at ?? "",
     full_name: optional.full_name,

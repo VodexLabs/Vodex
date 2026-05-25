@@ -18,6 +18,7 @@ const STEP_LIMITS = {
   "verify:editor": { maxSilenceMs: 180_000, maxTotalMs: 300_000 },
   "verify:mobile-layout": { maxSilenceMs: 180_000, maxTotalMs: 300_000 },
   "verify:zip-import-live-route": { maxSilenceMs: 90_000, maxTotalMs: 180_000 },
+  "verify:tls": { maxSilenceMs: 35_000, maxTotalMs: 45_000 },
   default: { maxSilenceMs: 120_000, maxTotalMs: 300_000 },
 };
 

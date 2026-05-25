@@ -4,23 +4,23 @@ import * as React from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   MessageSquare,
-  Shapes,
   Hammer,
-  FileDiff,
   MonitorSmartphone,
   Globe,
   CheckCircle2,
   Sparkles,
   Copy,
-  Users,
+  Package,
+  AlertTriangle,
+  LayoutDashboard,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getPublicAppRootDomain } from "@/lib/publish/publish-config";
 
 const STEPS = [
   { id: "describe", label: "Describe", icon: MessageSquare, accent: "hsl(var(--accent))" },
-  { id: "shape", label: "Shape", icon: Shapes, accent: "hsl(262 83% 58%)" },
   { id: "build", label: "Build", icon: Hammer, accent: "hsl(199 89% 48%)" },
-  { id: "review", label: "Review", icon: FileDiff, accent: "hsl(38 92% 50%)" },
   { id: "preview", label: "Preview", icon: MonitorSmartphone, accent: "hsl(152 69% 40%)" },
   { id: "publish", label: "Publish", icon: Globe, accent: "hsl(221 83% 53%)" },
 ] as const;
@@ -29,7 +29,7 @@ type StepId = (typeof STEPS)[number]["id"];
 
 const ROTATE_MS = 3000;
 const RESUME_AFTER_MS = 6000;
-const PROMPT = "Build me a CRM for dentists";
+const PROMPT = "Create me a management food inventory app for my restaurant.";
 
 function StepProgressRing({ active, color, reduce }: { active: boolean; color: string; reduce: boolean }) {
   if (reduce || !active) return null;
@@ -96,7 +96,7 @@ function DescribeDemo({ active }: { active: boolean }) {
             className="flex items-center gap-2 rounded-xl bg-emerald-500/10 px-4 py-2.5 text-[12px] font-semibold text-emerald-700 ring-1 ring-emerald-500/25 dark:text-emerald-400"
           >
             <CheckCircle2 className="size-4" />
-            Build request detected — blueprint next
+            Build request detected — starting generation
           </motion.div>
         ) : null}
       </AnimatePresence>
@@ -105,48 +105,25 @@ function DescribeDemo({ active }: { active: boolean }) {
   );
 }
 
-function ShapeDemo() {
-  const cards = [
-    { label: "Routes", value: "/dashboard · /patients · /appointments", color: "from-blue-500/15" },
-    { label: "Data model", value: "Patients · Visits · Notes", color: "from-violet-500/15" },
-    { label: "Style", value: "Calm clinical · soft teal accents", color: "from-cyan-500/15" },
-    { label: "Scope", value: "Scheduling + patient records", color: "from-emerald-500/15" },
-  ];
-  return (
-    <div className="p-5 sm:p-6">
-      <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Approved blueprint</p>
-      <div className="grid gap-2.5 sm:grid-cols-2">
-        {cards.map((c, i) => (
-          <motion.div
-            key={c.label}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            className={cn("rounded-xl border border-border/60 bg-gradient-to-br p-3.5 to-transparent", c.color)}
-          >
-            <p className="text-[10px] font-medium text-muted-foreground">{c.label}</p>
-            <p className="mt-1 text-[12px] font-semibold text-foreground">{c.value}</p>
-          </motion.div>
-        ))}
-      </div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <span className="rounded-lg bg-accent px-3.5 py-2 text-[11px] font-semibold text-white shadow-sm">Approve blueprint</span>
-        <span className="rounded-lg border border-border bg-background px-3.5 py-2 text-[11px] font-semibold text-foreground">Edit plan</span>
-      </div>
-    </div>
-  );
-}
+const BUILD_ACTIVITIES = [
+  { label: "Building", hint: "Viewing dashboard layout" },
+  { label: "Editing", hint: "Updating inventory table" },
+  { label: "Checking files", hint: "Adding supplier and category fields" },
+  { label: "Running quality checks", hint: "Validating low-stock alerts and filters" },
+  { label: "Preparing preview", hint: "Finalizing restaurant inventory screens" },
+] as const;
+
+const BUILD_SUMMARY = [
+  { label: "Pages created", value: "Dashboard · Inventory · Suppliers" },
+  { label: "Data organized", value: "Items · Categories · Stock levels" },
+  { label: "Key features", value: "Low-stock alerts · Reorder tracking" },
+  { label: "Preview ready", value: "Live sandbox available" },
+] as const;
 
 function BuildDemo({ active }: { active: boolean }) {
-  const tasks = [
-    { label: "Planning routes and layout", message: "Mapping /dashboard · /patients · /appointments" },
-    { label: "Writing app/dashboard/page.tsx", message: "Creating dashboard shell with stats cards" },
-    { label: "Creating components", message: "Patient table · appointment list · filters" },
-    { label: "Adding quality checks", message: "Responsive layout · empty states · accessibility" },
-    { label: "Preparing preview", message: "Sandbox preview ready for review" },
-  ];
   const [lit, setLit] = React.useState(0);
   const reduce = useReducedMotion();
+  const complete = lit >= BUILD_ACTIVITIES.length;
 
   React.useEffect(() => {
     if (reduce || !active) return;
@@ -155,10 +132,14 @@ function BuildDemo({ active }: { active: boolean }) {
     const t = window.setInterval(() => {
       s += 1;
       setLit(s);
-      if (s >= tasks.length) window.clearInterval(t);
+      if (s >= BUILD_ACTIVITIES.length) window.clearInterval(t);
     }, 650);
     return () => window.clearInterval(t);
-  }, [active, reduce, tasks.length]);
+  }, [active, reduce]);
+
+  React.useEffect(() => {
+    if (reduce && active) setLit(BUILD_ACTIVITIES.length);
+  }, [reduce, active]);
 
   return (
     <div className="space-y-4 p-5 sm:p-6">
@@ -166,156 +147,200 @@ function BuildDemo({ active }: { active: boolean }) {
         <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Build in progress</p>
         <span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-[9px] font-semibold text-accent">Live generation</span>
       </div>
+
       <div className="overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-white/90 via-background to-accent/[0.04] p-4 shadow-sm ring-1 ring-border/50 dark:from-white/[0.04]">
-        <div className="space-y-2.5">
-          {tasks.map((task, i) => {
+        <div className="space-y-2">
+          {BUILD_ACTIVITIES.map((activity, i) => {
             const done = i < lit;
-            const current = i === lit - 1 || (lit === 0 && i === 0);
+            const current = i === lit - 1 || (lit === 0 && i === 0 && !complete);
+            const visible = done || current;
+
             return (
               <motion.div
-                key={task.label}
-                initial={{ opacity: 0, y: 6 }}
+                key={activity.label}
+                initial={reduce ? false : { opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
+                transition={{ delay: reduce ? 0 : i * 0.05 }}
                 className={cn(
-                  "flex gap-3 rounded-xl border px-3 py-2.5 transition",
-                  done ? "border-emerald-500/25 bg-emerald-500/[0.06]" : current ? "border-accent/30 bg-accent/[0.05]" : "border-border/50 bg-background/60",
+                  "relative overflow-hidden rounded-xl border px-3.5 py-3 transition-all duration-300",
+                  done
+                    ? "border-emerald-500/20 bg-emerald-500/[0.05]"
+                    : current
+                      ? "border-accent/25 bg-accent/[0.06] shadow-[0_0_0_1px_hsl(var(--accent)/0.08)]"
+                      : "border-border/40 bg-background/50 opacity-60",
                 )}
               >
-                <div
-                  className={cn(
-                    "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold",
-                    done ? "bg-emerald-500 text-white" : current ? "bg-accent/15 text-accent" : "bg-muted text-muted-foreground",
-                  )}
-                >
-                  {done ? "✓" : i + 1}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className={cn("text-[11px] font-semibold", done || current ? "text-foreground" : "text-muted-foreground")}>
-                    {task.label}
-                  </p>
-                  {(done || current) && (
-                    <motion.p
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="mt-0.5 text-[10px] text-muted-foreground"
+                {current && !reduce ? (
+                  <motion.div
+                    className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-accent"
+                    layoutId="build-active-indicator"
+                    transition={{ duration: 0.3 }}
+                  />
+                ) : null}
+                <div className="flex items-start gap-3">
+                  <div
+                    className={cn(
+                      "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold transition-colors",
+                      done
+                        ? "bg-emerald-500 text-white"
+                        : current
+                          ? "bg-accent/15 text-accent"
+                          : "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    {done ? "✓" : current && !reduce ? (
+                      <span className="size-2 animate-pulse rounded-full bg-accent" />
+                    ) : (
+                      i + 1
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className={cn(
+                        "text-[12px] font-semibold tracking-tight",
+                        done || current ? "text-foreground" : "text-muted-foreground",
+                      )}
                     >
-                      {task.message}
-                    </motion.p>
-                  )}
+                      {activity.label}
+                    </p>
+                    {visible ? (
+                      <motion.p
+                        initial={reduce ? false : { opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="mt-0.5 text-[10px] text-muted-foreground/80"
+                      >
+                        {activity.hint}
+                      </motion.p>
+                    ) : null}
+                  </div>
+                  {current && !done && !reduce ? (
+                    <span className="shrink-0 text-[9px] font-medium uppercase tracking-wide text-accent/70">Active</span>
+                  ) : null}
                 </div>
               </motion.div>
             );
           })}
         </div>
-        {lit >= tasks.length && (
-          <motion.div
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mt-3 flex items-center gap-2 rounded-xl bg-emerald-500/10 px-3 py-2 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-500/20 dark:text-emerald-400"
-          >
-            <CheckCircle2 className="size-4" />
-            Build complete — ready for review
-          </motion.div>
-        )}
-      </div>
-    </div>
-  );
-}
 
-function ReviewDemo() {
-  const reduce = useReducedMotion();
-  const [acceptedAll, setAcceptedAll] = React.useState(reduce);
-
-  return (
-    <div className="p-5 sm:p-6">
-      <div className="overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/[0.07] to-background ring-1 ring-amber-500/15">
-        <div className="border-b border-amber-500/15 bg-amber-500/[0.05] px-4 py-2.5">
-          <p className="text-[12px] font-semibold text-foreground">Review AI changes</p>
-          <p className="font-mono text-[10px] text-muted-foreground">components/patient-table.tsx · +24 −3</p>
-        </div>
-        <div className="space-y-1 p-3 font-mono text-[10px] leading-relaxed">
-          <p className="text-emerald-600 dark:text-emerald-400">+ export function PatientTable() {"{"}</p>
-          <p className="text-emerald-600 dark:text-emerald-400">+   const [filter, setFilter] = useState("")</p>
-          <p className="text-red-500/80">−   // TODO: wire data</p>
-        </div>
-        <div className="flex flex-col gap-2 border-t border-amber-500/15 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <AnimatePresence mode="wait">
-            {acceptedAll ? (
-              <motion.p
-                key="accepted"
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400"
-              >
-                All changes accepted · Checkpoint saved before apply
-              </motion.p>
-            ) : (
-              <motion.p key="pending" className="text-[10px] text-muted-foreground">
-                Checkpoint saved · rollback available
-              </motion.p>
-            )}
-          </AnimatePresence>
-          <div className="flex flex-wrap gap-2">
-            <span className="rounded-lg bg-emerald-500/15 px-3 py-1.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">Accept</span>
-            <span className="rounded-lg bg-destructive/10 px-3 py-1.5 text-[10px] font-semibold text-destructive">Reject</span>
-            <button
-              type="button"
-              onClick={() => setAcceptedAll(true)}
-              className="rounded-lg bg-accent/15 px-3 py-1.5 text-[10px] font-semibold text-accent transition hover:bg-accent/25"
+        <AnimatePresence>
+          {complete ? (
+            <motion.div
+              initial={reduce ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-4 overflow-hidden rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.08] to-background p-3.5 ring-1 ring-emerald-500/15"
             >
-              Accept all
-            </button>
-          </div>
-        </div>
+              <p className="mb-2.5 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                <CheckCircle2 className="size-3.5" />
+                Build complete
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {BUILD_SUMMARY.map((item, i) => (
+                  <motion.div
+                    key={item.label}
+                    initial={reduce ? false : { opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: reduce ? 0 : i * 0.08 }}
+                    className="rounded-lg bg-background/70 px-2.5 py-2 ring-1 ring-border/50"
+                  >
+                    <p className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">{item.label}</p>
+                    <p className="mt-0.5 text-[11px] font-semibold text-foreground">{item.value}</p>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
       </div>
     </div>
   );
 }
 
-function DentistCrmPreviewMock() {
+function RestaurantInventoryPreviewMock() {
+  const navItems = [
+    { label: "Dashboard", icon: LayoutDashboard, active: true },
+    { label: "Inventory", icon: ClipboardList, active: false },
+    { label: "Suppliers", icon: Package, active: false },
+  ];
+
+  const inventoryRows = [
+    { item: "Chicken breast", qty: "24 lb", status: "ok" as const },
+    { item: "Roma tomatoes", qty: "8 lb", status: "low" as const },
+    { item: "Olive oil", qty: "3 gal", status: "low" as const },
+    { item: "Basil (fresh)", qty: "2 lb", status: "critical" as const },
+  ];
+
   return (
-    <div className="flex min-h-[220px]">
-      <aside className="hidden w-[88px] shrink-0 flex-col gap-1 border-r border-teal-500/10 bg-teal-500/[0.04] p-2 sm:flex">
-        {[
-          { label: "Dashboard", active: true },
-          { label: "Patients", active: false },
-          { label: "Calendar", active: false },
-        ].map(({ label, active }) => (
+    <div className="flex min-h-[240px]">
+      <aside className="hidden w-[92px] shrink-0 flex-col gap-1 border-r border-orange-500/10 bg-orange-500/[0.04] p-2 sm:flex">
+        {navItems.map(({ label, icon: Icon, active }) => (
           <div
             key={label}
             className={cn(
-              "rounded-lg px-2 py-1.5 text-[8px] font-semibold",
-              active ? "bg-teal-500/15 text-teal-700 dark:text-teal-300" : "text-muted-foreground",
+              "flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[8px] font-semibold",
+              active ? "bg-orange-500/15 text-orange-700 dark:text-orange-300" : "text-muted-foreground",
             )}
           >
+            <Icon className="size-2.5 shrink-0" strokeWidth={2} />
             {label}
           </div>
         ))}
       </aside>
       <div className="min-w-0 flex-1 p-3 sm:p-4">
         <div className="flex items-center justify-between">
-          <p className="text-[11px] font-semibold text-foreground">SmileCare CRM</p>
-          <Users className="size-3.5 text-teal-600" />
+          <div>
+            <p className="text-[11px] font-semibold text-foreground">FoodFlow Inventory</p>
+            <p className="text-[8px] text-muted-foreground">Bella Cucina · Kitchen stock</p>
+          </div>
+          <Package className="size-3.5 text-orange-600" />
         </div>
+
         <div className="mt-3 grid grid-cols-3 gap-2">
           {[
-            { label: "Patients", val: "128" },
-            { label: "Today", val: "14" },
-            { label: "Follow-ups", val: "6" },
+            { label: "Total items", val: "186" },
+            { label: "Low stock", val: "7" },
+            { label: "Reorder due", val: "3" },
           ].map(({ label, val }) => (
-            <div key={label} className="rounded-xl bg-white/90 p-2 ring-1 ring-teal-500/10 dark:bg-white/5">
+            <div key={label} className="rounded-xl bg-white/90 p-2 ring-1 ring-orange-500/10 dark:bg-white/5">
               <p className="text-[13px] font-bold tabular-nums text-foreground">{val}</p>
               <p className="text-[8px] text-muted-foreground">{label}</p>
             </div>
           ))}
         </div>
-        <div className="mt-3 rounded-xl bg-white/80 p-2 ring-1 ring-border/50 dark:bg-white/5">
-          <p className="text-[9px] font-medium text-muted-foreground">Upcoming</p>
-          {["Sarah M. · Cleaning 2:30 PM", "James R. · Consult 4:00 PM"].map((row) => (
-            <p key={row} className="mt-1 truncate text-[10px] font-medium text-foreground">
-              {row}
-            </p>
+
+        <div className="mt-3 rounded-xl bg-amber-500/[0.08] px-2.5 py-2 ring-1 ring-amber-500/20">
+          <div className="flex items-center gap-1.5">
+            <AlertTriangle className="size-3 text-amber-600" />
+            <p className="text-[9px] font-semibold text-amber-800 dark:text-amber-300">Low-stock alerts</p>
+          </div>
+          <p className="mt-1 text-[8px] text-amber-700/80 dark:text-amber-400/80">Basil, tomatoes, and olive oil need reorder</p>
+        </div>
+
+        <div className="mt-3 overflow-hidden rounded-xl bg-white/80 ring-1 ring-border/50 dark:bg-white/5">
+          <div className="grid grid-cols-[1fr_auto_auto] gap-2 border-b border-border/40 bg-muted/30 px-2.5 py-1.5 text-[7px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <span>Item</span>
+            <span>On hand</span>
+            <span>Status</span>
+          </div>
+          {inventoryRows.map((row) => (
+            <div
+              key={row.item}
+              className="grid grid-cols-[1fr_auto_auto] items-center gap-2 border-b border-border/30 px-2.5 py-1.5 last:border-0"
+            >
+              <span className="truncate text-[9px] font-medium text-foreground">{row.item}</span>
+              <span className="text-[9px] tabular-nums text-muted-foreground">{row.qty}</span>
+              <span
+                className={cn(
+                  "rounded px-1.5 py-0.5 text-[7px] font-semibold uppercase",
+                  row.status === "ok"
+                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                    : row.status === "low"
+                      ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+                      : "bg-red-500/15 text-red-700 dark:text-red-400",
+                )}
+              >
+                {row.status === "ok" ? "OK" : row.status === "low" ? "Low" : "Critical"}
+              </span>
+            </div>
           ))}
         </div>
       </div>
@@ -325,6 +350,7 @@ function DentistCrmPreviewMock() {
 
 function PreviewDemo() {
   const [viewport, setViewport] = React.useState<"desktop" | "mobile">("desktop");
+
   return (
     <div className="space-y-3 p-5 sm:p-6">
       <div className="flex flex-wrap items-center gap-2">
@@ -342,33 +368,24 @@ function PreviewDemo() {
           </button>
         ))}
         <span className="rounded-lg bg-emerald-500/15 px-2.5 py-1 text-[10px] font-semibold text-emerald-600">Preview ready</span>
-        <span className="ml-auto rounded-lg bg-accent/10 px-2.5 py-1 text-[10px] font-semibold text-accent">Quality 91</span>
+        <span className="ml-auto rounded-lg bg-accent/10 px-2.5 py-1 text-[10px] font-semibold text-accent">Quality 94</span>
       </div>
       <div
         className={cn(
-          "overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-accent/[0.05] via-background to-violet-500/[0.04] shadow-lg ring-1 ring-accent/10 transition-all",
+          "overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-accent/[0.05] via-background to-orange-500/[0.04] shadow-lg ring-1 ring-accent/10 transition-all",
           viewport === "mobile" ? "mx-auto max-w-[280px]" : "max-w-full",
         )}
       >
         <div className="flex items-center justify-between border-b border-border/50 bg-background/80 px-3 py-2">
           <div className="flex items-center gap-2">
             <Sparkles className="size-3.5 text-accent" />
-            <span className="text-[10px] font-semibold text-foreground">DreamOS86 builder</span>
+            <span className="text-[10px] font-semibold text-foreground">Live preview</span>
           </div>
-          <span className="text-[9px] text-muted-foreground">Sandbox · no deploy claim</span>
+          <span className="text-[9px] text-muted-foreground">Sandbox · not yet published</span>
         </div>
-        <div className="grid min-h-[220px] sm:grid-cols-[minmax(0,38%)_1fr]">
-          <aside className="hidden border-r border-border/50 bg-background/70 p-2.5 sm:block">
-            <p className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">Conversation</p>
-            <div className="mt-2 space-y-2">
-              <div className="rounded-lg bg-muted/60 px-2 py-1.5 text-[9px] text-foreground">Build the dentist CRM dashboard</div>
-              <div className="rounded-lg bg-accent/10 px-2 py-1.5 text-[9px] text-accent">Added patients table + appointments</div>
-            </div>
-          </aside>
-          <div className="p-2.5">
-            <div className="overflow-hidden rounded-xl border border-border/50 bg-white/90 shadow-inner dark:bg-[#12141c]/90">
-              <DentistCrmPreviewMock />
-            </div>
+        <div className="p-2.5">
+          <div className="overflow-hidden rounded-xl border border-border/50 bg-white/90 shadow-inner dark:bg-[#12141c]/90">
+            <RestaurantInventoryPreviewMock />
           </div>
         </div>
       </div>
@@ -379,49 +396,126 @@ function PreviewDemo() {
 function PublishDemo() {
   const reduce = useReducedMotion();
   const [published, setPublished] = React.useState(reduce);
-  const publicUrl = "https://dreamos86.com/p/dentist-crm";
+  const [copied, setCopied] = React.useState(false);
+  const [publishing, setPublishing] = React.useState(false);
+  const publicUrl = `https://foodflow-inventory.${getPublicAppRootDomain()}`;
 
   React.useEffect(() => {
     if (reduce) return;
-    const t = window.setTimeout(() => setPublished(true), 2000);
+    const t = window.setTimeout(() => {
+      setPublishing(true);
+      window.setTimeout(() => {
+        setPublishing(false);
+        setPublished(true);
+      }, 1200);
+    }, 1800);
     return () => window.clearTimeout(t);
   }, [reduce]);
 
+  const handleCopy = () => {
+    void navigator.clipboard?.writeText(publicUrl);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <div className="space-y-4 p-5 sm:p-6">
-      <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-accent/[0.06] via-background to-violet-500/[0.04] p-4 ring-1 ring-accent/10">
+      <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-accent/[0.06] via-background to-blue-500/[0.04] p-4 ring-1 ring-accent/10">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-md bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
-            Preview ready
+          <span
+            className={cn(
+              "rounded-md px-2 py-0.5 text-[10px] font-semibold transition-colors",
+              published
+                ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                : publishing
+                  ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+                  : "bg-muted text-muted-foreground",
+            )}
+          >
+            {published ? "Live" : publishing ? "Publishing…" : "Preview ready"}
           </span>
-          <span className="rounded-md bg-muted px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Path mode
-          </span>
+          {published ? (
+            <motion.span
+              initial={reduce ? false : { opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="rounded-md bg-emerald-500/10 px-2 py-0.5 text-[9px] font-semibold text-emerald-600 dark:text-emerald-400"
+            >
+              SSL active · globally available
+            </motion.span>
+          ) : null}
         </div>
-        <div className="mt-3 flex items-center gap-2">
+
+        <div className="mt-3 flex items-center gap-2 rounded-xl bg-background/80 px-3 py-2.5 ring-1 ring-border/50">
           <Globe className="size-4 shrink-0 text-accent" />
           <span className="min-w-0 truncate font-mono text-[13px] font-semibold text-accent">{publicUrl}</span>
-          <button type="button" className="ml-auto flex size-8 items-center justify-center rounded-lg bg-accent/10 text-accent" aria-label="Copy">
-            <Copy className="size-3.5" />
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="ml-auto flex size-8 items-center justify-center rounded-lg bg-accent/10 text-accent transition hover:bg-accent/20"
+            aria-label="Copy link"
+          >
+            {copied ? <CheckCircle2 className="size-3.5" /> : <Copy className="size-3.5" />}
           </button>
         </div>
+
         <p className="mt-2 text-[10px] text-muted-foreground">
-          Public path URL on dreamos86.com — custom subdomains available when DNS is connected.
+          {published
+            ? "Your restaurant inventory app is live and shareable."
+            : "One click to publish on your custom subdomain."}
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <motion.span
-          animate={published && !reduce ? { scale: [1, 1.04, 1] } : undefined}
+      <div className="flex flex-wrap items-center gap-2">
+        <motion.button
+          type="button"
+          animate={
+            published && !reduce
+              ? { scale: [1, 1.05, 1] }
+              : publishing && !reduce
+                ? { scale: [1, 0.98, 1] }
+                : undefined
+          }
           transition={{ duration: 0.45 }}
-          className="rounded-lg bg-gradient-to-r from-blue-600 to-violet-600 px-4 py-2 text-[11px] font-semibold text-white shadow-md"
+          className={cn(
+            "rounded-lg px-4 py-2 text-[11px] font-semibold text-white shadow-md transition",
+            published
+              ? "bg-emerald-600"
+              : "bg-gradient-to-r from-blue-600 to-violet-600",
+          )}
         >
-          Publish app
-        </motion.span>
-        <span className="rounded-lg border border-border px-4 py-2 text-[11px] font-semibold text-muted-foreground">Copy link</span>
+          {published ? "Published" : publishing ? "Publishing…" : "Publish app"}
+        </motion.button>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="rounded-lg border border-border px-4 py-2 text-[11px] font-semibold text-foreground transition hover:bg-muted/50"
+        >
+          {copied ? "Copied!" : "Copy link"}
+        </button>
+        {publishing && !published && !reduce ? (
+          <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            <span className="size-1.5 animate-pulse rounded-full bg-amber-500" />
+            Deploying to edge…
+          </span>
+        ) : null}
       </div>
     </div>
   );
+}
+
+function StepContent({ stepId, describeActive }: { stepId: StepId; describeActive: boolean }) {
+  switch (stepId) {
+    case "describe":
+      return <DescribeDemo active={describeActive} />;
+    case "build":
+      return <BuildDemo active />;
+    case "preview":
+      return <PreviewDemo />;
+    case "publish":
+      return <PublishDemo />;
+    default:
+      return null;
+  }
 }
 
 export function HowItWorksDemo() {
@@ -469,7 +563,7 @@ export function HowItWorksDemo() {
       </div>
 
       <div
-        className="mt-10 grid grid-cols-3 gap-2 sm:grid-cols-6 sm:gap-3"
+        className="mt-10 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3"
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
         onFocusCapture={() => setPaused(true)}
@@ -522,19 +616,7 @@ export function HowItWorksDemo() {
               exit={reduce ? undefined : { opacity: 0, y: -10 }}
               transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
             >
-              {step.id === "describe" ? (
-                <DescribeDemo active={!paused || !!reduce} />
-              ) : step.id === "build" ? (
-                <BuildDemo active />
-              ) : step.id === "shape" ? (
-                <ShapeDemo />
-              ) : step.id === "review" ? (
-                <ReviewDemo />
-              ) : step.id === "preview" ? (
-                <PreviewDemo />
-              ) : (
-                <PublishDemo />
-              )}
+              <StepContent stepId={step.id} describeActive={!paused || !!reduce} />
             </motion.div>
           </AnimatePresence>
         </div>

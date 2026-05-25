@@ -92,6 +92,50 @@ function portHolderPid(port = 3000) {
   }
 }
 
+/** True when PID looks like a Node dev process (safe to kill before verify restart). */
+export function isLikelyNodeDevServer(pid) {
+  if (!pid) return false;
+  try {
+    if (process.platform === "win32") {
+      const out = execSync(`tasklist /FI "PID eq ${pid}" /FO CSV /NH`, {
+        encoding: "utf8",
+        stdio: ["pipe", "pipe", "ignore"],
+      });
+      return /node\.exe/i.test(out);
+    }
+    const out = execSync(`ps -p ${pid} -o comm=`, { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] });
+    return /node/i.test(out);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Kill process holding port — only when it looks like Node (verify recovery).
+ * @returns {{ killed: boolean; pid: string | null; reason?: string }}
+ */
+export function killPortProcessSafely(port = 3000) {
+  const pid = portHolderPid(port);
+  if (!pid) return { killed: false, pid: null, reason: "no_listener" };
+  if (!isLikelyNodeDevServer(pid)) {
+    return { killed: false, pid, reason: "not_node_dev_server" };
+  }
+  try {
+    if (process.platform === "win32") {
+      execSync(`taskkill /PID ${pid} /F`, { stdio: ["ignore", "ignore", "ignore"] });
+    } else {
+      process.kill(Number(pid), "SIGTERM");
+    }
+    return { killed: true, pid };
+  } catch (err) {
+    return {
+      killed: false,
+      pid,
+      reason: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 /**
  * Diagnose localhost:3000 — port bound vs HTTP healthy vs down.
  */

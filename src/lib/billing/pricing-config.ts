@@ -40,7 +40,7 @@ export type ComplexityFloorKey =
 
 /** Product pricing floors (not provider-cost math). May raise charge above minimum profitable amount. */
 export const USER_CREDIT_FLOORS: Record<ComplexityFloorKey, number> = {
-  discuss: 1,
+  discuss: 0.4,
   edit: 4,
   polish: 6,
   build_simple: 8,

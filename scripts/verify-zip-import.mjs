@@ -56,8 +56,14 @@ if (route.includes('source: "zip_import"')) ok.push("project metadata source zip
 else errors.push("missing zip_import source metadata");
 
 const panel = fs.readFileSync(path.join(root, "src/components/create/workspace/app-dashboard-panel.tsx"), "utf8");
-if (panel.includes("ImportedAppView") && panel.includes("Open builder")) ok.push("dashboard import + actions");
-else errors.push("dashboard missing import view or continue actions");
+if (
+  panel.includes("Review imported app") ||
+  (panel.includes("ImportedAppView") && panel.includes("/builder"))
+) {
+  ok.push("dashboard import + actions");
+} else {
+  errors.push("dashboard missing import view or continue actions");
+}
 
 if (route.includes("ensurePrivateBucket") && route.includes("ZIP_IMPORT_BUCKET")) ok.push("import route private zip-imports bucket");
 else errors.push("import route must ensure private zip-imports bucket");

@@ -180,7 +180,8 @@ export async function proxy(request: NextRequest) {
 
   if (!user && PROTECTED_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
     const loginUrl = new URL("/auth/login", request.url);
-    loginUrl.searchParams.set("next", pathname);
+    const nextPath = `${pathname}${request.nextUrl.search}`;
+    loginUrl.searchParams.set("next", nextPath);
     return NextResponse.redirect(loginUrl);
   }
 

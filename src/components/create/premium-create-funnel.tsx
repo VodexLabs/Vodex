@@ -22,6 +22,15 @@ import { CreateFlowSummary, costTierFromBuildTier } from "@/components/create/cr
 import { CreateIncludedExcluded } from "@/components/create/create-included-excluded";
 import { CreateStepSkeleton } from "@/components/create/create-step-skeleton";
 import { RepairCenter } from "@/components/repair/repair-center";
+import { formatRejectionReason } from "@/lib/diagnostics/format-rejection-reason";
+
+function runCreateAction(action: () => Promise<void>) {
+  void action().catch((err) => {
+    if (process.env.NODE_ENV !== "production") {
+      console.error("[create-funnel]", formatRejectionReason(err));
+    }
+  });
+}
 
 function stepIndex(step: CreateFlowUiStep): number {
   return CREATE_FLOW_STEP_ORDER.indexOf(step);
@@ -52,16 +61,20 @@ export function PremiumCreateFunnel({
         return {
           label: "Review intent",
           disabled: !flow.prompt.trim() || flow.flowState === "classifying_intent",
-          onClick: () => void flow.continueFromIdea(),
+          onClick: () => runCreateAction(flow.continueFromIdea),
         };
       case "intent":
-        if (flow.intent?.intent === "question_only") {
-          return { label: "Edit your description", disabled: false, onClick: () => flow.setPrompt(flow.prompt) };
+        if (flow.intent?.intent === "question_only" || flow.intent?.shouldAnswerQuestion) {
+          return {
+            label: flow.isStreaming ? "Answering…" : "Get answer (0.8 credits)",
+            disabled: flow.isStreaming || !flow.prompt.trim(),
+            onClick: () => runCreateAction(flow.answerCreateQuestion),
+          };
         }
         return {
           label: flow.projectId ? "Continue" : "Create app & continue",
           disabled: flow.projectCreating,
-          onClick: () => void flow.continueFromIntent(),
+          onClick: () => runCreateAction(flow.continueFromIntent),
         };
       case "template":
         if (templatePhase === "starting_point") {
@@ -74,21 +87,23 @@ export function PremiumCreateFunnel({
         return {
           label: "Review the blueprint",
           disabled: !flow.stylePresetId,
-          onClick: () => void flow.continueFromTemplate(),
+          onClick: () => runCreateAction(flow.continueFromTemplate),
         };
       case "blueprint":
         return {
           label: flow.blueprint ? "Approve blueprint" : "Generate blueprint",
           disabled: flow.flowState === "blueprint_generating",
           onClick: () =>
-            flow.blueprint ? void flow.approveBlueprint() : void flow.generateBlueprint(),
+            flow.blueprint
+              ? runCreateAction(flow.approveBlueprint)
+              : runCreateAction(flow.generateBlueprint),
         };
       case "quote":
       case "confirm":
         return {
           label: "Start build",
           disabled: !flow.blueprintApproved || flow.isStreaming,
-          onClick: () => void flow.startBuild(),
+          onClick: () => runCreateAction(flow.startBuild),
         };
       case "progress":
         return {
@@ -132,7 +147,7 @@ export function PremiumCreateFunnel({
             </div>
           </div>
           <Link
-            href="/dashboard"
+            href="/"
             className="shrink-0 text-[11px] font-medium text-muted-foreground hover:text-foreground"
           >
             Your Apps
@@ -226,6 +241,20 @@ export function PremiumCreateFunnel({
                     ) : (
                       <CreateIntentStep result={flow.intent} loading={false} />
                     )}
+                    {(flow.isStreaming || flow.questionAnswer) && flow.intent?.intent === "question_only" && (
+                      <div className="rounded-2xl bg-background px-4 py-3 ring-1 ring-border">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          Answer
+                        </p>
+                        {flow.isStreaming && !flow.questionAnswer ? (
+                          <p className="mt-2 text-[13px] text-muted-foreground">Thinking…</p>
+                        ) : (
+                          <p className="mt-2 whitespace-pre-wrap text-[14px] leading-relaxed text-foreground">
+                            {flow.questionAnswer}
+                          </p>
+                        )}
+                      </div>
+                    )}
                     {flow.projectId && flow.intent?.intent !== "question_only" && !flow.projectCreating && (
                       <p className="flex items-center gap-1.5 text-[13px] text-positive">
                         <CheckCircle2 className="size-4 shrink-0" />
@@ -253,7 +282,7 @@ export function PremiumCreateFunnel({
                           {flow.projectId}
                         </span>
                         <Link
-                          href="/dashboard"
+                          href="/"
                           data-testid="create-dashboard-handoff"
                           className="mt-2 inline-block text-[12px] font-medium text-accent hover:underline"
                         >

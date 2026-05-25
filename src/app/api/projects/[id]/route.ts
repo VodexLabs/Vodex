@@ -4,8 +4,20 @@ import { z } from "zod";
 import type { Json } from "@/lib/supabase/types";
 
 const publishPatchSchema = z.object({
-  publish_ui: z.record(z.string(), z.unknown()),
-});
+  publish_ui: z.record(z.string(), z.unknown()).optional(),
+  app_name: z.string().min(1).max(80).optional(),
+  short_description: z.string().max(500).optional(),
+  is_public: z.boolean().optional(),
+  is_favorite: z.boolean().optional(),
+}).refine(
+  (d) =>
+    d.publish_ui != null ||
+    d.app_name != null ||
+    d.short_description != null ||
+    d.is_public != null ||
+    d.is_favorite != null,
+  { message: "No fields to update" },
+);
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -45,14 +57,36 @@ export async function PATCH(
   }
 
   const prevMeta = isRecord(row.metadata) ? row.metadata : {};
-  const nextMeta: Record<string, unknown> = {
-    ...prevMeta,
-    publish_ui: parsed.data.publish_ui,
-  };
+  const nextMeta: Record<string, unknown> = { ...prevMeta };
+  const update: Record<string, unknown> = {};
+
+  if (parsed.data.publish_ui != null) {
+    nextMeta.publish_ui = parsed.data.publish_ui;
+    update.metadata = nextMeta as Json;
+  }
+  if (parsed.data.app_name != null) {
+    update.app_name = parsed.data.app_name.trim();
+    update.name = parsed.data.app_name.trim();
+  }
+  if (parsed.data.short_description != null) {
+    update.short_description = parsed.data.short_description.trim();
+    nextMeta.short_description = parsed.data.short_description.trim();
+    update.metadata = nextMeta as Json;
+  }
+  if (parsed.data.is_public != null) {
+    update.is_public = parsed.data.is_public;
+  }
+  if (parsed.data.is_favorite != null) {
+    update.is_favorite = parsed.data.is_favorite;
+  }
+
+  if (Object.keys(update).length === 0) {
+    return NextResponse.json({ error: "No fields to update" }, { status: 400 });
+  }
 
   const { error: upErr } = await supabase
     .from("projects")
-    .update({ metadata: nextMeta as Json })
+    .update(update as never)
     .eq("id", projectId)
     .eq("owner_id", user.id);
 
@@ -60,5 +94,8 @@ export async function PATCH(
     return NextResponse.json({ error: upErr.message }, { status: 500 });
   }
 
-  return NextResponse.json({ metadata: nextMeta });
+  return NextResponse.json({
+    metadata: nextMeta,
+    is_favorite: parsed.data.is_favorite ?? undefined,
+  });
 }

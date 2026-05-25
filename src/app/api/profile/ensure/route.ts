@@ -3,6 +3,11 @@ import { createClient } from "@/lib/supabase/server";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { bootstrapProfileFromOAuth } from "@/lib/auth/profile-bootstrap";
 import { ensureUserProfileServer } from "@/lib/auth/ensure-user-profile-server";
+import { ensurePersonalWorkspace } from "@/lib/identity/ensure-personal-workspace";
+import {
+  defaultWorkspaceNameFromEmail,
+  isGenericWorkspaceName,
+} from "@/lib/profile/default-workspace-name";
 import { isPostgrestSchemaOrMissingTableError } from "@/lib/supabase/schema-errors";
 import {
   loadProfileOptionalFields,
@@ -48,6 +53,24 @@ export async function POST() {
 
   try {
     const admin = createSupabaseAdmin();
+    await ensurePersonalWorkspace(admin, user.id, user.email ?? null);
+
+    const { data: nameRow } = await admin
+      .from("profiles")
+      .select("workspace_name")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (
+      isGenericWorkspaceName(
+        typeof nameRow?.workspace_name === "string" ? nameRow.workspace_name : null,
+      )
+    ) {
+      await admin
+        .from("profiles")
+        .update({ workspace_name: defaultWorkspaceNameFromEmail(user.email) })
+        .eq("id", user.id);
+    }
+
     const { profile: core, schemaDegraded } = await loadUserProfileCore(admin, user.id);
     if (!core) {
       const { data, error } = await admin

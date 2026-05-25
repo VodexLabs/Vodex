@@ -11,8 +11,12 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { isDreamosOwnerEmail } from "@/lib/admin-owner";
 import { formatCreditAmount } from "@/lib/credits/credit-summary";
-import { useCreditsStore, getMonthlyTokenQuotaForPlan } from "@/lib/stores/credits-store";
+import { useCreditsStore } from "@/lib/stores/credits-store";
+import { CreditsTracker } from "@/components/credits/credits-tracker";
+import { PlanBadge } from "@/components/billing/plan-badge";
+import { resolveEffectivePlanId } from "@/lib/billing/resolve-effective-plan-id";
 import { useHydrated } from "@/lib/hooks/use-hydrated";
+import { useAppearanceStore } from "@/lib/stores/appearance-store";
 import { Zap } from "lucide-react";
 
 type SidebarProps = {
@@ -98,20 +102,23 @@ function NavSection({
 export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [collapsed, setCollapsed] = React.useState(true);
+  const collapsed = useAppearanceStore((s) => s.sidebarCollapsed);
+  const setSidebarCollapsed = useAppearanceStore((s) => s.setSidebarCollapsed);
   const { profile, user, session } = useAuthStore();
-  const remaining = useCreditsStore((s) => s.remaining);
-  const planAllowance = useCreditsStore((s) => s.planAllowance);
+  const build = useCreditsStore((s) => s.build);
+  const action = useCreditsStore((s) => s.action);
+  const planId = useCreditsStore((s) => s.planId);
   const isConfirmed = useCreditsStore((s) => s.isConfirmed);
+  const loading = useCreditsStore((s) => s.loading);
   const hydrated = useHydrated();
-  const MONTHLY_QUOTA = isConfirmed
-    ? planAllowance
-    : getMonthlyTokenQuotaForPlan(profile?.plan_id);
 
   const ownerEmail = user?.email ?? profile?.email;
   const isOwner = Boolean(ownerEmail && isDreamosOwnerEmail(ownerEmail));
-
-  // Filter out admin section for non-admins
+  const effectivePlanId = resolveEffectivePlanId({
+    profilePlanId: profile?.plan_id,
+    storePlanId: planId,
+    isCreditsConfirmed: isConfirmed,
+  });
   const visibleSections = navSections.filter(
     (s) => s.label !== "Admin" || isOwner,
   );
@@ -211,7 +218,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             <button
               type="button"
               className="hidden lg:flex size-7 items-center justify-center rounded-md text-muted-foreground transition hover:bg-surface hover:text-foreground"
-              onClick={() => setCollapsed(true)}
+              onClick={() => setSidebarCollapsed(true)}
               aria-label="Collapse sidebar"
             >
               <ChevronRight className="size-3.5 rotate-180" strokeWidth={2} />
@@ -234,7 +241,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
               {hydrated && (
                 <Link
                   href="/credits"
-                  title={`${formatCreditAmount(remaining)} credits available`}
+                  title={`${formatCreditAmount(build.available)} Build Credits`}
                   className="flex size-8 items-center justify-center rounded-md text-muted-foreground/70 transition hover:bg-surface hover:text-accent"
                 >
                   <Zap className="size-4" strokeWidth={1.65} />
@@ -242,7 +249,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
               )}
               <button
                 type="button"
-                onClick={() => setCollapsed(false)}
+                onClick={() => setSidebarCollapsed(false)}
                 className="flex size-8 items-center justify-center rounded-md text-muted-foreground/60 transition hover:bg-surface hover:text-foreground"
                 aria-label="Expand sidebar"
               >
@@ -251,29 +258,19 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             </div>
           ) : (
             hydrated && (
-              <Link
-                href="/credits"
-                className="group block rounded-lg bg-muted/40 px-3 py-2.5 ring-1 ring-border transition hover:ring-accent/30"
-              >
-                <div className="flex items-center justify-between gap-2 mb-1.5">
-                  <div className="flex items-center gap-1.5 text-[11.5px] font-medium text-muted-foreground">
-                    <Zap className="size-3 text-accent" strokeWidth={1.75} />
-                    Tokens
-                  </div>
-                  <span className="text-[12px] font-semibold tabular-nums text-foreground">
-                    {formatCreditAmount(remaining)}{" "}
-                    <span className="text-muted-foreground font-normal">available</span>
-                  </span>
+              <Link href="/credits" className="group block rounded-xl bg-muted/30 px-3 py-3 ring-1 ring-border/60 transition hover:ring-accent/25">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">Plan</span>
+                  <PlanBadge planId={effectivePlanId} size="xs" />
                 </div>
-                <p className="mb-1.5 text-[10px] text-muted-foreground">
-                  Plan allowance: {formatCreditAmount(MONTHLY_QUOTA)}/mo
-                </p>
-                <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-accent transition-all duration-500"
-                    style={{ width: `${Math.min(100, (remaining / MONTHLY_QUOTA) * 100)}%` }}
-                  />
-                </div>
+                <CreditsTracker
+                  build={build}
+                  action={action}
+                  planId={effectivePlanId}
+                  isConfirmed={isConfirmed}
+                  loading={loading && !isConfirmed}
+                  variant="mini"
+                />
               </Link>
             )
           )}

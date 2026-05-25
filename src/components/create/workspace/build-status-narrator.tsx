@@ -12,12 +12,14 @@ const STEPS: Array<{
   icon?: LucideIcon;
   brandIcon?: boolean;
 }> = [
-  { label: "Planning your app", description: "Architecture and screens", icon: LayoutDashboard },
-  { label: "Creating app identity", description: "Name, theme, and icon", brandIcon: true },
-  { label: "Designing dashboard", description: "Layout and components", icon: Palette },
-  { label: "Creating data model", description: "Tables and relationships", icon: Database },
-  { label: "Wiring actions", description: "API and business logic", icon: Plug },
-  { label: "Preparing preview", description: "Live preview surface", icon: Monitor },
+  { label: "Understanding your app", description: "Learning what you want to build", icon: LayoutDashboard },
+  { label: "Creating app plan", description: "Organizing screens and features", brandIcon: true },
+  { label: "Designing screens", description: "Layout and visual structure", icon: Palette },
+  { label: "Creating data structure", description: "How your app stores information", icon: Database },
+  { label: "Building the interface", description: "Turning the plan into UI", icon: Palette },
+  { label: "Connecting actions", description: "Email, payments, and app behaviors", icon: Plug },
+  { label: "Checking quality", description: "Making sure everything works", icon: Monitor },
+  { label: "Preparing preview", description: "Getting your app ready to try", icon: Monitor },
 ] as const;
 
 interface Props {
@@ -41,12 +43,12 @@ export function BuildStatusNarrator({
   React.useEffect(() => {
     if (isStreaming) {
       setVisible(true);
-      const id = setInterval(() => setTick((t) => t + 1), 2800);
+      const id = setInterval(() => setTick((t) => t + 1), activeStep <= 0 ? 1800 : 2400);
       return () => clearInterval(id);
     }
     const t = setTimeout(() => setVisible(false), 600);
     return () => clearTimeout(t);
-  }, [isStreaming]);
+  }, [isStreaming, activeStep]);
 
   const index = isStreaming ? (activeStep >= 0 ? activeStep : tick) % STEPS.length : 0;
 

@@ -13,6 +13,7 @@ import {
   readBannerSvg,
 } from "@/lib/projects/backfill-project-media";
 import { isWeakIconSvg } from "@/lib/projects/ensure-project-icon";
+import { isUserVisibleProject } from "@/lib/projects/user-visible-projects";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,7 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const url = new URL(request.url);
-  const reconcile = url.searchParams.get("reconcile") !== "0";
+  const reconcile = url.searchParams.get("reconcile") === "1";
   const writer = createServiceRoleClient() ?? supabase;
 
   const { data: rows, error } = await writer
@@ -94,5 +95,6 @@ export async function GET(request: Request) {
     });
   }
 
-  return NextResponse.json({ projects });
+  const visible = projects.filter((row) => isUserVisibleProject(row as Parameters<typeof isUserVisibleProject>[0]));
+  return NextResponse.json({ projects: visible });
 }

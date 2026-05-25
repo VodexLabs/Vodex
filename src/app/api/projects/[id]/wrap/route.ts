@@ -10,9 +10,10 @@ const bodySchema = z.object({
   kind: z.enum(["web_zip", "web_deploy", "android_apk", "android_aab"]),
 });
 
+import { planAllowsAndroidWrap } from "@/lib/mobile/entitlements";
+
 function planAllowsAndroid(planId: string | null | undefined): boolean {
-  const p = (planId ?? "free").toLowerCase();
-  return p === "pro" || p === "business" || p === "enterprise";
+  return planAllowsAndroidWrap(planId);
 }
 
 export async function GET(

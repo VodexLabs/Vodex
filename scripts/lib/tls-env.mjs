@@ -43,6 +43,27 @@ export function isTlsFetchError(err) {
 }
 
 /**
+ * @param {unknown} err
+ * @returns {boolean}
+ */
+export function isNetworkFetchError(err) {
+  const e = /** @type {{ code?: string; message?: string; cause?: { code?: string } }} */ (err);
+  const code = e?.cause?.code ?? e?.code ?? "";
+  const msg = String(e?.message ?? err ?? "").toLowerCase();
+  return (
+    code === "ETIMEDOUT" ||
+    code === "ECONNRESET" ||
+    code === "ECONNREFUSED" ||
+    code === "ENOTFOUND" ||
+    code === "UND_ERR_CONNECT_TIMEOUT" ||
+    /timeout/i.test(msg) ||
+    /fetch failed/i.test(msg) ||
+    /network/i.test(msg) ||
+    /aborted/i.test(msg)
+  );
+}
+
+/**
  * @param {string} [supabaseUrl]
  */
 export function printTlsFix(supabaseUrl) {
@@ -69,14 +90,20 @@ export function printTlsFix(supabaseUrl) {
 /**
  * @param {string} url
  * @param {RequestInit} [init]
+ * @param {number} [timeoutMs]
  */
-export async function safeFetch(url, init) {
+export async function safeFetch(url, init, timeoutMs = 20_000) {
   const prev = process.env.NODE_USE_SYSTEM_CA;
   if (!prev) {
     process.env.NODE_USE_SYSTEM_CA = "1";
   }
   try {
-    return await fetch(url, init);
+    const signal =
+      init?.signal ??
+      (typeof AbortSignal !== "undefined" && AbortSignal.timeout
+        ? AbortSignal.timeout(timeoutMs)
+        : undefined);
+    return await fetch(url, { ...init, signal });
   } finally {
     if (prev === undefined) delete process.env.NODE_USE_SYSTEM_CA;
     else process.env.NODE_USE_SYSTEM_CA = prev;

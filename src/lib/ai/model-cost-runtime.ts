@@ -8,6 +8,8 @@ import {
   type OperationBudgetSummary,
 } from "@/lib/ai/operation-budget-tracker";
 import { logRouteDecision } from "@/lib/ai/route-decision-log";
+import { pickCheapDiscussModel } from "@/lib/ai/cheap-planner";
+import { recordModelDecision, estimateCostBucket } from "@/lib/ai/model-orchestration-policy";
 
 export type ModelCostRuntimeInput = {
   stage: string;
@@ -95,6 +97,20 @@ export function resolveStageModel(input: ModelCostRuntimeInput): ModelCostRuntim
     cacheHit: plan?.useCache,
     escalationReason: escalationReason !== "none" ? escalationReason : undefined,
   });
+
+  if (input.mode === "discuss" || input.stage === "intent") {
+    const cheap = pickCheapDiscussModel(modelForRoute);
+    recordModelDecision({
+      operationType: input.stage,
+      selectedModel: cheap.modelId,
+      provider: cheap.provider,
+      tier: "cheap_planner",
+      usedCheapPlanner: true,
+      usedHeavyModel: false,
+      fallbackReason: cheap.isFallback ? cheap.reason : null,
+      estimatedCostBucket: estimateCostBucket("discuss_stream"),
+    });
+  }
 
   return {
     plan,

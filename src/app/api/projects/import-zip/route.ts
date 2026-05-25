@@ -143,6 +143,12 @@ export async function POST(req: Request) {
   const frameworkId = validation.framework.id;
 
   const lifecycleStatus = validation.previewReady ? "imported_preview_ready" : "imported";
+  const importPaths = files.map((f) => f.path);
+  const importEntryFile =
+    importPaths.find((p) => /\.html?$/i.test(p)) ??
+    importPaths.find((p) => p === "index.html") ??
+    importPaths[0] ??
+    null;
 
   const icon = detectAppIconFromImport(files, displayName ?? defaultTitle);
   const displayTitle = displayName ?? defaultTitle;
@@ -162,6 +168,7 @@ export async function POST(req: Request) {
       name: displayTitle,
       slug,
       status: validation.previewReady ? "draft" : "draft",
+      build_status: "imported",
       framework: frameworkId === "unknown" ? "nextjs" : frameworkId,
       icon_svg: iconSvg,
       metadata: {
@@ -187,6 +194,8 @@ export async function POST(req: Request) {
           quality_score: validation.qualityScore,
           preview_ready: validation.previewReady,
           publish_ready: validation.publishReady,
+          entry_file: importEntryFile,
+          prepared_at: new Date().toISOString(),
           warnings: validation.warnings,
           rejected_secrets: rejectedSecrets,
           rejected_paths: rejectedPaths,

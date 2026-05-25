@@ -1,0 +1,66 @@
+{
+  "runAt": "2026-05-23T23:32:34.145Z",
+  "mode": "dry-run",
+  "disclaimer": "Admin routing preview only — not full build cost, not a benchmark, not user discuss mode. Proves model selection policy without generating app files.",
+  "userCreditsCharged": 0,
+  "preflight": {
+    "ok": true,
+    "blockers": []
+  },
+  "routing": [
+    {
+      "mode": "discuss",
+      "operationType": "discuss_stream",
+      "selectedCatalogModelId": "gpt-5.4-mini",
+      "apiModelId": "gpt-4o-mini",
+      "provider": "openai",
+      "routeReason": "discuss_stream",
+      "orchestrationTier": "cheap_planner",
+      "estimatedCostBucket": "micro",
+      "fallbackApplied": false,
+      "fallbackReason": null,
+      "policyNote": "Cheapest reliable model — never heavy Claude/Pro for simple chat"
+    },
+    {
+      "mode": "planning",
+      "operationType": "build_plan",
+      "selectedCatalogModelId": "gpt-5.4-mini",
+      "apiModelId": "gpt-4o-mini",
+      "provider": "openai",
+      "routeReason": "build_plan; cheap_planner=gpt-5-4-mini",
+      "orchestrationTier": "standard",
+      "estimatedCostBucket": "low",
+      "fallbackApplied": false,
+      "fallbackReason": null,
+      "policyNote": "Cheap planner first (OpenAI mini or Gemini Flash); no build files generated"
+    },
+    {
+      "mode": "edit",
+      "operationType": "edit_stream",
+      "selectedCatalogModelId": "gpt-5.4-mini",
+      "apiModelId": "gpt-4o-mini",
+      "provider": "openai",
+      "routeReason": "edit_stream",
+      "orchestrationTier": "standard",
+      "estimatedCostBucket": "low",
+      "fallbackApplied": false,
+      "fallbackReason": null,
+      "policyNote": "Standard fast tier for patches; escalates only on edit_patch_hard"
+    },
+    {
+      "mode": "heavy_build",
+      "operationType": "backend_implementation",
+      "selectedCatalogModelId": "gpt-5.4-mini",
+      "apiModelId": "gpt-4o-mini",
+      "provider": "openai",
+      "routeReason": "user_selected_model",
+      "orchestrationTier": "heavy",
+      "estimatedCostBucket": "high",
+      "fallbackApplied": true,
+      "fallbackReason": "anthropic_budget_or_quota",
+      "policyNote": "Heavy route for implementation — Claude when enabled, else OpenAI/Gemini fallback"
+    }
+  ],
+  "liveProbes": [],
+  "totalProviderSpendUsd": 0
+}

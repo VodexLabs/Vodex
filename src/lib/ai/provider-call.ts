@@ -1,6 +1,6 @@
 import { generateText } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
-import { google } from "@ai-sdk/google";
+import { resolveGoogleLanguageModel } from "@/lib/llm/google-provider";
 import { openai } from "@ai-sdk/openai";
 import { googleGenerativeApiKey } from "@/lib/llm/env-keys";
 import { checkOperationBudget } from "@/lib/ai/cost-budget";
@@ -16,8 +16,12 @@ import {
   recordProviderSuccess,
 } from "@/lib/ai/provider-availability";
 import { routeOperation, downRouteOperation, type RouteOperationContext } from "@/lib/ai/model-router";
+import { routeMainModelSpec } from "@/lib/ai/model-mix-router";
+import { logInternalModelDecision } from "@/lib/ai/model-decision-log";
+import { estimateCostBucket } from "@/lib/ai/model-orchestration-policy";
 import type { RoutedModelSpec } from "@/lib/ai/operation-types";
 import { estimateTokenProviderCostUsd } from "@/lib/credits/token-cost";
+import { withGoogleProviderOptions } from "@/lib/ai/gemini-generate-options";
 import { assertProviderSpendAllowed } from "@/lib/credits/provider-spend-guard";
 import { logServerOperation } from "@/lib/ops/server-ops-log";
 import { pushRuntimeDiagnostic } from "@/lib/dev/runtime-diagnostics";
@@ -37,6 +41,7 @@ export type ProviderCallInput = {
   projectId?: string | null;
   conversationId?: string | null;
   accumulatedCostUsd?: number;
+  userSelectedModelId?: string | null;
 };
 
 export type ProviderCallResult = {
@@ -52,7 +57,7 @@ export type ProviderCallResult = {
 function resolveLanguageModel(apiModelId: string) {
   if (apiModelId.startsWith("gemini")) {
     if (!googleGenerativeApiKey()) throw new Error("GOOGLE_GENERATIVE_AI_API_KEY not configured");
-    return google(apiModelId);
+    return resolveGoogleLanguageModel(apiModelId);
   }
   if (apiModelId.startsWith("claude")) {
     if (!process.env.ANTHROPIC_API_KEY?.trim()) throw new Error("ANTHROPIC_API_KEY not configured");
@@ -63,7 +68,7 @@ function resolveLanguageModel(apiModelId: string) {
     return openai(apiModelId);
   }
   if (process.env.OPENAI_API_KEY?.trim()) return openai("gpt-4o-mini");
-  if (googleGenerativeApiKey()) return google("gemini-2.0-flash");
+  if (googleGenerativeApiKey()) return resolveGoogleLanguageModel("gemini-2.0-flash");
   if (process.env.ANTHROPIC_API_KEY?.trim()) return anthropic("claude-haiku-4-5");
   throw new Error("No LLM API key configured");
 }
@@ -85,11 +90,13 @@ export async function callProviderStructured(input: ProviderCallInput): Promise<
     throw new Error(spendGuard.message);
   }
 
-  let spec = routeOperation({
+  const { mix, spec: routedSpec } = routeMainModelSpec({
     operationType: input.operationType,
+    userSelectedModelId: input.userSelectedModelId,
     complexity: input.complexity,
     ownerEmail: input.ownerEmail,
   });
+  let spec = routedSpec;
 
   let budget = checkOperationBudget({
     operationType: input.operationType,
@@ -122,14 +129,17 @@ export async function callProviderStructured(input: ProviderCallInput): Promise<
   }
 
   const maxTokens = budget.cappedOutputTokens;
+  const callStarted = performance.now();
 
   console.info("[provider_request_started]", {
     operation_id: input.operationId,
     operation_type: input.operationType,
     model: spec.modelId,
+    helper_model: mix.helperModelId,
     api_model: spec.apiModelId,
     max_output_tokens: maxTokens,
     estimated_cost_usd: budget.estimatedCostUsd,
+    model_mix_policy: mix.policyNote,
   });
 
   if (input.writer) {
@@ -171,13 +181,15 @@ export async function callProviderStructured(input: ProviderCallInput): Promise<
     const isFailover = providersToTry[attempt]!.failover;
     try {
     const model = resolveLanguageModel(attemptSpec.apiModelId);
-    const result = await generateText({
-      model,
-      system: input.system,
-      prompt: input.prompt,
-      maxOutputTokens: maxTokens,
-      temperature: attemptSpec.temperature,
-    });
+    const result = await generateText(
+      withGoogleProviderOptions(attemptSpec.apiModelId, {
+        model,
+        system: input.system,
+        prompt: input.prompt,
+        maxOutputTokens: maxTokens,
+        temperature: attemptSpec.temperature,
+      }),
+    );
 
     recordProviderSuccess(providerFromModelId(attemptSpec.modelId));
 
@@ -200,6 +212,25 @@ export async function callProviderStructured(input: ProviderCallInput): Promise<
       provider_cost_usd: providerCostUsd,
       failover: isFailover,
       model: attemptSpec.modelId,
+    });
+
+    logInternalModelDecision({
+      operation_id: input.operationId,
+      user_id: input.userId,
+      project_id: input.projectId ?? null,
+      mode: mix.mode,
+      user_selected_model: mix.userSelectedModelId,
+      helper_model_used: mix.helperModelId,
+      main_model_used: attemptSpec.modelId,
+      provider_used: mix.mainProvider,
+      fallback_provider: mix.fallbackApplied ? providerFromModelId(attemptSpec.modelId) : null,
+      fallback_reason: mix.fallbackReason ?? (isFailover ? "provider_failover" : null),
+      estimated_cost_bucket: estimateCostBucket(input.operationType),
+      actual_input_tokens: inTok,
+      actual_output_tokens: outTok,
+      actual_cost_usd: providerCostUsd,
+      latency_ms: Math.round(performance.now() - callStarted),
+      success: true,
     });
 
     return {

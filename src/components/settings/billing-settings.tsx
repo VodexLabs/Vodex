@@ -5,7 +5,6 @@ import { motion } from "framer-motion";
 import {
   CreditCard,
   ArrowRight,
-  Zap,
   RefreshCw,
   Loader2,
   AlertTriangle,
@@ -14,7 +13,8 @@ import {
 import { variants } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { useCreditsStore } from "@/lib/stores/credits-store";
+import { CreditsTracker } from "@/components/credits/credits-tracker";
+import { refreshCredits, useCreditsStore } from "@/lib/stores/credits-store";
 import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,7 +40,7 @@ type BillingState = {
 
 export function BillingSettings() {
   const { profile } = useAuthStore();
-  const { remaining, resetAt, syncFromDB } = useCreditsStore();
+  const { build, action, planId: creditsPlanId, loading: creditsLoading, error: creditsError, isConfirmed } = useCreditsStore();
   const [billing, setBilling] = React.useState<BillingState | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [checkoutPlan, setCheckoutPlan] = React.useState<StripeCheckoutPlan | null>(null);
@@ -59,8 +59,7 @@ export function BillingSettings() {
 
   React.useEffect(() => {
     void loadBilling();
-    if (profile?.id) void syncFromDB(profile.id);
-  }, [loadBilling, syncFromDB, profile?.id]);
+  }, [loadBilling]);
 
   async function startCheckout(plan: StripeCheckoutPlan) {
     if (!checkoutPlan) {
@@ -146,8 +145,8 @@ export function BillingSettings() {
   const isPaid = planId !== "free";
   const stripeReady = billing?.stripe.configured ?? false;
 
-  const daysUntilReset = (billing?.resetAt ?? resetAt)
-    ? Math.max(0, Math.ceil((new Date(billing?.resetAt ?? resetAt!).getTime() - Date.now()) / 86400000))
+  const daysUntilReset = (billing?.resetAt ?? build.resetDate)
+    ? Math.max(0, Math.ceil((new Date(billing?.resetAt ?? build.resetDate!).getTime() - Date.now()) / 86400000))
     : null;
 
   return (
@@ -182,7 +181,7 @@ export function BillingSettings() {
                     <h2 className="text-[24px] font-bold tracking-tight">{planInfo.name}</h2>
                     <p className="mt-1 text-[13px] text-muted-foreground">
                       {planInfo.priceMonthlyUsd != null ? `$${planInfo.priceMonthlyUsd} / month` : "Custom pricing"} ·{" "}
-                      {planInfo.description.replace(/credits/gi, "tokens")}
+                      {planInfo.description}
                     </p>
                     {billing?.subscription?.cancelAtPeriodEnd && billing.subscription.currentPeriodEnd && (
                       <p className="mt-2 flex items-center gap-1.5 text-[12px] text-amber-600">
@@ -206,17 +205,20 @@ export function BillingSettings() {
                   </span>
                 </div>
 
-                <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <motion.div className="rounded-xl bg-surface px-4 py-3 ring-1 ring-border">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Zap className="size-3.5 text-accent" />
-                      <p className="text-[11px] font-medium uppercase text-muted-foreground">Tokens left</p>
-                    </div>
-                    <p className="text-[22px] font-bold tabular-nums">{(billing?.tokensRemaining ?? remaining).toLocaleString()}</p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {(billing?.monthlyTokens ?? 100).toLocaleString()} / month
-                    </p>
-                  </motion.div>
+                <div className="mt-5">
+                  <CreditsTracker
+                    build={build}
+                    action={action}
+                    planId={creditsPlanId}
+                    loading={creditsLoading && !isConfirmed}
+                    error={creditsError}
+                    variant="compact"
+                    showUpgrade={planId === "free" || build.available < build.planAllowance * 0.15}
+                    onRetry={() => void refreshCredits({ reason: "manual", force: true })}
+                  />
+                </div>
+
+                <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="rounded-xl bg-surface px-4 py-3 ring-1 ring-border">
                     <div className="flex items-center gap-2 mb-1">
                       <RefreshCw className="size-3.5 text-muted-foreground" />
@@ -239,7 +241,7 @@ export function BillingSettings() {
           <div className="border-t border-border bg-surface/50 px-6 py-4 space-y-4">
             <p className="text-[13px] font-medium text-foreground">Upgrade</p>
             <p className="text-[12px] text-muted-foreground">
-              Upgrades open Stripe Checkout after you confirm price and tokens. Your new billing period starts when payment
+              Upgrades open Stripe Checkout after you confirm price and Build Credits allowance. Your new billing period starts when payment
               succeeds.
             </p>
             <div className="flex flex-wrap gap-2">

@@ -36,7 +36,7 @@ import { Avatar } from "@/components/ui/avatar";
 
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { cn } from "@/lib/utils";
+import { PlanBadge } from "@/components/billing/plan-badge";
 
 import { toast } from "@/lib/toast";
 
@@ -47,9 +47,7 @@ import { CopyIdButton } from "@/components/identity/copy-id-button";
 import { truncateIdentityId } from "@/lib/identity/dreamos-identity";
 
 import { logUiAction } from "@/lib/diagnostics/dreamos-logger";
-
-
-
+import { parseCreditAmountInput } from "@/lib/credits/parse-credit-amount";
 type PlanFilter = "all" | AdminUserListRow["plan_id"];
 
 type StatusFilter = "all" | "active" | "suspended";
@@ -110,6 +108,10 @@ function UserDetailDrawer({
 
   const [balance, setBalance] = React.useState(String(user.tokens_remaining));
 
+  const [actionAmount, setActionAmount] = React.useState("");
+
+  const [actionBalance, setActionBalance] = React.useState(String(user.action_credits_remaining));
+
   const [planId, setPlanId] = React.useState(user.plan_id);
 
   const [acting, setActing] = React.useState(false);
@@ -119,6 +121,22 @@ function UserDetailDrawer({
   const [otp, setOtp] = React.useState("");
 
   const [devOtpHint, setDevOtpHint] = React.useState<string | null>(null);
+  const [otpDeliveryChannel, setOtpDeliveryChannel] = React.useState<
+    "resend" | "dev_console" | "none" | null
+  >(null);
+  const [otpDeliveryMessage, setOtpDeliveryMessage] = React.useState<string | null>(null);
+
+
+
+  React.useEffect(() => {
+
+    setBalance(String(user.tokens_remaining));
+
+    setActionBalance(String(user.action_credits_remaining));
+
+    setPlanId(user.plan_id);
+
+  }, [user.id, user.tokens_remaining, user.action_credits_remaining, user.plan_id]);
 
 
 
@@ -185,6 +203,8 @@ function UserDetailDrawer({
     setActing(true);
 
     setDevOtpHint(null);
+    setOtpDeliveryChannel(null);
+    setOtpDeliveryMessage(null);
 
     const res = await fetch("/api/admin/confirmations/request", {
 
@@ -199,15 +219,13 @@ function UserDetailDrawer({
     });
 
     const json = (await res.json()) as {
-
       error?: string;
-
       pendingId?: string;
-
       devOtpHint?: string;
-
       message?: string;
-
+      deliveryChannel?: "resend" | "dev_console" | "none";
+      deliveredToInbox?: boolean;
+      emailError?: string;
     };
 
     setActing(false);
@@ -223,12 +241,22 @@ function UserDetailDrawer({
     }
 
     setPendingId(json.pendingId ?? null);
-
     setDevOtpHint(json.devOtpHint ?? null);
+    setOtpDeliveryChannel(json.deliveryChannel ?? null);
+    setOtpDeliveryMessage(json.message ?? null);
 
-    logUiAction("api_ok", "Admin OTP sent", { component: "AdminUsersPanel", metadata: { pendingId: json.pendingId } });
+    logUiAction("api_ok", "Admin OTP requested", {
+      component: "AdminUsersPanel",
+      metadata: { pendingId: json.pendingId, channel: json.deliveryChannel },
+    });
 
-    toast.success(json.message ?? "Confirmation code sent to dreamos86app@gmail.com");
+    if (json.deliveredToInbox) {
+      toast.success(json.message ?? "Confirmation code sent to dreamos86app@gmail.com");
+    } else if (json.deliveryChannel === "dev_console" && json.devOtpHint) {
+      toast.info(json.message ?? "Use the dev confirmation code shown below.");
+    } else {
+      toast.error(json.message ?? json.emailError ?? "Confirmation email could not be sent.");
+    }
 
   }
 
@@ -289,6 +317,8 @@ function UserDetailDrawer({
     setReason("");
 
     setAmount("");
+
+    setActionAmount("");
 
   }
 
@@ -360,9 +390,24 @@ function UserDetailDrawer({
 
             <p className="mt-1">
 
-              Each action sends a one-time code to <strong className="text-foreground">dreamos86app@gmail.com</strong>.
-
-              Enter the code below to execute. Codes expire in 10 minutes.
+              {otpDeliveryChannel === "dev_console" ? (
+                <>
+                  Local dev mode: email is not configured. Each action shows a one-time code below
+                  (also logged in the server terminal). Codes expire in 10 minutes.
+                </>
+              ) : otpDeliveryChannel === "none" ? (
+                <>
+                  Email delivery failed or is not configured. Set{" "}
+                  <strong className="text-foreground">RESEND_API_KEY</strong> on the server, or use
+                  the dev code if shown below.
+                </>
+              ) : (
+                <>
+                  Each action sends a one-time code to{" "}
+                  <strong className="text-foreground">dreamos86app@gmail.com</strong>. Enter the
+                  code below to execute. Codes expire in 10 minutes.
+                </>
+              )}
 
             </p>
 
@@ -376,6 +421,40 @@ function UserDetailDrawer({
 
               <p className="text-[12px] font-medium text-foreground">Enter confirmation code</p>
 
+              {otpDeliveryMessage && otpDeliveryChannel !== "resend" ? (
+                <p className="text-[11px] text-muted-foreground">{otpDeliveryMessage}</p>
+              ) : null}
+
+              {devOtpHint ? (
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-amber-700">
+                    Dev confirmation code
+                  </p>
+                  <div className="mt-1 flex items-center justify-between gap-2">
+                    <p className="font-mono text-lg font-semibold tracking-[0.2em] text-foreground">
+                      {devOtpHint}
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0 text-[11px]"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(devOtpHint).then(() => {
+                          toast.success("Code copied");
+                        });
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    Also printed in the server terminal as{" "}
+                    <code className="text-[10px]">[admin-otp]</code>.
+                  </p>
+                </div>
+              ) : null}
+
               <Input
 
                 placeholder="6-digit code"
@@ -387,10 +466,6 @@ function UserDetailDrawer({
                 className="font-mono tracking-widest"
 
               />
-
-              {devOtpHint ? (
-                <p className="text-[10px] text-amber-600">Dev (Resend not configured): code {devOtpHint}</p>
-              ) : null}
 
               <Button size="sm" variant="accent" disabled={acting || otp.length < 4} onClick={() => void verifyAndExecute()}>
 
@@ -410,18 +485,37 @@ function UserDetailDrawer({
 
               <p className="text-muted-foreground">Plan</p>
 
-              <p className="font-semibold capitalize">{user.plan_id}</p>
+              <PlanBadge planId={user.plan_id} size="sm" />
 
             </div>
 
-            <div className="rounded-lg bg-surface p-3 ring-1 ring-border">
+            <div className="rounded-lg bg-surface p-3 ring-1 ring-border col-span-2">
 
-              <p className="text-muted-foreground">Credits</p>
+              <p className="text-muted-foreground">Build Credits</p>
 
-              <p className="font-semibold tabular-nums">
+              <p className="font-semibold tabular-nums">{user.tokens_remaining.toLocaleString()} available</p>
 
-                {user.tokens_remaining.toLocaleString()} / {user.monthly_token_limit.toLocaleString()}
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                Plan allowance: {user.monthly_token_limit.toLocaleString()}
+                {user.bonus_credits > 0 ? ` · Bonus +${user.bonus_credits.toLocaleString()}` : ""}
+                {user.is_test_or_grant_account ? " · test/grant account" : ""}
+              </p>
 
+              <p className="text-[10px] text-muted-foreground">
+                Used: {user.used_this_period.toLocaleString()} · Reserved: {user.reserved_credits.toLocaleString()}
+              </p>
+
+            </div>
+
+            <div className="rounded-lg bg-surface p-3 ring-1 ring-border col-span-2">
+
+              <p className="text-muted-foreground">Action Credits</p>
+
+              <p className="font-semibold tabular-nums">{user.action_credits_remaining.toLocaleString()} available</p>
+
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                Plan allowance: {user.action_credits_plan_allowance.toLocaleString()}/mo
+                {user.action_credits_bonus > 0 ? ` · Bonus +${user.action_credits_bonus.toLocaleString()}` : ""}
               </p>
 
             </div>
@@ -452,46 +546,37 @@ function UserDetailDrawer({
 
           <div className="space-y-3 rounded-xl bg-surface p-4 ring-1 ring-border">
 
-            <p className="text-[12px] font-semibold">Credit actions</p>
+            <p className="text-[12px] font-semibold">Build Credit actions</p>
 
             <div className="flex flex-wrap gap-2">
 
               <Input
 
                 type="number"
-
-                placeholder="Add credits"
-
+                step="0.1"
+                min="0.1"
+                placeholder="Add Build Credits"
                 value={amount}
-
                 onChange={(e) => setAmount(e.target.value)}
-
                 className="w-28"
-
               />
 
               <Button
-
                 size="sm"
-
                 variant="accent"
-
                 disabled={acting || !amount}
-
-                onClick={() =>
-
+                onClick={() => {
+                  const parsed = parseCreditAmountInput(amount);
+                  if (parsed == null) {
+                    toast.error("Enter credits with at most one decimal (e.g. 7.2)");
+                    return;
+                  }
                   void requestConfirmation({
-
                     ...basePayload,
-
                     action: "add_tokens",
-
-                    amount: parseInt(amount, 10),
-
-                  })
-
-                }
-
+                    amount: parsed,
+                  });
+                }}
               >
 
                 Send code to add
@@ -502,30 +587,24 @@ function UserDetailDrawer({
 
             <div className="flex flex-wrap gap-2">
 
-              <Input value={balance} onChange={(e) => setBalance(e.target.value)} className="w-28" />
+              <Input value={balance} onChange={(e) => setBalance(e.target.value)} className="w-28" step="0.1" min="0" />
 
               <Button
-
                 size="sm"
-
                 variant="secondary"
-
                 disabled={acting}
-
-                onClick={() =>
-
+                onClick={() => {
+                  const parsed = parseCreditAmountInput(balance, { min: 0, allowZero: true });
+                  if (parsed == null) {
+                    toast.error("Enter balance with at most one decimal");
+                    return;
+                  }
                   void requestConfirmation({
-
                     ...basePayload,
-
                     action: "set_balance",
-
-                    balance: parseInt(balance, 10),
-
-                  })
-
-                }
-
+                    balance: parsed,
+                  });
+                }}
               >
 
                 Send code to set balance
@@ -541,6 +620,126 @@ function UserDetailDrawer({
                 disabled={acting}
 
                 onClick={() => void requestConfirmation({ ...basePayload, action: "reset_monthly" })}
+
+              >
+
+                <RefreshCw className="mr-1 size-3" /> Send code to reset monthly
+
+              </Button>
+
+            </div>
+
+          </div>
+
+
+
+          <div className="space-y-3 rounded-xl bg-surface p-4 ring-1 ring-border">
+
+            <p className="text-[12px] font-semibold">Action Credit actions</p>
+
+            <div className="flex flex-wrap gap-2">
+
+              <Input
+
+                type="number"
+
+                step="0.1"
+
+                min="0.1"
+
+                placeholder="Add Action Credits"
+
+                value={actionAmount}
+
+                onChange={(e) => setActionAmount(e.target.value)}
+
+                className="w-36"
+
+              />
+
+              <Button
+
+                size="sm"
+
+                variant="accent"
+
+                disabled={acting || !actionAmount}
+
+                onClick={() => {
+                  const parsed = parseCreditAmountInput(actionAmount);
+                  if (parsed == null) {
+                    toast.error("Enter credits with at most one decimal (e.g. 7.2)");
+                    return;
+                  }
+                  void requestConfirmation({
+                    ...basePayload,
+                    action: "add_action_credits",
+                    amount: parsed,
+                  });
+                }}
+
+              >
+
+                Send code to add
+
+              </Button>
+
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+
+              <Input
+
+                type="number"
+
+                step="0.1"
+
+                min="0"
+
+                value={actionBalance}
+
+                onChange={(e) => setActionBalance(e.target.value)}
+
+                className="w-36"
+
+              />
+
+              <Button
+
+                size="sm"
+
+                variant="secondary"
+
+                disabled={acting}
+
+                onClick={() => {
+                  const parsed = parseCreditAmountInput(actionBalance, { min: 0, allowZero: true });
+                  if (parsed == null) {
+                    toast.error("Enter balance with at most one decimal");
+                    return;
+                  }
+                  void requestConfirmation({
+                    ...basePayload,
+                    action: "set_action_credits",
+                    balance: parsed,
+                  });
+                }}
+
+              >
+
+                Send code to set balance
+
+              </Button>
+
+              <Button
+
+                size="sm"
+
+                variant="secondary"
+
+                disabled={acting}
+
+                onClick={() => void requestConfirmation({ ...basePayload, action: "reset_action_credits_monthly" })}
 
               >
 
@@ -916,7 +1115,9 @@ export function AdminUsersPanel() {
 
                 <th className="px-4 py-2.5">Plan</th>
 
-                <th className="px-4 py-2.5">Available credits</th>
+                <th className="px-4 py-2.5">Build credits</th>
+
+                <th className="px-4 py-2.5">Action credits</th>
 
                 <th className="px-4 py-2.5">Joined</th>
 
@@ -956,9 +1157,25 @@ export function AdminUsersPanel() {
 
                   </td>
 
-                  <td className="px-4 py-3 capitalize">{u.plan_id}</td>
+                  <td className="px-4 py-3">
+                    <PlanBadge planId={u.plan_id} size="xs" />
+                  </td>
 
-                  <td className="px-4 py-3 tabular-nums">{u.tokens_remaining.toLocaleString()}</td>
+                  <td className="px-4 py-3 tabular-nums">
+                    {u.tokens_remaining.toLocaleString()}
+                    {u.bonus_credits > 0 ? (
+                      <span className="ml-1 text-[10px] text-accent">+{u.bonus_credits}</span>
+                    ) : null}
+                    <span className="block text-[10px] text-muted-foreground">/{u.monthly_token_limit} plan</span>
+                  </td>
+
+                  <td className="px-4 py-3 tabular-nums">
+                    {u.action_credits_remaining.toLocaleString()}
+                    {u.action_credits_bonus > 0 ? (
+                      <span className="ml-1 text-[10px] text-accent">+{u.action_credits_bonus}</span>
+                    ) : null}
+                    <span className="block text-[10px] text-muted-foreground">/{u.action_credits_plan_allowance} plan</span>
+                  </td>
 
                   <td className="px-4 py-3 text-muted-foreground">
 

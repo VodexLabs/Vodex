@@ -1,5 +1,8 @@
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { monthlyTokensForPlan, normalizePlanId } from "@/lib/billing/plans";
+import { monthlyActionCreditsForPlan } from "@/lib/action-credits/action-credit-allowances";
+import { normalizeAvailableCredits } from "@/lib/credits/normalize-credit-balance";
+import { adminFieldsFromCanonical, buildCanonicalBucket } from "@/lib/credits/canonical-credits";
 import type { PlanId } from "@/lib/supabase/types";
 
 export type AdminUserListRow = {
@@ -12,6 +15,13 @@ export type AdminUserListRow = {
   subscription_status: string | null;
   tokens_remaining: number;
   monthly_token_limit: number;
+  bonus_credits: number;
+  action_credits_remaining: number;
+  action_credits_plan_allowance: number;
+  action_credits_bonus: number;
+  used_this_period: number;
+  reserved_credits: number;
+  is_test_or_grant_account: boolean;
   created_at: string;
   last_active_at: string | null;
   suspended_at: string | null;
@@ -172,11 +182,22 @@ export async function listAdminUsers(options: {
 
   const subByUser = new Map(subs.map((s) => [s.user_id, s]));
 
-  const [projectsRes, convRes, jobsRes] = await Promise.all([
+  const [projectsRes, convRes, jobsRes, actionBalanceRes] = await Promise.all([
     admin.from("projects").select("owner_id").in("owner_id", ids),
     admin.from("conversations").select("user_id").in("user_id", ids),
     admin.from("build_jobs").select("user_id").in("user_id", ids),
+    admin
+      .from("action_credit_balances" as never)
+      .select("owner_user_id, balance")
+      .in("owner_user_id" as never, ids)
+      .is("project_id" as never, null),
   ]);
+
+  const actionBalanceByUser = new Map<string, number>();
+  for (const row of actionBalanceRes.data ?? []) {
+    const r = row as { owner_user_id: string; balance?: number };
+    actionBalanceByUser.set(r.owner_user_id, num(r.balance, 0));
+  }
 
   const countBy = (rows: Array<{ owner_id?: string; user_id?: string }> | null, key: "owner_id" | "user_id") => {
     const m = new Map<string, number>();
@@ -210,7 +231,34 @@ export async function listAdminUsers(options: {
 
     const planId = normalizePlanId(str(p?.plan_id) ?? "free");
     const sub = subByUser.get(au.id);
-    const monthlyLimit = num(p?.monthly_token_limit, monthlyTokensForPlan(planId));
+    const resetDate = str(p?.credits_reset_at);
+    const buildPlanAllowance = monthlyTokensForPlan(planId);
+    const actionPlanAllowance = monthlyActionCreditsForPlan(planId);
+    const buildAvailable = num(p?.credits_remaining, buildPlanAllowance);
+    const actionAvailable = actionBalanceByUser.has(au.id)
+      ? actionBalanceByUser.get(au.id)!
+      : actionPlanAllowance;
+
+    const buildNorm = normalizeAvailableCredits({
+      rawAvailable: buildAvailable,
+      planAllowance: buildPlanAllowance,
+      explicitBonus: 0,
+      ledgerUsed: 0,
+    });
+
+    const canonicalFields = adminFieldsFromCanonical({
+      build: buildCanonicalBucket({
+        available: buildNorm.available,
+        planAllowance: buildPlanAllowance,
+        resetDate,
+      }),
+      action: buildCanonicalBucket({
+        available: actionAvailable,
+        planAllowance: actionPlanAllowance,
+        resetDate,
+      }),
+      planId,
+    });
 
     rows.push({
       id: au.id,
@@ -221,8 +269,15 @@ export async function listAdminUsers(options: {
       plan_id: planId,
       subscription_status:
         sub?.status ?? (str(p?.subscription_status) ?? (p?.stripe_subscription_id ? "active" : null)),
-      tokens_remaining: num(p?.credits_remaining, 0),
-      monthly_token_limit: monthlyLimit,
+      tokens_remaining: canonicalFields.tokens_remaining,
+      monthly_token_limit: canonicalFields.monthly_token_limit,
+      bonus_credits: canonicalFields.bonus_credits,
+      action_credits_remaining: canonicalFields.action_credits_remaining,
+      action_credits_plan_allowance: canonicalFields.action_credits_plan_allowance,
+      action_credits_bonus: canonicalFields.action_credits_bonus,
+      used_this_period: canonicalFields.used_this_period,
+      reserved_credits: canonicalFields.reserved_credits,
+      is_test_or_grant_account: canonicalFields.is_test_or_grant_account,
       created_at: str(p?.created_at) ?? au.created_at ?? new Date().toISOString(),
       last_active_at: str(p?.last_active_at) ?? au.last_sign_in_at ?? null,
       suspended_at: str(p?.suspended_at),

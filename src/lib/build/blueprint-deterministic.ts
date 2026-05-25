@@ -95,15 +95,14 @@ export function buildDeterministicBlueprint(input: DeterministicBlueprintInput):
       ...(templatePartial.backendRequirements ?? []),
       ...(archetypePartial.backendRequirements ?? []),
     ],
-    previewAssumptions: archetypePartial.previewAssumptions ?? ["Preview uses mock data"],
-    publishAssumptions: archetypePartial.publishAssumptions ?? ["Path-mode /p/slug when ready"],
+    previewAssumptions: archetypePartial.previewAssumptions ?? ["Sample content until live data is connected"],
+    publishAssumptions: archetypePartial.publishAssumptions ?? ["Shareable link when you publish"],
     monetizationAssumptions: /\b(stripe|payment|subscription)\b/i.test(input.prompt)
-      ? ["Stripe checkout when keys configured"]
+      ? ["Checkout flow when payments are connected"]
       : [],
-    deploymentAssumptions: ["Preview on DreamOS86 first", "Connect Vercel optionally"],
+    deploymentAssumptions: ["Preview hosted on DreamOS86"],
     estimatedComplexity: coreTemplate?.complexity === "advanced" ? 8 : plan.complexity,
     estimatedUserCredits: plan.creditQuote.userCreditsRequired,
-    costSavingStrategy: "Staged build; blueprint cached; cheap model for plan",
     qualityLevel: quality,
     sourceMode: resolvedTemplate ? "template_assisted" : "deterministic_quick",
     templateId: resolvedTemplate ?? input.templateId ?? null,
@@ -119,7 +118,7 @@ export function buildDeterministicBlueprint(input: DeterministicBlueprintInput):
         "All routes in routeMap render without placeholder labels",
         "Mobile layout verified at 390px width",
         "Loading, empty, and error states implemented",
-        "Preview uses honest mock data until backend is connected",
+        "Preview uses realistic sample content until live data is connected",
       ]),
     ].slice(0, 10),
     qualityChecklist: [

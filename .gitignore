@@ -20,6 +20,7 @@
 .dreamos-benchmark-results.live.json
 .dreamos-benchmark-results.structure.json
 .dreamos-benchmark-live-state.json
+.dreamos-model-smoke-report.json
 
 # next.js
 /.next/

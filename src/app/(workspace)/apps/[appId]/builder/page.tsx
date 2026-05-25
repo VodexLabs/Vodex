@@ -31,7 +31,7 @@ export default async function AppBuilderPage({
   searchParams,
 }: {
   params: Promise<{ appId: string }>;
-  searchParams: Promise<{ prompt?: string; mode?: string }>;
+  searchParams: Promise<{ prompt?: string; mode?: string; autostart?: string; strategy?: string; model?: string }>;
 }) {
   const { appId } = await params;
   const supabase = await createClient();
@@ -41,8 +41,9 @@ export default async function AppBuilderPage({
 
   if (!user) redirect("/auth/login");
 
-  const { prompt, mode } = await searchParams;
+  const { prompt, mode, autostart, strategy, model } = await searchParams;
   const initialMode: Mode = VALID_MODES.includes(mode as Mode) ? (mode as Mode) : "build";
+  const initialAutoStart = autostart === "1" || autostart === "true";
 
   const { data: project, error } = await supabase
     .from("projects")
@@ -61,7 +62,14 @@ export default async function AppBuilderPage({
         </div>
       }
     >
-      <ImmersiveWorkspace initialPrompt={prompt ?? ""} initialMode={initialMode} project={project} />
+      <ImmersiveWorkspace
+        initialPrompt={prompt ?? ""}
+        initialMode={initialMode}
+        initialAutoStart={initialAutoStart}
+        initialBuildStrategy={strategy === "build_now" ? "build_now" : "plan_first"}
+        initialModelId={model ?? undefined}
+        project={project}
+      />
     </Suspense>
   );
 }

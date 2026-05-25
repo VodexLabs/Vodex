@@ -17,6 +17,7 @@ mustInclude("src/app/api/credits/route.ts", "loadCreditSummary", "canonical cred
 mustInclude("src/lib/credits/credit-summary.ts", "available", "available balance");
 mustInclude("src/lib/stores/credits-store.ts", "planAllowance", "store plan allowance");
 mustInclude("src/lib/billing/credit-profit-guard.ts", "quoteDiscussCost", "discuss pricing");
+mustInclude("src/lib/billing/credit-pricing.ts", "DISCUSS_FLAT_CREDITS", "flat discuss credits");
 
 console.log("\n=== verify:credit-sync ===\n");
 ok.forEach((m) => console.log("✓", m));

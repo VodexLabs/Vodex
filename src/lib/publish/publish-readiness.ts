@@ -7,6 +7,13 @@ import { resolveSnapshotHtml } from "@/lib/publish/render-published-html";
 import { slugifyAppName, isReservedPublishSlug, validateCustomSlug } from "@/lib/publish/app-slug";
 import { buildPublicUrl } from "@/lib/publish/public-url";
 import { rejectBannedRefs } from "@/lib/ai/file-fingerprint";
+import { isZipImportProject, readImportMeta } from "@/lib/projects/imported-project-state";
+import {
+  findPlaceholderFindings,
+  isRawPlaceholderValidatorReason,
+  placeholderBlockerMessage,
+  type PlaceholderFinding,
+} from "@/lib/publish/placeholder-findings";
 
 export type PublishReadinessResult = {
   ok: boolean;
@@ -22,6 +29,7 @@ export type PublishReadinessResult = {
   routeRenderable: boolean;
   uiQualityScore: number;
   snapshotExists: boolean;
+  placeholderFindings: PlaceholderFinding[];
 };
 
 function hasSecrets(content: string): boolean {
@@ -51,17 +59,38 @@ export function checkPublishReadiness(input: {
   const secretsOk = !hasSecrets(combined);
   if (!secretsOk) blockers.push("Secrets detected in generated files — remove before publish");
 
+  const placeholderFindings = findPlaceholderFindings(safeFiles);
+  const isImport = isZipImportProject(input.metadata);
+
   const validation = validateGeneratedApp({
     files: safeFiles,
     projectId: input.projectId,
     ownerId: input.ownerId,
     routeMap: input.routeMap ?? null,
   });
-  if (!validation.ok) {
-    blockers.push(`Validation failed: ${validation.reasons.slice(0, 3).join(", ")}`);
+
+  const userSafeValidationReasons = validation.reasons.filter(
+    (r) => !isRawPlaceholderValidatorReason(r),
+  );
+  if (!isImport && !validation.ok && userSafeValidationReasons.length > 0) {
+    const friendly = userSafeValidationReasons
+      .slice(0, 3)
+      .map((r) => {
+        if (r === "no_files") return "No app files yet";
+        if (r === "no_page_route") return "No main page found";
+        if (r === "missing_package_json") return "Missing package.json";
+        return r.replace(/_/g, " ");
+      })
+      .join("; ");
+    blockers.push(friendly);
   }
-  if (validation.placeholderDetected) {
-    blockers.push("Placeholder content detected — replace before publish");
+
+  if (placeholderFindings.length > 0 || validation.placeholderDetected) {
+    if (!isImport) {
+      blockers.push(placeholderBlockerMessage(placeholderFindings));
+    } else {
+      warnings.push("Imported source may contain TODO markers — review before going live");
+    }
   }
 
   const createCfg = readCreateFlowConfig(input.metadata);
@@ -79,22 +108,32 @@ export function checkPublishReadiness(input: {
     stylePresetId: createCfg.stylePresetId,
     routeMap,
   });
-  const uiQualityOk = !uiQualityBlocksGenerated(uiReview);
+  const uiQualityOk = isImport || !uiQualityBlocksGenerated(uiReview);
   if (!uiQualityOk) {
     blockers.push(`UI quality gate failed (score ${uiReview.overall})`);
   }
 
+  const importMeta = isImport ? readImportMeta(input.metadata) : null;
   const previewReady =
-    input.metadata.preview_ready === true && input.metadata.preview_honest === true;
-  if (!previewReady) {
+    (input.metadata.preview_ready === true && input.metadata.preview_honest === true) ||
+    Boolean(isImport && (importMeta?.preview_ready || safeFiles.length > 0));
+  if (!previewReady && !isImport) {
     blockers.push("Start a successful preview before publishing");
+  } else if (!previewReady && isImport) {
+    warnings.push("Review imported app setup — preview may need preparation");
   }
 
   const entry = pickPreviewEntry(safeFiles);
   const html = resolveSnapshotHtml(safeFiles);
-  const routeRenderable = Boolean(entry && html);
+  const routeRenderable = isImport
+    ? safeFiles.length > 0
+    : Boolean(entry && html);
   if (!routeRenderable) {
-    blockers.push("Public route not renderable — no valid page snapshot");
+    blockers.push(
+      isImport
+        ? "Imported files not loaded — open Code to verify import"
+        : "Public route not renderable — no valid page snapshot",
+    );
   }
 
   let slug: string | null = null;
@@ -108,10 +147,13 @@ export function checkPublishReadiness(input: {
     slug = slugifyAppName(
       typeof input.metadata.app_name === "string"
         ? input.metadata.app_name
-        : "app",
+        : isImport && typeof (readImportMeta(input.metadata).original_name) === "string"
+          ? readImportMeta(input.metadata).original_name!
+          : "app",
     );
     slugValid = !isReservedPublishSlug(slug);
-    if (!slugValid) blockers.push("Default slug is reserved — choose a custom slug");
+    if (!slugValid && !isImport) blockers.push("Default slug is reserved — choose a custom slug");
+    else if (!slugValid && isImport) warnings.push("Default slug is reserved — choose a custom slug in settings");
   }
 
   const { url } = slug ? buildPublicUrl(slug) : { url: "" };
@@ -135,5 +177,6 @@ export function checkPublishReadiness(input: {
     routeRenderable,
     uiQualityScore: uiReview.overall,
     snapshotExists,
+    placeholderFindings,
   };
 }

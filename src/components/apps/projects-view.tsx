@@ -5,100 +5,50 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
-  Plus, Search, Star, LayoutGrid, List,
+  Plus, Search, LayoutGrid, List,
   Sparkles, Loader2, Upload, AppWindow,
 } from "lucide-react";
+import { FavoriteStarButton } from "@/components/projects/favorite-star-button";
 import { Button } from "@/components/ui/button";  
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import { variants } from "@/lib/motion";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { useTimedLoading } from "@/lib/hooks/use-timed-loading";
 import type { Project } from "@/lib/supabase/types";
 import { ZipImportWizard } from "@/components/apps/zip-import-wizard";
 import { ProjectIcon } from "@/components/projects/project-icon";
 import { ProjectBanner } from "@/components/projects/project-banner";
-import { LIFECYCLE_META, readLifecycleFromMetadata } from "@/lib/projects/project-lifecycle";
+import { readLifecycleFromMetadata } from "@/lib/projects/project-lifecycle";
 import {
-  importedStatusLabel,
-  isZipImportProject,
-  resolveImportedLifecycleStatus,
-  readImportMeta,
-} from "@/lib/projects/imported-project-state";
+  getProjectCardActions,
+  getProjectCardStatus,
+  getUserSafeProjectBadges,
+  isImportedAppWithoutPreview,
+} from "@/lib/projects/user-safe-project-badges";
+import { projectIconSrc } from "@/lib/projects/ensure-project-icon";
 
-type ProjectRow = Project & {
+type ProjectRow = Omit<Project, "metadata"> & {
+  metadata?: Record<string, unknown> | null;
+  app_name?: string | null;
+  short_description?: string | null;
+  category?: string | null;
+  icon_svg?: string | null;
+  build_status?: string | null;
+  icon_url?: string | null;
+  published_subdomain?: string | null;
   lifecycle_status?: string;
   lifecycle_label?: string;
   public_url?: string | null;
   banner_svg?: string | null;
+  is_favorite?: boolean;
 };
 
-const STATUS_CONFIG: Record<Project["status"], { label: string; dot: string; text: string }> = {
-  live: { label: "Live", dot: "bg-positive animate-pulse", text: "text-positive" },
-  staging: { label: "Staging", dot: "bg-amber-400", text: "text-amber-400" },
-  draft: { label: "Draft", dot: "bg-muted-foreground/40", text: "text-muted-foreground" },
-  building: { label: "Building", dot: "bg-accent animate-pulse", text: "text-accent" },
-  error: { label: "Error", dot: "bg-destructive", text: "text-destructive" },
-};
-
-function cardStatusLabel(project: ProjectRow): { label: string; dot: string; text: string } {
-  const meta =
-    project.metadata && typeof project.metadata === "object" && !Array.isArray(project.metadata)
-      ? (project.metadata as Record<string, unknown>)
-      : {};
-  if (isZipImportProject(meta)) {
-    const imp = readImportMeta(meta);
-    const st = resolveImportedLifecycleStatus(meta, imp.file_count ?? 0, false);
-    const label = st ? importedStatusLabel(st) : "Imported ZIP";
-    const tone =
-      st === "imported_preview_ready"
-        ? "text-positive"
-        : st === "imported_error"
-          ? "text-destructive"
-          : st === "imported_needs_setup"
-            ? "text-amber-400"
-            : "text-muted-foreground";
-    const dot =
-      st === "imported_preview_ready"
-        ? "bg-positive"
-        : st === "imported_error"
-          ? "bg-destructive"
-          : st === "imported_needs_setup"
-            ? "bg-amber-400"
-            : "bg-accent";
-    return { label, dot, text: tone };
-  }
-  const ls = project.lifecycle_status ?? readLifecycleFromMetadata(project.metadata).lifecycle_status;
-  if (ls && ls in LIFECYCLE_META) {
-    const m = LIFECYCLE_META[ls as keyof typeof LIFECYCLE_META];
-    const tone =
-      ls === "published"
-        ? "text-positive"
-        : ls === "building" || ls === "blueprint_generating"
-          ? "text-accent"
-          : ls === "failed" || ls === "needs_attention"
-            ? "text-destructive"
-            : "text-muted-foreground";
-    const dot =
-      ls === "published"
-        ? "bg-positive animate-pulse"
-        : ls === "building" || ls === "blueprint_generating"
-          ? "bg-accent animate-pulse"
-          : ls === "failed" || ls === "needs_attention"
-            ? "bg-destructive"
-            : "bg-muted-foreground/40";
-    return { label: project.lifecycle_label ?? m.userLabel, dot, text: tone };
-  }
-  const metaFallback =
-    project.metadata && typeof project.metadata === "object" && !Array.isArray(project.metadata)
-      ? (project.metadata as Record<string, unknown>)
-      : {};
-  const buildStatus = typeof metaFallback.build_status === "string" ? metaFallback.build_status : null;
-  if (buildStatus === "completed") {
-    return { label: "Generated", dot: "bg-positive", text: "text-positive" };
-  }
-  return STATUS_CONFIG[project.status] ?? STATUS_CONFIG.draft;
+function cardStatusLabel(project: ProjectRow) {
+  return getProjectCardStatus(project, {
+    lifecycleStatus: project.lifecycle_status,
+    lifecycleLabel: project.lifecycle_label,
+  });
 }
 
 function ProjectCardSkeleton() {
@@ -120,8 +70,18 @@ function ProjectCardSkeleton() {
   );
 }
 
-function ProjectCard({ project }: { project: ProjectRow }) {
+function ProjectCard({
+  project,
+  onToggleFavorite,
+}: {
+  project: ProjectRow;
+  onToggleFavorite: (projectId: string, next: boolean) => void;
+}) {
   const cfg = cardStatusLabel(project);
+  const actions = getProjectCardActions(project, {
+    lifecycleStatus: project.lifecycle_status,
+    lifecycleLabel: project.lifecycle_label,
+  });
   const meta =
     project.metadata && typeof project.metadata === "object" && !Array.isArray(project.metadata)
       ? (project.metadata as Record<string, unknown>)
@@ -141,41 +101,43 @@ function ProjectCard({ project }: { project: ProjectRow }) {
       : null;
   const bannerSvg = project.banner_svg ?? null;
   const ls = project.lifecycle_status ?? readLifecycleFromMetadata(project.metadata).lifecycle_status;
-  const isZipImport =
-    meta.source === "zip_import" ||
-    Boolean((meta.import as Record<string, unknown> | undefined)?.original_name);
   const canPreview =
     Boolean(project.preview_url) &&
     ls &&
-    ["generated", "preview_ready", "publish_ready", "published"].includes(ls);
-  const canPublish = ls === "preview_ready" || ls === "publish_ready" || ls === "published";
+    ["generated", "preview_ready", "publish_ready", "published", "imported_preview_ready"].includes(ls);
+  const canPublish = ls === "preview_ready" || ls === "publish_ready" || ls === "published" || ls === "imported_preview_ready";
   const needsRepair = ls === "needs_attention" || ls === "failed";
   const publicUrl = project.public_url ?? null;
+  const iconSrc = projectIconSrc(project.id, iconSvg, project.icon_url);
+  const importedPending = isImportedAppWithoutPreview(project);
 
   return (
     <motion.div
       layout
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="group relative flex flex-col overflow-hidden rounded-[var(--radius-xl)] bg-surface ring-1 ring-border transition hover:ring-accent/30 hover:shadow-lg"
+      className="group relative flex flex-col overflow-hidden rounded-[var(--radius-xl)] bg-surface shadow-[0_8px_28px_-14px_rgba(15,23,42,0.18)] ring-1 ring-border/80 transition hover:shadow-[0_12px_32px_-12px_rgba(37,99,235,0.22)] hover:ring-accent/25"
     >
       <Link
         href={`/projects/${project.id}`}
         aria-label={`Open ${project.name}`}
-        className="absolute inset-0 z-0"
-      />
-      <ProjectBanner
-        projectId={project.id}
-        bannerSvg={bannerSvg}
-        previewUrl={project.preview_url}
-        title={appName}
-        className="pointer-events-none"
-        previewOnly
-      />
+        className="block border-b border-border/40"
+      >
+        <ProjectBanner
+          projectId={project.id}
+          bannerSvg={bannerSvg}
+          previewUrl={canPreview ? project.preview_url : null}
+          title={appName}
+          className="pointer-events-none"
+          previewOnly={!canPreview}
+          importedPendingSetup={importedPending}
+          iconSrc={iconSrc}
+        />
+      </Link>
 
-      <div className="pointer-events-none relative z-[1] flex flex-1 flex-col gap-3 p-4">
+      <div className="relative z-[1] flex flex-1 flex-col gap-3 p-4 pt-3.5">
         <div className="flex items-start justify-between gap-2">
-          <div className="flex min-w-0 items-start gap-2.5">
+          <Link href={`/projects/${project.id}`} className="flex min-w-0 items-start gap-2.5">
             <ProjectIcon projectId={project.id} iconSvg={iconSvg} iconUrl={project.icon_url} size={40} />
             <div className="min-w-0">
             <p className="truncate text-[14px] font-semibold tracking-tight text-foreground">
@@ -188,7 +150,7 @@ function ProjectCard({ project }: { project: ProjectRow }) {
               <p className="mt-1 truncate text-[10px] font-medium text-positive">{publicUrl}</p>
             )}
             </div>
-          </div>
+          </Link>
           <div className="flex shrink-0 items-center gap-1 rounded-full bg-background px-2 py-0.5">
             <span className={cn("size-1.5 rounded-full", cfg.dot)} />
             <span className={cn("text-[10px] font-medium", cfg.text)}>{cfg.label}</span>
@@ -197,11 +159,19 @@ function ProjectCard({ project }: { project: ProjectRow }) {
 
         <div className="pointer-events-auto relative z-[2] mt-2 flex flex-wrap gap-2">
           <Link
-            href={`/apps/${project.id}/builder`}
+            href={actions.primary.href}
             className="rounded-lg bg-accent/12 px-2.5 py-1 text-[10.5px] font-semibold text-accent ring-1 ring-accent/20 transition hover:bg-accent hover:text-white"
           >
-            Open builder
+            {actions.primary.label}
           </Link>
+          {actions.secondary && (
+            <Link
+              href={actions.secondary.href}
+              className="rounded-lg bg-surface px-2.5 py-1 text-[10.5px] font-medium text-foreground ring-1 ring-border transition hover:ring-accent/25"
+            >
+              {actions.secondary.label}
+            </Link>
+          )}
           {needsRepair && (
             <Link
               href={`/apps/${project.id}/builder?repair=1`}
@@ -229,99 +199,154 @@ function ProjectCard({ project }: { project: ProjectRow }) {
               Publish
             </Link>
           )}
-          <Link
-            href={`/apps/${project.id}/dashboard`}
-            className="rounded-lg bg-surface px-2.5 py-1 text-[10.5px] font-medium text-foreground ring-1 ring-border transition hover:ring-accent/25"
-          >
-            Dashboard
-          </Link>
         </div>
 
         <div className="mt-auto flex items-center justify-between pt-1">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-            {isZipImport && (
-              <span className="rounded-md bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold text-accent ring-1 ring-accent/20">
-                Imported ZIP
-              </span>
-            )}
-            <span className="truncate">{project.framework}</span>
-            <span>{new Date(project.updated_at).toLocaleDateString()}</span>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+            {getUserSafeProjectBadges(project, {
+              mode: "user",
+              lifecycleStatus: project.lifecycle_status,
+              lifecycleLabel: project.lifecycle_label,
+            })
+              .filter((b) => b.kind === "meta")
+              .map((b) => (
+                <span
+                  key={b.label}
+                  className="rounded-md bg-accent/8 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-border/50"
+                >
+                  {b.label}
+                </span>
+              ))}
+            <span className="truncate">{new Date(project.updated_at).toLocaleDateString()}</span>
           </div>
-          <button
-            type="button"
-            onClick={(e) => e.stopPropagation()}
-            className="relative z-10 flex shrink-0 items-center justify-center rounded-lg p-1.5 text-muted-foreground transition hover:bg-background hover:text-amber-400"
-            aria-label={project.is_favorite ? "Remove favorite" : "Add favorite"}
-          >
-            <Star className={cn("size-3.5", project.is_favorite && "fill-amber-400 text-amber-400")} strokeWidth={1.75} />
-          </button>
+          <FavoriteStarButton
+            active={Boolean(project.is_favorite)}
+            onToggle={() => onToggleFavorite(project.id, !project.is_favorite)}
+          />
         </div>
       </div>
     </motion.div>
   );
 }
 
+const PROJECTS_CACHE_KEY = "dreamos-projects-cache-v1";
+
 export function ProjectsView() {
   const router = useRouter();
   const supabase = createClient();
-  const { profile } = useAuthStore();
-  const [projects, setProjects] = React.useState<ProjectRow[]>([]);
+  const { profile, user, loading: authLoading } = useAuthStore();
+  const ownerId = user?.id ?? profile?.id;
+  const [projects, setProjects] = React.useState<ProjectRow[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const raw = sessionStorage.getItem(PROJECTS_CACHE_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw) as ProjectRow[];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
   const [loading, setLoading] = React.useState(true);
+  const [hasFetchedOnce, setHasFetchedOnce] = React.useState(false);
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
-  const isLoading = useTimedLoading(loading, 1000);
   const [search, setSearch] = React.useState("");
   const [sort, setSort] = React.useState<"updated" | "name">("updated");
   const [view, setView] = React.useState<"grid" | "list">("grid");
   const [showImport, setShowImport] = React.useState(false);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const lastLoadRef = React.useRef(0);
+  const projectsRef = React.useRef(projects);
+  projectsRef.current = projects;
 
   const loadProjects = React.useCallback((reconcile = false) => {
-    if (!profile?.id) return;
+    if (!ownerId) return;
     const now = Date.now();
-    if (!reconcile && now - lastLoadRef.current < 30_000 && projects.length > 0) return;
+    const hasCache = projectsRef.current.length > 0;
+    if (!reconcile && now - lastLoadRef.current < 60_000 && hasCache) return;
     lastLoadRef.current = now;
-    setLoading(true);
+    if (!hasCache) setLoading(true);
     setLoadError(null);
     const qs = reconcile ? "?reconcile=1" : "";
     fetch(`/api/projects${qs}`)
       .then((r) => r.json())
       .then((body: { projects?: ProjectRow[] }) => {
-        setProjects(body.projects ?? []);
+        const list = body.projects ?? [];
+        setProjects(list);
+        try {
+          sessionStorage.setItem(PROJECTS_CACHE_KEY, JSON.stringify(list));
+        } catch {
+          /* ignore quota */
+        }
+        setHasFetchedOnce(true);
         setLoading(false);
       })
       .catch(() => {
         void Promise.resolve(
           supabase
             .from("projects")
-            .select("*, app_name, short_description, category, icon_svg, build_status, icon_url")
-            .eq("owner_id", profile.id)
+            .select("*, app_name, short_description, category, icon_svg, build_status, icon_url, is_favorite")
+            .eq("owner_id", ownerId)
             .order("updated_at", { ascending: false }),
         )
           .then(({ data, error }) => {
             if (error) throw error;
             setProjects((data as ProjectRow[]) ?? []);
+            setHasFetchedOnce(true);
             setLoading(false);
           })
           .catch(() => {
             setLoadError("Could not load your apps. Try again.");
+            setHasFetchedOnce(true);
             setLoading(false);
           });
       });
-  }, [profile?.id, supabase, projects.length]);
+  }, [ownerId, supabase]);
+
+  const toggleFavorite = React.useCallback(async (projectId: string, next: boolean) => {
+    setProjects((prev) =>
+      prev.map((p) => (p.id === projectId ? { ...p, is_favorite: next } : p)),
+    );
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_favorite: next }),
+      });
+      if (!res.ok) throw new Error("favorite_failed");
+      const list = projectsRef.current.map((p) =>
+        p.id === projectId ? { ...p, is_favorite: next } : p,
+      );
+      sessionStorage.setItem(PROJECTS_CACHE_KEY, JSON.stringify(list));
+    } catch {
+      setProjects((prev) =>
+        prev.map((p) => (p.id === projectId ? { ...p, is_favorite: !next } : p)),
+      );
+    }
+  }, []);
 
   React.useEffect(() => {
-    if (!profile?.id) {
-      const t = setTimeout(() => setLoading(false), 2000);
-      return () => clearTimeout(t);
+    if (!ownerId) {
+      if (!authLoading) {
+        setLoading(false);
+        setHasFetchedOnce(true);
+      }
+      return;
     }
-    loadProjects(true);
+    if (projectsRef.current.length > 0) {
+      setLoading(false);
+      setHasFetchedOnce(true);
+    }
+    loadProjects(false);
     const onFocus = () => {
-      if (Date.now() - lastLoadRef.current > 120_000) loadProjects(false);
+      if (Date.now() - lastLoadRef.current > 180_000) loadProjects(false);
     };
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
-  }, [profile?.id, loadProjects]);
+  }, [ownerId, authLoading, loadProjects]);
+
+  const showGridSkeleton =
+    (authLoading || loading) && projects.length === 0 && !hasFetchedOnce;
 
   const filtered = projects
     .filter((p) => {
@@ -337,6 +362,9 @@ export function ProjectsView() {
       if (sort === "name") return (a.name ?? "").localeCompare(b.name ?? "");
       return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
     });
+
+  const showEmpty =
+    hasFetchedOnce && !loading && !authLoading && !loadError && filtered.length === 0 && !search && statusFilter === "all";
 
   return (
     <motion.div
@@ -433,7 +461,7 @@ export function ProjectsView() {
       )}
 
       {/* Content */}
-      {isLoading ? (
+      {showGridSkeleton ? (
         <div className={cn(
           view === "grid"
             ? "grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
@@ -443,8 +471,18 @@ export function ProjectsView() {
             <ProjectCardSkeleton key={i} />
           ))}
         </div>
-      ) : filtered.length === 0 ? (
-        !search ? (
+      ) : loadError ? (
+        <motion.div variants={variants.fadeUp} className="rounded-xl border border-destructive/30 bg-destructive/5 px-6 py-10 text-center">
+          <p className="text-[14px] text-destructive">{loadError}</p>
+          <button
+            type="button"
+            onClick={() => loadProjects(true)}
+            className="mt-3 text-[13px] font-medium text-accent underline"
+          >
+            Retry
+          </button>
+        </motion.div>
+      ) : showEmpty ? (
           <motion.div
             variants={variants.fadeUp}
             className="flex flex-col items-center gap-8 py-16 text-center"
@@ -499,13 +537,12 @@ export function ProjectsView() {
               ))}
             </div>
           </motion.div>
-        ) : (
+      ) : filtered.length === 0 ? (
           <EmptyState
             icon={<Search className="size-8 text-muted-foreground/30" strokeWidth={1.25} />}
             title="No matching projects"
             description="Try a different search term or clear the filter."
           />
-        )
       ) : (
         <div className={cn(
           view === "grid"
@@ -513,7 +550,7 @@ export function ProjectsView() {
             : "space-y-2",
         )}>
           {filtered.map((p) => (
-            <ProjectCard key={p.id} project={p} />
+            <ProjectCard key={p.id} project={p} onToggleFavorite={toggleFavorite} />
           ))}
         </div>
       )}

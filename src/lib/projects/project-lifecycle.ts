@@ -104,8 +104,8 @@ export const LIFECYCLE_META: Record<ProjectLifecycleStatus, LifecycleMeta> = {
     userActionRequired: false,
   },
   blueprint_ready: {
-    userLabel: "Blueprint ready — approve to build",
-    adminLabel: "Awaiting blueprint approval",
+    userLabel: "Plan ready",
+    adminLabel: "Awaiting plan approval",
     showInDashboard: true,
     canOpenBuilder: true,
     canPreview: false,
@@ -144,7 +144,7 @@ export const LIFECYCLE_META: Record<ProjectLifecycleStatus, LifecycleMeta> = {
     userActionRequired: false,
   },
   generated: {
-    userLabel: "Generated",
+    userLabel: "Ready",
     adminLabel: "Files generated",
     showInDashboard: true,
     canOpenBuilder: true,
@@ -204,8 +204,8 @@ export const LIFECYCLE_META: Record<ProjectLifecycleStatus, LifecycleMeta> = {
     userActionRequired: false,
   },
   failed: {
-    userLabel: "Build failed",
-    adminLabel: "Failed",
+    userLabel: "Build did not complete",
+    adminLabel: "Build failed",
     showInDashboard: true,
     canOpenBuilder: true,
     canPreview: false,
@@ -319,7 +319,32 @@ export function normalizeProjectStatus(
   }
 
   const stored = ctx.lifecycleStatus?.trim();
+  const bs = ctx.buildStatus?.toLowerCase();
+
+  /** Never surface generated/preview_ready without files. */
+  function withoutFiles(): ProjectLifecycleStatus {
+    if (ctx.hasActiveBuildJob) return "building";
+    if (ctx.buildJobStatus === "failed" || bs === "failed") return "failed";
+    if (ctx.hasBlueprint && !ctx.blueprintApproved) return "blueprint_ready";
+    if (ctx.blueprintApproved) return "blueprint_approved";
+    return "failed";
+  }
+
+  if (ctx.fileCount === 0) {
+    if (
+      stored === "generated" ||
+      stored === "preview_ready" ||
+      stored === "publish_ready" ||
+      bs === "completed" ||
+      bs === "succeeded"
+    ) {
+      return withoutFiles();
+    }
+  }
+
   if (stored && isLifecycleStatus(stored)) {
+    if (stored === "generated" && ctx.fileCount === 0) return withoutFiles();
+    if (stored === "preview_ready" && ctx.fileCount === 0) return withoutFiles();
     if (
       stored === "building" &&
       !ctx.hasActiveBuildJob &&
@@ -342,8 +367,8 @@ export function normalizeProjectStatus(
   if (ctx.hasBlueprint && !ctx.blueprintApproved) return "blueprint_ready";
   if (ctx.blueprintApproved) return "blueprint_approved";
 
-  const bs = ctx.buildStatus?.toLowerCase();
   if (bs === "completed" || bs === "succeeded") {
+    if (ctx.fileCount === 0) return withoutFiles();
     return ctx.previewUrl ? "preview_ready" : "generated";
   }
   if (bs === "building" || bs === "running") {

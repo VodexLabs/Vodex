@@ -1,6 +1,9 @@
+"use client";
+
+import * as React from "react";
 import type { User } from "@supabase/supabase-js";
 import type { Profile } from "@/lib/supabase/types";
-import { resolveDisplayName } from "@/lib/profile-display";
+import { resolveWorkspaceDisplayName } from "@/lib/profile/default-workspace-name";
 import { cn } from "@/lib/utils";
 
 /**
@@ -11,22 +14,8 @@ export function resolveDreamSpaceLabel(
   profile: Profile | null | undefined,
   user: User | null | undefined,
 ): string {
-  const w = profile?.workspace_name?.trim();
-  if (w) return w;
-
-  const dn = resolveDisplayName(profile, user);
-  if (dn && dn !== "User") {
-    const first = dn.split(/\s+/)[0]!;
-    return `${first}'s Dream Space`;
-  }
-
   const email = (profile?.email || user?.email || "").trim();
-  if (email) {
-    const prefix = email.split("@")[0]?.trim();
-    if (prefix) return `${prefix}'s Dream Space`;
-  }
-
-  return "Dream Space";
+  return resolveWorkspaceDisplayName(profile?.workspace_name, email || null);
 }
 
 /** Up to two characters for avatar / token ring (letters, digits, handles short labels). */
@@ -73,21 +62,34 @@ export function DreamSpaceGlyph({
   className?: string;
 }) {
   const initials = dreamSpaceInitials(label);
+  const [iconFailed, setIconFailed] = React.useState(false);
+  const showCustomIcon = Boolean(iconUrl?.trim()) && !iconFailed;
+
+  React.useEffect(() => {
+    setIconFailed(false);
+  }, [iconUrl]);
+
   return (
     <span
       className={cn(
-        "relative flex shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted/45 ring-1 ring-border",
+        "relative flex shrink-0 items-center justify-center overflow-hidden rounded-xl ring-2 ring-accent/25 shadow-sm",
+        showCustomIcon ? "bg-background" : "bg-gradient-to-br from-accent to-violet-600",
         sizeClass,
         className,
       )}
     >
-      {iconUrl ? (
+      {showCustomIcon ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={iconUrl} alt="" className="max-h-full max-w-full object-contain" />
+        <img
+          src={iconUrl!}
+          alt=""
+          className="size-full object-cover"
+          onError={() => setIconFailed(true)}
+        />
       ) : (
         <span
           className={cn(
-            "flex size-full items-center justify-center bg-gradient-to-br from-accent to-violet-600 font-bold tracking-wide text-white shadow-inner",
+            "flex size-full items-center justify-center font-bold tracking-wide text-white",
             textClassName ?? "text-[11px]",
           )}
         >

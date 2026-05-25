@@ -20,6 +20,8 @@ const steps = [
   ["verify:project-banners", "npm run verify:project-banners"],
   ["verify:project-cards", "npm run verify:project-cards"],
   ["verify:public-stats", "npm run verify:public-stats"],
+  ["verify:numbers-animation", "npm run verify:numbers-animation"],
+  ["verify:no-fake-dashboard", "npm run verify:no-fake-dashboard"],
   ["verify:home-page", "npm run verify:home-page"],
   ["verify:route-stability", "npm run verify:route-stability"],
   ["verify:navigation", "npm run verify:navigation"],

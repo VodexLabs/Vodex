@@ -3,6 +3,7 @@ import type { Database } from "@/lib/supabase/types";
 import { ensureUserProfileServer } from "@/lib/auth/ensure-user-profile-server";
 import { buildChargeTokensRpcPayload } from "@/lib/db/charge-tokens-rpc";
 import { assertProfitableCharge } from "@/lib/billing/credit-profit-guard";
+import { MIN_CHARGEABLE_CREDITS } from "@/lib/billing/credit-pricing";
 import { logSecurityAudit } from "@/lib/security/audit-events";
 import { writeCreditEvent } from "@/lib/credits/credit-events";
 
@@ -55,8 +56,8 @@ export async function chargeAiOperation(
   writer: Writer,
   input: ChargeAiOperationInput,
 ): Promise<ChargeAiOperationResult> {
-  if (input.amount < 1) {
-    logCredits("info", "charge skipped reason", { reason: "invalid_amount" });
+  if (input.amount < MIN_CHARGEABLE_CREDITS) {
+    logCredits("info", "charge skipped reason", { reason: "invalid_amount", amount: input.amount });
     return { charged: false, remaining: null, error: "invalid_amount" };
   }
 
@@ -64,7 +65,10 @@ export async function chargeAiOperation(
     input.mode === "discuss"
       ? Math.min(input.providerCostUsd ?? 0, 0.03)
       : (input.providerCostUsd ?? 0);
-  const profitCheck = assertProfitableCharge(input.amount, profitProviderUsd);
+  const profitCheck =
+    input.mode === "discuss"
+      ? { ok: true as const }
+      : assertProfitableCharge(input.amount, profitProviderUsd);
   if (!profitCheck.ok) {
     logCredits("warn", "charge blocked — below 3x margin", {
       reason: profitCheck.reason,

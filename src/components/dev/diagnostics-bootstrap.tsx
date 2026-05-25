@@ -3,6 +3,10 @@
 import * as React from "react";
 import { usePathname } from "next/navigation";
 import { dreamosLog } from "@/lib/diagnostics/dreamos-logger";
+import {
+  formatRejectionReason,
+  isDomEventRejection,
+} from "@/lib/diagnostics/format-rejection-reason";
 import { isDreamosOwnerEmail } from "@/lib/admin-owner";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
@@ -15,6 +19,9 @@ export function scanDomWiringIssues(): Array<{ message: string; metadata: Record
     const hasHandler =
       el.hasAttribute("onclick") ||
       el.getAttribute("type") === "submit" ||
+      el.getAttribute("type") === "button" ||
+      el.hasAttribute("aria-label") ||
+      el.hasAttribute("aria-hidden") ||
       el.closest("form") !== null;
     if (!hasHandler && !el.disabled && el.getAttribute("type") !== "button") {
       issues.push({
@@ -62,19 +69,21 @@ export function DiagnosticsBootstrap() {
     };
 
     const onRejection = (event: PromiseRejectionEvent) => {
-      const msg =
-        event.reason instanceof Error
-          ? event.reason.message
-          : typeof event.reason === "string"
-            ? event.reason
-            : "Unhandled rejection";
+      const msg = formatRejectionReason(event.reason);
       dreamosLog({
         source: "client",
         category: "frontend_error",
         severity: "error",
         route: pathname,
-        message: msg,
+        message: `Unhandled rejection: ${msg}`,
+        metadata: {
+          reasonType: event.reason == null ? "null" : Object.prototype.toString.call(event.reason),
+        },
       });
+      // DOM Event rejections (e.g. script/load failures) are not actionable in dev overlay.
+      if (isDomEventRejection(event.reason)) {
+        event.preventDefault();
+      }
     };
 
     window.addEventListener("error", onError);

@@ -11,12 +11,16 @@ const CONSUMED_PROMPT_PREFIX = "dreamos86.consumedPrompt:";
 const DUPLICATE_WINDOW_MS = 2_000;
 const CONSUMED_PROMPT_TTL_MS = 10 * 60_000;
 
+export type BuildStrategy = "plan_first" | "build_now";
+
 export type PendingPrompt = {
   id: string;
   text: string;
   mode: "discuss" | "edit" | "build";
   createdAt: number;
   consumed: boolean;
+  buildStrategy?: BuildStrategy;
+  modelId?: string;
 };
 
 export type AutostartHandoff = PendingPrompt & {
@@ -49,6 +53,11 @@ function readPending(): PendingPrompt | null {
       mode: parsed.mode === "edit" || parsed.mode === "discuss" ? parsed.mode : "build",
       createdAt: parsed.createdAt ?? Date.now(),
       consumed: Boolean(parsed.consumed),
+      buildStrategy:
+        parsed.buildStrategy === "build_now" || parsed.buildStrategy === "plan_first"
+          ? parsed.buildStrategy
+          : undefined,
+      modelId: typeof parsed.modelId === "string" ? parsed.modelId : undefined,
     };
   } catch {
     return null;
@@ -87,7 +96,16 @@ export function shouldSkipDuplicateClientSubmit(
   return false;
 }
 
-export function storeAutostartHandoff(prompt: string, mode: PendingPrompt["mode"]): string {
+export function storeAutostartHandoff(
+  prompt: string,
+  mode: PendingPrompt["mode"],
+  extras?: { buildStrategy?: BuildStrategy; modelId?: string },
+): string {
+  const existing = readPending();
+  if (existing && !existing.consumed && existing.text === prompt.trim()) {
+    return existing.id;
+  }
+
   const id = newPromptId();
   const payload: PendingPrompt = {
     id,
@@ -95,6 +113,8 @@ export function storeAutostartHandoff(prompt: string, mode: PendingPrompt["mode"
     mode,
     createdAt: Date.now(),
     consumed: false,
+    buildStrategy: extras?.buildStrategy,
+    modelId: extras?.modelId,
   };
   writePending(payload);
   return id;
@@ -152,17 +172,29 @@ export function consumeAutostartHandoff(
     };
   }
 
-  if (!chosen || chosen.consumed) return null;
-  if (
-    wasAutostartDone(chosen.id) ||
-    wasOperationSubmitted(chosen.id) ||
-    wasPromptIdConsumed(chosen.id)
-  ) {
-    pushRuntimeDiagnostic("prompt_submit_skipped_duplicate", { reason: "already_submitted", id: chosen.id });
+  if (!chosen) return null;
+
+  if (chosen.consumed && wasOperationSubmitted(chosen.id)) {
+    pushRuntimeDiagnostic("prompt_submit_skipped_duplicate", {
+      reason: "already_submitted",
+      id: chosen.id,
+    });
     return null;
   }
 
-  markOperationSubmitted(chosen.id);
+  if (chosen.consumed && !wasOperationSubmitted(chosen.id)) {
+    pushRuntimeDiagnostic("handoff_consumed", { id: chosen.id, recovered: true });
+    chosen = { ...chosen, consumed: false };
+  }
+
+  if (wasOperationSubmitted(chosen.id)) {
+    pushRuntimeDiagnostic("prompt_submit_skipped_duplicate", {
+      reason: "already_submitted",
+      id: chosen.id,
+    });
+    return null;
+  }
+
   markAutostartDone(chosen.id);
 
   const marked: PendingPrompt = { ...chosen, consumed: true };
@@ -170,6 +202,11 @@ export function consumeAutostartHandoff(
   pushRuntimeDiagnostic("prompt_submit_consumed_once", {
     id: marked.id,
     mode: marked.mode,
+  });
+  pushRuntimeDiagnostic("handoff_consumed", {
+    id: marked.id,
+    mode: marked.mode,
+    textLen: marked.text.length,
   });
 
   return {
@@ -210,8 +247,34 @@ export function markOperationSubmitted(operationId: string): void {
   markPromptIdConsumed(operationId);
 }
 
+export function clearOperationSubmitted(operationId: string): void {
+  if (typeof sessionStorage !== "undefined") {
+    sessionStorage.removeItem(`${SUBMITTED_OP_PREFIX}${operationId}`);
+  }
+  try {
+    if (typeof localStorage !== "undefined") {
+      localStorage.removeItem(`${SUBMITTED_OP_PREFIX}${operationId}`);
+    }
+  } catch {
+    /* quota / private mode */
+  }
+}
+
 export function wasOperationSubmitted(operationId: string): boolean {
   return hasPersistedKey(`${SUBMITTED_OP_PREFIX}${operationId}`);
+}
+
+export function clearAutostartDone(handoffId: string): void {
+  if (typeof sessionStorage !== "undefined") {
+    sessionStorage.removeItem(`${AUTOSTART_DONE_PREFIX}${handoffId}`);
+  }
+  try {
+    if (typeof localStorage !== "undefined") {
+      localStorage.removeItem(`${AUTOSTART_DONE_PREFIX}${handoffId}`);
+    }
+  } catch {
+    /* quota / private mode */
+  }
 }
 
 export function markAutostartDone(handoffId: string): void {

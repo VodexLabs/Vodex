@@ -47,6 +47,22 @@ export async function GET(
     .select("id", { count: "exact", head: true })
     .eq("project_id", projectId);
 
+  const { data: jobs } = await writer
+    .from("build_jobs")
+    .select("credits_charged, completed_at, created_at")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  const totalCredits = (jobs ?? []).reduce(
+    (sum, j) => sum + (Number((j as { credits_charged?: number }).credits_charged) || 0),
+    0,
+  );
+  const lastBuildAt =
+    (jobs?.[0] as { completed_at?: string | null; created_at?: string })?.completed_at ??
+    (jobs?.[0] as { created_at?: string })?.created_at ??
+    null;
+
   return NextResponse.json({
     project,
     lifecycle_status: lifecycle,
@@ -58,5 +74,9 @@ export async function GET(
     publish_mode: wildcardSubdomainEnabled() ? "subdomain" : "path",
     builder_url: `/apps/${projectId}/builder`,
     dashboard_url: `/apps/${projectId}/dashboard`,
+    usage: {
+      totalCredits,
+      lastBuildAt,
+    },
   });
 }

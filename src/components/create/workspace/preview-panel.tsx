@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BuildPreviewSurface } from "@/components/create/workspace/build-preview-surface";
+import { PreviewEditOverlay } from "@/components/preview/preview-edit-overlay";
 
 type Viewport = "desktop" | "tablet" | "mobile";
 
@@ -24,15 +25,6 @@ const VIEWPORT_CONFIG: Record<Viewport, { width: string; label: string; icon: Re
   tablet: { width: "w-[768px] max-w-full", label: "Tablet", icon: Tablet },
   mobile: { width: "w-[390px] max-w-full", label: "Mobile", icon: Smartphone },
 };
-
-// Section zones used by the visual targeting overlay
-const TARGET_ZONES = [
-  { id: "header", label: "Header / Navbar", y: 0, h: 12 },
-  { id: "hero", label: "Hero Section", y: 12, h: 25 },
-  { id: "content", label: "Main Content", y: 37, h: 35 },
-  { id: "features", label: "Features / Cards", y: 72, h: 15 },
-  { id: "footer", label: "Footer", y: 87, h: 13 },
-];
 
 export interface PreviewPanelProps {
   url: string | null;
@@ -44,7 +36,7 @@ export interface PreviewPanelProps {
   editMode?: boolean;
   /** Whether any generation has completed. Edit targeting only activates when true. */
   hasGenerated?: boolean;
-  onEditTarget?: (info: { x: number; y: number; section: string }) => void;
+  onEditTarget?: (info: { x: number; y: number; section: string; tag?: string }) => void;
   previewState?: "idle" | "building" | "compiling";
   buildStepIndex?: number;
   buildStepLabel?: string | null;
@@ -71,10 +63,12 @@ export function PreviewPanel({
   const [reloadKey, setReloadKey] = React.useState(0);
   const [iframeError, setIframeError] = React.useState(false);
   const [iframeLoading, setIframeLoading] = React.useState(false);
-  const [hoveredZone, setHoveredZone] = React.useState<string | null>(null);
+  const [iframeLoaded, setIframeLoaded] = React.useState(false);
+  const iframeRef = React.useRef<HTMLIFrameElement>(null);
 
   React.useEffect(() => {
     setIframeError(false);
+    setIframeLoaded(false);
     if (url || srcDoc) setIframeLoading(true);
   }, [url, srcDoc, reloadKey]);
 
@@ -195,44 +189,15 @@ export function PreviewPanel({
           </div>
         )}
 
-        {/* Edit mode targeting overlay — only when generation exists */}
-        {editMode && hasGenerated && (
-          <div className="absolute inset-0 z-30 cursor-crosshair">
-            {/* Dim overlay */}
-            <div className="absolute inset-0 bg-background/30 backdrop-blur-[1px]" />
-
-            {/* Zone labels */}
-            {TARGET_ZONES.map((zone) => (
-              <div
-                key={zone.id}
-                onMouseEnter={() => setHoveredZone(zone.id)}
-                onMouseLeave={() => setHoveredZone(null)}
-                onClick={() => onEditTarget?.({ x: 0, y: zone.y, section: zone.label })}
-                style={{ top: `${zone.y}%`, height: `${zone.h}%` }}
-                className="absolute inset-x-0 transition-all duration-150"
-              >
-                {hoveredZone === zone.id && (
-                  <motion.div
-                    layoutId="zone-highlight"
-                    className="absolute inset-2 rounded-xl ring-2 ring-accent/60 bg-accent/10"
-                    transition={{ duration: 0.12 }}
-                  />
-                )}
-                <div className={cn(
-                  "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-lg px-3 py-1.5 text-[11.5px] font-semibold transition-all",
-                  hoveredZone === zone.id
-                    ? "bg-accent text-white shadow-lg scale-105"
-                    : "bg-background/80 text-foreground/70 ring-1 ring-border backdrop-blur-sm",
-                )}>
-                  {zone.label}
-                </div>
-              </div>
-            ))}
-
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-xl bg-background/90 px-4 py-2 text-[12px] font-medium text-foreground backdrop-blur ring-1 ring-border shadow-lg">
-              Click a section to target it for editing
-            </div>
-          </div>
+        {/* Edit mode targeting — scans real DOM inside preview iframe */}
+        {editMode && hasGenerated && showArtifact && (
+          <PreviewEditOverlay
+            iframeRef={iframeRef}
+            iframeLoaded={iframeLoaded}
+            onSelect={({ section, tag }) =>
+              onEditTarget?.({ x: 0, y: 0, section: `${section} (${tag})`, tag })
+            }
+          />
         )}
 
         {!showArtifact && (
@@ -311,12 +276,16 @@ export function PreviewPanel({
                   </div>
                 ) : (
                   <iframe
+                    ref={iframeRef}
                     key={reloadKey}
                     src={hasInline ? undefined : url ?? undefined}
                     srcDoc={hasInline ? (srcDoc ?? undefined) : undefined}
                     title={appName ?? "App preview"}
                     className="h-full w-full flex-1 border-0"
-                    onLoad={() => setIframeLoading(false)}
+                    onLoad={() => {
+                      setIframeLoading(false);
+                      setIframeLoaded(true);
+                    }}
                     onError={() => {
                       setIframeError(true);
                       setIframeLoading(false);

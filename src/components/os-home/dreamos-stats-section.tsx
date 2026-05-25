@@ -5,8 +5,10 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { PublicStatsResponse } from "@/app/api/public/stats/route";
 import { showcaseStatsFallback } from "@/lib/public/platform-showcase-stats";
+import { useCountUp } from "@/lib/hooks/use-count-up";
 
 const FETCH_TIMEOUT_MS = 4_000;
+const COUNT_DURATION_MS = 4_000;
 
 function StatSkeleton() {
   return (
@@ -17,17 +19,37 @@ function StatSkeleton() {
   );
 }
 
-function StatCard({
-  value,
+function formatTotalVisits(n: number): string {
+  if (n >= 1_000_000) {
+    const m = n / 1_000_000;
+    return m >= 10 ? `${Math.round(m)}m` : `${m.toFixed(1).replace(/\.0$/, "")}m`;
+  }
+  return n.toLocaleString();
+}
+
+function AnimatedStatCard({
+  numericValue,
+  format,
   label,
   suffix,
+  animate,
   className,
 }: {
-  value: string;
+  numericValue: number;
+  format: (n: number) => string;
   label: string;
   suffix?: string;
+  animate: boolean;
   className?: string;
 }) {
+  const reducedMotion = React.useMemo(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }, []);
+
+  const count = useCountUp(numericValue, animate && !reducedMotion, COUNT_DURATION_MS);
+  const display = reducedMotion || !animate ? format(numericValue) : format(count);
+
   return (
     <motion.div
       className={cn(
@@ -38,8 +60,11 @@ function StatCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
     >
-      <p className="text-[clamp(2.25rem,5vw,3.25rem)] font-semibold tabular-nums leading-none tracking-[-0.04em] text-foreground">
-        {value}
+      <p
+        className="text-[clamp(2.25rem,5vw,3.25rem)] font-semibold tabular-nums leading-none tracking-[-0.04em] text-foreground"
+        data-testid="stat-value"
+      >
+        {display}
         {suffix ?? ""}
       </p>
       <p className="max-w-[14rem] text-[13px] leading-snug text-muted-foreground">{label}</p>
@@ -50,33 +75,35 @@ function StatCard({
 function buildCards(stats: PublicStatsResponse) {
   return [
     {
-      value: (stats.projectsStarted ?? 0).toLocaleString(),
+      key: "projects",
+      numericValue: stats.projectsStarted ?? 0,
+      format: (n: number) => n.toLocaleString(),
       suffix: "+",
       label: "projects started on DreamOS86",
     },
     {
-      value: (stats.dailyVisits ?? 0).toLocaleString(),
+      key: "daily",
+      numericValue: stats.dailyVisits ?? 0,
+      format: (n: number) => n.toLocaleString(),
       suffix: "+",
       label: "daily visits across published apps",
     },
     {
-      value: formatTotalVisits(stats.totalVisits ?? 0),
+      key: "total",
+      numericValue: stats.totalVisits ?? 0,
+      format: formatTotalVisits,
       suffix: "+",
       label: "total visits across all projects",
     },
   ];
 }
 
-function formatTotalVisits(n: number): string {
-  if (n >= 1_000_000) {
-    const m = n / 1_000_000;
-    return m >= 10 ? `${Math.round(m)}m` : `${m.toFixed(1).replace(/\.0$/, "")}m`;
-  }
-  return n.toLocaleString();
-}
-
 export function DreamOsStatsSection() {
-  const [state, setState] = React.useState<"loading" | "ready">("loading");
+  const sectionRef = React.useRef<HTMLElement>(null);
+  const [inView, setInView] = React.useState(false);
+  const [hasAnimated, setHasAnimated] = React.useState(false);
+  const [state, setState] = React.useState<"loading" | "ready" | "unavailable">("loading");
+  const [statsUnavailable, setStatsUnavailable] = React.useState(false);
   const [stats, setStats] = React.useState<PublicStatsResponse>(() => {
     const fb = showcaseStatsFallback();
     return {
@@ -91,7 +118,26 @@ export function DreamOsStatsSection() {
   });
 
   React.useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setInView(true);
+          setHasAnimated(true);
+        }
+      },
+      { threshold: 0.2, rootMargin: "0px 0px -10% 0px" },
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  React.useEffect(() => {
     let cancelled = false;
+    let fetchFailed = false;
     const ac = new AbortController();
     const timeout = window.setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
 
@@ -100,13 +146,19 @@ export function DreamOsStatsSection() {
       .then((body: PublicStatsResponse) => {
         if (cancelled) return;
         if (body.ok) setStats(body);
+        else fetchFailed = true;
       })
       .catch(() => {
-        /* keep showcase defaults already in state */
+        fetchFailed = true;
       })
       .finally(() => {
         if (!cancelled) {
-          setState("ready");
+          if (fetchFailed) {
+            setStatsUnavailable(true);
+            setState("unavailable");
+          } else {
+            setState("ready");
+          }
           window.clearTimeout(timeout);
         }
       });
@@ -119,9 +171,11 @@ export function DreamOsStatsSection() {
   }, []);
 
   const cards = buildCards(stats);
+  const shouldAnimate = inView && hasAnimated && (state === "ready" || state === "unavailable");
 
   return (
     <section
+      ref={sectionRef}
       data-testid="dreamos-stats-section"
       className="relative w-full overflow-hidden rounded-[1.75rem] px-5 py-10 sm:px-8 sm:py-12"
     >
@@ -145,6 +199,11 @@ export function DreamOsStatsSection() {
           <p className="max-w-lg text-pretty text-[14px] text-muted-foreground">
             Track DreamOS86 momentum as apps are created, imported, and published.
           </p>
+          {statsUnavailable ? (
+            <p className="text-[12px] text-muted-foreground/80" data-testid="stats-unavailable">
+              Stats unavailable — showing latest public showcase figures.
+            </p>
+          ) : null}
         </motion.div>
 
         {state === "loading" ? (
@@ -156,7 +215,14 @@ export function DreamOsStatsSection() {
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {cards.map((s) => (
-              <StatCard key={s.label} value={s.value} label={s.label} suffix={s.suffix} />
+              <AnimatedStatCard
+                key={s.key}
+                numericValue={s.numericValue}
+                format={s.format}
+                label={s.label}
+                suffix={s.suffix}
+                animate={shouldAnimate}
+              />
             ))}
           </div>
         )}

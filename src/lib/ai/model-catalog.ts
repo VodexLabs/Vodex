@@ -1,24 +1,39 @@
 import { isProviderSelectable } from "@/lib/ai/provider-availability";
 import type { ProviderName } from "@/lib/ai/provider-errors";
+import { resolveGoogleCatalogApiModel } from "@/lib/ai/google-model-config";
 
 /** Maps DreamOS86 catalog IDs to live provider API model IDs. */
 export const API_MODEL_MAP: Record<string, string> = {
   "gpt-5.4-mini": "gpt-4o-mini",
+  "gpt-5-4-mini": "gpt-4o-mini",
   "gpt-5.4": "gpt-4o",
+  "gpt-5-4": "gpt-4o",
   "gpt-5.5": "gpt-4o",
+  "gpt-5-5": "gpt-4o",
   "claude-sonnet-4.5": "claude-sonnet-4-5",
+  "claude-sonnet-4-5": "claude-sonnet-4-5",
+  "claude-sonnet-4.6": "claude-sonnet-4-5",
   "claude-sonnet-4-6": "claude-sonnet-4-5",
   "claude-haiku-4.5": "claude-haiku-4-5",
+  "claude-haiku-4-5": "claude-haiku-4-5",
   "claude-opus-4.7": "claude-opus-4-6",
+  "claude-opus-4-7": "claude-opus-4-6",
   "claude-opus-4.6": "claude-opus-4-6",
-  "gemini-flash": "gemini-2.0-flash",
-  "gemini-2-5-pro": "gemini-2.0-flash",
-  "gemini-3.1-pro": "gemini-2.0-flash",
+  "claude-opus-4-6": "claude-opus-4-6",
+  "gemini-flash": "gemini-flash",
+  "gemini-2-5-pro": "gemini-2-5-pro",
+  "gemini-3.1-pro": "gemini-3-1-pro",
+  "gemini-3-1-pro": "gemini-3-1-pro",
   "grok-4": "grok-4",
 };
 
 export function toApiModelId(catalogId: string): string {
-  return API_MODEL_MAP[catalogId] ?? catalogId;
+  const mapped = API_MODEL_MAP[catalogId];
+  if (!mapped) return catalogId;
+  if (mapped.startsWith("gemini-") && !mapped.includes("2.0")) {
+    return resolveGoogleCatalogApiModel(catalogId);
+  }
+  return mapped;
 }
 
 export function providerForCatalogId(id: string): "anthropic" | "openai" | "google" | "none" {

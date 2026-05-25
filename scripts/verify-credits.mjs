@@ -20,7 +20,8 @@ mustInclude(
 );
 mustInclude("src/lib/credits/credit-events.ts", "credits_consumed: credits", "credit-events helper");
 mustInclude("src/lib/credits/credit-events.ts", 'event_type: input.eventType ??', "credit_events event_type");
-mustInclude("src/lib/billing/credit-profit-guard.ts", "quoteDiscussCost", "discuss microcharge pricing");
+mustInclude("src/lib/billing/credit-profit-guard.ts", "discuss_flat_0.4", "discuss flat pricing");
+mustInclude("src/lib/billing/credit-pricing.ts", "DISCUSS_FLAT_CREDITS", "flat discuss constant");
 
 const bad = /credit_events[\s\S]{0,400}amount:\s*-input\.amount/;
 const chargeSrc = fs.readFileSync(path.join(root, "src/lib/credits/charge-ai-operation.ts"), "utf8");

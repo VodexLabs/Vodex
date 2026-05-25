@@ -88,10 +88,25 @@ export default function ApiKeysPage() {
     apiBaseUrl: string;
   } | null>(null);
 
+  const [keysError, setKeysError] = React.useState<string | null>(null);
+  const [keysTimedOut, setKeysTimedOut] = React.useState(false);
+
   const loadKeys = React.useCallback(() => {
     setLoadingKeys(true);
-    fetch("/api/api-keys", { credentials: "include" })
-      .then((r) => r.json())
+    setKeysError(null);
+    setKeysTimedOut(false);
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      controller.abort();
+      setKeysTimedOut(true);
+      setLoadingKeys(false);
+    }, 8000);
+    fetch("/api/api-keys", { credentials: "include", signal: controller.signal })
+      .then((r) => {
+        if (r.status === 404) return { keys: [] };
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((d) => {
         const rows = (d.keys ?? []) as Array<{
           id: string;
@@ -102,9 +117,16 @@ export default function ApiKeysPage() {
           last_used_at?: string | null;
         }>;
         setKeys(rows.map(formatApiKeyRow));
+        setKeysError(null);
         setLoadingKeys(false);
+        window.clearTimeout(timer);
       })
-      .catch(() => setLoadingKeys(false));
+      .catch(() => {
+        window.clearTimeout(timer);
+        setLoadingKeys(false);
+        setKeys([]);
+        setKeysError(null);
+      });
   }, []);
 
   React.useEffect(() => {
@@ -300,14 +322,42 @@ export default function ApiKeysPage() {
 
       {/* Keys List */}
       {loadingKeys ? (
-        <div className="flex justify-center py-8">
-          <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        <div className="space-y-2 rounded-[var(--radius-xl)] bg-surface p-4 ring-1 ring-border">
+          <div className="h-10 animate-pulse rounded-lg bg-muted/50" />
+          <div className="h-10 animate-pulse rounded-lg bg-muted/40" />
         </div>
-      ) : keys.length === 0 ? (
-        <div className="flex flex-col items-center rounded-[var(--radius-xl)] bg-surface py-10 text-center ring-1 ring-border">
-          <Key className="size-8 text-muted-foreground/30 mb-3" strokeWidth={1.25} />
-          <p className="text-[13px] font-medium text-foreground">No API keys yet</p>
-          <p className="mt-1 text-[12px] text-muted-foreground">Create a key above to get started</p>
+      ) : keysError ? (
+        <div className="rounded-[var(--radius-xl)] bg-surface p-6 text-center ring-1 ring-border">
+          <p className="text-[13px] text-muted-foreground">{keysError}</p>
+          <Button type="button" size="sm" variant="outline" className="mt-3" onClick={() => loadKeys()}>
+            Retry
+          </Button>
+        </div>
+      ) : keys.length === 0 || keysTimedOut ? (
+        <div className="flex flex-col items-center rounded-[var(--radius-xl)] bg-surface px-6 py-10 text-center ring-1 ring-border">
+          <Key className="mb-3 size-8 text-muted-foreground/30" strokeWidth={1.25} />
+          <p className="text-[14px] font-semibold text-foreground">No API keys yet</p>
+          <p className="mt-1 max-w-md text-[12px] text-muted-foreground">
+            Connect external tools, scripts, or automations to your DreamOS86 account. Keys are tied to your
+            workspace — not individual apps. Each app still uses its own project data, GitHub, and Supabase
+            connections inside the builder.
+          </p>
+          <Button
+            type="button"
+            variant="accent"
+            size="md"
+            className="mt-4 gap-1.5"
+            onClick={() => setShowNew(true)}
+          >
+            <Plus className="size-3.5" />
+            Create your first API key
+          </Button>
+          <p className="mt-3 text-[11px] text-muted-foreground">
+            Need more access?{" "}
+            <a href="/settings/billing" className="font-medium text-accent hover:underline">
+              Upgrade to Starter
+            </a>
+          </p>
         </div>
       ) : (
         <SectionCard

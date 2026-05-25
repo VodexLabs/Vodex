@@ -1,16 +1,7 @@
 /**
  * DreamOS86 — Profitability Cost Engine
- *
- * RULE: Credits consumed by users must be >= 3x the actual provider cost.
- * This ensures the platform remains profitable at every request.
- *
- * Credit pricing is defined per model and validated here.
- * Every model's credit cost is calculated as:
- *   userCreditCost = max(MIN_CREDITS, ceil(providerCostUsd * MARGIN_MULTIPLIER * CREDITS_PER_USD))
- *
- * User credits: 10 credits = $1 revenue (see pricing-config.ts)
- * Minimum required: 3× provider cost in revenue dollars
  */
+import { DISCUSS_FLAT_CREDITS } from "@/lib/billing/credit-pricing";
 
 /** Target revenue multiplier over provider cost — aligns with TARGET_REVENUE_MULTIPLIER */
 export const MARGIN_MULTIPLIER = 3;
@@ -65,8 +56,7 @@ const PROVIDER_COST_USD: Record<string, number> = {
  */
 const MIN_CREDITS_PER_REQUEST = 1;
 
-/** Discuss/chat turns — flat 1 credit per successful message. */
-const DISCUSS_MIN_CREDITS = 1;
+const DISCUSS_MIN_CREDITS = DISCUSS_FLAT_CREDITS;
 
 /**
  * Orchestration complexity multipliers by creation mode.

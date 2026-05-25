@@ -21,6 +21,8 @@ export async function POST(request: Request) {
   let templateId: string | null = null;
   let stylePresetId: string | null = null;
   let buildTier: "quick" | "standard" | "production" = "standard";
+  let idempotencyKey: string | null = null;
+  let sessionId: string | null = null;
   let body: Record<string, unknown> = {};
   try {
     body = (await request.json()) as Record<string, unknown>;
@@ -34,6 +36,8 @@ export async function POST(request: Request) {
     if (body.buildTier === "quick" || body.buildTier === "production" || body.buildTier === "standard") {
       buildTier = body.buildTier;
     }
+    idempotencyKey = typeof body.idempotencyKey === "string" ? body.idempotencyKey.trim() : null;
+    sessionId = typeof body.sessionId === "string" ? body.sessionId.trim() : null;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
@@ -60,6 +64,8 @@ export async function POST(request: Request) {
     templateId,
     stylePresetId,
     buildTier,
+    idempotencyKey,
+    sessionId,
   });
 
   if (!result.ok) {

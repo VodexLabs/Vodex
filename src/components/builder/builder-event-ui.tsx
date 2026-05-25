@@ -20,36 +20,120 @@ import { DreamOS86BrandIcon } from "@/components/brand/dreamos86-brand-icon";
 
 export function QueuedPromptCard({
   text,
+  paused = false,
   onCancel,
+  onPause,
+  onResume,
+  onEdit,
   className,
 }: {
   text: string;
+  paused?: boolean;
   onCancel?: () => void;
+  onPause?: () => void;
+  onResume?: () => void;
+  onEdit?: (next: string) => void;
   className?: string;
 }) {
+  const [editing, setEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState(text);
+
+  React.useEffect(() => {
+    setDraft(text);
+  }, [text]);
+
   return (
     <div
       className={cn(
-        "flex items-start gap-2.5 rounded-xl bg-accent/[0.06] px-3 py-2.5 ring-1 ring-accent/20",
+        "flex items-start gap-2.5 rounded-xl px-3 py-2.5 ring-1",
+        paused
+          ? "bg-muted/40 ring-border/60"
+          : "bg-accent/[0.06] ring-accent/20",
         className,
       )}
     >
-      <Clock className="mt-0.5 size-4 shrink-0 text-accent" strokeWidth={1.75} />
+      <Clock className={cn("mt-0.5 size-4 shrink-0", paused ? "text-muted-foreground" : "text-accent")} strokeWidth={1.75} />
       <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-semibold text-accent">Queued</p>
-        <p className="mt-0.5 line-clamp-2 text-[12px] text-foreground">{text}</p>
-        <p className="mt-1 text-[10.5px] text-muted-foreground">Runs when the current build finishes</p>
+        <p className={cn("text-[11px] font-semibold", paused ? "text-muted-foreground" : "text-accent")}>
+          {paused ? "Paused" : "Queued"}
+        </p>
+        {editing ? (
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={2}
+            className="mt-1 w-full resize-none rounded-lg bg-background px-2 py-1.5 text-[12px] ring-1 ring-border focus:outline-none focus:ring-accent/40"
+          />
+        ) : (
+          <p className="mt-0.5 line-clamp-3 text-[12px] text-foreground">{text}</p>
+        )}
+        <p className="mt-1 text-[10.5px] text-muted-foreground">
+          {paused ? "Resume to run after the current build" : "Runs when the current build finishes"}
+        </p>
+        {editing && onEdit ? (
+          <div className="mt-2 flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const next = draft.trim();
+                if (next) onEdit(next);
+                setEditing(false);
+              }}
+              className="rounded-md bg-accent px-2 py-1 text-[10px] font-semibold text-white"
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setDraft(text);
+                setEditing(false);
+              }}
+              className="rounded-md px-2 py-1 text-[10px] font-medium text-muted-foreground"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : null}
       </div>
-      {onCancel && (
-        <button
-          type="button"
-          onClick={onCancel}
-          className="shrink-0 rounded-md p-1 text-muted-foreground transition hover:bg-background hover:text-foreground"
-          aria-label="Cancel queued prompt"
-        >
-          <X className="size-3.5" strokeWidth={2} />
-        </button>
-      )}
+      <div className="flex shrink-0 flex-col gap-1">
+        {onEdit && !editing ? (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="rounded-md px-1.5 py-1 text-[10px] font-medium text-muted-foreground transition hover:bg-background hover:text-foreground"
+          >
+            Edit
+          </button>
+        ) : null}
+        {paused && onResume ? (
+          <button
+            type="button"
+            onClick={onResume}
+            className="rounded-md px-1.5 py-1 text-[10px] font-medium text-accent transition hover:bg-accent/10"
+          >
+            Resume
+          </button>
+        ) : onPause ? (
+          <button
+            type="button"
+            onClick={onPause}
+            className="rounded-md px-1.5 py-1 text-[10px] font-medium text-muted-foreground transition hover:bg-background hover:text-foreground"
+          >
+            Pause
+          </button>
+        ) : null}
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md p-1 text-muted-foreground transition hover:bg-background hover:text-foreground"
+            aria-label="Remove queued prompt"
+          >
+            <X className="size-3.5" strokeWidth={2} />
+          </button>
+        )}
+      </div>
     </div>
   );
 }

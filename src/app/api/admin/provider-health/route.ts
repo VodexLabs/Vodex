@@ -68,6 +68,7 @@ export async function GET() {
     const a24 = agg24[key] ?? empty();
     const warnings: string[] = [];
     if (!p.configured) warnings.push("No key configured");
+    if (p.disabledReason) warnings.push(`Disabled by environment: ${p.disabledReason}`);
     if (p.status === "quota_exhausted") warnings.push("Recent quota/billing failure");
     if (p.status === "auth_error") warnings.push("Auth/key error");
     if (p.configured && !p.lastSuccessAt) warnings.push("No successful requests in 24h");
@@ -86,6 +87,7 @@ export async function GET() {
       provider: key,
       configured: p.configured,
       status: p.status,
+      disabledReason: p.disabledReason,
       lastSuccessAt: p.lastSuccessAt,
       lastErrorAt: p.lastErrorAt,
       lastErrorClass: p.lastErrorClass,

@@ -9,6 +9,8 @@ import {
   legacyProjectStatus,
   type ProjectLifecycleStatus,
 } from "@/lib/projects/project-lifecycle";
+import { filterRenderableBuildFiles } from "@/lib/build/generated-file-utils";
+import { MIN_RENDERABLE_FILES } from "@/lib/build/build-success-contract";
 
 type Writer = SupabaseClient<Database>;
 
@@ -61,7 +63,9 @@ export async function completeBuildWithValidation(input: {
     ? (prevMeta.blueprint_routes as string[])
     : null;
 
-  const fileRows = (files ?? []).map((f) => ({ path: f.path!, content: f.content! }));
+  const fileRows = filterRenderableBuildFiles(
+    (files ?? []).map((f) => ({ path: f.path!, content: f.content! })),
+  );
   const validation = validateGeneratedApp({
     files: fileRows,
     projectId: input.projectId,
@@ -104,7 +108,7 @@ export async function completeBuildWithValidation(input: {
   const fileCount = fileRows.length;
   let lifecycle: ProjectLifecycleStatus = "needs_attention";
 
-  if (fileCount === 0) {
+  if (fileCount < MIN_RENDERABLE_FILES) {
     lifecycle = "needs_attention";
   } else if (!validationOk) {
     lifecycle = "needs_attention";

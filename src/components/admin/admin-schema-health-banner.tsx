@@ -153,9 +153,14 @@ export function AdminSchemaHealthBanner() {
             <p className="mt-2 text-amber-700 dark:text-amber-300">{data.warnings[0]}</p>
           )}
           <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto text-[11px] text-muted-foreground">
-            {data.missing.map((m) => (
-              <li key={`${m.type}-${m.name}`}>
-                {m.type === "table" ? "Table" : "RPC"}: {m.name} — {m.reason}
+            {data.criticalBlockers?.map((m) => (
+              <li key={`crit-${m.type}-${m.name}`} className="text-destructive">
+                Critical — {m.type === "table" ? "Table" : "RPC"}: {m.name} — {m.reason}
+              </li>
+            ))}
+            {(data.optionalIssues ?? []).map((m) => (
+              <li key={`opt-${m.type}-${m.name}`}>
+                Optional — {m.type === "table" ? "Table" : "RPC"}: {m.name} — {m.reason}
               </li>
             ))}
           </ul>
@@ -181,7 +186,7 @@ export function AdminSchemaHealthBanner() {
           className="inline-flex items-center gap-1 rounded-lg bg-background px-2.5 py-1.5 text-[11px] font-medium ring-1 ring-border"
         >
           <Copy className="size-3" />
-          Copy SQL patch
+          Copy runtime repair SQL
         </button>
         <button
           type="button"
@@ -190,7 +195,7 @@ export function AdminSchemaHealthBanner() {
           className="inline-flex items-center gap-1 rounded-lg bg-background px-2.5 py-1.5 text-[11px] font-medium ring-1 ring-border"
         >
           <RefreshCw className={cnRefresh(reloading)} />
-          Refresh schema
+          Reload schema cache
         </button>
         <button
           type="button"
@@ -199,7 +204,7 @@ export function AdminSchemaHealthBanner() {
           className="inline-flex items-center gap-1 rounded-lg bg-accent/10 px-2.5 py-1.5 text-[11px] font-medium text-accent ring-1 ring-accent/25"
         >
           <Zap className={cnRefresh(verifying)} />
-          Verify charge_tokens
+          Verify schema now
         </button>
         <button type="button" onClick={() => void load(true)} disabled={refreshing} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium ring-1 ring-border">
           <RefreshCw className={cnRefresh(refreshing)} />

@@ -48,6 +48,11 @@ export function parseFencedFiles(text: string): Array<{ path: string; content: s
     const content = (m[2] ?? "").trim();
     if (!content) continue;
 
+    if (/dreamos-app-meta/i.test(meta)) continue;
+    if (/^json$/i.test(meta.split(/\s+/)[0] ?? "") && /"app"\s*:/.test(content) && !/export\s+/.test(content)) {
+      continue;
+    }
+
     let path = "";
     const fileEq = meta.match(/(?:file|path|filename)\s*=\s*["']?([^'"`\s]+)["']?/i);
     const pathLine = meta.match(/^(?:[.\w/@-]+\.[a-z0-9]+)$/i);
@@ -55,12 +60,11 @@ export function parseFencedFiles(text: string): Array<{ path: string; content: s
     else if (pathLine) path = pathLine[0]!.trim();
     else {
       const lang = meta.split(/\s+/)[0];
-      if (lang && !lang.includes("=") && lang.length < 20) {
+      if (lang && !lang.includes("=") && lang.length < 20 && /^(tsx|jsx|ts|js|css|html)$/i.test(lang)) {
         idx += 1;
         path = `snippet-${idx}.${lang.replace(/[^a-z0-9]/gi, "") || "txt"}`;
       } else {
-        idx += 1;
-        path = `snippet-${idx}.txt`;
+        continue;
       }
     }
 

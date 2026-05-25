@@ -11,8 +11,6 @@ import {
   Sparkles,
   Plus,
   LayoutGrid,
-  MessageCircle,
-  Pencil,
   TrendingUp,
   Users,
   Rocket,
@@ -26,8 +24,22 @@ import { storeAutostartHandoff } from "@/lib/create/autostart-handoff";
 import { useCreditsStore } from "@/lib/stores/credits-store";
 import { useHydrated } from "@/lib/hooks/use-hydrated";
 import { resolveDisplayName } from "@/lib/profile-display";
-import type { CreationMode } from "@/lib/creation/models";
 import { applyComposerPaste } from "@/lib/composer/textarea-handlers";
+import { ModelPicker } from "@/components/create/workspace/model-picker";
+import {
+  PlanFirstToggle,
+  buildStrategyFromToggle,
+  suggestBuildStrategy,
+  toggleFromBuildStrategy,
+  type BuildStrategy,
+} from "@/components/create/workspace/plan-first-control";
+import { DEFAULT_MODEL_ID } from "@/lib/creation/models";
+import {
+  pickRandomAppIdeas,
+  pickComposerChipIdeas,
+  SSR_HOME_IDEAS_SEED,
+  type AppIdeaPrompt,
+} from "@/lib/inspiration/app-idea-prompts";
 
 const DreamOsStatsSection = dynamic(
   () => import("@/components/os-home/dreamos-stats-section").then((m) => m.DreamOsStatsSection),
@@ -45,14 +57,21 @@ type RecentProject = YourAppsProject;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const GREETING = (() => {
-  const h = new Date().getHours();
-  if (h < 5) return "Still up?";
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  if (h < 21) return "Good evening";
-  return "Night owl mode";
-})();
+const HOME_COMPOSER_CHIP_SEED = `${SSR_HOME_IDEAS_SEED}:composer`;
+const HOME_INSPIRATION_SEED = `${SSR_HOME_IDEAS_SEED}:feed`;
+
+function useTimeGreeting(): string {
+  const hydrated = useHydrated();
+  return React.useMemo(() => {
+    if (!hydrated) return "Welcome";
+    const h = new Date().getHours();
+    if (h < 5) return "Still up?";
+    if (h < 12) return "Good morning";
+    if (h < 17) return "Good afternoon";
+    if (h < 21) return "Good evening";
+    return "Night owl mode";
+  }, [hydrated]);
+}
 
 const TEMPLATES = [
   { label: "SaaS Dashboard", prompt: "Build a premium SaaS dashboard with analytics, team management, billing, and role-based access control.", icon: "📊", gradient: "from-blue-500/20 to-violet-500/20" },
@@ -63,21 +82,30 @@ const TEMPLATES = [
   { label: "CRM", prompt: "Create an AI-powered CRM with contact management, deal pipeline, activity tracking, and automated follow-ups.", icon: "📋", gradient: "from-cyan-500/20 to-blue-500/20" },
 ];
 
-const MODES: Array<{ id: CreationMode; label: string; desc: string; icon: React.ElementType; accent: string }> = [
-  { id: "discuss", label: "Discuss", desc: "Plan, explore, debug", icon: MessageCircle, accent: "text-blue-500" },
-  { id: "edit", label: "Edit", desc: "Surgical precision", icon: Pencil, accent: "text-amber-500" },
-  { id: "build", label: "Build", desc: "Full system generation", icon: Zap, accent: "text-violet-500" },
-];
+/** Random ideas after hydration; stable SSR + first paint to avoid mismatch. */
+function useSessionAppIdeas(count: number): AppIdeaPrompt[] {
+  const hydrated = useHydrated();
+  const [ideas, setIdeas] = React.useState(() =>
+    pickRandomAppIdeas(count, HOME_INSPIRATION_SEED),
+  );
+  React.useEffect(() => {
+    if (!hydrated) return;
+    setIdeas(pickRandomAppIdeas(count));
+  }, [hydrated, count]);
+  return ideas;
+}
 
-// Real app ideas — inspiration feed with concrete, relatable prompts
-const APP_INSPIRATIONS = [
-  { label: "Personal finance tracker", desc: "Budgets, goals, spending trends, and alerts", gradient: "from-emerald-500/15 to-green-500/15", icon: "💰", prompt: "Build a personal finance tracker with budget categories, monthly goals, spending trends, and automated alerts when you overspend." },
-  { label: "Gym motivation app", desc: "Workout streaks, progress photos, and PRs", gradient: "from-violet-500/15 to-indigo-500/15", icon: "💪", prompt: "Create a gym motivation app with workout streaks, personal record tracking, progress photo timeline, and weekly achievement badges." },
-  { label: "Restaurant inventory OS", desc: "Stock tracking, waste reduction, supplier alerts", gradient: "from-amber-500/15 to-orange-500/15", icon: "🍽️", prompt: "Build a restaurant inventory management system with stock tracking, waste reduction analytics, low-stock alerts, and automated supplier ordering." },
-  { label: "Social profile app", desc: "Profiles, posts, likes, comments, and follows", gradient: "from-pink-500/15 to-rose-500/15", icon: "💬", prompt: "Create a social app with user profiles, a real-time post feed, likes, comments, follow/unfollow, and push notifications." },
-  { label: "Salon & clinic booking", desc: "Staff calendars, slots, and client reminders", gradient: "from-cyan-500/15 to-blue-500/15", icon: "💇", prompt: "Build a booking platform for a salon or clinic with staff calendars, real-time slot availability, client SMS reminders, and cancellation management." },
-  { label: "AI chatbot platform", desc: "Saved conversations, model selection, history", gradient: "from-blue-500/15 to-violet-500/15", icon: "🤖", prompt: "Build an AI chatbot platform with multiple model support, persistent conversation history, folder organization, and custom system prompts." },
-];
+function useSessionComposerIdeas(count: number) {
+  const hydrated = useHydrated();
+  const [ideas, setIdeas] = React.useState(() =>
+    pickComposerChipIdeas(count, HOME_COMPOSER_CHIP_SEED),
+  );
+  React.useEffect(() => {
+    if (!hydrated) return;
+    setIdeas(pickComposerChipIdeas(count));
+  }, [hydrated, count]);
+  return ideas;
+}
 
 // ─── Ambient orbs ─────────────────────────────────────────────────────────────
 
@@ -114,13 +142,10 @@ const homeQuickItem = {
   show: { opacity: 1, y: 0, transition: { duration: 0.32, ease: [0.22, 1, 0.36, 1] as const } },
 };
 
-const PROMPT_IDEAS = [
+const PROMPT_IDEAS_FALLBACK = [
   { label: "SaaS dashboard", prompt: TEMPLATES[0].prompt },
   { label: "AI chatbot", prompt: TEMPLATES[1].prompt },
   { label: "E-commerce", prompt: TEMPLATES[2].prompt },
-  { label: "Finance tracker", prompt: APP_INSPIRATIONS[0].prompt },
-  { label: "Booking system", prompt: APP_INSPIRATIONS[4].prompt },
-  { label: "Social app", prompt: APP_INSPIRATIONS[3].prompt },
 ];
 
 function QuickCreateBar({
@@ -133,19 +158,65 @@ function QuickCreateBar({
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
 }) {
   const router = useRouter();
-  const [mode, setMode] = React.useState<CreationMode>("build");
   const formRef = React.useRef<HTMLFormElement>(null);
+  const [modelId, setModelId] = React.useState(DEFAULT_MODEL_ID);
+  const [buildStrategy, setBuildStrategy] = React.useState<BuildStrategy>("build_now");
+  const planFirst = toggleFromBuildStrategy(buildStrategy);
+  const complexPrompt = suggestBuildStrategy(value) === "plan_first" && value.trim().length > 0;
+  const promptIdeas = useSessionComposerIdeas(6);
+
+  React.useEffect(() => {
+    if (!value.trim()) return;
+    if (complexPrompt && !planFirst) {
+      // Suggest only — do not force toggle.
+    }
+  }, [value, complexPrompt, planFirst]);
 
   function launch(source: "button" | "enter" | "form") {
     const q = value.trim();
     if (process.env.NODE_ENV !== "production") {
-      console.info("[home] launch", { source, chars: q.length });
+      console.info("[home] launch", { source, chars: q.length, buildStrategy });
     }
     if (!q) return;
-    storeAutostartHandoff(q, mode);
-    router.push(
-      `/create?prompt=${encodeURIComponent(q)}&mode=${mode}&autostart=1`,
-    );
+
+    const handoffId = storeAutostartHandoff(q, "build", { buildStrategy, modelId });
+    const params = new URLSearchParams({
+      prompt: q,
+      mode: "build",
+      autostart: "1",
+      strategy: buildStrategy,
+      handoff: handoffId,
+    });
+    if (modelId && modelId !== DEFAULT_MODEL_ID) params.set("model", modelId);
+    router.push(`/create?${params.toString()}`);
+
+    void fetch("/api/projects/classify-intent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ prompt: q }),
+    })
+      .then((r) => r.json())
+      .then((intent: { intent?: string; shouldCreateProject?: boolean; shouldAnswerQuestion?: boolean }) => {
+        if (
+          intent.intent === "question_only" ||
+          intent.shouldAnswerQuestion ||
+          intent.shouldCreateProject === false
+        ) {
+          storeAutostartHandoff(q, "discuss", { buildStrategy, modelId });
+          const discussParams = new URLSearchParams({
+            prompt: q,
+            mode: "discuss",
+            autostart: "1",
+            skipDraft: "1",
+            handoff: handoffId,
+          });
+          router.replace(`/create?${discussParams.toString()}`);
+        }
+      })
+      .catch(() => {
+        /* build handoff already stored — builder will proceed */
+      });
   }
 
   return (
@@ -161,7 +232,8 @@ function QuickCreateBar({
           e.preventDefault();
           launch("form");
         }}
-        className="group relative overflow-hidden rounded-[1.5rem] border border-border/50 bg-background/90 shadow-[0_24px_64px_-28px_rgba(37,99,235,0.45)] ring-1 ring-border/40 transition-[border-color,box-shadow] focus-within:border-accent/30 focus-within:shadow-[0_32px_80px_-24px_rgba(37,99,235,0.5)]"
+        className="group relative overflow-hidden rounded-[1.5rem] border border-border/50 bg-background/90 shadow-[0_20px_56px_-28px_rgba(37,99,235,0.28)] ring-1 ring-border/40 transition-[border-color,box-shadow] focus-within:border-accent/30 focus-within:shadow-[0_24px_64px_-24px_rgba(37,99,235,0.35)]"
+        data-testid="home-create-composer"
       >
         <motion.div
           aria-hidden
@@ -175,26 +247,12 @@ function QuickCreateBar({
           animate={{ y: [12, -4, 12], scale: [1, 1.06, 1] }}
           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
         />
-        <motion.div variants={homeQuickItem} className="relative flex items-center gap-1 border-b border-border/40 px-3 py-2.5">
-          {MODES.map((m) => {
-            const Icon = m.icon;
-            return (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => setMode(m.id)}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-full px-3 py-1 text-[11.5px] font-medium transition",
-                  mode === m.id
-                    ? "bg-accent/12 text-accent ring-1 ring-accent/25"
-                    : "text-muted-foreground hover:bg-surface/80 hover:text-foreground",
-                )}
-              >
-                <Icon className={cn("size-3", mode === m.id ? "text-accent" : m.accent)} strokeWidth={1.75} />
-                {m.label}
-              </button>
-            );
-          })}
+        <motion.div variants={homeQuickItem} className="relative flex items-center gap-2 border-b border-border/40 px-4 py-2.5">
+          <div className="flex items-center gap-1.5 rounded-full bg-accent/10 px-3 py-1 text-[11.5px] font-semibold text-accent ring-1 ring-accent/20">
+            <Zap className="size-3" strokeWidth={1.75} />
+            Build
+          </div>
+          <p className="text-[11px] text-muted-foreground/60">Describe your app — we handle the rest</p>
         </motion.div>
 
         <motion.textarea
@@ -210,14 +268,14 @@ function QuickCreateBar({
               formRef.current?.requestSubmit();
             }
           }}
-          placeholder="Describe the app you want to create…"
+          placeholder="Describe the app you want to build…"
           rows={3}
           className="relative w-full resize-none appearance-none bg-transparent px-5 pb-1 pt-4 text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/45 outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0"
         />
 
         <motion.div variants={homeQuickItem} className="relative flex flex-wrap items-center gap-2 px-4 pb-3">
           <span className="mr-1 text-[11px] font-medium text-muted-foreground/55">Ideas:</span>
-          {PROMPT_IDEAS.map((chip) => (
+          {promptIdeas.map((chip) => (
             <button
               key={chip.label}
               type="button"
@@ -229,29 +287,47 @@ function QuickCreateBar({
           ))}
         </motion.div>
 
-        <motion.div variants={homeQuickItem} className="relative flex items-center justify-between gap-3 border-t border-border/40 px-4 py-3">
-          <p className="text-[11px] text-muted-foreground/55">Enter to launch · Shift+Enter for new line</p>
-          <button
-            type="submit"
-            aria-disabled={!value.trim()}
-            onPointerDown={() => {
-              if (process.env.NODE_ENV !== "production") console.info("[home] launch button clicked");
-            }}
-            onClick={() => {
-              if (!value.trim() && process.env.NODE_ENV !== "production") {
-                console.info("[home] launch blocked: empty");
-              }
-            }}
-            className={cn(
-              "relative z-20 flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-xl transition",
-              value.trim()
-                ? "bg-foreground text-background shadow-lg hover:opacity-90 active:scale-[0.97]"
-                : "cursor-not-allowed bg-muted text-muted-foreground opacity-60",
-            )}
-            aria-label="Launch"
-          >
-            <ArrowRight className="size-4" strokeWidth={2.25} />
-          </button>
+        <motion.div variants={homeQuickItem} className="relative flex flex-wrap items-center justify-between gap-3 border-t border-border/40 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <ModelPicker value={modelId} onChange={setModelId} placement="auto" compact />
+            <PlanFirstToggle
+              enabled={planFirst}
+              onChange={(on) => setBuildStrategy(buildStrategyFromToggle(on))}
+            />
+            {complexPrompt && !planFirst ? (
+              <p className="text-[10px] text-muted-foreground/80">
+                This looks complex. Planning first is recommended.
+              </p>
+            ) : null}
+          </div>
+          <div className="flex items-center gap-3">
+            <p className="hidden text-[11px] text-muted-foreground/55 sm:block">
+              {planFirst ? "Enter to create plan" : "Enter to build"}
+            </p>
+            <button
+              type="submit"
+              aria-disabled={!value.trim()}
+              onPointerDown={() => {
+                if (process.env.NODE_ENV !== "production") console.info("[home] launch button clicked");
+              }}
+              onClick={() => {
+                if (!value.trim() && process.env.NODE_ENV !== "production") {
+                  console.info("[home] launch blocked: empty");
+                }
+              }}
+              className={cn(
+                "relative z-20 flex shrink-0 cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-[12px] font-semibold transition",
+                value.trim()
+                  ? "bg-foreground text-background shadow-md hover:opacity-90 active:scale-[0.97]"
+                  : "cursor-not-allowed bg-muted text-muted-foreground opacity-60",
+              )}
+              aria-label={planFirst ? "Create plan" : "Build app"}
+              data-testid="home-build-submit"
+            >
+              {planFirst ? "Create plan" : "Build"}
+              <ArrowRight className="size-4" strokeWidth={2.25} />
+            </button>
+          </div>
         </motion.div>
       </form>
     </motion.div>
@@ -262,6 +338,7 @@ function QuickCreateBar({
 
 function AppInspirationFeed({ onPickPrompt }: { onPickPrompt: (prompt: string) => void }) {
   const [ripple, setRipple] = React.useState<string | null>(null);
+  const inspirations = useSessionAppIdeas(6);
 
   return (
     <section className="w-full">
@@ -280,7 +357,7 @@ function AppInspirationFeed({ onPickPrompt }: { onPickPrompt: (prompt: string) =
         </Link>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {APP_INSPIRATIONS.map((app, i) => (
+        {inspirations.map((app, i) => (
           <motion.button
             key={app.label}
             type="button"
@@ -329,7 +406,10 @@ function AppInspirationFeed({ onPickPrompt }: { onPickPrompt: (prompt: string) =
 
 function PlatformStats({ appCount }: { appCount: number }) {
   const credits = useCreditsStore((s) => s.remaining);
+  const profileCredits = useAuthStore((s) => s.profile?.credits_remaining);
   const hydrated = useHydrated();
+  const displayCredits =
+    credits > 0 ? credits : typeof profileCredits === "number" ? profileCredits : credits;
 
   return (
     <div className="flex items-center gap-4 text-[11.5px] text-muted-foreground/70">
@@ -340,7 +420,7 @@ function PlatformStats({ appCount }: { appCount: number }) {
       {hydrated && (
         <span className="flex items-center gap-1.5">
           <Zap className="size-3 text-accent/70" strokeWidth={1.75} />
-          {credits} credits
+          {displayCredits} credits
         </span>
       )}
     </div>
@@ -371,6 +451,7 @@ export function OsHome({ recentProjects }: OsHomeProps) {
   const { profile, user } = useAuthStore();
   const display = resolveDisplayName(profile, user);
   const firstName = display !== "User" ? display.split(/\s+/)[0] : null;
+  const greeting = useTimeGreeting();
 
   const [quickPrompt, setQuickPrompt] = React.useState("");
   const quickInputRef = React.useRef<HTMLTextAreaElement>(null);
@@ -432,7 +513,7 @@ export function OsHome({ recentProjects }: OsHomeProps) {
               variants={heroItem}
               className="relative mt-3 text-balance text-[28px] font-semibold tracking-[-0.04em] text-foreground sm:text-[36px] lg:text-[40px]"
             >
-              {GREETING}{firstName ? `, ${firstName}` : ""}.
+              {greeting}{firstName ? `, ${firstName}` : ""}.
             </motion.h1>
             <motion.p variants={heroItem} className="relative mt-2 text-pretty text-[15px] text-muted-foreground sm:text-[16px]">
               What are you building today?

@@ -4,6 +4,7 @@ import * as React from "react";
 import { MessageSquare, Hammer, HelpCircle, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CreateIntentResult } from "@/lib/intent/create-intent-classifier";
+import { createQuestionInputHintLabel } from "@/lib/billing/credit-pricing";
 import { CreateStepSkeleton } from "@/components/create/create-step-skeleton";
 
 const INTENT_UI: Record<string, { label: string; icon: React.ElementType; tone: string }> = {
@@ -43,9 +44,12 @@ export function CreateIntentStep({
         </div>
       </div>
       {result.intent === "question_only" && (
-        <p className="mt-3 rounded-lg bg-sky-500/10 px-3 py-2 text-[12px] text-sky-800 dark:text-sky-200">
-          This is a question — no app was created. Rephrase as a build request to continue.
-        </p>
+        <div className="mt-3 space-y-2">
+          <p className="rounded-lg bg-sky-500/10 px-3 py-2 text-[12px] text-sky-800 dark:text-sky-200">
+            This is a question — no app was created. Tap <strong>Get answer</strong> for a quick reply, or rephrase as a build request to continue.
+          </p>
+          <p className="text-[11px] text-muted-foreground">{createQuestionInputHintLabel()}</p>
+        </div>
       )}
     </div>
   );

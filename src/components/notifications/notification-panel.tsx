@@ -108,8 +108,8 @@ export function NotificationPanel({ anchorRef, open, onClose }: NotificationPane
               <Bell className="size-3.5 text-muted-foreground/70" strokeWidth={1.75} />
               <span className="text-[13px] font-semibold text-foreground">Notifications</span>
               {unreadCount > 0 && (
-                <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white">
-                  {unreadCount}
+                <span className="rounded-full bg-gradient-to-r from-red-500 to-rose-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
+                  +{unreadCount}
                 </span>
               )}
             </div>
@@ -231,11 +231,14 @@ export function NotificationBell() {
           {unreadCount > 0 && (
             <motion.span
               key="badge"
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0 }}
-              className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-accent ring-2 ring-background"
-            />
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 520, damping: 26 }}
+              className="absolute -right-1 -top-1 flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-rose-600 px-1 text-[10px] font-bold leading-none text-white shadow-[0_0_12px_rgba(239,68,68,0.65)] ring-2 ring-background"
+            >
+              +{unreadCount > 99 ? "99" : unreadCount}
+            </motion.span>
           )}
         </AnimatePresence>
       </button>

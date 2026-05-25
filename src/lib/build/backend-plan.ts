@@ -46,14 +46,14 @@ export function buildBackendPlan(blueprint: AppBlueprint): BackendPlan {
     rlsExpectations,
     crudActions,
     validationRules: ["Required fields on forms", "Server-side validation on mutations"],
-    previewMockStrategy: "Use lib/mock-data.ts and preview-safe fixtures until Supabase is connected",
+    previewMockStrategy: "Sample fixtures until live data is connected",
     userConfigurationChecklist: [
-      "Connect Supabase project in Settings → Integrations",
-      "Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY",
-      "Run migrations when provided — do not fake live DB",
+      "Connect your database from Integrations when ready",
+      "Add required environment keys in the secure setup flow",
+      "Run migrations when provided",
     ],
     honestLimitations: requiresBackend
-      ? ["Preview runs with mock data", "Live backend requires user Supabase configuration"]
-      : ["Static/frontend-only app — no live database required"],
+      ? ["First preview uses sample content", "Live data syncs after you connect your backend"]
+      : ["This version runs without a live database"],
   };
 }

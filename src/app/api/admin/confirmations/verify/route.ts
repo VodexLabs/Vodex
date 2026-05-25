@@ -75,5 +75,5 @@ export async function POST(request: Request) {
     metadata: { targetUserId: verified.payload.targetUserId },
   });
 
-  return NextResponse.json({ success: true, user });
+  return NextResponse.json({ success: true, user, credits: executed.credits });
 }

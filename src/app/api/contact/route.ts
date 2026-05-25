@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { createSupabaseAdmin } from "@/lib/supabase/admin";
-import type { Database, Json } from "@/lib/supabase/types";
+import { createContactRequest } from "@/lib/contact/save-contact-request";
+import { checkRateLimit, rateLimitedResponse } from "@/lib/security/rate-limit";
 
 const REASONS = [
   "Sales",
@@ -27,10 +27,21 @@ function reasonToKind(reason: (typeof REASONS)[number]): "sales" | "support" {
   return "support";
 }
 
+function reasonToSource(reason: (typeof REASONS)[number]): string {
+  if (reason === "Sales") return "sales";
+  if (reason === "Billing") return "billing";
+  if (reason === "Support") return "support";
+  return "platform_contact";
+}
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const rl = checkRateLimit(`contact:${ip}`, 6, 15 * 60_000);
+  if (!rl.allowed) return rateLimitedResponse(rl.retryAfterSec);
+
   let json: unknown;
   try {
     json = await request.json();
@@ -48,41 +59,34 @@ export async function POST(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  let admin;
-  try {
-    admin = createSupabaseAdmin();
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "Server misconfigured";
-    return NextResponse.json({ error: msg }, { status: 503 });
-  }
-
-  const row = {
+  const result = await createContactRequest({
     user_id: user?.id ?? null,
-    kind: reasonToKind(parsed.data.reason),
+    source: reasonToSource(parsed.data.reason),
     name: parsed.data.name.trim(),
     email: parsed.data.email.trim(),
     company: parsed.data.company?.trim() || null,
-    team_size: null,
-    expected_usage: null,
-    current_plan: null,
+    kind: reasonToKind(parsed.data.reason),
     message: parsed.data.message.trim(),
     reason: parsed.data.reason,
+    subject: parsed.data.reason,
     plan_interest: parsed.data.plan_interest?.trim() || null,
-    status: "new",
-    source: "contact_page",
-    metadata: {} as Json,
-  } satisfies Database["public"]["Tables"]["contact_requests"]["Insert"];
+    isPlatformContact: true,
+    metadata: { form: "contact_page" },
+  });
 
-  const { error } = await admin.from("contact_requests").insert(row);
-  if (error) {
+  if (!result.ok) {
     return NextResponse.json(
       {
-        error: error.message,
-        hint: "Apply supabase/migrations/20260520200000_contact_requests_expand.sql if columns are missing.",
+        error: result.error,
+        hint: "Apply supabase/migrations/20260626120000_contact_center_action_credits.sql if columns are missing.",
       },
       { status: 500 },
     );
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({
+    success: true,
+    id: result.request.id,
+    emailStatus: result.emailStatus,
+  });
 }

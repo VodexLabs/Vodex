@@ -1,11 +1,18 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
-import { classifyCreateIntent } from "@/lib/intent/create-intent-classifier";
+import { classifyFirstCreatePrompt, classifyCreateIntent } from "@/lib/intent/create-intent-classifier";
 import {
   lifecyclePatch,
   type ProjectLifecycleStatus,
 } from "@/lib/projects/project-lifecycle";
 import { slugifyAppName } from "@/lib/publish/app-slug";
+import { deriveAppNameFromPrompt } from "@/lib/projects/derive-app-name";
+import { appIconSvgDataUrl } from "@/lib/creation/app-icon-svg";
+import {
+  buildCreateIdempotencyKey,
+  findProjectByCreateIdempotency,
+  idempotencyMetadataPatch,
+} from "@/lib/projects/create-project-idempotency";
 
 type Writer = SupabaseClient<Database>;
 
@@ -18,6 +25,8 @@ export type CreateFromPromptInput = {
   templateId?: string | null;
   stylePresetId?: string | null;
   buildTier?: "quick" | "standard" | "production";
+  idempotencyKey?: string | null;
+  sessionId?: string | null;
 };
 
 export type CreateFromPromptResult =
@@ -45,9 +54,16 @@ export async function createProjectFromPrompt(
     return { ok: false, error: "Prompt is required", code: "empty_prompt" };
   }
 
-  const intentResult = classifyCreateIntent(prompt, Boolean(input.existingProjectId));
+  const intentResult = input.existingProjectId
+    ? classifyCreateIntent(prompt, true)
+    : classifyFirstCreatePrompt(prompt);
 
-  if (intentResult.intent === "question_only" || intentResult.intent === "unsafe_or_invalid") {
+  if (
+    intentResult.intent === "question_only" ||
+    intentResult.intent === "unsafe_or_invalid" ||
+    intentResult.intent === "support_question" ||
+    (intentResult.shouldAnswerQuestion && !input.existingProjectId && !intentResult.shouldCreateProject)
+  ) {
     return {
       ok: false,
       error: intentResult.userMessage,
@@ -140,8 +156,35 @@ export async function createProjectFromPrompt(
     };
   }
 
-  const name = prompt.slice(0, 80) || "New app";
+  const resolvedIdempotency =
+    input.idempotencyKey?.trim() ||
+    (input.sessionId
+      ? buildCreateIdempotencyKey(input.userId, input.sessionId, input.existingProjectId)
+      : null);
+
+  if (resolvedIdempotency) {
+    const existing = await findProjectByCreateIdempotency(
+      input.writer,
+      input.userId,
+      resolvedIdempotency,
+    );
+    if (existing?.id) {
+      return {
+        ok: true,
+        projectId: existing.id,
+        slug: existing.slug ?? uniqueSlug(prompt.slice(0, 40)),
+        intent: intentResult.intent,
+        lifecycleStatus: "intent_review",
+        shouldFullBuild: intentResult.shouldFullBuild,
+        needsClarification: intentResult.needsClarification,
+        userMessage: intentResult.userMessage,
+      };
+    }
+  }
+
+  const name = deriveAppNameFromPrompt(prompt);
   const slug = uniqueSlug(name);
+  const iconSvg = appIconSvgDataUrl(name);
   const lifecycle: ProjectLifecycleStatus = intentResult.shouldFullBuild
     ? "blueprint_generating"
     : intentResult.intent === "app_idea" || intentResult.intent === "design_request"
@@ -157,6 +200,8 @@ export async function createProjectFromPrompt(
       status: "draft",
       framework: "nextjs",
       build_status: null,
+      icon_svg: iconSvg,
+      gradient: "from-blue-500/20 via-indigo-500/10 to-violet-500/15",
       metadata: lifecyclePatch(lifecycle, {
         initial_prompt: prompt,
         source: input.source ?? "prompt",
@@ -166,6 +211,7 @@ export async function createProjectFromPrompt(
         style_preset_id: input.stylePresetId ?? "minimal",
         build_tier: input.buildTier ?? "standard",
         create_flow_state: "project_ready",
+        ...(resolvedIdempotency ? idempotencyMetadataPatch(resolvedIdempotency) : {}),
       }),
     } as never)
     .select("id, slug")

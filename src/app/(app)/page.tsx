@@ -8,6 +8,7 @@ import { buildAuthCallbackRedirectFromSearchParams } from "@/lib/auth/oauth-redi
 import { createClient } from "@/lib/supabase/server";
 import { readBannerSvg, buildBannerForProject } from "@/lib/projects/backfill-project-media";
 import { ensureProjectIconSvg } from "@/lib/projects/ensure-project-icon";
+import { isUserVisibleProject } from "@/lib/projects/user-visible-projects";
 
 const OsHome = dynamic(() => import("@/components/os-home/os-home").then((m) => m.OsHome), {
   loading: () => <OsHomeFallback />,
@@ -66,7 +67,10 @@ export default async function HomePage({
     icon_url: string | null;
     icon_svg: string | null;
     banner_svg: string | null;
+    build_status: string | null;
     metadata: Record<string, unknown> | null;
+    published_subdomain: string | null;
+    is_favorite: boolean | null;
   };
 
   let recentProjects: RecentProject[] = [];
@@ -77,11 +81,11 @@ export default async function HomePage({
     const { data } = await supabase
       .from("projects")
       .select(
-        "id, name, app_name, gradient, status, framework, updated_at, preview_url, icon_url, icon_svg, metadata, published_subdomain",
+        "id, name, app_name, gradient, status, framework, updated_at, preview_url, icon_url, icon_svg, metadata, published_subdomain, build_status, is_favorite",
       )
       .eq("owner_id", user.id)
       .order("updated_at", { ascending: false })
-      .limit(8);
+      .limit(24);
 
     const rows = data ?? [];
     for (const row of rows) {
@@ -105,9 +109,20 @@ export default async function HomePage({
         icon_url: row.icon_url,
         icon_svg,
         banner_svg,
+        build_status: row.build_status,
+        published_subdomain: row.published_subdomain,
         metadata: meta,
+        is_favorite: row.is_favorite ?? false,
       });
     }
+    recentProjects = recentProjects
+      .filter(isUserVisibleProject)
+      .sort((a, b) => {
+        const favDiff = Number(Boolean(b.is_favorite)) - Number(Boolean(a.is_favorite));
+        if (favDiff !== 0) return favDiff;
+        return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+      })
+      .slice(0, 12);
   } catch (err) {
     if (process.env.NODE_ENV !== "production") {
       console.warn("[home] recent projects load failed:", err);

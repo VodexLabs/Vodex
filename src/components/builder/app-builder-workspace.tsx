@@ -5,13 +5,7 @@ import { EditorFileTree, type FileTreeNode } from "@/components/editor/file-tree
 import { EditorTabs, type EditorTab } from "@/components/editor/editor-tabs";
 import { AiDiffViewer } from "@/components/editor/ai-diff-viewer";
 import { CheckpointTimeline } from "@/components/editor/checkpoint-timeline";
-import { DeployWorkspacePanel } from "@/components/deploy/deploy-workspace-panel";
-import type { DeployCheck } from "@/components/deploy/deploy-readiness-center";
-import { PreviewWorkspace } from "@/components/preview/preview-workspace";
-import { BuilderErrorPanel, type BuilderErrorItem } from "@/components/builder/builder-error-panel";
-import { RepairCenter } from "@/components/repair/repair-center";
-import { BuilderQualityStrip } from "@/components/builder/builder-quality-strip";
-import { AppBlueprintPanel } from "@/components/build/app-blueprint-panel";
+import { CodeEditorWithLines } from "@/components/editor/code-editor-with-lines";
 import type { AppBlueprint } from "@/lib/build/blueprint-schema";
 import type { EditorCheckpoint } from "@/lib/editor/checkpoints";
 import type { FileDiff } from "@/lib/editor/diff";
@@ -23,6 +17,7 @@ import { Download, Save, Sparkles, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { loadProjectFileContent } from "@/lib/projects/load-project-files";
 import { preferredEntryFile } from "@/lib/projects/imported-project-state";
+import { canManualCodeEdit } from "@/lib/billing/plan-features";
 
 export type BuilderFile = { path: string; content: string };
 
@@ -31,11 +26,16 @@ type Props = {
   projectName: string;
   files: BuilderFile[];
   loading?: boolean;
+  filesReady?: boolean;
+  importedReady?: boolean;
+  onPrepareImport?: () => void;
+  prepareImportBusy?: boolean;
   blueprint?: AppBlueprint | null;
   previewUrl?: string | null;
   pendingDiffRefreshKey?: number;
   onFilesChanged?: () => void;
   className?: string;
+  planId?: string;
 };
 
 export function AppBuilderWorkspace({
@@ -43,11 +43,16 @@ export function AppBuilderWorkspace({
   projectName,
   files,
   loading,
+  filesReady = false,
+  importedReady = false,
+  onPrepareImport,
+  prepareImportBusy = false,
   blueprint,
   previewUrl,
   pendingDiffRefreshKey = 0,
   onFilesChanged,
   className,
+  planId = "free",
 }: Props) {
   const [tabs, setTabs] = React.useState<EditorTab[]>([]);
   const [activePath, setActivePath] = React.useState<string | null>(null);
@@ -58,11 +63,8 @@ export function AppBuilderWorkspace({
   const [pendingDiffs, setPendingDiffs] = React.useState<FileDiff[]>([]);
   const [pendingSummary, setPendingSummary] = React.useState<string | null>(null);
   const [checkpoints, setCheckpoints] = React.useState<EditorCheckpoint[]>([]);
-  const [errors, setErrors] = React.useState<BuilderErrorItem[]>([]);
   const [errorPaths, setErrorPaths] = React.useState<Set<string>>(new Set());
-  const [deployChecks, setDeployChecks] = React.useState<DeployCheck[]>([]);
   const [readinessScore, setReadinessScore] = React.useState(0);
-  const [qualityScore, setQualityScore] = React.useState<number | null>(null);
   const [polishQuote, setPolishQuote] = React.useState<{
     estimatedCost: number;
     safeToRun: boolean;
@@ -72,10 +74,12 @@ export function AppBuilderWorkspace({
   const [pendingDiffId, setPendingDiffId] = React.useState<string | null>(null);
   const [diffBusy, setDiffBusy] = React.useState(false);
   const [rollbackBusyId, setRollbackBusyId] = React.useState<string | null>(null);
-  const [mobilePanel, setMobilePanel] = React.useState<"files" | "code" | "tools">("code");
+  const [mobilePanel, setMobilePanel] = React.useState<"files" | "code">("code");
   const sessionRestored = React.useRef(false);
   const supabase = React.useMemo(() => createClient(), []);
   const [contentLoadingPath, setContentLoadingPath] = React.useState<string | null>(null);
+
+  const canEdit = canManualCodeEdit(planId);
 
   const pendingPaths = React.useMemo(
     () => new Set(pendingDiffs.map((d) => d.path)),
@@ -218,10 +222,6 @@ export function AppBuilderWorkspace({
       onFilesChanged?.();
     } catch (e) {
       toast.error(`Save failed: ${e instanceof Error ? e.message : "Try again"}`);
-      setErrors((errs) => [
-        ...errs,
-        { id: `save-${Date.now()}`, title: "Save failed", message: String(e), severity: "error" },
-      ]);
     } finally {
       setSavingPath(null);
     }
@@ -229,22 +229,34 @@ export function AppBuilderWorkspace({
 
   const loadCheckpoints = React.useCallback(async () => {
     if (!projectId) return;
-    const res = await fetch(`/api/editor/checkpoints?projectId=${projectId}`);
-    if (res.ok) {
-      const data = await res.json();
-      setCheckpoints((data.checkpoints ?? []) as EditorCheckpoint[]);
+    try {
+      const res = await fetch(`/api/editor/checkpoints?projectId=${projectId}`, {
+        credentials: "include",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCheckpoints((data.checkpoints ?? []) as EditorCheckpoint[]);
+      }
+    } catch {
+      /* offline or dev reload — ignore */
     }
   }, [projectId]);
 
   const loadPreviewErrors = React.useCallback(async () => {
     if (!projectId) return;
-    const res = await fetch(`/api/projects/${projectId}/preview-errors`, { credentials: "include" });
-    if (!res.ok) return;
-    const data = (await res.json()) as { errors?: Array<{ file?: string }> };
-    const paths = new Set(
-      (data.errors ?? []).map((e) => e.file).filter((f): f is string => Boolean(f)),
-    );
-    setErrorPaths(paths);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/preview-errors`, {
+        credentials: "include",
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as { errors?: Array<{ file?: string }> };
+      const paths = new Set(
+        (data.errors ?? []).map((e) => e.file).filter((f): f is string => Boolean(f)),
+      );
+      setErrorPaths(paths);
+    } catch {
+      /* ignore transient network errors */
+    }
   }, [projectId]);
 
   React.useEffect(() => {
@@ -439,25 +451,9 @@ export function AppBuilderWorkspace({
       .then((data) => {
         if (!data) return;
         setReadinessScore(data.readinessScore ?? 0);
-        setDeployChecks(
-          (data.checks ?? []).map((c: { id: string; title: string; detail: string; severity: string }) => ({
-            id: c.id,
-            label: c.title,
-            detail: c.detail,
-            status: c.severity === "error" ? "blocked" : c.severity === "warning" ? "warning" : "ok",
-          })),
-        );
       })
       .catch(() => undefined);
 
-    import("@/lib/quality/app-quality-score").then(({ scoreAppQuality }) => {
-      const s = scoreAppQuality({
-        files,
-        hasAuth: files.some((f) => /auth|login/i.test(f.path + f.content)),
-        hasLoadingStates: files.some((f) => /loading|skeleton|spinner/i.test(f.content)),
-      });
-      setQualityScore(s.scorePercent);
-    });
   }, [projectId, files]);
 
   const rollbackCheckpoint = async (cpId: string) => {
@@ -486,6 +482,60 @@ export function AppBuilderWorkspace({
     }
   };
 
+  if (loading) {
+    return (
+      <div className={cn("flex h-full flex-col gap-3 p-6", className)} data-testid="code-tab-skeleton">
+        <div className="h-8 w-48 animate-pulse rounded-lg bg-muted/50" />
+        <div className="flex flex-1 gap-3">
+          <div className="w-48 animate-pulse rounded-xl bg-muted/40" />
+          <div className="flex-1 animate-pulse rounded-xl bg-muted/30" />
+        </div>
+      </div>
+    );
+  }
+
+  if (files.length === 0 && importedReady) {
+    return (
+      <div className={cn("flex h-full flex-col items-center justify-center gap-3 p-8 text-center", className)}>
+        <p className="text-[14px] font-semibold text-foreground">Imported app ready</p>
+        <p className="max-w-sm text-[12px] text-muted-foreground">
+          Your ZIP is imported. Prepare the app to load the file tree and preview entry point — no AI rebuild required.
+        </p>
+        {onPrepareImport ? (
+          <button
+            type="button"
+            data-testid="prepare-imported-app-code"
+            disabled={prepareImportBusy}
+            onClick={onPrepareImport}
+            className="rounded-xl bg-accent px-4 py-2 text-[12px] font-semibold text-white hover:bg-accent/90 disabled:opacity-60"
+          >
+            {prepareImportBusy ? "Preparing…" : "Prepare imported app"}
+          </button>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (files.length === 0 && !filesReady) {
+    return (
+      <div className={cn("flex h-full flex-col items-center justify-center gap-3 p-8 text-center", className)}>
+        <p className="text-[14px] font-semibold text-foreground">Generate the app first to view code</p>
+        <p className="max-w-xs text-[12px] text-muted-foreground">
+          Run a build from the Build tab. Your file tree and editor will appear here when files are ready.
+        </p>
+      </div>
+    );
+  }
+
+  if (files.length === 0 && filesReady) {
+    return (
+      <div className={cn("flex h-full flex-col items-center justify-center gap-3 p-8 text-center", className)}>
+        <p className="text-[14px] font-semibold text-foreground">Loading app files…</p>
+        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
     <div className={cn("builder-shell flex h-full min-h-0 flex-col overflow-x-hidden", className)}>
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
@@ -497,7 +547,11 @@ export function AppBuilderWorkspace({
           </p>
         </div>
         <div className="flex max-w-full flex-wrap items-center justify-end gap-1.5 sm:gap-2">
-          {qualityScore != null ? <BuilderQualityStrip score={qualityScore} /> : null}
+          {readinessScore > 0 ? (
+            <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-border">
+              Publish readiness {readinessScore}%
+            </span>
+          ) : null}
           {projectId && files.length > 0 ? (
             <Button
               type="button"
@@ -540,7 +594,7 @@ export function AppBuilderWorkspace({
             type="button"
             size="sm"
             onClick={() => void saveFile()}
-            disabled={!activePath || !dirtyPaths.has(activePath ?? "") || savingPath !== null}
+            disabled={!canEdit || !activePath || !dirtyPaths.has(activePath ?? "") || savingPath !== null}
           >
             <Save className="size-3.5" />
             {savingPath ? "Saving…" : "Save"}
@@ -548,10 +602,14 @@ export function AppBuilderWorkspace({
         </div>
       </div>
 
-      {blueprint ? <AppBlueprintPanel blueprint={blueprint} className="mx-2 mt-2 shrink-0" /> : null}
+      {!canEdit ? (
+        <div className="mx-3 mt-2 shrink-0 rounded-lg bg-accent/10 px-3 py-2 text-[11px] text-accent ring-1 ring-accent/20">
+          Code is view-only on the Free plan. Upgrade to edit files manually.
+        </div>
+      ) : null}
 
       <div className="builder-mobile-panel flex shrink-0 gap-1 border-b border-border px-2 py-1.5 lg:hidden">
-        {(["files", "code", "tools"] as const).map((p) => (
+        {(["files", "code"] as const).map((p) => (
           <button
             key={p}
             type="button"
@@ -566,7 +624,7 @@ export function AppBuilderWorkspace({
         ))}
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[220px_1fr_280px]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(180px,220px)_1fr]">
         <EditorFileTree
           files={treeNodes}
           selectedPath={activePath}
@@ -598,69 +656,33 @@ export function AppBuilderWorkspace({
               />
             </div>
           ) : null}
-          <textarea
-            className="min-h-0 flex-1 resize-none bg-background p-3 font-mono text-[11px] leading-relaxed text-foreground outline-none"
+          <CodeEditorWithLines
             value={displayContent}
-            onChange={(e) => onContentChange(e.target.value)}
-            readOnly={!activePath || pendingPaths.has(activePath)}
+            onChange={onContentChange}
+            readOnly={!canEdit || !activePath || pendingPaths.has(activePath)}
+            activePath={activePath}
             placeholder={
               loading
                 ? "Loading files…"
-                : activePath && pendingPaths.has(activePath)
-                  ? "Accept or reject AI changes first"
-                  : "Select a file"
+                : !canEdit
+                  ? "Upgrade to a paid plan to edit code manually"
+                  : activePath && pendingPaths.has(activePath)
+                    ? "Accept or reject AI changes first"
+                    : "Select a file from the tree"
             }
           />
-          {projectId && files.length > 0 ? (
-            <PreviewWorkspace
-              projectId={projectId}
-              previewUrl={previewUrl}
-              hasGenerated={files.length > 0}
-              autoStart={false}
-              className="h-[400px] shrink-0 border-t border-border"
-            />
+          {checkpoints.length > 0 ? (
+            <div className="shrink-0 border-t border-border/60 bg-surface/30 px-3 py-2">
+              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Checkpoints
+              </p>
+              <CheckpointTimeline
+                checkpoints={checkpoints.slice(0, 4)}
+                busyId={rollbackBusyId}
+                onRollback={(id) => void rollbackCheckpoint(id)}
+              />
+            </div>
           ) : null}
-        </div>
-
-        <div
-          className={cn(
-            "flex min-h-0 flex-col gap-2 overflow-y-auto border-l border-border p-2",
-            mobilePanel !== "tools" && "hidden lg:flex",
-          )}
-        >
-          {projectId ? <RepairCenter projectId={projectId} compact /> : null}
-          <BuilderErrorPanel
-            errors={errors}
-            onFixWithAi={() => {
-              if (projectId) {
-                void fetch(`/api/projects/${projectId}/repair`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ action: "run_ai_repair", issueType: "validation_failed" }),
-                })
-                  .then((r) => r.json())
-                  .then((j) => {
-                    if (j.ok && j.repaired) toast.success("AI repair completed");
-                    else toast.error(j.error ?? "AI repair could not complete");
-                  });
-              }
-            }}
-          />
-          {projectId ? (
-            <DeployWorkspacePanel
-              projectId={projectId}
-              checks={deployChecks}
-              readinessScore={readinessScore}
-            />
-          ) : null}
-          <div className="rounded-xl border border-border p-2">
-            <p className="mb-2 text-[11px] font-semibold text-foreground">Checkpoints</p>
-            <CheckpointTimeline
-              checkpoints={checkpoints}
-              busyId={rollbackBusyId}
-              onRollback={(id) => void rollbackCheckpoint(id)}
-            />
-          </div>
         </div>
       </div>
     </div>

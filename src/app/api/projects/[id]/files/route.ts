@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { isHiddenGeneratedPath } from "@/lib/build/generated-file-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -39,26 +40,41 @@ export async function GET(
     return NextResponse.json({ file: data });
   }
 
-  const paths: string[] = [];
+  const tree: Array<{
+    path: string;
+    source: string | null;
+    updated_at: string | null;
+    size_bytes: number | null;
+  }> = [];
   let from = 0;
   while (true) {
     const { data, error } = await supabase
       .from("app_files")
-      .select("path, source")
+      .select("path, source, updated_at, size_bytes")
       .eq("project_id", projectId)
       .order("path")
       .range(from, from + PAGE - 1);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if (!data?.length) break;
-    paths.push(...data.map((r) => r.path));
+    for (const row of data) {
+      if (row.path && !isHiddenGeneratedPath(row.path)) {
+        tree.push({
+          path: row.path,
+          source: row.source ?? null,
+          updated_at: row.updated_at ?? null,
+          size_bytes: row.size_bytes ?? null,
+        });
+      }
+    }
     if (data.length < PAGE) break;
     from += PAGE;
   }
 
-  const zipCount = paths.length;
+  const paths = tree.map((t) => t.path);
   return NextResponse.json({
-    count: zipCount,
+    count: paths.length,
     paths,
+    tree,
     sources: ["generated", "zip_import", "edited"],
   });
 }

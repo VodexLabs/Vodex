@@ -1,4 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  filterRenderableBuildFiles,
+  isHiddenGeneratedPath,
+} from "@/lib/build/generated-file-utils";
 
 export type PublishedSnapshotFile = { path: string; content: string };
 
@@ -20,9 +24,11 @@ export async function capturePublishedSnapshot(
     .eq("project_id", projectId)
     .limit(300);
 
-  const files = (fileRows ?? [])
-    .filter((f) => f.path && f.content != null)
-    .map((f) => ({ path: f.path!, content: f.content! }));
+  const files = filterRenderableBuildFiles(
+    (fileRows ?? [])
+      .filter((f) => f.path && f.content != null && !isHiddenGeneratedPath(f.path))
+      .map((f) => ({ path: f.path!, content: f.content! })),
+  );
 
   const title =
     (project as { app_name?: string })?.app_name?.trim() ||

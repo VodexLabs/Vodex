@@ -1,4 +1,13 @@
-export const PLATFORM_BASE_DOMAIN = "dreamos86.com";
+/** Public app hostname root — prefer .app, override via env. */
+export function getPublicAppRootDomain(): string {
+  return (
+    process.env.NEXT_PUBLIC_APP_ROOT_DOMAIN?.trim() ||
+    process.env.PUBLIC_APP_ROOT_DOMAIN?.trim() ||
+    "dreamos86.app"
+  );
+}
+
+export const PLATFORM_BASE_DOMAIN = getPublicAppRootDomain();
 
 /** Wildcard only when DNS is verified — path mode is default. */
 export function wildcardSubdomainEnabled(): boolean {

@@ -2,50 +2,27 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, LayoutGrid, Plus } from "lucide-react";
+import { ArrowRight, LayoutGrid, Plus, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ProjectIcon } from "@/components/projects/project-icon";
 import { ProjectBanner } from "@/components/projects/project-banner";
-import { readImportMeta, isZipImportProject } from "@/lib/projects/imported-project-state";
+import {
+  getProjectCardStatus,
+  getUserSafeProjectBadges,
+  isImportedAppWithoutPreview,
+  type ProjectCardInput,
+} from "@/lib/projects/user-safe-project-badges";
+import { projectIconSrc } from "@/lib/projects/ensure-project-icon";
 
-export type YourAppsProject = {
-  id: string;
+export type YourAppsProject = ProjectCardInput & {
   name: string;
   gradient: string;
-  status: string;
-  framework?: string | null;
   updated_at: string;
-  preview_url: string | null;
   icon_url?: string | null;
   icon_svg?: string | null;
   banner_svg?: string | null;
-  metadata?: Record<string, unknown> | null;
+  is_favorite?: boolean | null;
 };
-
-function frameworkLabel(project: YourAppsProject): string | null {
-  const meta =
-    project.metadata && typeof project.metadata === "object" && !Array.isArray(project.metadata)
-      ? project.metadata
-      : null;
-  if (meta && isZipImportProject(meta)) {
-    const imp = readImportMeta(meta);
-    const fw = imp.framework?.id ?? project.framework;
-    if (fw && fw !== "unknown") return String(fw);
-  }
-  return project.framework && project.framework !== "unknown" ? project.framework : null;
-}
-
-function fileSummary(project: YourAppsProject): string | null {
-  const meta =
-    project.metadata && typeof project.metadata === "object" && !Array.isArray(project.metadata)
-      ? project.metadata
-      : null;
-  if (!meta || !isZipImportProject(meta)) return null;
-  const imp = readImportMeta(meta);
-  if (imp.file_count && imp.file_count > 0) return `${imp.file_count.toLocaleString()} files`;
-  if (imp.routes?.length) return `${imp.routes.length} routes`;
-  return null;
-}
 
 export function YourAppsSection({ projects }: { projects: YourAppsProject[] }) {
   const hasApps = projects.length > 0;
@@ -71,10 +48,12 @@ export function YourAppsSection({ projects }: { projects: YourAppsProject[] }) {
       </div>
 
       {hasApps ? (
-        <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-none">
-          {projects.map((p, i) => {
-            const fw = frameworkLabel(p);
-            const files = fileSummary(p);
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
+          {projects.slice(0, 12).map((p, i) => {
+            const status = getProjectCardStatus(p);
+            const badges = getUserSafeProjectBadges(p, { mode: "user" });
+            const iconSrc = projectIconSrc(p.id, p.icon_svg, p.icon_url);
+            const importedPending = isImportedAppWithoutPreview(p);
             return (
               <motion.div
                 key={p.id}
@@ -85,7 +64,7 @@ export function YourAppsSection({ projects }: { projects: YourAppsProject[] }) {
               >
                 <Link
                   href={`/apps/${p.id}/builder`}
-                  className="group flex w-[220px] flex-col overflow-hidden rounded-xl bg-surface ring-1 ring-border transition hover:ring-accent/35 hover:shadow-md"
+                  className="group flex h-full flex-col overflow-hidden rounded-xl bg-surface ring-1 ring-border/70 transition hover:ring-accent/30"
                 >
                   <ProjectBanner
                     projectId={p.id}
@@ -93,28 +72,49 @@ export function YourAppsSection({ projects }: { projects: YourAppsProject[] }) {
                     previewUrl={p.preview_url}
                     title={p.name}
                     heightClass="h-[108px]"
-                    previewOnly
+                    previewOnly={!p.preview_url}
+                    importedPendingSetup={importedPending}
+                    iconSrc={iconSrc}
                   />
-                  <div className="flex items-start gap-2.5 p-3">
-                    <ProjectIcon
-                      projectId={p.id}
-                      iconSvg={p.icon_svg}
-                      iconUrl={p.icon_url}
-                      size={36}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-semibold text-foreground">{p.name}</p>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {fw ? (
-                          <span className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-accent">
-                            {fw}
-                          </span>
-                        ) : null}
-                        {files ? (
-                          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground">
-                            {files}
-                          </span>
-                        ) : null}
+                  <div className="border-t border-border/50 bg-surface/95">
+                    <div className="flex items-start gap-2.5 p-3">
+                      <ProjectIcon
+                        projectId={p.id}
+                        iconSvg={p.icon_svg}
+                        iconUrl={p.icon_url}
+                        size={36}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-1">
+                          <p className="truncate text-[13px] font-semibold text-foreground">{p.name}</p>
+                          <div className="flex shrink-0 items-center gap-1">
+                            {p.is_favorite && (
+                              <Star className="size-3 fill-amber-400 text-amber-400" strokeWidth={1.75} aria-label="Favorite" />
+                            )}
+                            <span className={cn("text-[9px] font-medium", status.text)}>
+                              {status.label}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
+                          {typeof p.metadata?.short_description === "string"
+                            ? p.metadata.short_description
+                            : "Your app on DreamOS86"}
+                        </p>
+                        {badges.some((b) => b.kind === "meta") && (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {badges
+                              .filter((b) => b.kind === "meta")
+                              .map((b) => (
+                                <span
+                                  key={b.label}
+                                  className="rounded-full bg-muted/80 px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground"
+                                >
+                                  {b.label}
+                                </span>
+                              ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -122,13 +122,15 @@ export function YourAppsSection({ projects }: { projects: YourAppsProject[] }) {
               </motion.div>
             );
           })}
+          {projects.length < 12 ? (
           <Link
             href="/create"
-            className="flex w-[140px] shrink-0 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border px-4 py-6 transition hover:border-accent/40 hover:bg-accent/5"
+            className="flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border/80 px-4 py-6 transition hover:border-accent/40 hover:bg-accent/5"
           >
             <Plus className="size-5 text-accent" strokeWidth={2} />
             <span className="text-[11.5px] font-medium text-muted-foreground">New app</span>
           </Link>
+          ) : null}
         </div>
       ) : (
         <motion.div

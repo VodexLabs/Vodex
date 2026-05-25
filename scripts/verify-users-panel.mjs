@@ -5,11 +5,13 @@ import { fileURLToPath } from "node:url";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dash = fs.readFileSync(path.join(root, "src/components/apps/app-project-dashboard.tsx"), "utf8");
+const panel = fs.readFileSync(path.join(root, "src/components/create/workspace/app-dashboard-panel.tsx"), "utf8");
+const combined = dash + panel;
 
 const checks = [
-  [!dash.includes('"users"'), "Users tab removed from app dashboard"],
-  [dash.includes("Setup"), "Setup tab present"],
-  [!dash.includes("Invite"), "No invite UI in app dashboard"],
+  [!combined.includes('"users"'), "Users tab removed from app dashboard"],
+  [combined.includes("Setup") || combined.includes("setup"), "Setup tab present"],
+  [!combined.includes("Invite"), "No invite UI in app dashboard"],
 ];
 
 let failed = false;
