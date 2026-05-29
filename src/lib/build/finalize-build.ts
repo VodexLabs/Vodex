@@ -12,6 +12,8 @@ export type FinalizeBuildInput = {
   userId: string;
   projectId: string;
   buildJobId: string | null;
+  /** When true, job status was set via transition_build_job_status RPC. */
+  skipJobStatusUpdate?: boolean;
   appName: string;
   appSlug: string | null;
   appDescription: string | null;
@@ -29,7 +31,7 @@ export async function finalizeBuildSuccess(input: FinalizeBuildInput): Promise<v
   const { writer, userId, projectId, buildJobId, meta, fileCount, creditsCharged, charged } = input;
   const appName = refineAppName(input.appName, meta?.app?.description ?? "");
 
-  if (buildJobId) {
+  if (buildJobId && !input.skipJobStatusUpdate) {
     const jobPatch: Record<string, unknown> = {
       status: "completed",
       completed_at: now,
@@ -137,9 +139,10 @@ export async function finalizeBuildFailed(input: {
   errorMessage: string;
   projectId?: string;
   userId?: string;
+  skipJobStatusUpdate?: boolean;
 }): Promise<void> {
   const now = new Date().toISOString();
-  if (input.buildJobId) {
+  if (input.buildJobId && !input.skipJobStatusUpdate) {
     await input.writer
       .from("build_jobs")
       .update({

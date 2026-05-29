@@ -82,11 +82,38 @@ export function TermsContent() {
         <LegalParagraph>
           Paid subscriptions, when offered, are processed by our payment provider (for example, Stripe). Prices, plan
           limits, and renewal terms are shown at checkout. You may cancel according to the billing portal instructions;
-          refunds are handled per our published billing policy unless required by law.
+          refunds are handled per our{" "}
+          <Link href="/refunds" className="text-accent hover:underline underline-offset-4">
+            Refund Policy
+          </Link>{" "}
+          unless required by law.
         </LegalParagraph>
       </LegalSection>
 
-      <LegalSection title="7. Integrations and third-party services">
+      <LegalSection title="7. Payments and third-party billing">
+        <LegalParagraph>
+          DreamOS86 may offer connectors for payment and billing providers such as Paddle, Stripe, Lemon Squeezy,
+          PayPal, RevenueCat, Google Play Billing, Apple In-App Purchases, and other processors. For generated apps, you
+          choose and connect your own payment provider accounts. DreamOS86 is not your merchant of record for your
+          customers unless we explicitly agree otherwise in writing.
+        </LegalParagraph>
+        <LegalParagraph>
+          DreamOS86 is not responsible for approval, rejection, suspension, holds, reserves, fees, refunds, taxes,
+          chargebacks, disputes, fraud reviews, payout delays, account termination, or compliance decisions made by
+          third-party processors or app stores. You are responsible for complying with applicable laws, tax rules, store
+          policies, processor terms, consumer protection laws, refund obligations, privacy laws, and subscription
+          cancellation requirements for your own customers and products.
+        </LegalParagraph>
+        <LegalParagraph>
+          You must provide accurate billing, product, tax, and legal information. DreamOS86 may disable integrations that
+          appear abusive, fraudulent, unlawful, or unsafe. For mobile apps, you are responsible for Google Play and Apple
+          App Store billing policies. DreamOS86 does not guarantee app store approval. Setup guidance is not legal, tax,
+          payment, or financial advice. DreamOS86&apos;s own platform subscriptions and Build Credits may be billed
+          through Paddle or another platform billing provider separate from your generated app connectors.
+        </LegalParagraph>
+      </LegalSection>
+
+      <LegalSection title="8. Integrations and third-party services">
         <LegalParagraph>
           The Service may connect to Supabase, Stripe, GitHub, Vercel, email providers, Slack, and AI providers, among
           others. Your use of those services is subject to their terms and privacy policies. DreamOS86 is not responsible
@@ -94,7 +121,7 @@ export function TermsContent() {
         </LegalParagraph>
       </LegalSection>
 
-      <LegalSection title="8. Secrets and API keys">
+      <LegalSection title="9. Secrets and API keys">
         <LegalParagraph>
           You may store project secrets (for example, API keys) in DreamOS86 for deployment and integrations. Secrets are
           stored server-side and are not intentionally exposed in client-side code or public previews. You are
@@ -103,7 +130,7 @@ export function TermsContent() {
         </LegalParagraph>
       </LegalSection>
 
-      <LegalSection title="9. Intellectual property">
+      <LegalSection title="10. Intellectual property">
         <LegalParagraph>
           DreamOS86, its logos, and the Service software are owned by DreamOS86 and its licensors. Except for the rights
           expressly granted, no license is granted to our trademarks or underlying platform code. Feedback you provide
@@ -111,7 +138,7 @@ export function TermsContent() {
         </LegalParagraph>
       </LegalSection>
 
-      <LegalSection title="10. Service availability and changes">
+      <LegalSection title="11. Service availability and changes">
         <LegalParagraph>
           We strive for reliable operation but do not guarantee uninterrupted access. We may modify, suspend, or
           discontinue features with reasonable notice when practicable. Beta or experimental features may change or be
@@ -119,7 +146,7 @@ export function TermsContent() {
         </LegalParagraph>
       </LegalSection>
 
-      <LegalSection title="11. Termination">
+      <LegalSection title="12. Termination">
         <LegalParagraph>
           You may stop using the Service and delete your account through available settings. We may suspend or terminate
           access for breach of these Terms, legal requirements, or risk to the Service. Upon termination, your right to
@@ -127,7 +154,7 @@ export function TermsContent() {
         </LegalParagraph>
       </LegalSection>
 
-      <LegalSection title="12. Disclaimers">
+      <LegalSection title="13. Disclaimers">
         <LegalParagraph>
           THE SERVICE IS PROVIDED &quot;AS IS&quot; AND &quot;AS AVAILABLE&quot; WITHOUT WARRANTIES OF ANY KIND, WHETHER
           EXPRESS OR IMPLIED, INCLUDING MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. WE DO
@@ -136,7 +163,7 @@ export function TermsContent() {
         </LegalParagraph>
       </LegalSection>
 
-      <LegalSection title="13. Limitation of liability">
+      <LegalSection title="14. Limitation of liability">
         <LegalParagraph>
           TO THE MAXIMUM EXTENT PERMITTED BY LAW, DREAMOS86 AND ITS AFFILIATES WILL NOT BE LIABLE FOR ANY INDIRECT,
           INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS, DATA, OR GOODWILL, ARISING FROM
@@ -146,7 +173,7 @@ export function TermsContent() {
         </LegalParagraph>
       </LegalSection>
 
-      <LegalSection title="14. Changes to these Terms">
+      <LegalSection title="15. Changes to these Terms">
         <LegalParagraph>
           We may update these Terms from time to time. We will post the revised Terms on this page and update the
           effective date. Material changes may be communicated via email or in-product notice. Continued use after changes
@@ -154,7 +181,7 @@ export function TermsContent() {
         </LegalParagraph>
       </LegalSection>
 
-      <LegalSection title="15. Contact">
+      <LegalSection title="16. Contact">
         <LegalParagraph>
           Questions about these Terms: use our{" "}
           <Link href="/contact" className="text-accent hover:underline underline-offset-4">

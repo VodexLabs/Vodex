@@ -7,7 +7,14 @@ import { fileURLToPath } from "node:url";
 import { withSafeTlsEnv } from "./lib/tls-env.mjs";
 import { writeEvidence } from "./lib/e2e-live.mjs";
 import { runStep, formatElapsed } from "./lib/verify-runner.mjs";
-import { diagnoseDevServer, devServerBaseUrl } from "./lib/dev-server.mjs";
+import {
+  diagnoseDevServer,
+  devServerBaseUrl,
+  ensureDevServerReady,
+  killPortProcessSafely,
+  waitForDevServer,
+  warmDevRoutes,
+} from "./lib/dev-server.mjs";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const verifyEnv = withSafeTlsEnv({ ...process.env });
@@ -46,6 +53,9 @@ const steps = [
   ["verify:backend-generation", "npm run verify:backend-generation"],
   ["verify:database-depth", "npm run verify:database-depth"],
   ["verify:zip-import", "npm run verify:zip-import"],
+  ["verify:create-page-interactive", "npm run verify:create-page-interactive"],
+  ["verify:create-page-no-blocking-bootstrap", "npm run verify:create-page-no-blocking-bootstrap"],
+  ["verify:create-page-no-route-loop", "npm run verify:create-page-no-route-loop"],
   ["verify:zip-import-live-route", "npm run verify:zip-import-live-route"],
   ["verify:polling", "npm run verify:polling"],
   ["verify:pricing", "npm run verify:pricing"],
@@ -121,6 +131,31 @@ const steps = [
   ["verify:contact-owner-isolation", "npm run verify:contact-owner-isolation"],
   ["verify:action-credit-email-metering", "npm run verify:action-credit-email-metering"],
   ["verify:no-provider-cost-client", "npm run verify:no-provider-cost-client"],
+  ["verify:payment-connectors", "npm run verify:payment-connectors"],
+  ["verify:payment-secrets-encrypted", "npm run verify:payment-secrets-encrypted"],
+  ["verify:no-payment-secret-client-leak", "npm run verify:no-payment-secret-client-leak"],
+  ["verify:empty-prompt-no-queue", "npm run verify:empty-prompt-no-queue"],
+  ["verify:queue-limit-eight", "npm run verify:queue-limit-eight"],
+  ["verify:build-events-no-404-spam", "npm run verify:build-events-no-404-spam"],
+  ["verify:build-progress-not-zero", "npm run verify:build-progress-not-zero"],
+  ["verify:no-credit-reserved-copy", "npm run verify:no-credit-reserved-copy"],
+  ["verify:terms-payment-responsibility", "npm run verify:terms-payment-responsibility"],
+  ["verify:privacy-payment-data", "npm run verify:privacy-payment-data"],
+  ["verify:builder-build-intent-existing-project", "npm run verify:builder-build-intent-existing-project"],
+  ["verify:empty-prompt-no-send", "npm run verify:empty-prompt-no-send"],
+  ["verify:space-only-no-send", "npm run verify:space-only-no-send"],
+  ["verify:payments-api-always-json", "npm run verify:payments-api-always-json"],
+  ["verify:payments-tab-no-json-crash", "npm run verify:payments-tab-no-json-crash"],
+  ["verify:dashboard-locks-before-publish", "npm run verify:dashboard-locks-before-publish"],
+  ["verify:locked-pages-do-not-fetch", "npm run verify:locked-pages-do-not-fetch"],
+  ["verify:revenue-analytics-all-apps", "npm run verify:revenue-analytics-all-apps"],
+  ["verify:revenuecat-mobile-billing-wizard", "npm run verify:revenuecat-mobile-billing-wizard"],
+  ["verify:payment-ledger-idempotency", "npm run verify:payment-ledger-idempotency"],
+  ["verify:payment-webhook-normalization", "npm run verify:payment-webhook-normalization"],
+  ["verify:payment-migrations-health", "npm run verify:payment-migrations-health"],
+  ["verify:paddle-webhook-normalization", "npm run verify:paddle-webhook-normalization"],
+  ["verify:revenue-analytics-mrr-arr", "npm run verify:revenue-analytics-mrr-arr"],
+  ["verify:mobile-wrapper-revenuecat-config", "npm run verify:mobile-wrapper-revenuecat-config"],
   ["verify:rate-limits", "npm run verify:rate-limits"],
   ["verify:mutation-guards", "npm run verify:mutation-guards"],
   ["verify:audit-logs", "npm run verify:audit-logs"],
@@ -142,7 +177,32 @@ let failed = false;
 
 for (const [name, cmd] of steps) {
   if (DEV_SERVER_STEPS.has(name)) {
-    const diag = await diagnoseDevServer(devServerBaseUrl());
+    const base = devServerBaseUrl();
+    let diag = await diagnoseDevServer(base);
+    if (diag.state !== "healthy") {
+      console.log(`[dev-server] Recovering for ${name}…`);
+      const kill = killPortProcessSafely(3000);
+      if (kill.killed) {
+        console.log(`[dev-server] Killed PID ${kill.pid} on port 3000`);
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+      diag = await ensureDevServerReady({
+        baseUrl: base,
+        startIfDown: true,
+        killIfBroken: false,
+        root,
+      });
+    }
+    const ready = await waitForDevServer({
+      baseUrl: base,
+      timeoutMs: 120_000,
+      onTick: (msg) => console.log(`[dev-server] ${msg}`),
+    });
+    if (!ready.ok) {
+      diag = await diagnoseDevServer(base);
+    } else {
+      diag = { state: "healthy", message: `Ready at ${ready.url}` };
+    }
     if (diag.state !== "healthy") {
       console.error(`\n✗ ${name} requires dev server but: ${diag.message}`);
       console.error("  Run: npm run doctor:dev-server");
@@ -151,6 +211,7 @@ for (const [name, cmd] of steps) {
       break;
     }
     console.log(`[dev-server] ✓ ${diag.message}`);
+    await warmDevRoutes(base, ["/api/dev/ping", "/create?mode=build"], { retries: 1 });
   }
 
   const r = await runStep(name, cmd, { cwd: root, env: verifyEnv });

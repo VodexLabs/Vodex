@@ -8,6 +8,7 @@ import { classifyBuildCredits, effectivePromptLengthForCredits } from "@/lib/ai/
 import { pickStandardFast } from "@/lib/ai/model-catalog";
 import { quoteDiscussCost, quoteGenerationCost } from "@/lib/billing/credit-profit-guard";
 import type { GenerationMode } from "@/lib/billing/pricing-config";
+import { calculateTokenProviderCostUsd } from "@/lib/credits/model-pricing-map";
 
 export type QualityLevel = "economy" | "balanced" | "premium";
 
@@ -116,20 +117,35 @@ export function planGenerationBudget(input: GenerationBudgetInput): GenerationBu
 
   const resolvedModel = input.selectedModel ?? cheapestSafeModel;
 
+  const maxInputTokens = input.hasExistingProject ? 6000 : 4000;
+  const tokenProviderUsd = calculateTokenProviderCostUsd(
+    resolvedModel,
+    maxInputTokens,
+    maxTotalOutput,
+  ).costUsd;
+  const estimatedProviderCostUsd = Math.min(
+    tokenProviderUsd,
+    providerBudgetUsd,
+  );
+
   const creditQuote = quoteGenerationCost({
     mode: input.mode === "full_build" ? "full_build" : input.mode,
     complexity,
     selectedModel: resolvedModel,
     promptLength: effectivePromptLength,
     promptWasCompressed: intakePreview.wasHuge,
+    firstPassTier: intakePreview.firstPassScope.tier,
     expectedFiles: files || (input.mode === "build" ? 12 : 2),
     userPlan: input.userPlan,
-    estimatedProviderCostUsd: providerBudgetUsd * 0.85,
+    estimatedProviderCostUsd,
+    estimatedInputTokens: maxInputTokens,
+    estimatedOutputTokens: maxTotalOutput,
+    editScope: input.mode === "edit" && complexity <= 3 ? "tiny" : "normal",
   });
 
   return {
     maxSteps,
-    maxInputTokens: input.hasExistingProject ? 6000 : 4000,
+    maxInputTokens,
     maxOutputTokensPerStep: maxOutputPerStep,
     maxTotalOutputTokens: maxTotalOutput,
     providerBudgetUsd,

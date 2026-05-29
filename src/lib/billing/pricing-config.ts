@@ -38,16 +38,16 @@ export type ComplexityFloorKey =
   | "deploy"
   | "repair";
 
-/** Product pricing floors (not provider-cost math). May raise charge above minimum profitable amount. */
+/** Product pricing floors — aligned with build-credit-floors.ts (UI hints only). */
 export const USER_CREDIT_FLOORS: Record<ComplexityFloorKey, number> = {
   discuss: 0.4,
-  edit: 4,
-  polish: 6,
-  build_simple: 8,
-  build_medium: 18,
-  build_hard: 35,
+  edit: 2,
+  polish: 2,
+  build_simple: 3,
+  build_medium: 5,
+  build_hard: 8,
   deploy: 5,
-  repair: 6,
+  repair: 2,
 };
 
 export function providerUsdToInternalCredits(providerCostUsd: number): number {

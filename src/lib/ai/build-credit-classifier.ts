@@ -3,6 +3,7 @@
  */
 import type { FirstPassTier } from "@/lib/build/first-pass-scope";
 import { firstPassTierCredits } from "@/lib/build/first-pass-scope";
+import { BUILD_CREDIT_OPERATION_FLOORS } from "@/lib/billing/build-credit-floors";
 import { estimatePromptTokens } from "@/lib/ai/prompt-compression-policy";
 
 export type BuildCreditTier = "first_pass_simple" | "first_pass_standard" | "first_pass_advanced" | "heavy_continuation";
@@ -24,17 +25,20 @@ export function classifyBuildCredits(input: {
   isContinuation?: boolean;
 }): BuildCreditClassification {
   if (input.isContinuation) {
+    const floor = BUILD_CREDIT_OPERATION_FLOORS.backlog_continuation;
     return {
       tier: "heavy_continuation",
       complexity: Math.min(10, input.scopeComplexity + 2),
-      creditFloor: 50,
-      creditCeiling: 100,
+      creditFloor: floor,
+      creditCeiling: floor + 2,
       promptLengthIgnored: true,
-      reason: "continuation_deep_work",
+      reason: "backlog_continuation_not_full_scope",
     };
   }
 
-  const range = firstPassTierCredits(input.firstPassTier);
+  const range = input.promptWasCompressed
+    ? { min: BUILD_CREDIT_OPERATION_FLOORS.huge_staged_first_pass, max: 15 }
+    : firstPassTierCredits(input.firstPassTier);
   const complexity =
     input.firstPassTier === "advanced"
       ? Math.max(7, input.scopeComplexity)

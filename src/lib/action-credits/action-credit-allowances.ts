@@ -1,19 +1,12 @@
-import { monthlyTokensForPlan, normalizePlanId } from "@/lib/billing/plans";
-import type { PlanId } from "@/lib/supabase/types";
+import {
+  ACTION_CREDITS_BY_PLAN,
+  monthlyActionCreditsForPlan as monthlyActionCreditsFromEconomics,
+} from "@/lib/billing/plan-credit-economics";
 
-/** Monthly Action Credit allowances by plan — separate from Build Credits. */
-export const ACTION_CREDITS_BY_PLAN: Record<PlanId, number> = {
-  free: 25,
-  starter: 500,
-  pro: 2000,
-  business: 5000,
-  infinity: 10000,
-  enterprise: 10000,
-};
+export { ACTION_CREDITS_BY_PLAN };
 
 export function monthlyActionCreditsForPlan(plan: string | null | undefined): number {
-  const id = normalizePlanId(plan ?? "free") as PlanId;
-  return ACTION_CREDITS_BY_PLAN[id] ?? ACTION_CREDITS_BY_PLAN.free;
+  return monthlyActionCreditsFromEconomics(plan);
 }
 
 export function actionCreditBonusFromBalance(_input: {

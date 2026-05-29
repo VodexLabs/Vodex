@@ -6,6 +6,7 @@ export function generateCapacitorWrapperProject(input: {
   config: Partial<MobileAppConfig>;
   webUrl: string;
   appFiles: Array<{ path: string; content: string }>;
+  billingConfigJson?: string | null;
 }): CapacitorProjectFiles {
   const appId = input.config.package_id ?? input.config.bundle_id ?? "com.dreamos.app";
   const appName = input.config.app_name ?? "Dream App";
@@ -102,6 +103,22 @@ Do not commit signing keys or store credentials to git.
       path: "android-permissions.json",
       content: JSON.stringify({ permissions: androidPermissions }, null, 2),
     },
+    ...(input.billingConfigJson
+      ? [
+          {
+            path: "dreamos-billing.json",
+            content: input.billingConfigJson,
+          },
+          {
+            path: "android/app/src/main/assets/dreamos-billing.json",
+            content: input.billingConfigJson,
+          },
+          {
+            path: "ios/App/App/dreamos-billing.json",
+            content: input.billingConfigJson,
+          },
+        ]
+      : []),
   ];
 
   for (const f of input.appFiles.slice(0, 200)) {

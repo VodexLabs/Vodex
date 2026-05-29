@@ -1,14 +1,21 @@
 /** Action Credits — central pricing engine (runtime, separate from Build Credits). */
 
 import {
+  ACTION_PROVIDER_USD_PER_CREDIT,
+  ACTION_CREDITS_PER_DOLLAR,
+} from "@/lib/billing/plan-credit-economics";
+import {
   floorForRuntimeAction,
   isFreeRuntimeAction,
   resolveRuntimeActionType,
 } from "@/lib/action-credits/action-catalog";
 
+export { ACTION_PROVIDER_USD_PER_CREDIT, ACTION_CREDITS_PER_DOLLAR };
+
+/** @deprecated legacy admin helpers — use ACTION_PROVIDER_USD_PER_CREDIT */
 export const ACTION_CREDIT_REVENUE_MULTIPLIER = 5;
-export const ACTION_CREDITS_PER_USD = 10;
-export const ACTION_CREDIT_ROUND_STEP = 0.1;
+/** @deprecated */
+export const ACTION_CREDITS_PER_USD = 1 / ACTION_PROVIDER_USD_PER_CREDIT;
 
 export type ActionCreditQuoteInput = {
   actionType: string;
@@ -28,9 +35,9 @@ export type ActionCreditQuote = {
   isFree: boolean;
 };
 
-function roundActionCredits(value: number): number {
-  const step = ACTION_CREDIT_ROUND_STEP;
-  return Math.ceil(value / step) * step;
+export function creditsFromProviderCostUsd(providerCostUsd: number): number {
+  if (providerCostUsd <= 0) return 0;
+  return Math.ceil(providerCostUsd / ACTION_PROVIDER_USD_PER_CREDIT);
 }
 
 export function quoteActionCredits(input: ActionCreditQuoteInput): ActionCreditQuote {
@@ -52,13 +59,11 @@ export function quoteActionCredits(input: ActionCreditQuoteInput): ActionCreditQ
   }
 
   const providerCostUsd = Math.max(0, Number(input.providerCostUsd ?? 0) || 0);
-  const protectedMinimum = roundActionCredits(
-    providerCostUsd * ACTION_CREDIT_REVENUE_MULTIPLIER * ACTION_CREDITS_PER_USD,
-  );
-  const finalActionCredits = roundActionCredits(Math.max(floor, protectedMinimum));
-  const revenueUsd = finalActionCredits / ACTION_CREDITS_PER_USD;
+  const protectedMinimum = creditsFromProviderCostUsd(providerCostUsd);
+  const finalActionCredits = Math.max(floor, protectedMinimum);
+  const impliedRevenueUsd = finalActionCredits * ACTION_PROVIDER_USD_PER_CREDIT;
   const multiplierAchieved =
-    providerCostUsd > 0 ? revenueUsd / providerCostUsd : ACTION_CREDIT_REVENUE_MULTIPLIER;
+    providerCostUsd > 0 ? impliedRevenueUsd / providerCostUsd : 1 / ACTION_PROVIDER_USD_PER_CREDIT;
 
   return {
     actionType: input.actionType,

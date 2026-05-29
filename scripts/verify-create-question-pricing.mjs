@@ -16,9 +16,9 @@ function must(rel, needle, label) {
 must("src/lib/billing/credit-pricing.ts", "CREATE_QUESTION_FLAT_CREDITS = 0.8", "create question constant");
 must("src/lib/billing/credit-pricing.ts", "createQuestionInputHintLabel", "create question hint");
 must("src/lib/billing/credit-profit-guard.ts", "quoteCreateQuestionCost", "create question quote");
-must("src/lib/billing/credit-profit-guard.ts", "create_question_flat_0.8", "create question floor reason");
-must("src/lib/credits/credit-pricing.ts", "CREATE_QUESTION_FLAT_CREDITS", "charge uses flat");
-must("src/app/api/chat/route.ts", "CREATE_QUESTION_FLAT_CREDITS", "chat route create question credits");
+must("src/lib/billing/credit-profit-guard.ts", "quoteCreateQuestionCost", "create question quote fn");
+must("src/lib/credits/credit-pricing.ts", "quoteCreateQuestionCost", "charge uses create question quote");
+must("src/app/api/chat/route.ts", "chargeMode === \"create_question\"", "chat route create question charge mode");
 must("src/lib/chat/create-chat-transport.ts", "createQuestion", "transport create question flag");
 must("src/components/create/create-intent-step.tsx", "createQuestionInputHintLabel", "create UI hint");
 must("src/lib/billing/credit-pricing.ts", "DISCUSS_FLAT_CREDITS = 0.4", "discuss still 0.4");

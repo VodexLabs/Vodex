@@ -15,6 +15,7 @@
 /playwright-report/
 /test-results/
 .playwright-auth.json
+.e2e-credits-prepared.json
 .dreamos-evidence.json
 .dreamos-benchmark-results.json
 .dreamos-benchmark-results.live.json

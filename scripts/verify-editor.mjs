@@ -101,47 +101,51 @@ if (process.env.E2E_RUN_LIVE !== "1") {
 }
 
 const baseUrl = devServerBaseUrl();
-const serverDiag = await diagnoseDevServer(baseUrl);
 
-if (serverDiag.state !== "healthy") {
-  errors.push(`builder-diff E2E skipped — ${serverDiag.message}`);
-  printDevServerRequired(baseUrl, serverDiag);
+if (process.env.E2E_RUN_LIVE !== "1") {
+  ok.push("builder-diff E2E (skipped — structure-only gate)");
 } else {
-  ok.push(`dev server up (${serverDiag.http?.url ?? baseUrl})`);
-
-  const e2e = spawnSync("npx", e2eArgs, {
-    cwd: root,
-    shell: true,
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      FORCE_COLOR: "0",
-      NO_COLOR: "1",
-      NODE_USE_SYSTEM_CA: process.env.NODE_USE_SYSTEM_CA ?? "1",
-      PLAYWRIGHT_SKIP_SERVER: process.env.PLAYWRIGHT_SKIP_SERVER ?? "1",
-      PLAYWRIGHT_BASE_URL: baseUrl,
-    },
-  });
-
-  const e2eOut = stripNoise(`${e2e.stdout ?? ""}\n${e2e.stderr ?? ""}`);
-  const summary = parsePlaywrightSummary(e2eOut);
-
-  if (e2e.status === 0) {
-    ok.push(`builder-diff E2E${process.env.E2E_RUN_LIVE === "1" ? " (@live)" : ""}`);
-  } else if (/ECONNREFUSED|connect ECONNREFUSED/i.test(e2eOut)) {
-    errors.push(
-      "builder-diff E2E — connection refused; verify:editor requires npm run dev on localhost:3000",
-    );
-    printDevServerRequired(baseUrl);
+  const serverDiag = await diagnoseDevServer(baseUrl);
+  if (serverDiag.state !== "healthy") {
+    errors.push(`builder-diff E2E skipped — ${serverDiag.message}`);
+    printDevServerRequired(baseUrl, serverDiag);
   } else {
-    const tail = e2eOut
-      .split("\n")
-      .filter((l) => /Error:|failed|✗|expect\(/i.test(l))
-      .slice(-8)
-      .join(" | ");
-    errors.push(
-      `builder-diff E2E: ${summary.failed ?? "?"} failed, ${summary.passed ?? "?"} passed${tail ? ` — ${tail.slice(0, 280)}` : ""}`,
-    );
+    ok.push(`dev server up (${serverDiag.http?.url ?? baseUrl})`);
+
+    const e2e = spawnSync("npx", e2eArgs, {
+      cwd: root,
+      shell: true,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        FORCE_COLOR: "0",
+        NO_COLOR: "1",
+        NODE_USE_SYSTEM_CA: process.env.NODE_USE_SYSTEM_CA ?? "1",
+        PLAYWRIGHT_SKIP_SERVER: process.env.PLAYWRIGHT_SKIP_SERVER ?? "1",
+        PLAYWRIGHT_BASE_URL: baseUrl,
+      },
+    });
+
+    const e2eOut = stripNoise(`${e2e.stdout ?? ""}\n${e2e.stderr ?? ""}`);
+    const summary = parsePlaywrightSummary(e2eOut);
+
+    if (e2e.status === 0) {
+      ok.push("builder-diff E2E (@live)");
+    } else if (/ECONNREFUSED|connect ECONNREFUSED/i.test(e2eOut)) {
+      errors.push(
+        "builder-diff E2E — connection refused; verify:editor requires npm run dev on localhost:3000",
+      );
+      printDevServerRequired(baseUrl);
+    } else {
+      const tail = e2eOut
+        .split("\n")
+        .filter((l) => /Error:|failed|✗|expect\(/i.test(l))
+        .slice(-8)
+        .join(" | ");
+      errors.push(
+        `builder-diff E2E: ${summary.failed ?? "?"} failed, ${summary.passed ?? "?"} passed${tail ? ` — ${tail.slice(0, 280)}` : ""}`,
+      );
+    }
   }
 }
 

@@ -1,0 +1,29 @@
+{
+  "startedAt": "2026-05-29T08:48:07.284Z",
+  "passed": true,
+  "errors": [],
+  "timings": {
+    "authMs": 5479,
+    "composerReadyMs": 2137,
+    "createInteractiveMs": 3617,
+    "afterSubmitMs": 36912,
+    "builderOpenMs": 86507,
+    "buildWaitMs": 87992,
+    "totalMs": 147447
+  },
+  "authMode": "reuse_auth_check",
+  "authUserId": "3c08502e-9771-413e-b9bd-4446b179c962",
+  "projectId": "f2f444c3-1647-4038-80de-c2159e07cc1b",
+  "projectListVisible": true,
+  "appName": "Pantry Pro",
+  "logoStatus": "unknown",
+  "fileCount": 16,
+  "componentCount": 7,
+  "missingImports": [],
+  "importGraphOk": true,
+  "previewOk": true,
+  "queueTestOk": true,
+  "queueVerifiedVia": "queue_only_spec",
+  "analyticsOk": true,
+  "finishedAt": "2026-05-29T08:50:34.731Z"
+}

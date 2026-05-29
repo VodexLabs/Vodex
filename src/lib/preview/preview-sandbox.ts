@@ -9,10 +9,12 @@ export function pickPreviewEntry(files: PublishedSnapshotFile[]): PreviewRenderE
   const html = files.find((f) => f.path === "index.html" || f.path.endsWith("/index.html"));
   if (html?.content) return { kind: "html", content: html.content };
 
+  const norm = (p: string) => p.replace(/\\/g, "/");
   const page =
-    files.find((f) => /\/page\.(tsx|jsx)$/i.test(f.path)) ||
-    files.find((f) => /^app\/page\.(tsx|jsx)$/i.test(f.path)) ||
-    files.find((f) => /page\.(tsx|jsx)$/i.test(f.path));
+    files.find((f) => /^app\/page\.(tsx|jsx)$/i.test(norm(f.path))) ||
+    files.find((f) => /^app\/dashboard\/page\.(tsx|jsx)$/i.test(norm(f.path))) ||
+    files.find((f) => /\/page\.(tsx|jsx)$/i.test(norm(f.path))) ||
+    files.find((f) => /page\.(tsx|jsx)$/i.test(norm(f.path)));
   if (page?.content) return { kind: "react", content: page.content, path: page.path };
 
   return null;

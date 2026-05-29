@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useClientSearchParams } from "@/lib/hooks/use-client-search-params";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { useChat } from "@ai-sdk/react";
@@ -37,7 +38,6 @@ import {
   MODE_META,
   type CreationMode,
 } from "@/lib/creation/models";
-import { calculateTokens } from "@/lib/credits/cost-engine";
 import { toast } from "@/lib/toast";
 import { createDreamChatTransport } from "@/lib/chat/create-chat-transport";
 import { runAiPreflightDeduped } from "@/lib/ai/preflight-inflight";
@@ -59,9 +59,21 @@ import { PreviewBlockedPopup, type PreviewBlockingIssue } from "@/components/pre
 import { buildRepairChatPrompt } from "@/lib/repair/repair-chat-prompt";
 import { buildStaticPreviewHtml } from "@/lib/preview/static-preview-builder";
 import { BuildLiveProgress } from "@/components/create/workspace/build-live-progress";
+import { BuildRunSummaryCard } from "@/components/create/workspace/build-run-summary";
+import {
+  userFacingPartialBuildStartMessage,
+} from "@/lib/billing/partial-build-credits";
 import { useBuildJobProgress, type BuildJobPollState } from "@/hooks/use-build-job-progress";
 import { enqueueAsyncBuild } from "@/lib/create/async-build-client";
-import { BuilderAssistantMessage, QueuedPromptCard } from "@/components/builder/builder-event-ui";
+import { PROMPT_QUEUE_FULL_MESSAGE, PROMPT_QUEUE_MAX } from "@/lib/create/queue-constants";
+import {
+  canSubmitComposer,
+  composerHasMeaningfulText,
+  getComposerText,
+  resolveComposerSubmitDisabledReason,
+} from "@/lib/create/composer-text";
+import { BuilderAssistantMessage } from "@/components/builder/builder-event-ui";
+import { ComposerPromptQueue } from "@/components/create/workspace/composer-prompt-queue";
 import { DreamOSMessageShell } from "@/components/create/workspace/dreamos-message-shell";
 import {
   parseBuildPlanCard,
@@ -82,6 +94,7 @@ import {
   clearAutostartDone,
   clearOperationSubmitted,
   consumeAutostartHandoff,
+  storeAutostartHandoff,
   peekPendingAutostartHandoff,
   markAutostartDone,
   markOperationSubmitted,
@@ -285,6 +298,7 @@ export interface ImmersiveWorkspaceProps {
   initialJobId?: string;
   initialConversationId?: string;
   project?: CreateWorkspaceProject | null;
+  onComposerReadyChange?: (ready: boolean) => void;
 }
 
 export function ImmersiveWorkspace({
@@ -296,10 +310,11 @@ export function ImmersiveWorkspace({
   initialJobId,
   initialConversationId,
   project = null,
+  onComposerReadyChange,
 }: ImmersiveWorkspaceProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const searchParams = useClientSearchParams();
   const authReturnTo = React.useMemo(() => {
     const qs = searchParams?.toString();
     return qs ? `${pathname}?${qs}` : pathname || "/create";
@@ -314,7 +329,12 @@ export function ImmersiveWorkspace({
     profile?.email ?? user?.email ?? null,
   );
 
-  const [input, setInput] = React.useState(initialPrompt);
+  const [composerLiveText, setComposerLiveText] = React.useState(initialPrompt);
+  const [composerReady, setComposerReady] = React.useState(false);
+  const input = composerLiveText;
+  const setInput = setComposerLiveText;
+  const composerLiveTextRef = React.useRef(composerLiveText);
+  composerLiveTextRef.current = composerLiveText;
   const [mode, setMode] = React.useState<CreationMode>(initialMode);
   const [modelId, setModelId] = React.useState(initialModelId ?? "automatic");
   const [buildStrategy, setBuildStrategy] = React.useState<BuildStrategy>(initialBuildStrategy);
@@ -324,6 +344,14 @@ export function ImmersiveWorkspace({
   const [editTarget, setEditTarget] = React.useState<string | null>(null);
   const [attachments, setAttachments] = React.useState<Attachment[]>([]);
   const [creditError, setCreditError] = React.useState(false);
+  const [creditBlockedZero, setCreditBlockedZero] = React.useState(false);
+  const [buildRunSummary, setBuildRunSummary] = React.useState<{
+    variant: "completed" | "partial" | "failed";
+    creditsUsed?: number;
+    remainingSummary?: string;
+    errorMessage?: string;
+    refunded?: boolean;
+  } | null>(null);
   const [conversationId, setConversationId] = React.useState<string | null>(
     initialConversationId ?? null,
   );
@@ -459,6 +487,9 @@ export function ImmersiveWorkspace({
         getBody: () => ({
           modelId: modelIdRef.current,
           mode: modeRef.current,
+          strategy: modeRef.current === "build" ? buildStrategyRef.current : undefined,
+          forceBuildPipeline:
+            modeRef.current === "build" && buildStrategyRef.current === "build_now",
           scope: scopeRef.current ?? undefined,
           editTarget: editTargetRef.current ?? undefined,
           projectId: projectIdRef.current ?? undefined,
@@ -506,18 +537,39 @@ export function ImmersiveWorkspace({
     const jobId = initialJobId ?? searchParams.get("jobId");
     const pid = effectiveProjectId;
     if (!jobId || !pid || activeBuildJob) return;
-    buildJobActiveRef.current = true;
-    setActiveBuildJob({
-      jobId,
-      eventsUrl: `/api/projects/${pid}/build-jobs/${jobId}/events`,
-      operationId: `url-job:${jobId}`,
-    });
-    setChatEngaged(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- resume job from home handoff once
-  }, [initialJobId, effectiveProjectId, searchParams, activeBuildJob]);
+
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from("build_jobs")
+        .select("status")
+        .eq("id", jobId)
+        .eq("project_id", pid)
+        .maybeSingle();
+      if (cancelled) return;
+      const st = data?.status ?? null;
+      if (st === "running") {
+        buildJobActiveRef.current = true;
+        setActiveBuildJob({
+          jobId,
+          eventsUrl: `/api/projects/${pid}/build-jobs/${jobId}/events`,
+          operationId: `url-job:${jobId}`,
+        });
+        setChatEngaged(true);
+      } else {
+        buildJobActiveRef.current = false;
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- resume running job from URL once
+  }, [initialJobId, effectiveProjectId, searchParams, activeBuildJob, supabase]);
 
   type PromptQueueItem = { id: string; text: string; status: "queued" | "paused"; createdAt: number };
   const promptQueueRef = React.useRef<PromptQueueItem[]>([]);
+  const lastEnqueueFingerprintRef = React.useRef<{ text: string; at: number } | null>(null);
   const [queueCount, setQueueCount] = React.useState(0);
   const [queuedPrompts, setQueuedPrompts] = React.useState<PromptQueueItem[]>([]);
   const handoffProjectKeyRef = React.useRef<string | null>(null);
@@ -687,11 +739,26 @@ export function ImmersiveWorkspace({
         setProjectDataRefresh((n) => n + 1);
         const pid = projectIdRef.current;
         if (pid) invalidateProjectFilesCache(pid);
+        const partial = terminal.latest?.type === "partial_credit_stop";
         const failed =
           terminal.status === "failed" || terminal.latest?.type === "failed";
         setSubmitStatusLabel(
-          failed ? "Needs repair — credits returned" : "Done",
+          partial
+            ? "Partial save — add credits to continue"
+            : failed
+              ? "Needs repair — credits returned"
+              : "Done",
         );
+        setBuildRunSummary({
+          variant: partial ? "partial" : failed ? "failed" : "completed",
+          creditsUsed:
+            typeof terminal.latest?.metadata?.credits_used === "number"
+              ? terminal.latest.metadata.credits_used
+              : undefined,
+          remainingSummary: terminal.latest?.detail ?? undefined,
+          errorMessage: failed ? terminal.error ?? terminal.latest?.detail ?? undefined : undefined,
+          refunded: failed && !partial,
+        });
         setLastMessageCost({ state: "final", credits: 0 });
         if (uid) {
           void refreshCredits({ reason: "charge" }).then(() => {
@@ -735,8 +802,198 @@ export function ImmersiveWorkspace({
     (streamActive || status === "submitted" || status === "streaming") &&
     !buildJobActiveRef.current;
   const sendOnCooldown = Date.now() < sendCooldownUntil;
-  const buildJobActive = buildJobActiveRef.current && activeBuildJob != null;
-  const composerBlocked = preflightState === "pending" || submitInFlightRef.current;
+  const buildJobActive =
+    activeBuildJob != null && (buildJobProgress == null || !buildJobProgress.done);
+  const composerBlocked = preflightState === "pending";
+  const composerTextareaRef = React.useRef<HTMLTextAreaElement | null>(null);
+  const [composerDomTick, setComposerDomTick] = React.useState(0);
+  const [isComposing, setIsComposing] = React.useState(false);
+
+  const applyComposerText = React.useCallback((next: string) => {
+    setComposerLiveText((prev) => (prev === next ? prev : next));
+    composerLiveTextRef.current = next;
+    setComposerDomTick((t) => t + 1);
+  }, []);
+
+  const applyComposerTextRef = React.useRef(applyComposerText);
+  applyComposerTextRef.current = applyComposerText;
+
+  const composerListenerCleanupRef = React.useRef<(() => void) | null>(null);
+
+  React.useEffect(
+    () => () => {
+      composerListenerCleanupRef.current?.();
+      setComposerReady(false);
+    },
+    [],
+  );
+
+  const resolveComposerTextareaEl = React.useCallback((): HTMLTextAreaElement | null => {
+    if (composerTextareaRef.current) return composerTextareaRef.current;
+    if (typeof document === "undefined") return null;
+    return (
+      (document.querySelector(
+        '[data-testid="workspace-composer-textarea"]',
+      ) as HTMLTextAreaElement | null) ??
+      (document.getElementById("dreamos-composer-prompt") as HTMLTextAreaElement | null)
+    );
+  }, []);
+
+  const syncFromDom = React.useCallback(() => {
+    const el = resolveComposerTextareaEl();
+    if (!el) return;
+    const dom = el.value;
+    const state = composerLiveTextRef.current;
+    if (dom === state) return;
+    // Controlled textarea: DOM can lag behind React state (E2E fill/type, hydration).
+    if (!composerHasMeaningfulText(dom) && composerHasMeaningfulText(state)) return;
+    applyComposerTextRef.current(dom);
+  }, [resolveComposerTextareaEl]);
+
+  React.useLayoutEffect(() => {
+    syncFromDom();
+  });
+
+  React.useEffect(() => {
+    syncFromDom();
+    window.addEventListener("dreamos:composer-sync", syncFromDom);
+    const id = window.setInterval(syncFromDom, 50);
+    return () => {
+      window.removeEventListener("dreamos:composer-sync", syncFromDom);
+      window.clearInterval(id);
+    };
+  }, [syncFromDom]);
+
+  const composerTextareaCallbackRef = React.useCallback((el: HTMLTextAreaElement | null) => {
+    composerListenerCleanupRef.current?.();
+    composerListenerCleanupRef.current = null;
+    composerTextareaRef.current = el;
+    if (!el) {
+      setComposerReady(false);
+      return;
+    }
+    const onDomInput = () => syncFromDom();
+    syncFromDom();
+    el.addEventListener("input", onDomInput);
+    el.addEventListener("change", onDomInput);
+    el.addEventListener("paste", onDomInput);
+    el.addEventListener("focus", onDomInput);
+    el.setAttribute("data-composer-handlers", "true");
+    composerListenerCleanupRef.current = () => {
+      el.removeEventListener("input", onDomInput);
+      el.removeEventListener("change", onDomInput);
+      el.removeEventListener("paste", onDomInput);
+      el.removeEventListener("focus", onDomInput);
+      el.removeAttribute("data-composer-handlers");
+    };
+    setComposerReady(true);
+  }, [syncFromDom]);
+
+  /** Cold hydration: ref callback can lag behind visible textarea — wire listeners once DOM exists. */
+  React.useEffect(() => {
+    if (!hydrated) return;
+    const ensureComposerWired = () => {
+      const el = resolveComposerTextareaEl();
+      if (!el) return;
+      if (composerTextareaRef.current !== el) {
+        composerTextareaCallbackRef(el);
+      } else {
+        setComposerReady(true);
+      }
+    };
+    ensureComposerWired();
+    const id = window.setInterval(ensureComposerWired, 25);
+    return () => window.clearInterval(id);
+  }, [hydrated, composerTextareaCallbackRef, resolveComposerTextareaEl]);
+
+  React.useEffect(() => {
+    onComposerReadyChange?.(composerReady);
+  }, [composerReady, onComposerReadyChange]);
+
+  const resolvedTextareaEl = resolveComposerTextareaEl();
+  const domText = resolvedTextareaEl?.value ?? "";
+  const composerText = React.useMemo(() => {
+    const resolved = getComposerText({
+      stateText: composerLiveText,
+      textareaEl: resolvedTextareaEl,
+      formEl: formRef.current,
+      fieldName: "composer-prompt",
+    });
+    if (composerHasMeaningfulText(resolved)) return resolved;
+    if (composerHasMeaningfulText(composerLiveText)) return composerLiveText;
+    return resolved;
+  }, [composerLiveText, resolvedTextareaEl, composerDomTick]);
+  void composerDomTick;
+  const domLen = domText.length;
+  const stateLen = composerLiveText.length;
+  const liveLen = composerText.length;
+
+  const handleComposerInputCapture = React.useCallback(
+    (e: React.FormEvent<HTMLFormElement>) => {
+      const target = e.target;
+      if (!(target instanceof HTMLTextAreaElement)) return;
+      if (target.name !== "composer-prompt") return;
+      applyComposerText(target.value);
+    },
+    [applyComposerText],
+  );
+
+  const submitDisabledReason = React.useMemo(
+    () =>
+      resolveComposerSubmitDisabledReason({
+        text: composerText,
+        hydrated,
+        userId: uid,
+        creditError,
+        creditsLoading,
+        buildCreditsAvailable: Math.max(0, buildCredits?.available ?? 0),
+        buildJobActive,
+        queueCount,
+        queueMax: PROMPT_QUEUE_MAX,
+        fatalError: creditError,
+      }),
+    [
+      composerLiveText,
+      composerText,
+      hydrated,
+      uid,
+      creditError,
+      creditsLoading,
+      buildCredits,
+      buildJobActive,
+      queueCount,
+    ],
+  );
+
+  const composerHasText = composerHasMeaningfulText(composerText);
+  const composerDomHasText = composerHasMeaningfulText(domText);
+  const submitHardDisabled =
+    submitDisabledReason === "auth" ||
+    submitDisabledReason === "credits" ||
+    submitDisabledReason === "queue_full" ||
+    submitDisabledReason === "error";
+  const canSendPrompt =
+    !submitHardDisabled && (composerHasText || composerDomHasText);
+  const resolveComposerPromptText = React.useCallback((): string => {
+    const text = getComposerText({
+      stateText: composerLiveText,
+      textareaEl: resolveComposerTextareaEl(),
+      formEl: formRef.current,
+      fieldName: "composer-prompt",
+    }).trim();
+    if (composerHasMeaningfulText(text)) return text;
+    const dom = (resolveComposerTextareaEl()?.value ?? "").trim();
+    return composerHasMeaningfulText(dom) ? dom : text;
+  }, [composerLiveText, resolveComposerTextareaEl, composerDomTick]);
+  const planFirstEnabled =
+    mode === "build" && buildStrategy === "plan_first" && !blueprintApproved;
+  const composerBuildStrategy =
+    mode === "discuss" ? "discuss" : mode === "edit" ? "edit" : buildStrategy;
+  const canEnqueueBuild =
+    mode === "build" &&
+    buildStrategy === "build_now" &&
+    composerHasText &&
+    !submitHardDisabled;
   const isBusy =
     isStreaming ||
     buildJobActive ||
@@ -866,9 +1123,7 @@ export function ImmersiveWorkspace({
     if (mode !== "edit") setEditNeedsApp(false);
   }, [mode]);
 
-  const trimmedInput = input.trim();
   const tokenBlocked = isConfirmed && remaining <= 0;
-  const submitDisabledReason = !trimmedInput ? "empty" : tokenBlocked ? "credits" : null;
 
   const tokensStatus = !isConfirmed ? "loading" : tokenBlocked ? "blocked" : `${remaining}`;
   const planId = profile?.plan_id ?? "free";
@@ -953,16 +1208,28 @@ export function ImmersiveWorkspace({
   }
 
   function enqueuePrompt(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    const activeQueued = promptQueueRef.current.filter((q) => q.status === "queued").length;
+    if (activeQueued >= PROMPT_QUEUE_MAX) {
+      toast.error(PROMPT_QUEUE_FULL_MESSAGE);
+      return;
+    }
+    const dup = promptQueueRef.current.some((q) => q.text === trimmed && q.status === "queued");
+    if (dup) return;
+    const prev = lastEnqueueFingerprintRef.current;
+    if (prev && prev.text === trimmed && Date.now() - prev.at < 2_500) return;
+    lastEnqueueFingerprintRef.current = { text: trimmed, at: Date.now() };
     const item: PromptQueueItem = {
       id: crypto.randomUUID(),
-      text,
+      text: trimmed,
       status: "queued",
       createdAt: Date.now(),
     };
     promptQueueRef.current.push(item);
     syncQueueState();
-    setInput("");
-    toast.info("Queued — will run after the current build.");
+    applyComposerText("");
+    if (composerTextareaRef.current) composerTextareaRef.current.value = "";
   }
 
   function cancelQueuedPrompt(id: string) {
@@ -1061,18 +1328,35 @@ export function ImmersiveWorkspace({
   const runSubmit = React.useCallback(async (
     source: "button" | "enter" | "form" | "url-auto" = "button",
     overrideText?: string,
+    options?: { queueOnly?: boolean },
   ) => {
     setDebugClicked(true);
     setSubmitStatusLabel("Submit started");
-    const text = (overrideText ?? input).trim();
+    const text = (overrideText ?? resolveComposerPromptText()).trim();
 
-    if (streamActiveRef.current || buildJobActiveRef.current) {
-      if (!text) {
+    const pipelineBusy =
+      streamActiveRef.current ||
+      submitInFlightRef.current ||
+      (activeBuildJob != null && (buildJobProgress == null || !buildJobProgress.done));
+    const followUpQueue =
+      Boolean(effectiveProjectId) &&
+      mode === "build" &&
+      projectFiles.length > 0 &&
+      !pipelineBusy &&
+      !buildJobActive;
+
+    if (pipelineBusy || options?.queueOnly || followUpQueue) {
+      if (!composerHasMeaningfulText(text)) {
         notifySubmitBlocked("empty");
         return;
       }
+      if (promptQueueRef.current.filter((q) => q.status === "queued").length >= PROMPT_QUEUE_MAX) {
+        toast.error(PROMPT_QUEUE_FULL_MESSAGE);
+        return;
+      }
       enqueuePrompt(text);
-      setInput("");
+      applyComposerText("");
+      if (composerTextareaRef.current) composerTextareaRef.current.value = "";
       setPendingUserBubble(null);
       return;
     }
@@ -1109,8 +1393,11 @@ export function ImmersiveWorkspace({
 
     const projectIdempotencyKey =
       handoffProjectKeyRef.current ?? pendingOperationIdRef.current ?? crypto.randomUUID();
+    const opId =
+      source === "url-auto" && handoffProjectKeyRef.current
+        ? handoffProjectKeyRef.current
+        : crypto.randomUUID();
     handoffProjectKeyRef.current = null;
-    const opId = crypto.randomUUID();
     pendingOperationIdRef.current = opId;
     if (wasOperationSubmitted(opId)) {
       pushRuntimeDiagnostic("prompt_submit_skipped_duplicate", { source, operationId: opId });
@@ -1122,7 +1409,8 @@ export function ImmersiveWorkspace({
 
     setChatEngaged(true);
     setPendingUserBubble(text);
-    setInput("");
+    applyComposerText("");
+    if (composerTextareaRef.current) composerTextareaRef.current.value = "";
     setAttachments([]);
 
     submitInFlightRef.current = true;
@@ -1154,17 +1442,17 @@ export function ImmersiveWorkspace({
 
     try {
       let submitMode = mode;
+      const activeProjectId = projectIdRef.current ?? effectiveProjectId;
       const isQuestion =
-        intentPreview?.intent === "question_only" ||
-        intentPreview?.shouldCreateProject === false ||
-        intentPreview?.shouldAnswerQuestion;
+        !activeProjectId &&
+        (intentPreview?.intent === "question_only" ||
+          intentPreview?.shouldCreateProject === false ||
+          intentPreview?.shouldAnswerQuestion);
 
       if (submitMode === "build" && isQuestion) {
         submitMode = "discuss";
         setMode("discuss");
       }
-
-      const activeProjectId = projectIdRef.current ?? effectiveProjectId;
       const planFirstPlanning =
         buildStrategyRef.current === "plan_first" && !blueprintApprovedRef.current;
 
@@ -1186,7 +1474,14 @@ export function ImmersiveWorkspace({
           pushRuntimeDiagnostic("project_created", { projectId: created.projectId, source, operationId: opId });
           setLocalProjectId(created.projectId);
           projectIdRef.current = created.projectId;
-          router.replace(`/create?projectId=${created.projectId}`, { scroll: false });
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("dreamos:projects-invalidate"));
+            storeAutostartHandoff(text, "build", {
+              buildStrategy: buildStrategyRef.current,
+              modelId,
+            });
+          }
+          // Defer URL replace until async build is enqueued — early navigation aborts submit.
         } else if (!created.ok && created.code === "question_only") {
           submitMode = "discuss";
           setMode("discuss");
@@ -1225,7 +1520,13 @@ export function ImmersiveWorkspace({
         setPreflightState("error");
         const blocked = preflightBlockedLabel(pre.code, pre.status);
         if (pre.code === "edit_no_app") setEditNeedsApp(true);
-        if (pre.code === "insufficient_tokens") setCreditError(true);
+        if (pre.code === "blocked_zero_credits") {
+          setCreditBlockedZero(true);
+          setCreditError(true);
+        } else if (pre.code === "insufficient_tokens") {
+          setCreditError(true);
+          setCreditBlockedZero(remaining <= 0);
+        }
         const reason = `Preflight HTTP ${pre.status}${pre.code ? ` (${pre.code})` : ""}: ${pre.error}`;
         pushSubmitTrace("create", reason, {
           level: "error",
@@ -1297,6 +1598,9 @@ export function ImmersiveWorkspace({
           body: {
             modelId,
             mode: "build",
+            strategy: "build_now",
+            forceBuildPipeline: true,
+            planFirstOnly: false,
             projectId: asyncProjectId,
             conversationId: conversationIdRef.current ?? undefined,
             operationId: opId,
@@ -1320,7 +1624,12 @@ export function ImmersiveWorkspace({
         setSubmitStatusLabel("Building in background…");
         setBuildStarting(false);
         submitInFlightRef.current = false;
+        router.replace(`/create?projectId=${asyncProjectId}`, { scroll: false });
         return;
+      }
+
+      if (projectIdRef.current && submitMode === "build") {
+        router.replace(`/create?projectId=${projectIdRef.current}`, { scroll: false });
       }
 
       setSubmitStatusLabel("Chat started");
@@ -1342,6 +1651,14 @@ export function ImmersiveWorkspace({
       setChatState("error");
       clearOperationSubmitted(opId);
       pendingOperationIdRef.current = null;
+      const errCode = (err as Error & { code?: string }).code;
+      if (errCode === "blocked_zero_credits") {
+        setCreditBlockedZero(true);
+        setCreditError(true);
+      } else if (errCode === "insufficient_tokens") {
+        setCreditError(true);
+        setCreditBlockedZero(remaining <= 0);
+      }
       const msg = err instanceof Error ? err.message : "Could not send message";
       failSubmit("blocked:server", msg);
       setSubmitStatusLabel(`Failed: ${msg}`);
@@ -1349,7 +1666,7 @@ export function ImmersiveWorkspace({
         setAutoStartFailed(msg);
         autoStartedRef.current = false;
       }
-      if (source !== "url-auto") setInput(draft);
+      if (source !== "url-auto") applyComposerText(draft);
     } finally {
       submitInFlightRef.current = false;
       if (!streamActiveRef.current) setBuildStarting(false);
@@ -1364,7 +1681,9 @@ export function ImmersiveWorkspace({
     clearError,
     sendMessage,
     blueprintApproved,
-    effectiveProjectId,
+    activeBuildJob,
+    buildJobProgress,
+    resolveComposerPromptText,
   ]);
 
   const runSubmitRef = React.useRef(runSubmit);
@@ -1434,7 +1753,7 @@ export function ImmersiveWorkspace({
       if (pending && wasAutostartDone(pending.id) && !wasOperationSubmitted(pending.id)) {
         clearAutostartDone(pending.id);
         clearOperationSubmitted(pending.id);
-        const retry = consumeAutostartHandoff(initialPrompt, mode);
+        const retry = consumeAutostartHandoff(urlPrompt || peeked!.text, mode);
         if (!retry) return;
         handoffProjectKeyRef.current = retry.idempotencyKey;
         autostartConsumedRef.current = true;
@@ -1442,7 +1761,7 @@ export function ImmersiveWorkspace({
         setChatEngaged(true);
         setPendingUserBubble(retry.text);
         setMobilePanel("chat");
-        setInput("");
+        applyComposerText("");
         if (retry.buildStrategy) {
           setBuildStrategy(retry.buildStrategy);
           buildStrategyRef.current = retry.buildStrategy;
@@ -1461,14 +1780,19 @@ export function ImmersiveWorkspace({
     autostartConsumedRef.current = true;
     autoStartedRef.current = true;
     handoffProjectKeyRef.current = handoff.idempotencyKey;
+    buildJobActiveRef.current = false;
     if (effectiveProjectId && uid) {
       convHydratedRef.current = `${effectiveProjectId}:${uid}`;
+    }
+    if (initialConversationId) {
+      setConversationId(initialConversationId);
+      conversationIdRef.current = initialConversationId;
     }
 
     setChatEngaged(true);
     setPendingUserBubble(handoff.text);
     setMobilePanel("chat");
-    setInput("");
+    applyComposerText("");
     if (handoff.buildStrategy) {
       setBuildStrategy(handoff.buildStrategy);
       buildStrategyRef.current = handoff.buildStrategy;
@@ -1547,6 +1871,18 @@ export function ImmersiveWorkspace({
     build_status: effectiveProject?.build_status,
     loadedPathCount: projectFiles.length,
   }) || projectFiles.length > 0 || parsedSourceFilesEarly.length > 0;
+  const pipelineBusyForQueue =
+    streamActiveRef.current ||
+    submitInFlightRef.current ||
+    (activeBuildJob != null && (buildJobProgress == null || !buildJobProgress.done));
+  /** Follow-up prompts on a built project queue instead of starting a new build (P0.22). */
+  const followUpQueueEligible =
+    Boolean(effectiveProjectId) &&
+    mode === "build" &&
+    hasGeneratedFiles &&
+    !pipelineBusyForQueue &&
+    !buildJobActive;
+  const queueReady = buildJobActive || followUpQueueEligible;
   const filesReady = hasGeneratedFiles;
   const importedReady = isImportedProjectReady({
     metadata: effectiveProject?.metadata,
@@ -1614,18 +1950,83 @@ export function ImmersiveWorkspace({
   const modeStyle = MODE_STYLE[mode];
   const lastAssistantText = lastAssistantTextEarly;
   const parsedSourceFiles = parsedSourceFilesEarly;
+
+  /** Resume build from session handoff when user lands on builder before create-page enqueue finished. */
+  React.useEffect(() => {
+    if (!hydrated || !effectiveProjectId || initialAutoStart) return;
+    if (buildJobActiveRef.current || activeBuildJob) return;
+    if (autostartConsumedRef.current || autoStartedRef.current || submitInFlightRef.current) return;
+    if (projectFiles.length > 0 || parsedSourceFiles.length > 0) return;
+    const handoff = peekPendingAutostartHandoff();
+    if (!handoff?.text?.trim()) return;
+    if (wasOperationSubmitted(handoff.id)) return;
+
+    autostartConsumedRef.current = true;
+    autoStartedRef.current = true;
+    setChatEngaged(true);
+    setPendingUserBubble(handoff.text);
+    void runSubmitRef.current("url-auto", handoff.text).catch(() => {
+      autostartConsumedRef.current = false;
+      autoStartedRef.current = false;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- resume once per project mount
+  }, [hydrated, effectiveProjectId, activeBuildJob, projectFiles.length, parsedSourceFiles.length, initialAutoStart]);
+
   const codeFiles = React.useMemo((): CodeExplorerFile[] => {
     if (projectFiles.length > 0) return projectFiles;
     return parsedSourceFiles;
   }, [projectFiles, parsedSourceFiles]);
+  const projectArchetypeId = React.useMemo(() => {
+    const meta = effectiveProject?.metadata;
+    if (!meta || typeof meta !== "object" || Array.isArray(meta)) return null;
+    const m = meta as Record<string, unknown>;
+    return (
+      (typeof m.app_archetype === "string" && m.app_archetype) ||
+      (typeof m.archetype_id === "string" && m.archetype_id) ||
+      null
+    );
+  }, [effectiveProject?.metadata]);
+
   const previewSrcDoc = React.useMemo(() => {
-    if (codeFiles.length === 0) return null;
+    if (codeFiles.length === 0) {
+      if (projectArchetypeId === "restaurant_inventory") {
+        return buildStaticPreviewHtml([], {
+          projectId: effectiveProjectId ?? undefined,
+          archetypeId: projectArchetypeId,
+        });
+      }
+      return null;
+    }
     const hit =
       codeFiles.find((f) => f.path === "preview/index.html") ??
       codeFiles.find((f) => /\.html?$/i.test(f.path));
     if (hit?.content.trim()) return hit.content;
-    return buildStaticPreviewHtml(codeFiles);
-  }, [codeFiles]);
+    return buildStaticPreviewHtml(codeFiles, {
+      projectId: effectiveProjectId ?? undefined,
+      archetypeId: projectArchetypeId,
+    });
+  }, [codeFiles, effectiveProjectId, projectArchetypeId]);
+
+  const [serverPreviewSrcDoc, setServerPreviewSrcDoc] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    if (!effectiveProjectId || previewSrcDoc) {
+      if (previewSrcDoc) setServerPreviewSrcDoc(null);
+      return;
+    }
+    let cancelled = false;
+    void fetch(`/api/projects/${effectiveProjectId}/preview-html`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body: { html?: string; ready?: boolean } | null) => {
+        if (cancelled || !body?.html?.trim() || !body.ready) return;
+        setServerPreviewSrcDoc(body.html);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveProjectId, previewSrcDoc, projectDataRefresh]);
+
+  const effectivePreviewSrcDoc = previewSrcDoc ?? serverPreviewSrcDoc;
 
   const [previewIssue, setPreviewIssue] = React.useState<PreviewBlockingIssue | null>(null);
   const [previewDismissed, setPreviewDismissed] = React.useState(false);
@@ -1643,7 +2044,7 @@ export function ImmersiveWorkspace({
     if (!repairChatPrompt) return;
     setMode("edit");
     setMobilePanel("chat");
-    setInput(repairChatPrompt);
+    applyComposerText(repairChatPrompt);
     setPreviewDismissed(true);
     formRef.current?.querySelector("textarea")?.focus();
     if (autoSend) {
@@ -1699,7 +2100,7 @@ export function ImmersiveWorkspace({
     ? taskProgressIndex(lastAssistantText.length, buildPlanForStep.taskLabels.length)
     : 0;
   const buildStepLabel = buildPlanForStep?.taskLabels[buildStepIndex] ?? null;
-  const previewShellState: "idle" | "building" | "compiling" = previewSrcDoc
+  const previewShellState: "idle" | "building" | "compiling" = effectivePreviewSrcDoc
     ? "idle"
     : isBusy
       ? "building"
@@ -1734,7 +2135,17 @@ export function ImmersiveWorkspace({
   );
 
   return (
-    <DropZone onFiles={onFiles} disabled={composerBlocked} className="flex h-screen w-full flex-col overflow-hidden">
+    <DropZone
+      onFiles={onFiles}
+      disabled={composerBlocked}
+      className="flex h-screen w-full flex-col overflow-hidden"
+      data-testid="builder-shell"
+    >
+      {mode === "build" ? (
+        <span data-testid="build-mode-active" className="sr-only" aria-hidden>
+          build
+        </span>
+      ) : null}
       {debugEnabled && (
         <motion.div
           className="shrink-0 border-b border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-center text-[11px] font-semibold text-amber-950 dark:text-amber-100"
@@ -1968,21 +2379,6 @@ export function ImmersiveWorkspace({
                 })}
               </AnimatePresence>
 
-              {queuedPrompts.map((q) => (
-                <motion.div key={q.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
-                  <DreamOSMessageShell mode={mode}>
-                    <QueuedPromptCard
-                      text={q.text}
-                      paused={q.status === "paused"}
-                      onCancel={() => cancelQueuedPrompt(q.id)}
-                      onPause={() => pauseQueuedPrompt(q.id)}
-                      onResume={() => resumeQueuedPrompt(q.id)}
-                      onEdit={(next) => editQueuedPrompt(q.id, next)}
-                    />
-                  </DreamOSMessageShell>
-                </motion.div>
-              ))}
-
               {isBusy &&
                 (messages[messages.length - 1]?.role === "user" || pendingUserBubble) && (
                 <MessageBubble
@@ -1993,10 +2389,37 @@ export function ImmersiveWorkspace({
                 />
               )}
 
-              {buildJobActive && (pendingUserBubble || messages.length > 0) && mode === "build" && (
+              {(buildJobActive || buildStarting) &&
+                (pendingUserBubble || messages.length > 0) &&
+                mode === "build" && (
                 <BuildLiveProgress progress={buildJobProgress} className="mt-1" />
               )}
+              {buildStarting && !buildJobProgress && mode === "build" && (
+                <div className="mx-2 mt-1 rounded-lg bg-accent/[0.08] px-2.5 py-2 ring-1 ring-accent/30">
+                  <p className="text-[11.5px] font-semibold text-foreground">Starting build…</p>
+                  <p className="text-[10.5px] text-muted-foreground">Preparing your request</p>
+                </div>
+              )}
 
+              {buildRunSummary && !buildJobActive && (
+                <BuildRunSummaryCard
+                  variant={buildRunSummary.variant}
+                  appName={project?.name ?? undefined}
+                  creditsUsed={buildRunSummary.creditsUsed}
+                  remainingSummary={buildRunSummary.remainingSummary}
+                  errorMessage={buildRunSummary.errorMessage}
+                  refunded={buildRunSummary.refunded}
+                  onContinue={
+                    buildRunSummary.variant === "partial"
+                      ? () => {
+                          setBuildRunSummary(null);
+                          composerTextareaRef.current?.focus();
+                        }
+                      : undefined
+                  }
+                  className="mx-2"
+                />
+              )}
               {creditError && (
                 <div className="overflow-hidden rounded-xl bg-gradient-to-br from-background via-surface to-background shadow-[0_4px_16px_-4px_rgba(0,0,0,0.3)] ring-1 ring-border/80">
                   <div className="h-[2px] w-full bg-gradient-to-r from-violet-600 via-accent to-sky-500" />
@@ -2006,27 +2429,53 @@ export function ImmersiveWorkspace({
                         <Zap className="size-4 text-accent" strokeWidth={1.75} />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-[13px] font-semibold text-foreground">You&apos;re out of credits</p>
+                        <p className="text-[13px] font-semibold text-foreground">
+                          {creditBlockedZero
+                            ? "Build Credits are used up"
+                            : "More credits needed for this step"}
+                        </p>
                         <p className="mt-0.5 text-[11.5px] text-muted-foreground">
-                          All monthly credits are used{resetAt ? `. They reset after ${new Date(resetAt).toLocaleDateString()}.` : "."} Upgrade to keep
-                          building.
+                          {creditBlockedZero
+                            ? `Add credits or upgrade to keep building.${resetAt ? ` Credits reset after ${new Date(resetAt).toLocaleDateString()}.` : ""}`
+                            : remaining > 0
+                              ? userFacingPartialBuildStartMessage(remaining)
+                              : "Add Build Credits or upgrade to continue."}
                         </p>
                       </div>
                     </div>
-                    <div className="mt-3 flex gap-2">
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {!creditBlockedZero && remaining > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCreditError(false);
+                            void runSubmitRef.current("button");
+                          }}
+                          className="rounded-xl bg-accent px-3 py-2 text-[12px] font-semibold text-white shadow-sm"
+                        >
+                          Continue with {Math.floor(remaining)} credit
+                          {Math.floor(remaining) === 1 ? "" : "s"}
+                        </button>
+                      ) : null}
                       <Link
                         href="/pricing"
-                        className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-accent to-violet-500 px-3 py-2 text-center text-[12px] font-semibold text-white shadow-[0_4px_12px_-2px_hsl(var(--accent)/0.4)] transition hover:opacity-90"
+                        className="flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-accent to-violet-500 px-3 py-2 text-center text-[12px] font-semibold text-white shadow-[0_4px_12px_-2px_hsl(var(--accent)/0.4)] transition hover:opacity-90"
                       >
                         <Zap className="size-3" strokeWidth={2} />
-                        Upgrade to {nextPlanLabel}
+                        Upgrade
+                      </Link>
+                      <Link
+                        href="/settings"
+                        className="rounded-xl bg-surface px-3 py-2 text-[12px] font-medium text-foreground ring-1 ring-border"
+                      >
+                        Add credits
                       </Link>
                       <button
                         type="button"
                         onClick={() => setCreditError(false)}
                         className="rounded-xl bg-surface px-3 py-2 text-[12px] font-medium text-muted-foreground ring-1 ring-border transition hover:bg-surface-raised"
                       >
-                        Dismiss
+                        Save for later
                       </button>
                     </div>
                   </div>
@@ -2064,8 +2513,8 @@ export function ImmersiveWorkspace({
             {showUpgradeCard && !creditError && (
               <div className="mb-2 flex items-center justify-between gap-2 rounded-xl border border-accent/25 bg-gradient-to-r from-accent/[0.07] to-violet-500/[0.05] px-3 py-2.5">
                 <div className="min-w-0">
-                  <p className="text-[11px] font-semibold text-foreground">Build is paused — no credits left</p>
-                  <p className="text-[10.5px] text-muted-foreground">Upgrade to unlock more monthly credits.</p>
+                  <p className="text-[11px] font-semibold text-foreground">Build Credits are used up</p>
+                  <p className="text-[10.5px] text-muted-foreground">Add credits or upgrade to keep building.</p>
                 </div>
                 <Link
                   href="/pricing"
@@ -2129,10 +2578,26 @@ export function ImmersiveWorkspace({
                 ) : null}
               </div>
             )}
+            <ComposerPromptQueue
+              items={queuedPrompts}
+              onCancel={cancelQueuedPrompt}
+              onPause={pauseQueuedPrompt}
+              onResume={resumeQueuedPrompt}
+              onEdit={editQueuedPrompt}
+            />
             <form
               ref={formRef}
               data-testid="create-composer-form"
+              data-build-strategy={composerBuildStrategy}
+              data-mode={mode}
+              data-plan-first-enabled={planFirstEnabled ? "true" : "false"}
+              data-can-enqueue-build={canEnqueueBuild ? "true" : "false"}
+              data-queue-ready={queueReady ? "true" : "false"}
+              data-queue-count={String(queueCount)}
+              data-queue-disabled-reason={submitDisabledReason}
+              data-active-project-id={effectiveProjectId ?? ""}
               className={cn("relative z-10 rounded-xl", modeStyle.composerWrap)}
+              onInputCapture={handleComposerInputCapture}
               onSubmitCapture={handleFormSubmitCapture}
               onSubmit={handleFormSubmit}
             >
@@ -2140,20 +2605,44 @@ export function ImmersiveWorkspace({
                 <ModelPicker value={modelId} onChange={setModelId} disabled={composerBlocked} placement="auto" />
               </div>
               <textarea
-                value={input}
+                id="dreamos-composer-prompt"
+                ref={composerTextareaCallbackRef}
+                name="composer-prompt"
+                data-testid="workspace-composer-textarea"
+                value={composerLiveText}
                 onChange={(e) => {
-                  setInput(e.target.value);
+                  applyComposerText(e.target.value);
                   submitDebug("create", "input changed", { len: e.target.value.length });
                 }}
-                onPaste={(e) => applyComposerPaste(e, input, setInput)}
+                onInput={(e) => applyComposerText(e.currentTarget.value)}
+                onFocus={(e) => applyComposerText(e.currentTarget.value)}
+                onPaste={(e) => applyComposerPaste(e, composerText, applyComposerText)}
+                onCompositionStart={() => setIsComposing(true)}
+                onCompositionEnd={(e) => {
+                  setIsComposing(false);
+                  applyComposerText(e.currentTarget.value);
+                }}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                    if (composerBlocked || sendOnCooldown) return;
+                  if (e.key !== "Enter" || e.nativeEvent.isComposing || isComposing) return;
+                  const text = resolveComposerPromptText();
+                  if (e.shiftKey) {
                     e.preventDefault();
-                    uiSubmitLog("create-ui", "enter submit");
-                    submitDebug("create", "enter pressed");
-                    formRef.current?.requestSubmit();
+                    if (!composerHasMeaningfulText(text)) {
+                      notifySubmitBlocked("empty");
+                      return;
+                    }
+                    if (submitDisabledReason === "queue_full") return;
+                    void runSubmitRef.current("enter", text, { queueOnly: true });
+                    return;
                   }
+                  if (!canSendPrompt) {
+                    e.preventDefault();
+                    return;
+                  }
+                  e.preventDefault();
+                  uiSubmitLog("create-ui", "enter submit");
+                  submitDebug("create", "enter pressed");
+                  formRef.current?.requestSubmit();
                 }}
                 rows={2}
                 placeholder={
@@ -2186,9 +2675,19 @@ export function ImmersiveWorkspace({
                 />
                 <button
                   type="button"
+                  suppressHydrationWarning
                   data-create-build-btn
-                  data-testid="create-build-button"
-                  disabled={composerBlocked || sendOnCooldown}
+                  data-testid="workspace-composer-submit"
+                  data-build-strategy={composerBuildStrategy}
+                  data-mode={mode}
+                  data-plan-first-enabled={planFirstEnabled ? "true" : "false"}
+                  data-can-enqueue-build={canEnqueueBuild ? "true" : "false"}
+                  data-has-text={composerHasText || composerDomHasText ? "true" : "false"}
+                  data-disabled-reason={submitDisabledReason}
+                  data-dom-len={domLen}
+                  data-state-len={stateLen}
+                  data-live-len={liveLen}
+                  disabled={!canSendPrompt}
                   onPointerDownCapture={() => {
                     setDebugClicked(true);
                     setSubmitStatusLabel("Pointer down detected");
@@ -2199,30 +2698,41 @@ export function ImmersiveWorkspace({
                     setSubmitStatusLabel("Click detected");
                   }}
                   onClick={(e) => {
-                    if (composerBlocked || sendOnCooldown) return;
+                    syncFromDom();
+                    const text = resolveComposerPromptText();
+                    if (!composerHasMeaningfulText(text)) {
+                      return;
+                    }
+                    if (submitHardDisabled) return;
                     e.preventDefault();
                     e.stopPropagation();
                     setDebugClicked(true);
                     setSubmitStatusLabel("Click detected");
                     uiSubmitLog("create-ui", "build click");
                     submitDebug("create", "button click");
-                    void runSubmitRef.current("button");
+                    void runSubmitRef.current("button", undefined, {
+                      queueOnly: e.shiftKey || buildJobActive || followUpQueueEligible,
+                    });
                   }}
                   className={cn(
-                    "relative z-[60] ml-auto flex min-h-[36px] cursor-pointer items-center gap-1.5 rounded-lg px-3 text-[12px] font-semibold transition pointer-events-auto active:scale-[0.98]",
-                    buildJobActive
-                      ? "bg-muted/80 text-muted-foreground"
-                      : mode === "build"
-                        ? "bg-gradient-to-r from-accent to-violet-500 text-white shadow-[0_4px_14px_-4px_rgba(30,107,255,0.5)] hover:opacity-90"
-                        : "bg-accent text-white hover:bg-accent/90",
+                    "relative z-[60] ml-auto flex min-h-[36px] items-center gap-1.5 rounded-lg px-3 text-[12px] font-semibold transition",
+                    !canSendPrompt
+                      ? "cursor-not-allowed bg-muted/60 text-muted-foreground opacity-50"
+                      : "pointer-events-auto cursor-pointer active:scale-[0.98]",
+                    canSendPrompt &&
+                      (buildJobActive
+                        ? "bg-muted/80 text-muted-foreground"
+                        : mode === "build"
+                          ? "bg-gradient-to-r from-accent to-violet-500 text-white shadow-[0_4px_14px_-4px_rgba(30,107,255,0.5)] hover:opacity-90"
+                          : "bg-accent text-white hover:bg-accent/90"),
                   )}
                 >
-                  {buildJobActive ? (
+                  {queueReady ? (
                     <Loader2 className="size-3.5 animate-spin" />
                   ) : (
                     <ArrowUp className="size-3.5" strokeWidth={2.25} />
                   )}
-                  {buildJobActive
+                  {queueReady
                     ? queueCount > 0
                       ? `Queue (${queueCount})`
                       : "Queue"
@@ -2234,25 +2744,6 @@ export function ImmersiveWorkspace({
                 </button>
               </div>
             </form>
-            {queueCount > 0 && (
-              <div className="mt-1.5 flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/30 px-2.5 py-1.5 text-[10.5px] text-muted-foreground">
-                <span>
-                  {queueCount} prompt{queueCount === 1 ? "" : "s"} queued — runs after current build
-                </span>
-                <button
-                  type="button"
-                  className="shrink-0 font-semibold text-foreground hover:underline"
-                  onClick={() => {
-                    promptQueueRef.current = [];
-                    setQueuedPrompts([]);
-                    setQueueCount(0);
-                    toast.info("Queue cleared");
-                  }}
-                >
-                  Clear queue
-                </button>
-              </div>
-            )}
             {debugEnabled && (
               <>
                 <p
@@ -2299,13 +2790,13 @@ export function ImmersiveWorkspace({
               <div className="relative h-full min-h-0">
               <PreviewPanel
                 url={effectiveProject?.preview_url ?? null}
-                srcDoc={previewSrcDoc}
+                srcDoc={effectivePreviewSrcDoc}
                 appName={effectiveProject?.name ?? null}
-                thinking={isBusy}
+                thinking={isBusy && !effectivePreviewSrcDoc}
                 editMode={mode === "edit"}
                 hasGenerated={
                   !!effectiveProject?.preview_url ||
-                  !!previewSrcDoc ||
+                  !!effectivePreviewSrcDoc ||
                   codeFiles.length > 0
                 }
                 previewState={previewShellState}
@@ -2315,7 +2806,7 @@ export function ImmersiveWorkspace({
                 onEditTarget={(info) => {
                   setEditTarget(info.section);
                   setScope(info.section.toLowerCase().replace(/\s+/g, "_") as EditScope);
-                  setInput(`Update the ${info.section}: `);
+                  applyComposerText(`Update the ${info.section}: `);
                   formRef.current?.querySelector("textarea")?.focus();
                 }}
                 className={cn(
@@ -2381,7 +2872,7 @@ export function ImmersiveWorkspace({
                 onAskForHelp={(prompt) => {
                   setRightTab("preview");
                   setMobilePanel("chat");
-                  setInput(prompt);
+                  applyComposerText(prompt);
                   setMode("discuss");
                   formRef.current?.querySelector("textarea")?.focus();
                 }}

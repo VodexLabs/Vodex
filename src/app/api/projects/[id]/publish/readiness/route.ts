@@ -111,6 +111,7 @@ export async function GET(
     projectId,
     ownerId: authUser.id,
     metadata: meta,
+    buildStatus: project.build_status ?? null,
     routeMap,
   });
 

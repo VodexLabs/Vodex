@@ -4,7 +4,23 @@ import * as React from "react";
 import { Coins, TrendingUp, PiggyBank, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+type PlanEconomicsRow = {
+  plan?: string;
+  planId?: string;
+  priceUsd?: number;
+  buildCredits?: number;
+  actionCredits?: number;
+  paddleFeeUsd?: number;
+  buildProviderPoolUsd?: number;
+  actionProviderPoolUsd?: number;
+  totalMaxCostUsd?: number;
+  profitUsd?: number;
+  marginPercent?: number;
+};
+
 type EconomyRow = {
+  planEconomics?: PlanEconomicsRow[];
+  billingProcessor?: string;
   totalUserCreditsCharged?: number;
   totalRevenueUsd?: number;
   totalInternalCostCredits?: number;
@@ -112,6 +128,45 @@ export function AdminCreditEconomyPanel() {
         <p className="text-[12px] text-muted-foreground">Loading economy metrics…</p>
       ) : (
         <>
+          {data?.planEconomics && data.planEconomics.length > 0 ? (
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <p className="px-3 py-2 text-[11px] font-medium text-muted-foreground">
+                Plan economics (Paddle 5% + $0.50 · full credit burn)
+              </p>
+              <table className="w-full min-w-[720px] text-left text-[11px]">
+                <thead className="border-b border-border bg-background/60 text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2">Plan</th>
+                    <th className="px-3 py-2">Price</th>
+                    <th className="px-3 py-2">Build</th>
+                    <th className="px-3 py-2">Action</th>
+                    <th className="px-3 py-2">Paddle fee</th>
+                    <th className="px-3 py-2">Build pool</th>
+                    <th className="px-3 py-2">Action pool</th>
+                    <th className="px-3 py-2">Max cost</th>
+                    <th className="px-3 py-2">Profit</th>
+                    <th className="px-3 py-2">Margin</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.planEconomics.map((row) => (
+                    <tr key={row.planId ?? row.plan} className="border-b border-border/60">
+                      <td className="px-3 py-2 font-medium">{row.plan}</td>
+                      <td className="px-3 py-2">${row.priceUsd ?? 0}</td>
+                      <td className="px-3 py-2">{row.buildCredits}</td>
+                      <td className="px-3 py-2">{row.actionCredits?.toLocaleString()}</td>
+                      <td className="px-3 py-2">${row.paddleFeeUsd?.toFixed(2)}</td>
+                      <td className="px-3 py-2">${row.buildProviderPoolUsd?.toFixed(2)}</td>
+                      <td className="px-3 py-2">${row.actionProviderPoolUsd?.toFixed(2)}</td>
+                      <td className="px-3 py-2">${row.totalMaxCostUsd?.toFixed(2)}</td>
+                      <td className="px-3 py-2">${row.profitUsd?.toFixed(2)}</td>
+                      <td className="px-3 py-2">{row.marginPercent}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard icon={TrendingUp} label="Revenue (USD)" value={data?.totalRevenueUsd != null ? `$${data.totalRevenueUsd}` : "—"} />
             <StatCard icon={PiggyBank} label="Provider spend" value={data?.providerSpendUsd != null ? `$${data.providerSpendUsd}` : "—"} />

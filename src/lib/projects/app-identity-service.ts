@@ -1,8 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/supabase/types";
-import { chargeActionCredit, getActionCreditBalance } from "@/lib/action-credits/charge-action-credit";
-import { quoteLogoGenerationCredits } from "@/lib/action-credits/logo-generation-pricing";
-import { routeImageProvider } from "@/lib/ai/image-provider-routing";
+import { assertActionCreditsAffordable } from "@/lib/action-credits/assert-action-credits-affordable";
+import { chargeActionCredit } from "@/lib/action-credits/charge-action-credit";
+import { quoteLogoRegenerationCredits } from "@/lib/action-credits/logo-generation-pricing";
+import {
+  isDreamOSMediaProviderDisabled,
+  routeDreamOSMedia,
+} from "@/lib/media/dreamos-media-router";
 import { generateAppName } from "@/lib/projects/app-name-generator";
 import {
   buildFallbackIconSvg,
@@ -192,55 +196,63 @@ export async function createAppIdentityForBuild(input: CreateAppIdentityInput): 
 
   if (!input.skipLogo) {
     input.onProgress?.("Designing app icon");
-    const route = routeImageProvider("image_simple");
-    const quote = quoteLogoGenerationCredits(route.estimatedCostUsd);
-    const balance = await getActionCreditBalance(input.userId, input.projectId);
+    const mediaRoute = routeDreamOSMedia("logo");
 
-    if (balance < quote.finalActionCredits) {
-      logoGenerationStatus = "insufficient_credits";
-      logoGenerationError = "insufficient_action_credits";
-      userNotice = "Logo generation needs Action Credits. You can generate it later.";
+    if (isDreamOSMediaProviderDisabled("logo")) {
+      logoGenerationStatus = "failed";
+      logoGenerationError = "logo_provider_disabled";
+      userNotice = "Logo generation is temporarily unavailable.";
     } else {
-      const logo = await generateAppLogo({
+      const afford = await assertActionCreditsAffordable({
+        ownerUserId: input.userId,
         projectId: input.projectId,
-        operationId: logoOperationId,
-        appName: named.appName,
-        shortDescription: named.shortDescription,
-        category,
+        actionType: "app_logo_generation",
+        providerCostUsd: mediaRoute.estimatedProviderCostUsd,
       });
 
-      if (logo.ok) {
-        input.onProgress?.("Saving brand assets");
+      if (!afford.ok) {
+        logoGenerationStatus = "insufficient_credits";
+        logoGenerationError = "insufficient_action_credits";
+        userNotice = "Logo generation needs Action Credits. You can generate it later.";
+      } else {
         const charge = await chargeActionCredit({
           ownerUserId: input.userId,
           projectId: input.projectId,
           actionType: "app_logo_generation",
           operationId: logoOperationId,
-          provider: logo.provider,
-          providerCostUsd: logo.providerCostUsd,
+          provider: mediaRoute.internal.provider,
+          providerCostUsd: mediaRoute.estimatedProviderCostUsd,
           metadata: {
-            model: logo.modelId,
+            dreamos_label: mediaRoute.userLabel,
             project_id: input.projectId,
             build_operation_id: input.buildOperationId,
           },
         });
 
-        if (charge.ok && !charge.skipped) {
-          logoGenerationActionCreditCost = charge.charged;
-          iconUrl = logo.urls.iconUrl;
-          logoAssets = logo.urls;
-          logoGenerationStatus = "generated";
-        } else if (!charge.ok && charge.code === "insufficient") {
+        if (!charge.ok) {
           logoGenerationStatus = "insufficient_credits";
           logoGenerationError = "insufficient_action_credits";
           userNotice = "Logo generation needs Action Credits. You can generate it later.";
         } else {
-          logoGenerationStatus = "failed";
-          logoGenerationError = charge.ok ? null : charge.error;
+          const logo = await generateAppLogo({
+            projectId: input.projectId,
+            operationId: logoOperationId,
+            appName: named.appName,
+            shortDescription: named.shortDescription,
+            category,
+          });
+
+          if (logo.ok) {
+            input.onProgress?.("Saving brand assets");
+            logoGenerationActionCreditCost = charge.charged;
+            iconUrl = logo.urls.iconUrl;
+            logoAssets = logo.urls;
+            logoGenerationStatus = "generated";
+          } else {
+            logoGenerationStatus = "failed";
+            logoGenerationError = logo.error;
+          }
         }
-      } else {
-        logoGenerationStatus = "failed";
-        logoGenerationError = logo.error;
       }
     }
   }
@@ -285,6 +297,38 @@ export async function regenerateAppLogo(input: {
   | { ok: true; identity: AppIdentityResult; charged: number }
   | { ok: false; error: string; code: "insufficient" | "generation" | "storage" }
 > {
+  const mediaRoute = routeDreamOSMedia("logo");
+  const quote = quoteLogoRegenerationCredits(mediaRoute.estimatedProviderCostUsd);
+
+  const afford = await assertActionCreditsAffordable({
+    ownerUserId: input.userId,
+    projectId: input.projectId,
+    actionType: "app_logo_regeneration",
+    providerCostUsd: mediaRoute.estimatedProviderCostUsd,
+    dynamicFloor: quote.finalActionCredits,
+  });
+  if (!afford.ok) {
+    return { ok: false, error: "Action Credits depleted.", code: "insufficient" };
+  }
+
+  const charge = await chargeActionCredit({
+    ownerUserId: input.userId,
+    projectId: input.projectId,
+    actionType: "app_logo_regeneration",
+    operationId: input.operationId,
+    provider: mediaRoute.internal.provider,
+    providerCostUsd: mediaRoute.estimatedProviderCostUsd,
+    metadata: { dreamos_label: mediaRoute.userLabel, regenerate: true },
+  });
+
+  if (!charge.ok) {
+    return {
+      ok: false,
+      error: charge.error,
+      code: charge.code === "insufficient" ? "insufficient" : "generation",
+    };
+  }
+
   const logo = await generateAppLogo({
     projectId: input.projectId,
     operationId: input.operationId,
@@ -295,24 +339,6 @@ export async function regenerateAppLogo(input: {
 
   if (!logo.ok) {
     return { ok: false, error: logo.error, code: "generation" };
-  }
-
-  const charge = await chargeActionCredit({
-    ownerUserId: input.userId,
-    projectId: input.projectId,
-    actionType: "app_logo_regeneration",
-    operationId: input.operationId,
-    provider: logo.provider,
-    providerCostUsd: logo.providerCostUsd,
-    metadata: { model: logo.modelId, regenerate: true },
-  });
-
-  if (!charge.ok) {
-    return {
-      ok: false,
-      error: charge.error,
-      code: charge.code === "insufficient" ? "insufficient" : "generation",
-    };
   }
 
   const identity: AppIdentityResult = {

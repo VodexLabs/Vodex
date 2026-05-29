@@ -13,9 +13,11 @@ function must(rel, needle, label) {
   else ok.push(label);
 }
 
-must("src/lib/billing/pricing-config.ts", "build_simple: 8", "simple build floor");
-must("src/lib/billing/pricing-config.ts", "build_medium: 18", "standard build floor");
-must("src/lib/billing/pricing-config.ts", "build_hard: 35", "advanced build floor");
+must("src/lib/billing/build-credit-floors.ts", "first_build_small: 3", "small first build floor");
+must("src/lib/billing/build-credit-floors.ts", "first_build_standard: 5", "standard first build floor");
+must("src/lib/billing/build-credit-floors.ts", "huge_staged_first_pass: 12", "huge staged floor");
+must("src/lib/billing/credit-profit-guard.ts", "applyBuildCreditPricing", "floor guard in quotes");
+must("src/lib/billing/credit-admin-log.ts", "minimum_floor_applied", "admin economics log");
 must("src/lib/ai/generation-budget-planner.ts", "estimateComplexity", "complexity classifier");
 must("src/lib/ai/build-intent-classifier.ts", "classifyBuildIntent", "build intent classifier");
 must("src/lib/ai/build-credit-classifier.ts", "classifyBuildCredits", "build credit classifier");

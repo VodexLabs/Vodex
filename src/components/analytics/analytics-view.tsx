@@ -3,7 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { BarChart2, Zap, Cpu, Upload, Rocket, Loader2, Lock } from "lucide-react";
+import { BarChart2, Zap, Cpu, Upload, Rocket, Loader2, Lock, DollarSign } from "lucide-react";
+import { parseJsonResponse } from "@/lib/api/safe-json";
 import { variants } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { useCreditsStore } from "@/lib/stores/credits-store";
@@ -70,6 +71,133 @@ function StatCard({
       </p>
       {sub && <p className="mt-0.5 text-[11px] text-muted-foreground">{sub}</p>}
     </div>
+  );
+}
+
+type RevenueData = {
+  grossRevenueCents: number;
+  refundsCents: number;
+  netRevenueCents: number;
+  successfulPayments: number;
+  activeSubscriptions: number;
+  mrrCents?: number;
+  arrCents?: number;
+  byApp: Array<{ projectId: string; name: string; revenueCents: number }>;
+  byProvider: Array<{ provider: string; revenueCents: number }>;
+  recent: Array<{ projectId: string; provider: string; eventType: string; amountCents: number; occurredAt: string }>;
+  empty?: boolean;
+  webhookWarnings?: string[];
+};
+
+function formatUsd(cents: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+}
+
+function RevenueAnalyticsSection() {
+  const [data, setData] = React.useState<RevenueData | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [appId, setAppId] = React.useState("");
+  const [projects, setProjects] = React.useState<Array<{ id: string; name: string }>>([]);
+
+  React.useEffect(() => {
+    fetch("/api/projects")
+      .then((r) => r.json())
+      .then((d) => {
+        const list = (d.projects ?? d ?? []) as Array<{ id: string; name?: string }>;
+        setProjects(list.map((p: { id: string; name?: string }) => ({ id: p.id, name: p.name ?? "App" })));
+      })
+      .catch(() => undefined);
+  }, []);
+
+  React.useEffect(() => {
+    setLoading(true);
+    const q = appId ? `?appId=${encodeURIComponent(appId)}` : "";
+    fetch(`/api/analytics/revenue${q}`, { credentials: "include" })
+      .then((r) => parseJsonResponse<RevenueData & { ok?: boolean }>(r))
+      .then(({ data: d, error }) => {
+        if (error || !d || d.ok === false) {
+          setData(null);
+        } else {
+          const { ok: _ok, ...metrics } = d as RevenueData & { ok?: boolean };
+          setData(metrics as RevenueData);
+        }
+        setLoading(false);
+      })
+      .catch(() => {
+        setData(null);
+        setLoading(false);
+      });
+  }, [appId]);
+
+  return (
+    <motion.div variants={variants.fadeUp} className="rounded-[var(--radius-xl)] bg-surface p-5 ring-1 ring-border">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+        <div>
+          <h3 className="text-[14px] font-semibold text-foreground flex items-center gap-2">
+            <DollarSign className="size-4 text-emerald-600" />
+            App revenue (all your apps)
+          </h3>
+          <p className="text-[12px] text-muted-foreground">
+            From connected payment providers via webhooks — not DreamOS86 platform billing.
+          </p>
+        </div>
+        <select
+          value={appId}
+          onChange={(e) => setAppId(e.target.value)}
+          className="h-8 rounded-lg bg-background px-2 text-[12px] ring-1 ring-border"
+          aria-label="Filter by app"
+        >
+          <option value="">All apps</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {loading ? (
+        <div className="flex h-24 items-center justify-center">
+          <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : !data || data.empty ? (
+        <p className="text-[12px] text-muted-foreground py-6 text-center">
+          No revenue recorded yet. Publish an app, connect payments in the app dashboard, and complete a test
+          checkout or receive a webhook event.
+        </p>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-4">
+            <StatCard icon={DollarSign} label="Gross revenue" value={formatUsd(data.grossRevenueCents)} accent />
+            <StatCard icon={DollarSign} label="Refunds" value={formatUsd(data.refundsCents)} />
+            <StatCard icon={DollarSign} label="Net revenue" value={formatUsd(data.netRevenueCents)} accent />
+            <StatCard icon={Zap} label="Successful payments" value={String(data.successfulPayments)} />
+          </div>
+          {(data.mrrCents ?? 0) > 0 && (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 mb-4">
+              <StatCard icon={DollarSign} label="MRR" value={formatUsd(data.mrrCents ?? 0)} accent />
+              <StatCard icon={DollarSign} label="ARR" value={formatUsd(data.arrCents ?? 0)} />
+            </div>
+          )}
+          {data.byApp.length > 0 && (
+            <div className="mb-3">
+              <p className="text-[11px] font-medium text-muted-foreground mb-2">Top apps</p>
+              <ul className="space-y-1">
+                {data.byApp.slice(0, 5).map((a: { projectId: string; name: string; revenueCents: number }) => (
+                  <li key={a.projectId} className="flex justify-between text-[12px]">
+                    <span>{a.name}</span>
+                    <span className="tabular-nums font-medium">{formatUsd(a.revenueCents)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {data.webhookWarnings && data.webhookWarnings.length > 0 && (
+            <p className="text-[11px] text-amber-700 dark:text-amber-300">{data.webhookWarnings[0]}</p>
+          )}
+        </>
+      )}
+    </motion.div>
   );
 }
 
@@ -175,6 +303,8 @@ export function AnalyticsView() {
       animate="show"
       className="space-y-6 pb-10"
     >
+      <RevenueAnalyticsSection />
+
       {/* Stats grid */}
       <motion.div variants={variants.fadeUp} className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard icon={Zap} label="Credits used" value={data.totals.credits_used.toLocaleString()} sub="Last 30 days" accent />

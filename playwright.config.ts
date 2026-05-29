@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 import fs from "node:fs";
 
+/** Must match auth cookie host (localhost) — not 127.0.0.1 */
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
 const authPath = process.env.PLAYWRIGHT_STORAGE ?? ".playwright-auth.json";
 const hasAuth = fs.existsSync(authPath);

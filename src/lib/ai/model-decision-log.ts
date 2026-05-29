@@ -11,6 +11,8 @@ export type InternalModelDecisionRecord = {
   project_id?: string | null;
   mode: ModelMixMode | string;
   user_selected_model: string | null;
+  user_selected_model_label: string | null;
+  actual_model_id: string | null;
   helper_model_used: string | null;
   main_model_used: string;
   provider_used: string;
@@ -47,6 +49,8 @@ function toDbRow(input: Omit<InternalModelDecisionRecord, "timestamp" | "hidden_
     project_id: input.project_id ?? null,
     mode: input.mode,
     user_selected_model: input.user_selected_model,
+    user_selected_model_label: input.user_selected_model_label,
+    actual_model_id: input.actual_model_id,
     helper_model_used: input.helper_model_used,
     main_model_used: input.main_model_used,
     provider_used: input.provider_used,
@@ -150,6 +154,8 @@ export async function fetchRecentModelDecisionLogsFromDb(limit = 50): Promise<In
     project_id: (row.project_id as string | null) ?? null,
     mode: String(row.mode ?? ""),
     user_selected_model: (row.user_selected_model as string | null) ?? null,
+    user_selected_model_label: (row.user_selected_model_label as string | null) ?? null,
+    actual_model_id: (row.actual_model_id as string | null) ?? (row.main_model_used as string | null) ?? null,
     helper_model_used: (row.helper_model_used as string | null) ?? null,
     main_model_used: String(row.main_model_used ?? ""),
     provider_used: String(row.provider_used ?? ""),

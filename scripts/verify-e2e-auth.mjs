@@ -52,7 +52,9 @@ async function validateSession() {
     return;
   }
   if (!(await serverUp())) {
-    errors.push(`Cannot reach ${baseUrl} — start dev server: npm run dev`);
+    errors.push(
+      `Dev server is not running. Start npm run dev or use npm run e2e:restaurant:stable.`,
+    );
     return;
   }
   try {
@@ -70,7 +72,9 @@ async function validateSession() {
     }
     ok.push(`session valid (GET /api/credits → ${r.status})`);
   } catch {
-    errors.push(`Cannot reach ${baseUrl} — start dev server: npm run dev`);
+    errors.push(
+      `Dev server is not running. Start npm run dev or use npm run e2e:restaurant:stable.`,
+    );
   }
 }
 

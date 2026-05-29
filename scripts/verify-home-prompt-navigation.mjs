@@ -35,6 +35,8 @@ mustNot("src/app/(workspace)/apps/[appId]/builder/page.tsx", "notFound()", "buil
 must("src/app/not-found.tsx", "DreamOS86", "styled global not-found");
 must("src/lib/create/autostart-handoff.ts", "peekPendingAutostartHandoff", "peek handoff without URL prompt");
 must("src/components/create/workspace/immersive-workspace.tsx", "peekPendingAutostartHandoff", "autostart without URL prompt");
+must("src/components/create/workspace/composer-prompt-queue.tsx", "composer-prompt-queue", "queue above composer");
+mustNot("src/components/create/workspace/immersive-workspace.tsx", "QueuedPromptCard", "queue not in chat");
 
 if (errors.length) {
   errors.forEach((e) => console.error("✗", e));

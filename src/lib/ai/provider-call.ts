@@ -18,6 +18,7 @@ import {
 import { routeOperation, downRouteOperation, type RouteOperationContext } from "@/lib/ai/model-router";
 import { routeMainModelSpec } from "@/lib/ai/model-mix-router";
 import { logInternalModelDecision } from "@/lib/ai/model-decision-log";
+import { resolveModelRuntime } from "@/lib/ai/model-catalog";
 import { estimateCostBucket } from "@/lib/ai/model-orchestration-policy";
 import type { RoutedModelSpec } from "@/lib/ai/operation-types";
 import { estimateTokenProviderCostUsd } from "@/lib/credits/token-cost";
@@ -25,6 +26,10 @@ import { withGoogleProviderOptions } from "@/lib/ai/gemini-generate-options";
 import { assertProviderSpendAllowed } from "@/lib/credits/provider-spend-guard";
 import { logServerOperation } from "@/lib/ops/server-ops-log";
 import { pushRuntimeDiagnostic } from "@/lib/dev/runtime-diagnostics";
+import {
+  isProviderTimeoutError,
+  timeoutForOperationType,
+} from "@/lib/ai/provider-timeouts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
 
@@ -42,6 +47,8 @@ export type ProviderCallInput = {
   conversationId?: string | null;
   accumulatedCostUsd?: number;
   userSelectedModelId?: string | null;
+  /** Hard cap; defaults from operation type when omitted. */
+  timeoutMs?: number;
 };
 
 export type ProviderCallResult = {
@@ -130,6 +137,12 @@ export async function callProviderStructured(input: ProviderCallInput): Promise<
 
   const maxTokens = budget.cappedOutputTokens;
   const callStarted = performance.now();
+  const timeoutMs = input.timeoutMs ?? timeoutForOperationType(input.operationType);
+  const abortController = timeoutMs ? new AbortController() : null;
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  if (abortController && timeoutMs) {
+    timeoutHandle = setTimeout(() => abortController.abort(), timeoutMs);
+  }
 
   console.info("[provider_request_started]", {
     operation_id: input.operationId,
@@ -140,6 +153,8 @@ export async function callProviderStructured(input: ProviderCallInput): Promise<
     max_output_tokens: maxTokens,
     estimated_cost_usd: budget.estimatedCostUsd,
     model_mix_policy: mix.policyNote,
+    timeout_ms: timeoutMs ?? null,
+    abort_controller: Boolean(abortController),
   });
 
   if (input.writer) {
@@ -188,8 +203,11 @@ export async function callProviderStructured(input: ProviderCallInput): Promise<
         prompt: input.prompt,
         maxOutputTokens: maxTokens,
         temperature: attemptSpec.temperature,
+        abortSignal: abortController?.signal,
       }),
     );
+
+    if (timeoutHandle) clearTimeout(timeoutHandle);
 
     recordProviderSuccess(providerFromModelId(attemptSpec.modelId));
 
@@ -214,12 +232,15 @@ export async function callProviderStructured(input: ProviderCallInput): Promise<
       model: attemptSpec.modelId,
     });
 
+    const runtime = resolveModelRuntime(mix.userSelectedModelId ?? attemptSpec.modelId);
     logInternalModelDecision({
       operation_id: input.operationId,
       user_id: input.userId,
       project_id: input.projectId ?? null,
       mode: mix.mode,
       user_selected_model: mix.userSelectedModelId,
+      user_selected_model_label: runtime.userSelectedModelLabel,
+      actual_model_id: runtime.actualModelId,
       helper_model_used: mix.helperModelId,
       main_model_used: attemptSpec.modelId,
       provider_used: mix.mainProvider,
@@ -243,9 +264,19 @@ export async function callProviderStructured(input: ProviderCallInput): Promise<
       formatViolation,
     };
     } catch (err) {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
       const classified = classifyProviderError(err);
       recordProviderFailure(classified.provider, classified.errorClass);
       lastErr = err instanceof Error ? err : new Error(String(err));
+      if (isProviderTimeoutError(err)) {
+        console.warn("[provider_request_timeout]", {
+          operation_id: input.operationId,
+          operation_type: input.operationType,
+          timeout_ms: timeoutMs,
+          model: attemptSpec.modelId,
+        });
+        throw new Error(`provider_timeout:${input.operationType}`);
+      }
       console.warn("[provider_request_failed]", {
         operation_id: input.operationId,
         error: classified.raw,

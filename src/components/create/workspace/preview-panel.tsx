@@ -91,6 +91,8 @@ export function PreviewPanel({
 
   return (
     <div
+      data-testid="preview-panel"
+      data-preview-srcdoc-ready={hasInline ? "true" : "false"}
       className={cn(
         "flex h-full w-full flex-col overflow-hidden rounded-[var(--radius-xl)] bg-background ring-1 ring-border",
         className,

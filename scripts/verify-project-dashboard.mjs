@@ -12,12 +12,13 @@ const errors = [];
 const ok = [];
 
 const required = [
-  ["App control center", "control center header"],
-  ["Advanced developer tools", "advanced developer tools"],
+  ["data-testid=\"app-dashboard-panel\"", "dashboard panel testid"],
+  ["Developer diagnostics", "developer diagnostics"],
   ["Contact inbox", "contact inbox"],
   ["Action Credits", "action credits"],
-  ["Quick setup", "setup checklist"],
-  ["onOpenPreview", "preview handoff prop"],
+  ["Launch checklist", "launch checklist"],
+  ["onOpenPublish", "publish handoff prop"],
+  ["Continue building", "builder handoff CTA"],
   ["buildDidNotComplete", "build truth state"],
   ["isZipImportProject", "import awareness"],
 ];

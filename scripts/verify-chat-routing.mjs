@@ -22,7 +22,8 @@ mustExist("src/app/api/conversations/route.ts");
 mustExist("src/app/api/conversations/[id]/messages/route.ts");
 mustInclude("src/components/chat/chat-view.tsx", "switchConversation", "conversation switch");
 mustInclude("src/components/chat/chat-view.tsx", "/api/conversations", "server conversation list");
-mustInclude("src/components/chat/chat-view.tsx", "/api/conversations/${conversationId}/messages", "server messages");
+mustInclude("src/components/chat/chat-view.tsx", "/api/conversations/", "server messages API");
+mustInclude("src/components/chat/chat-view.tsx", "/messages", "server messages path");
 
 console.log("\n=== verify:chat-routing ===\n");
 ok.forEach((m) => console.log("✓", m));

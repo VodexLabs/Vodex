@@ -16,11 +16,13 @@ export default async function PreviewPage({ params }: { params: Promise<{ previe
 
   const { data: session } = await admin
     .from("preview_sessions" as never)
-    .select("id, status, snapshot_files, error, expires_at, provider_level, external_url")
+    .select("id, project_id, status, snapshot_files, error, expires_at, provider_level, external_url")
     .eq("id", id)
     .maybeSingle();
 
   const row = session as {
+    id?: string;
+    project_id?: string;
     status?: string;
     snapshot_files?: PublishedSnapshotFile[];
     error?: string | null;
@@ -69,7 +71,10 @@ export default async function PreviewPage({ params }: { params: Promise<{ previe
   }
 
   const files = stripSecretsFromFiles(Array.isArray(row.snapshot_files) ? row.snapshot_files : []);
-  const html = resolveSnapshotHtml(files);
+  const html = resolveSnapshotHtml(files, {
+    projectId: row.project_id ?? undefined,
+    previewSessionId: row.id ?? id,
+  });
 
   if (!html) notFound();
 

@@ -342,7 +342,15 @@ export function ProjectsView() {
       if (Date.now() - lastLoadRef.current > 180_000) loadProjects(false);
     };
     window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
+    const onProjectsInvalidate = () => {
+      lastLoadRef.current = 0;
+      loadProjects(true);
+    };
+    window.addEventListener("dreamos:projects-invalidate", onProjectsInvalidate);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("dreamos:projects-invalidate", onProjectsInvalidate);
+    };
   }, [ownerId, authLoading, loadProjects]);
 
   const showGridSkeleton =

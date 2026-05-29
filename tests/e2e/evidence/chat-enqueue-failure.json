@@ -1,0 +1,31 @@
+{
+  "capturedAt": "2026-05-29T08:32:20.107Z",
+  "stage": "chat_enqueue",
+  "url": "http://localhost:3000/create?mode=build&strategy=build_now",
+  "http_status": 0,
+  "response_body": {},
+  "request_payload": {
+    "messages": [
+      {
+        "id": "pending-user-69c907b1-4f84-4f34-af6e-3b459e237f16",
+        "role": "user",
+        "parts": [
+          {
+            "type": "text",
+            "text": "Create a premium restaurant inventory management app for a small restaurant. It should help the owner track ingredients, stock levels, low-stock alerts, supplier orders, daily usage, expiry dates, and simple cost insights. Make the UI modern, clean, and beautiful, with a dashboard, inventory page, suppliers page, alerts page, and settings page."
+          }
+        ]
+      }
+    ],
+    "modelId": "automatic",
+    "mode": "build",
+    "strategy": "build_now",
+    "forceBuildPipeline": true,
+    "planFirstOnly": false,
+    "projectId": "1ded2635-805d-44d4-8920-0a5923a1a853",
+    "conversationId": "cb426df8-5a87-42d2-913f-44a8c131cf2f",
+    "operationId": "69c907b1-4f84-4f34-af6e-3b459e237f16",
+    "idempotencyKey": "69c907b1-4f84-4f34-af6e-3b459e237f16"
+  },
+  "error": "Error: chat_enqueue_timeout"
+}

@@ -7,7 +7,7 @@ import type {
   ContactRequestRecord,
   ContactSource,
 } from "@/lib/contact/contact-types";
-import { chargeActionCredit } from "@/lib/action-credits/charge-action-credit";
+import { meterRuntimeActionForOwner } from "@/lib/action-credits/runtime-owner-metering";
 import { isEmailConfigured } from "@/lib/email/email-config";
 
 export type CreateContactRequestInput = {
@@ -106,7 +106,7 @@ export async function createContactRequest(
   const request = mapRow(data as Record<string, unknown>);
 
   if (input.meterEmailToOwner && input.owner_user_id) {
-    const charge = await chargeActionCredit({
+    const charge = await meterRuntimeActionForOwner({
       ownerUserId: input.owner_user_id,
       projectId: input.project_id,
       actionType: "email_send_notification",
@@ -115,14 +115,14 @@ export async function createContactRequest(
       providerCostUsd: 0.001,
       metadata: { contact_request_id: request.id, source: input.source },
     });
-    if (!charge.ok && charge.code === "insufficient") {
+    if (!charge.ok) {
       await admin
         .from("contact_requests")
         .update({
           email_status: "skipped_insufficient_action_credits",
           metadata: {
             ...request.metadata,
-            email_error: charge.error,
+            email_error: charge.ownerMessage,
             action_credit_blocked: true,
           } as Json,
           updated_at: new Date().toISOString(),
@@ -132,7 +132,7 @@ export async function createContactRequest(
         ok: true,
         request: { ...request, email_status: "skipped_insufficient_action_credits" },
         emailStatus: "skipped_insufficient_action_credits" as ContactEmailStatus,
-        emailError: charge.error,
+        emailError: charge.ownerMessage,
       };
     }
   }

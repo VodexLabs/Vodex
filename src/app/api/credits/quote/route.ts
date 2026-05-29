@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { loadProfileBillingRow } from "@/lib/supabase/load-profile-billing";
 import { routeModel, mapChatModeToTask } from "@/lib/ai/model-router";
 import { planGenerationBudget } from "@/lib/ai/generation-budget-planner";
+import { resolveBuildCreditAllowance } from "@/lib/billing/partial-build-credits";
 import type { GenerationMode } from "@/lib/billing/pricing-config";
 import { guardExpensiveRoute } from "@/lib/security/route-guard";
 import { isNextResponse } from "@/lib/ids/api-mutation-guard";
@@ -77,7 +78,13 @@ export async function POST(request: Request) {
   });
 
   const quote = plan.creditQuote;
-  const safeToRun = balance >= quote.userCreditsReserved && quote.safeToRun;
+  const buildAllowance =
+    mode === "build" || mode === "full_build"
+      ? resolveBuildCreditAllowance(balance, quote)
+      : null;
+  const safeToRun = buildAllowance
+    ? buildAllowance.allowed && quote.safeToRun
+    : balance >= quote.userCreditsReserved && quote.safeToRun;
 
   return NextResponse.json({
     estimatedCost: quote.userCreditsRequired,

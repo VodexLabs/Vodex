@@ -1,0 +1,33 @@
+{
+  "operationId": "manual-qa:1780054299421",
+  "executionInstanceId": "manual-qa:1780054299421:f81ec634-1837-4fe2-ac1d-a3cc08fd4f7b",
+  "projectId": "ab113006-be0a-4cb8-9005-a267302de2aa",
+  "ownerId": "3c08502e-9771-413e-b9bd-4446b179c962",
+  "before": {
+    "generatedCount": 16,
+    "routeCount": 5,
+    "componentCount": 7,
+    "totalBytes": 15642,
+    "samplePaths": [
+      "package.json",
+      "app/globals.css",
+      "lib/mock-data.ts",
+      "components/AppShell.tsx",
+      "components/MetricCard.tsx",
+      "components/InventoryTable.tsx",
+      "components/LowStockAlerts.tsx",
+      "components/SupplierList.tsx",
+      "components/ExpiryTimeline.tsx",
+      "components/CostInsights.tsx"
+    ]
+  },
+  "upsert": {
+    "ok": true,
+    "rowCount": 16
+  },
+  "after": {
+    "serviceRoleCount": 16,
+    "generatedSourceCount": 16,
+    "visibleCount": 16
+  }
+}

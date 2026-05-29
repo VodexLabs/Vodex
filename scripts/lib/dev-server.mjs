@@ -6,11 +6,12 @@ import net from "node:net";
 import { execSync } from "node:child_process";
 
 export const PROBE_TIMEOUT_MS = 5_000;
-export const READINESS_TIMEOUT_MS = 90_000;
+export const READINESS_PROBE_TIMEOUT_MS = 25_000;
+export const READINESS_TIMEOUT_MS = 120_000;
 export const READINESS_POLL_MS = 3_000;
 
 export function devServerBaseUrl() {
-  return process.env.E2E_BASE_URL ?? process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
+  return process.env.E2E_BASE_URL ?? process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
 }
 
 const PROBE_PATHS = ["/api/dev/ping", "/explore", "/"];
@@ -76,7 +77,7 @@ function portOpen(host, port, timeoutMs = 2000) {
   });
 }
 
-function portHolderPid(port = 3000) {
+export function portHolderPid(port = 3000) {
   try {
     if (process.platform === "win32") {
       const out = execSync(`netstat -ano | findstr :${port}`, { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] });
@@ -186,7 +187,9 @@ export async function waitForDevServer({
 
   while (Date.now() - start < timeoutMs) {
     const elapsed = Date.now() - start;
-    const probe = await probeDevServer(baseUrl);
+    const probe = await probeDevServer(baseUrl, {
+      timeoutMs: Math.min(READINESS_PROBE_TIMEOUT_MS, Math.max(3_000, timeoutMs - elapsed)),
+    });
     if (probe.healthy) return { ok: true, elapsed, url: probe.url };
 
     if (elapsed - lastLog >= intervalMs) {
@@ -226,11 +229,92 @@ export function printDevServerRequired(baseUrl = devServerBaseUrl(), diagnose = 
 
 /** Fail-fast gate for live-route scripts. */
 export async function requireDevServer(baseUrl = devServerBaseUrl()) {
-  const diag = await diagnoseDevServer(baseUrl);
+  const diag = await ensureDevServerReady({ baseUrl, startIfDown: false, killIfBroken: false });
   if (diag.state === "healthy") {
     console.log(`[dev-server] ✓ ${diag.message}`);
     return diag;
   }
   printDevServerRequired(baseUrl, diag);
   process.exit(1);
+}
+
+/**
+ * Ensure dev server is healthy — optionally kill broken Node listener and start `npm run dev`.
+ */
+export async function ensureDevServerReady({
+  baseUrl = devServerBaseUrl(),
+  startIfDown = true,
+  killIfBroken = true,
+  root,
+} = {}) {
+  let diag = await diagnoseDevServer(baseUrl);
+  if (diag.state === "healthy") return diag;
+
+  if (diag.state === "broken" && killIfBroken) {
+    const kill = killPortProcessSafely(3000);
+    if (kill.killed) {
+      console.log(`[dev-server] Killed stuck Node PID ${kill.pid}, waiting…`);
+      await new Promise((r) => setTimeout(r, 2000));
+      diag = await diagnoseDevServer(baseUrl);
+    }
+  }
+
+  if (diag.state === "healthy") return diag;
+  if (!startIfDown) return diag;
+
+  const { spawn } = await import("node:child_process");
+  const cwd = root ?? process.cwd();
+  console.log("[dev-server] Starting npm run dev…");
+  const proc = spawn("npm run dev", {
+    cwd,
+    shell: true,
+    stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, NODE_USE_SYSTEM_CA: process.env.NODE_USE_SYSTEM_CA ?? "1" },
+  });
+  proc.stdout?.on("data", (d) => process.stdout.write(d));
+  proc.stderr?.on("data", (d) => process.stderr.write(d));
+
+  const wait = await waitForDevServer({
+    baseUrl,
+    timeoutMs: READINESS_TIMEOUT_MS,
+    onTick: (msg) => console.log(`[dev-server] ${msg}`),
+  });
+  if (!wait.ok) {
+    return (await diagnoseDevServer(baseUrl)) ?? diag;
+  }
+  return diagnoseDevServer(baseUrl);
+}
+
+/** Warm routes so first Playwright navigation is not blocked by compile. */
+export async function warmDevRoutes(baseUrl, paths, { cookie, retries = 1 } = {}) {
+  const base = baseUrl.replace(/\/$/, "");
+  const headers = cookie ? { Cookie: cookie, Accept: "text/html,*/*" } : { Accept: "text/html,*/*" };
+  for (const p of paths) {
+    const url = `${base}${p.startsWith("/") ? p : `/${p}`}`;
+    let last = null;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const r = await fetch(url, {
+          redirect: "manual",
+          headers,
+          signal: AbortSignal.timeout(60_000),
+        });
+        last = { url, status: r.status };
+        if (r.status > 0 && r.status < 500) {
+          console.log(`[dev-server] warmed ${p} → ${r.status}`);
+          break;
+        }
+        if (attempt < retries) {
+          console.log(`[dev-server] warm ${p} → ${r.status}, retrying after compile…`);
+          await new Promise((r) => setTimeout(r, 4000));
+        }
+      } catch (err) {
+        last = { url, error: err instanceof Error ? err.message : String(err) };
+        if (attempt < retries) await new Promise((r) => setTimeout(r, 4000));
+      }
+    }
+    if (last?.error || (last?.status ?? 0) >= 500) {
+      console.warn(`[dev-server] warm failed ${p}:`, last.error ?? `HTTP ${last.status}`);
+    }
+  }
 }

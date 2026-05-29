@@ -10,7 +10,7 @@ const errors = [];
 if (!src.includes("createProjectFromPrompt")) errors.push("uses createProjectFromPrompt");
 if (!src.includes("ensureProjectConversation")) errors.push("ensures conversation");
 if (!src.includes('from("messages")')) errors.push("inserts user message");
-if (!src.includes('from("build_jobs")')) errors.push("optional build job");
+if (src.includes('from("build_jobs")')) errors.push("must not pre-insert build_jobs (blocks autostart)");
 if (!src.includes("waitForProjectReadable")) errors.push("waits for readable project");
 if (!src.includes("buildBuilderUrl")) errors.push("returns builderUrl without prompt");
 

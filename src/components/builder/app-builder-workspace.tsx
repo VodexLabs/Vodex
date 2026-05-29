@@ -18,6 +18,7 @@ import { createClient } from "@/lib/supabase/client";
 import { loadProjectFileContent } from "@/lib/projects/load-project-files";
 import { preferredEntryFile } from "@/lib/projects/imported-project-state";
 import { canManualCodeEdit } from "@/lib/billing/plan-features";
+import { RepairCenter } from "@/components/repair/repair-center";
 
 export type BuilderFile = { path: string; content: string };
 
@@ -685,6 +686,11 @@ export function AppBuilderWorkspace({
           ) : null}
         </div>
       </div>
+      {projectId ? (
+        <div className="shrink-0 border-t border-border/60 px-3 py-2">
+          <RepairCenter projectId={projectId} compact />
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -27,7 +27,7 @@ export async function GET(
   const { data: project } = await writer
     .from("projects")
     .select(
-      "id, name, slug, status, framework, preview_url, published_subdomain, build_status, metadata, description, updated_at, app_name, short_description, icon_url",
+      "id, owner_id, name, slug, status, framework, preview_url, published_subdomain, build_status, metadata, description, updated_at, app_name, short_description, icon_url",
     )
     .eq("id", projectId)
     .eq("owner_id", user.id)

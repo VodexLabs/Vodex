@@ -58,9 +58,9 @@ if (pre.includes("question_only")) ok.push("preflight blocks question_only");
 else errors.push("preflight missing question_only gate");
 
 const createPage = fs.readFileSync(path.join(root, "src/app/(workspace)/create/page.tsx"), "utf8");
-if (createPage.includes("PremiumCreateFunnel") && !createPage.includes("ImmersiveWorkspace")) {
-  ok.push("/create uses PremiumCreateFunnel only");
-} else errors.push("/create must use PremiumCreateFunnel not ImmersiveWorkspace");
+if (createPage.includes("CreateWorkspaceEntry")) {
+  ok.push("/create uses CreateWorkspaceEntry");
+} else errors.push("/create must use CreateWorkspaceEntry on route");
 
 if (!createPage.includes("create-guided-flow") && !createPage.includes("CreateGuidedFlow")) {
   ok.push("/create does not import guided flow");

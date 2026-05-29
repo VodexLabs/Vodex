@@ -13,6 +13,27 @@ export function authFileExists(): boolean {
   }
 }
 
+export function authCookieHeader(): Record<string, string> | undefined {
+  if (!authFileExists()) return undefined;
+  try {
+    const auth = JSON.parse(fs.readFileSync(AUTH_FILE, "utf8")) as {
+      cookies?: Array<{ name: string; value: string }>;
+    };
+    const cookie = (auth.cookies ?? []).map((c) => `${c.name}=${c.value}`).join("; ");
+    return cookie ? { Cookie: cookie } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+if (IS_LIVE && authFileExists()) {
+  const headers = authCookieHeader();
+  baseTest.use({
+    storageState: AUTH_FILE,
+    ...(headers ? { extraHTTPHeaders: headers } : {}),
+  });
+}
+
 type LiveFixtures = {
   liveGate: boolean;
 };

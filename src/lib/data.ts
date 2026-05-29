@@ -381,10 +381,11 @@ export const aiModels: AIModel[] = [
   },
   {
     id: "gpt-5-4-mini",
-    name: "GPT-5.4 Mini",
+    name: "GPT-4o Mini",
     provider: "OpenAI",
     providerSlug: "openai",
-    description: "Fast and cost-efficient. Best for everyday coding tasks, refactoring, and quick answers.",
+    description:
+      "DreamOS86 Standard — routes to OpenAI GPT-4o Mini for fast, reliable builds and everyday tasks.",
     contextWindow: "128K",
     speed: "fast",
     quality: "standard",

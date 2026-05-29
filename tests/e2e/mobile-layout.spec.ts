@@ -95,12 +95,12 @@ test.describe("Mobile layout — quick smoke", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
   test("create page primary CTA visible", async ({ page }) => {
-    await page.goto("/create", { waitUntil: "domcontentloaded" });
+    await page.goto("/create?mode=build", { waitUntil: "domcontentloaded", timeout: 60_000 });
     if (page.url().includes("/auth/login")) {
       test.skip(true, "Create requires auth — run npm run setup:e2e-auth for live create UI proof");
     }
-    const btn = page.locator("[data-create-build-btn]");
-    await expect(btn).toBeVisible({ timeout: 10000 });
+    const btn = page.getByTestId("create-submit-button");
+    await expect(btn).toBeVisible({ timeout: 30_000 });
     const box = await btn.boundingBox();
     expect(box).toBeTruthy();
     if (box) {

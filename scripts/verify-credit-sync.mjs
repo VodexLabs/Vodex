@@ -13,7 +13,8 @@ function mustInclude(rel, needle, label) {
   else ok.push(`${rel}: ${label}`);
 }
 
-mustInclude("src/app/api/credits/route.ts", "loadCreditSummary", "canonical credit summary");
+mustInclude("src/app/api/credits/route.ts", "loadCanonicalCredits", "canonical credit summary");
+mustInclude("src/app/api/credits/route.ts", "serializeCanonicalCredits", "canonical credit serialization");
 mustInclude("src/lib/credits/credit-summary.ts", "available", "available balance");
 mustInclude("src/lib/stores/credits-store.ts", "planAllowance", "store plan allowance");
 mustInclude("src/lib/billing/credit-profit-guard.ts", "quoteDiscussCost", "discuss pricing");

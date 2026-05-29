@@ -16,7 +16,7 @@ const AUDIT_CHECKS = [
   { rel: "src/lib/billing/credit-reservations.ts", needle: 'action: "credit_refund"' },
   { rel: "src/app/api/projects/[id]/status/route.ts", needle: 'action: "lifecycle_override"' },
   { rel: "src/app/api/projects/[id]/repair/route.ts", needle: 'action: "repair"' },
-  { rel: "src/app/api/admin/credits/route.ts", needle: "logAdminAudit" },
+  { rel: "src/lib/admin/execute-admin-action.ts", needle: "logAdminAudit" },
 ];
 
 for (const { rel, needle } of AUDIT_CHECKS) {

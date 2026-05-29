@@ -1,17 +1,13 @@
 import { estimateProviderCostUsd } from "@/lib/credits/usage-cost";
 import { estimateTokenProviderCostUsd } from "@/lib/credits/token-cost";
-import {
-  TARGET_REVENUE_MULTIPLIER,
-  USER_CREDITS_PER_USD,
-  minimumUserCreditsForProviderCost,
-} from "@/lib/billing/pricing-config";
-
+import { TARGET_REVENUE_MULTIPLIER, USER_CREDITS_PER_USD } from "@/lib/billing/pricing-config";
 import {
   quoteGenerationCost,
   creditsFromProviderCostUsd,
   quoteDiscussCost,
   quoteCreateQuestionCost,
 } from "@/lib/billing/credit-profit-guard";
+import type { BuildCreditOperationType } from "@/lib/billing/build-credit-floors";
 
 /** @deprecated Use TARGET_REVENUE_MULTIPLIER */
 export const DREAMOS_CREDIT_MARKUP = TARGET_REVENUE_MULTIPLIER;
@@ -63,6 +59,7 @@ export function calculateCreditsForStagedBuild(input: {
   outputTokens?: number | null;
   primaryModelId: string;
   fileCount?: number;
+  operationType?: BuildCreditOperationType;
 }): ChargeCalculationResult {
   const tokenCost =
     input.inputTokens != null && input.outputTokens != null
@@ -70,12 +67,21 @@ export function calculateCreditsForStagedBuild(input: {
       : input.providerCostUsd;
 
   const providerUsd = Math.max(tokenCost, input.providerCostUsd);
-  const creditsToCharge = normalizeCreditCharge(minimumUserCreditsForProviderCost(providerUsd));
+  const quote = quoteGenerationCost({
+    mode: "full_build",
+    selectedModel: input.primaryModelId,
+    estimatedProviderCostUsd: providerUsd,
+    estimatedInputTokens: input.inputTokens,
+    estimatedOutputTokens: input.outputTokens,
+    complexity: input.complexity,
+    operationType: input.operationType,
+  });
+  const creditsToCharge = normalizeCreditCharge(quote.userCreditsRequired);
 
   return {
     creditsToCharge,
     estimatedProviderCostUsd: providerUsd,
-    marginMultiplier: TARGET_REVENUE_MULTIPLIER,
+    marginMultiplier: quote.adminBreakdown.markup_multiplier,
   };
 }
 
@@ -96,6 +102,8 @@ export type ChargeCalculationResult = {
   creditsToCharge: number;
   estimatedProviderCostUsd: number;
   marginMultiplier: number;
+  operationType?: import("@/lib/billing/build-credit-floors").BuildCreditOperationType;
+  minimumFloorApplied?: boolean;
 };
 
 export function creditsFromProviderCost(providerCostUsd: number): number {
@@ -119,6 +127,8 @@ export function calculateCreditsToCharge(input: ChargeCalculationInput): ChargeC
       creditsToCharge: normalizeCreditCharge(quote.userCreditsRequired),
       estimatedProviderCostUsd: tokenCost,
       marginMultiplier: quote.revenueMultiplier,
+      operationType: quote.operationType,
+      minimumFloorApplied: quote.adminBreakdown.minimum_floor_applied,
     };
   }
 
@@ -133,15 +143,27 @@ export function calculateCreditsToCharge(input: ChargeCalculationInput): ChargeC
       creditsToCharge: normalizeCreditCharge(quote.userCreditsRequired),
       estimatedProviderCostUsd: tokenCost,
       marginMultiplier: quote.revenueMultiplier,
+      operationType: quote.operationType,
+      minimumFloorApplied: quote.adminBreakdown.minimum_floor_applied,
     };
   }
 
-  const providerUsd = tokenCost;
-  const creditsToCharge = normalizeCreditCharge(minimumUserCreditsForProviderCost(providerUsd));
+  const mode = input.mode === "build" ? "full_build" : "edit";
+  const quote = quoteGenerationCost({
+    mode,
+    selectedModel: input.modelId,
+    estimatedProviderCostUsd: tokenCost,
+    estimatedInputTokens: input.inputTokens,
+    estimatedOutputTokens: input.outputTokens,
+    complexity: input.mode === "edit" && (input.fileCount ?? 0) <= 1 ? 3 : 5,
+    editScope: input.mode === "edit" && (input.fileCount ?? 0) <= 1 ? "tiny" : "normal",
+  });
 
   return {
-    creditsToCharge,
-    estimatedProviderCostUsd: providerUsd,
-    marginMultiplier: TARGET_REVENUE_MULTIPLIER,
+    creditsToCharge: normalizeCreditCharge(quote.userCreditsRequired),
+    estimatedProviderCostUsd: tokenCost,
+    marginMultiplier: quote.adminBreakdown.markup_multiplier,
+    operationType: quote.operationType,
+    minimumFloorApplied: quote.adminBreakdown.minimum_floor_applied,
   };
 }

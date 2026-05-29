@@ -16,8 +16,8 @@ if (mig.includes("action_credit_balances") && mig.includes("charge_action_credit
 else errors.push("action credits migration missing");
 
 const pr = fs.existsSync(pricing) ? fs.readFileSync(pricing, "utf8") : "";
-if (pr.includes("ACTION_CREDIT_REVENUE_MULTIPLIER = 5")) ok.push("5x action credit multiplier");
-else errors.push("5x multiplier missing");
+if (pr.includes("ACTION_PROVIDER_USD_PER_CREDIT")) ok.push("action provider budget per credit");
+else errors.push("ACTION_PROVIDER_USD_PER_CREDIT missing");
 
 if (fs.existsSync(charge) && fs.readFileSync(charge, "utf8").includes("charge_action_credits")) ok.push("charge-action-credit RPC wrapper");
 else errors.push("charge-action-credit missing");

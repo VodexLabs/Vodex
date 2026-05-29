@@ -1,12 +1,18 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
+import { createServiceRoleClient } from "@/lib/supabase/admin";
 import { buildChargeTokensRpcPayload } from "@/lib/db/charge-tokens-rpc";
 import { quoteGenerationCost, type GenerationCostQuote } from "@/lib/billing/credit-profit-guard";
 import type { QuoteGenerationCostInput } from "@/lib/billing/credit-profit-guard";
 import { dreamosLog } from "@/lib/diagnostics/dreamos-logger";
 import { logSecurityAudit } from "@/lib/security/audit-events";
+import { logCreditEconomicsAdmin } from "@/lib/billing/credit-admin-log";
 
 type Writer = SupabaseClient<Database>;
+
+function reservationWriter(writer: Writer): Writer {
+  return createServiceRoleClient() ?? writer;
+}
 
 export type ReserveCreditsInput = QuoteGenerationCostInput & {
   userId: string;
@@ -15,6 +21,8 @@ export type ReserveCreditsInput = QuoteGenerationCostInput & {
   projectId?: string | null;
   conversationId?: string | null;
   balance: number;
+  /** When set, reserves this amount instead of full quote (partial build credits). */
+  overrideReserveAmount?: number;
 };
 
 export type ReserveCreditsResult =
@@ -40,7 +48,13 @@ async function grantRefund(
     p_amount: amount,
     p_reason: "generation_refund",
     p_idempotency_key: operationId,
-    p_metadata: metadata,
+    p_metadata: {
+      ...metadata,
+      model_id:
+        typeof metadata.model_id === "string" && metadata.model_id.trim()
+          ? metadata.model_id
+          : "system_refund",
+    },
   } as never);
   if (error) {
     dreamosLog({
@@ -70,7 +84,34 @@ export async function reserveCreditsForGeneration(
   input: ReserveCreditsInput,
 ): Promise<ReserveCreditsResult> {
   const quote = quoteGenerationCost(input);
-  const toReserve = quote.userCreditsReserved;
+  const quotedReserve = quote.userCreditsReserved;
+  const toReserve =
+    typeof input.overrideReserveAmount === "number" && input.overrideReserveAmount > 0
+      ? Math.min(Math.floor(input.balance), Math.ceil(input.overrideReserveAmount))
+      : quotedReserve;
+
+  logCreditEconomicsAdmin("reserve", {
+    provider_cost_usd: quote.estimatedProviderCostUsd,
+    internal_cost_credits: quote.internalCostCredits,
+    user_credits_reserved: toReserve,
+    user_credits_charged: null,
+    operation_type: quote.operationType,
+    model_used: input.selectedModel,
+    markup_multiplier: quote.adminBreakdown.markup_multiplier,
+    minimum_floor_applied: quote.adminBreakdown.minimum_floor_applied,
+    operation_id: input.generationId,
+    mode: input.mode,
+    generation_id: input.generationId,
+  });
+
+  if (input.balance <= 0) {
+    return {
+      ok: false,
+      error: "Your Build Credits are used up. Add credits or upgrade to keep building.",
+      code: "blocked_zero_credits",
+      quote,
+    };
+  }
 
   if (input.balance < toReserve) {
     return {
@@ -105,6 +146,9 @@ export async function reserveCreditsForGeneration(
       quoted_user_credits: quote.userCreditsRequired,
       internal_cost_credits: quote.internalCostCredits,
       provider_cost_usd: quote.estimatedProviderCostUsd,
+      operation_type: quote.operationType,
+      minimum_floor_applied: quote.adminBreakdown.minimum_floor_applied,
+      markup_multiplier: quote.adminBreakdown.markup_multiplier,
       project_id: input.projectId,
       conversation_id: input.conversationId,
     },
@@ -159,8 +203,9 @@ export async function reserveCreditsForGeneration(
     },
   };
 
-  const { data: inserted, error: insErr } = await writer
-    .from("credit_reservations" as "credit_events")
+  const econWriter = reservationWriter(writer);
+  const { data: inserted, error: insErr } = await econWriter
+    .from("credit_reservations" as never)
     .insert(reservationRow as never)
     .select("id")
     .single();
@@ -176,7 +221,7 @@ export async function reserveCreditsForGeneration(
     });
   }
 
-  await writer.from("generation_cost_audits" as "credit_events").insert({
+  await econWriter.from("generation_cost_audits" as never).insert({
     user_id: input.userId,
     generation_id: input.generationId,
     project_id: input.projectId ?? null,
@@ -196,7 +241,7 @@ export async function reserveCreditsForGeneration(
     quote,
     reserved: toReserve,
     remaining,
-    reservationId: inserted?.id ?? input.generationId,
+    reservationId: (inserted as { id?: string } | null)?.id ?? input.generationId,
   };
 }
 
@@ -230,7 +275,8 @@ export async function reconcileGenerationReservation(
     });
   }
 
-  await (writer as SupabaseClient<Database>)
+  const econWriter = reservationWriter(writer);
+  await econWriter
     .from("credit_reservations" as never)
     .update({
       status: input.success ? "reconciled" : "refunded",
@@ -238,10 +284,10 @@ export async function reconcileGenerationReservation(
       provider_cost_usd: input.providerCostUsd,
     } as never)
     .eq("generation_id" as never, input.generationId)
-    .eq("user_id", input.userId)
+    .eq("user_id" as never, input.userId)
     .then(() => undefined, () => undefined);
 
-  await writer.from("generation_cost_audits" as "credit_events").insert({
+  await econWriter.from("generation_cost_audits" as never).insert({
     user_id: input.userId,
     generation_id: input.generationId,
     project_id: input.projectId ?? null,

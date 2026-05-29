@@ -10,7 +10,42 @@ export type AsyncBuildEnqueueResponse = {
   eventsUrl?: string;
   error?: string;
   code?: string;
+  hint?: string;
 };
+
+async function parseEnqueueResponse(res: Response): Promise<AsyncBuildEnqueueResponse & {
+  tokens_remaining?: number;
+  tokens_required?: number;
+}> {
+  const contentType = res.headers.get("content-type") ?? "";
+
+  if (
+    contentType.includes("text/event-stream") ||
+    (contentType.includes("text/plain") && !contentType.includes("json"))
+  ) {
+    const snippet = (await res.text()).slice(0, 200);
+    throw new Error(
+      snippet.startsWith("data:")
+        ? "Build returned a chat stream instead of a background job. Retry, or switch to Discuss if this was meant as a question."
+        : `Unexpected build response (${res.status}). Expected JSON, got ${contentType || "unknown"}.`,
+    );
+  }
+
+  try {
+    return (await res.json()) as AsyncBuildEnqueueResponse & {
+      tokens_remaining?: number;
+      tokens_required?: number;
+    };
+  } catch (err) {
+    const snippet = (await res.clone().text().catch(() => "")).slice(0, 200);
+    if (snippet.startsWith("data:")) {
+      throw new Error(
+        "Build returned a chat stream instead of a background job. Retry, or switch to Discuss if this was meant as a question.",
+      );
+    }
+    throw err instanceof Error ? err : new Error("Invalid build enqueue response");
+  }
+}
 
 export async function enqueueAsyncBuild(input: {
   messages: unknown[];
@@ -28,13 +63,15 @@ export async function enqueueAsyncBuild(input: {
       messages: input.messages,
       ...input.body,
       mode: "build",
+      strategy: input.body.strategy ?? "build_now",
+      forceBuildPipeline: input.body.forceBuildPipeline ?? input.body.strategy === "build_now",
+      planFirstOnly:
+        input.body.planFirstOnly ??
+        (input.body.strategy === "plan_first" && input.body.forceBuildPipeline !== true),
     }),
   });
 
-  const data = (await res.json()) as AsyncBuildEnqueueResponse & {
-    tokens_remaining?: number;
-    tokens_required?: number;
-  };
+  const data = await parseEnqueueResponse(res);
 
   if (res.status === 402) {
     const err = new Error(data.error ?? "Insufficient credits");
@@ -42,12 +79,22 @@ export async function enqueueAsyncBuild(input: {
     throw err;
   }
 
-  if (!res.ok) {
-    throw new Error(data.error ?? `Build enqueue failed (${res.status})`);
+  if (res.status === 409 || data.code === "build_pipeline_unavailable") {
+    throw new Error(
+      data.hint ??
+        data.error ??
+        "This prompt was treated as a question, not a full build. Rephrase with “Build …” or use Discuss.",
+    );
   }
 
-  if (!data.asyncBuild || !data.buildJobId || !data.eventsUrl) {
-    throw new Error("Server did not return async build job");
+  if (!res.ok) {
+    throw new Error(data.error ?? data.hint ?? `Build enqueue failed (${res.status})`);
+  }
+
+  if (res.status !== 202 || !data.asyncBuild || !data.buildJobId || !data.eventsUrl) {
+    throw new Error(
+      data.error ?? "Server did not start a background build job. Try again or use Discuss mode.",
+    );
   }
 
   return data;

@@ -16,6 +16,7 @@ import type { AiPreflightMode } from "@/lib/ai/preflight-types";
 import { getChargeTokensProbeCached } from "@/lib/db/charge-probe-cache";
 import { classifyCreateIntent } from "@/lib/intent/create-intent-classifier";
 import { lifecyclePatch } from "@/lib/projects/project-lifecycle";
+import { resolveBuildCreditAllowance } from "@/lib/billing/partial-build-credits";
 
 const DEFAULT_MODEL_ID = "automatic";
 
@@ -28,6 +29,9 @@ export type PreflightServerResult =
       tokensRemaining: number;
       creditsEstimate?: number;
       creditsEstimateMax?: number;
+      partialBuildCredits?: boolean;
+      creditsAvailable?: number;
+      creditsReserveAmount?: number;
       modelId?: string;
       provider?: string;
       routeReason?: string;
@@ -259,19 +263,33 @@ export async function runAiPreflightServer(request: Request): Promise<PreflightS
     selectedModel: routedEarly.modelId,
     fileCount: mode === "build" ? 12 : mode === "edit" ? 4 : 1,
   });
-  const tokensNeeded = budgetPlan.creditQuote.userCreditsReserved;
   const creditEst = {
     creditsMin: budgetPlan.creditQuote.userCreditsRequired,
     creditsMax: budgetPlan.creditQuote.userCreditsReserved,
   };
   const balance = billingRow.credits_remaining;
-  if (balance < tokensNeeded) {
+  const buildAllowance =
+    mode === "build"
+      ? resolveBuildCreditAllowance(balance, budgetPlan.creditQuote)
+      : null;
+
+  if (buildAllowance?.blocked) {
+    return {
+      ok: false,
+      status: 402,
+      error: "Your Build Credits are used up. Add credits or upgrade to keep building.",
+      code: "blocked_zero_credits",
+      hint: "Add Build Credits or upgrade your plan to continue.",
+    };
+  }
+
+  if (mode !== "build" && balance < budgetPlan.creditQuote.userCreditsReserved) {
     return {
       ok: false,
       status: 402,
       error: "Not enough credits for this request",
       code: "insufficient_tokens",
-      hint: `Need ${tokensNeeded} credits; you have ${balance}.`,
+      hint: `Need ${budgetPlan.creditQuote.userCreditsReserved} credits; you have ${balance}.`,
     };
   }
 
@@ -322,6 +340,9 @@ export async function runAiPreflightServer(request: Request): Promise<PreflightS
     tokensRemaining: balance,
     creditsEstimate: creditEst.creditsMin,
     creditsEstimateMax: creditEst.creditsMax,
+    partialBuildCredits: buildAllowance?.partial ?? false,
+    creditsAvailable: buildAllowance?.balance ?? balance,
+    creditsReserveAmount: buildAllowance?.reserveAmount,
     modelId: billedModel,
     provider: routed.provider,
     routeReason: routed.routeReason,

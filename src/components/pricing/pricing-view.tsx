@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/lib/toast";
 import { BUILD_CREDIT_HINTS, CREDIT_PACKAGE_EXAMPLES, USER_CREDITS_PER_USD } from "@/lib/pricing";
+import { planPricingCardCopy } from "@/lib/billing/plan-credit-economics";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -395,6 +396,7 @@ interface PlanCardProps {
   annualPrice?: number | null;
   annual: boolean;
   credits: string;
+  actionCreditsLine?: string;
   tagline: string;
   features: string[];
   notIncluded?: string[];
@@ -407,7 +409,7 @@ interface PlanCardProps {
 }
 
 function PlanCard({
-  id, name, price, annualPrice, annual, credits, tagline, features, notIncluded = [],
+  id, name, price, annualPrice, annual, credits, actionCreditsLine, tagline, features, notIncluded = [],
   highlight, badge, cta, currentPlanId, children, ctaOnClick,
 }: PlanCardProps) {
   const isCurrent = currentPlanId === id;
@@ -466,9 +468,19 @@ function PlanCard({
         </div>
 
         {/* Credits pill */}
-        <div className="flex items-center gap-2 rounded-xl bg-accent/8 px-3 py-2 ring-1 ring-accent/15">
-          <Zap className="size-3.5 shrink-0 text-accent" strokeWidth={2} />
-          <span className="text-[12px] font-semibold text-accent">{credits}</span>
+        <div className="flex flex-col gap-1 rounded-xl bg-accent/8 px-3 py-2 ring-1 ring-accent/15">
+          <div className="flex items-center gap-2">
+            <Zap className="size-3.5 shrink-0 text-accent" strokeWidth={2} />
+            <span className="text-[12px] font-semibold text-accent">{credits}</span>
+          </div>
+          {actionCreditsLine ? (
+            <p className="text-[10.5px] leading-snug text-muted-foreground pl-5">
+              {actionCreditsLine}{" "}
+              <Link href="/help/docs/how-credits-work" className="text-accent/80 hover:text-accent underline-offset-2 hover:underline">
+                What are Action Credits?
+              </Link>
+            </p>
+          ) : null}
         </div>
 
         {/* Children (Infinity dropdown) */}
@@ -792,10 +804,11 @@ export function PricingView() {
           name="Free"
           price={0}
           annual={annual}
-          credits={`${FREE_CREDITS} credits / mo`}
+          credits={planPricingCardCopy("free").buildPill}
+          actionCreditsLine={planPricingCardCopy("free").actionLine}
           tagline="Start building for free. No card required."
           features={[
-            `${FREE_CREDITS} credits / month`,
+            planPricingCardCopy("free").taglineBuildFeature,
             "3 active projects",
             "Discuss mode",
             "Public deployments",
@@ -817,10 +830,11 @@ export function PricingView() {
           price={starterMonthly}
           annualPrice={starterAnnual}
           annual={annual}
-          credits="200 credits / mo"
+          credits={planPricingCardCopy("starter").buildPill}
+          actionCreditsLine={planPricingCardCopy("starter").actionLine}
           tagline="For individuals shipping real products."
           features={[
-            "200 credits / month",
+            planPricingCardCopy("starter").taglineBuildFeature,
             "Unlimited projects",
             "Discuss, Edit & Build modes",
             "Manual model selection",
@@ -840,12 +854,13 @@ export function PricingView() {
           price={proMonthly}
           annualPrice={proAnnual}
           annual={annual}
-          credits="500 credits / mo"
+          credits={planPricingCardCopy("pro").buildPill}
+          actionCreditsLine={planPricingCardCopy("pro").actionLine}
           tagline="For teams building production apps."
           highlight
           badge="Most Popular"
           features={[
-            "500 credits / month",
+            planPricingCardCopy("pro").taglineBuildFeature,
             "All frontier models",
             "Multi-agent generation",
             "5 collaborators",
@@ -864,10 +879,19 @@ export function PricingView() {
           name="Infinity"
           price={tierPrice(infTier, annual)}
           annual={annual}
-          credits={`${infTier.credits.toLocaleString()} credits / mo`}
+          credits={
+            infTier.id === "inf-1"
+              ? planPricingCardCopy("infinity").buildPill
+              : `${infTier.credits.toLocaleString()} Build Credits / mo`
+          }
+          actionCreditsLine={
+            infTier.id === "inf-1" ? planPricingCardCopy("infinity").actionLine : undefined
+          }
           tagline="For power teams that need unlimited scale."
           features={[
-            `${infTier.credits.toLocaleString()} credits / month`,
+            infTier.id === "inf-1"
+              ? planPricingCardCopy("infinity").taglineBuildFeature
+              : `${infTier.credits.toLocaleString()} Build Credits / month`,
             "All frontier models",
             "Dedicated compute",
             "White-label",
@@ -973,6 +997,10 @@ export function PricingView() {
         {" · "}
         <Link href="/privacy" className="hover:underline underline-offset-4">
           Privacy
+        </Link>
+        {" · "}
+        <Link href="/refunds" className="hover:underline underline-offset-4">
+          Refunds
         </Link>
       </p>
 

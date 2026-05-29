@@ -21,7 +21,7 @@ mustInclude("src/app/api/build/blueprint/route.ts", "resolveStageModel", "bluepr
 mustInclude("src/app/api/build/polish/route.ts", "resolveStageModel", "polish uses optimizer");
 mustInclude("src/app/api/projects/[id]/status/route.ts", "canTransition", "lifecycle PATCH");
 mustInclude("src/components/create/premium-create-funnel.tsx", "CreateTemplatePicker", "premium funnel templates");
-mustInclude("src/app/(workspace)/create/page.tsx", "PremiumCreateFunnel", "/create single funnel");
+mustInclude("src/app/(workspace)/create/page.tsx", "CreateWorkspaceEntry", "/create workspace entry");
 mustInclude("src/app/p/[slug]/page.tsx", "PublicAppRenderer", "public app renderer");
 mustInclude("src/lib/publish/publish-service.ts", "capturePublishedSnapshot", "publish snapshot");
 mustInclude("src/components/builder/app-builder-workspace.tsx", "loadPendingDiff", "builder loads pending diff");

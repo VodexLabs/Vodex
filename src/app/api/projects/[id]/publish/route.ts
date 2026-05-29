@@ -93,7 +93,15 @@ export async function POST(
     customSlug: body.slug?.trim() || null,
   });
   if (!result.ok) {
-    return NextResponse.json({ error: result.error, code: result.code }, { status: 400 });
+    return NextResponse.json(
+      {
+        ok: false,
+        code: result.code,
+        message: result.error,
+        details: result.details ?? { blockers: [result.error] },
+      },
+      { status: 400 },
+    );
   }
 
   await logSecurityAudit({

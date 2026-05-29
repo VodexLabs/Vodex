@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { monthlyTokensForPlan, missingStripeEnvVars, normalizePlanId, PLAN_DISPLAY } from "@/lib/billing/plans";
+import { monthlyActionCreditsForPlan } from "@/lib/action-credits/action-credit-allowances";
+import { getPaddleBillingStatus } from "@/lib/billing/paddle-billing";
 
 export async function GET() {
   const supabase = await createClient();
@@ -46,5 +48,8 @@ export async function GET() {
       configured: missingStripeEnvVars().length === 0,
       missingEnv: missingStripeEnvVars(),
     },
+    paddle: getPaddleBillingStatus(),
+    monthlyActionCredits: monthlyActionCreditsForPlan(planId),
+    billingProviderPrimary: "paddle",
   });
 }

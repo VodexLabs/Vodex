@@ -78,7 +78,7 @@ const ARCHETYPE_DEFS: Record<AppArchetypeId, Omit<AppArchetype, "id" | "confiden
   restaurant_inventory: {
     label: "Restaurant inventory",
     navigationStyle: "sidebar",
-    coreRoutes: ["/dashboard", "/inventory", "/suppliers", "/orders", "/waste", "/alerts"],
+    coreRoutes: ["/dashboard", "/inventory", "/suppliers", "/alerts", "/settings"],
     primarySections: ["stock value", "low-stock alerts", "inventory table", "supplier orders", "waste %"],
     visualTone: "warm, operational, fresh, modern",
     terminology: ["items", "par level", "expiry", "reorder", "suppliers"],

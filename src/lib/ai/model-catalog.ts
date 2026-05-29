@@ -49,6 +49,44 @@ export function isGrokConfigured(): boolean {
   return Boolean(process.env.XAI_API_KEY?.trim());
 }
 
+const HONEST_API_LABELS: Record<string, string> = {
+  "gpt-4o-mini": "GPT-4o Mini",
+  "gpt-4o": "GPT-4o",
+  "claude-sonnet-4-5": "Claude Sonnet 4.5",
+  "claude-haiku-4-5": "Claude Haiku 4.5",
+  "claude-opus-4-6": "Claude Opus 4.6",
+};
+
+/** User-facing label must match the provider model actually called. */
+export function getHonestModelDisplayName(catalogId: string): string {
+  const actual = toApiModelId(catalogId);
+  if (actual !== catalogId && HONEST_API_LABELS[actual]) {
+    return HONEST_API_LABELS[actual];
+  }
+  const normalized = catalogId.replace(/-/g, ".");
+  if (normalized.includes("gpt.5.4.mini")) return HONEST_API_LABELS["gpt-4o-mini"] ?? "GPT-4o Mini";
+  if (normalized.includes("gpt.5.4") && !normalized.includes("mini")) {
+    return HONEST_API_LABELS["gpt-4o"] ?? "GPT-4o";
+  }
+  return catalogId;
+}
+
+export function resolveModelRuntime(catalogId: string): {
+  userSelectedModelLabel: string;
+  catalogId: string;
+  actualProvider: string;
+  actualModelId: string;
+} {
+  const actualModelId = toApiModelId(catalogId);
+  const provider = providerForCatalogId(catalogId);
+  return {
+    userSelectedModelLabel: getHonestModelDisplayName(catalogId),
+    catalogId,
+    actualProvider: provider,
+    actualModelId,
+  };
+}
+
 export function pickStandardFast(prefer: "openai" | "google" | "anthropic" = "openai"): string {
   const order: ProviderName[] =
     prefer === "google"

@@ -44,6 +44,7 @@ export function checkPublishReadiness(input: {
   projectId: string;
   ownerId: string;
   metadata: Record<string, unknown>;
+  buildStatus?: string | null;
   routeMap?: string[] | null;
   customSlug?: string | null;
 }): PublishReadinessResult {
@@ -114,10 +115,15 @@ export function checkPublishReadiness(input: {
   }
 
   const importMeta = isImport ? readImportMeta(input.metadata) : null;
+  const previewFailedWithFiles =
+    input.metadata.files_ready_preview_failed === true ||
+    (input.buildStatus ?? "").toLowerCase() === "preview_failed";
   const previewReady =
     (input.metadata.preview_ready === true && input.metadata.preview_honest === true) ||
     Boolean(isImport && (importMeta?.preview_ready || safeFiles.length > 0));
-  if (!previewReady && !isImport) {
+  if (previewFailedWithFiles && !previewReady) {
+    blockers.push("Preview must be repaired before publishing.");
+  } else if (!previewReady && !isImport) {
     blockers.push("Start a successful preview before publishing");
   } else if (!previewReady && isImport) {
     warnings.push("Review imported app setup — preview may need preparation");

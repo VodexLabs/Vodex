@@ -87,6 +87,7 @@ export function scanAndroidReadiness(
     hasFirebase: boolean;
     fileCount: number;
     previewUrl?: string | null;
+    revenueCatConfigured?: boolean;
   },
 ): ReadinessResult {
   const items: ReadinessItem[] = [];
@@ -171,6 +172,16 @@ export function scanAndroidReadiness(
     });
   }
 
+  items.push({
+    id: "revenuecat_android",
+    label: "RevenueCat (Google Play)",
+    status: ctx.revenueCatConfigured ? "pass" : "warning",
+    detail: ctx.revenueCatConfigured
+      ? "Public SDK key and entitlement configured for wrapper"
+      : "Connect RevenueCat in Payments → Mobile subscriptions for in-app billing",
+    platform: "android",
+  });
+
   return { platform: "android", items, score: scoreFromItems(items) };
 }
 
@@ -180,6 +191,7 @@ export function scanIosReadiness(
     hasAscApiKey: boolean;
     hasApnsKey: boolean;
     hasSigningAssets: boolean;
+    revenueCatConfigured?: boolean;
   },
 ): ReadinessResult {
   const items: ReadinessItem[] = [];
@@ -258,6 +270,16 @@ export function scanIosReadiness(
     status: "warning",
     detail:
       "iOS archives require macOS/Xcode or a connected cloud builder. DreamOS86 prepares projects and export instructions honestly.",
+    platform: "ios",
+  });
+
+  items.push({
+    id: "revenuecat_ios",
+    label: "RevenueCat (Apple IAP)",
+    status: ctx.revenueCatConfigured ? "pass" : "warning",
+    detail: ctx.revenueCatConfigured
+      ? "Public SDK key and entitlement configured for wrapper"
+      : "Connect RevenueCat in Payments → Mobile subscriptions for in-app billing",
     platform: "ios",
   });
 

@@ -7,21 +7,33 @@ import { X, Zap, ArrowRight, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCreditsStore } from "@/lib/stores/credits-store";
 import { cn } from "@/lib/utils";
+import { getCreditAllowance } from "@/lib/billing/plan-entitlements";
+import { PLAN_DISPLAY } from "@/lib/billing/plans";
+import type { PlanId } from "@/lib/supabase/types";
 
 interface Plan {
-  id: string;
+  id: PlanId;
   name: string;
-  credits: number;
+  buildCredits: number;
+  actionCredits: number;
   price: number;
   highlight?: boolean;
   badge?: string;
 }
 
-const UPGRADE_PLANS: Plan[] = [
-  { id: "starter", name: "Starter", credits: 1_000,  price: 9 },
-  { id: "pro",     name: "Pro",     credits: 10_000, price: 29, highlight: true, badge: "Most popular" },
-  { id: "team",    name: "Team",    credits: 50_000, price: 99 },
-];
+const UPGRADE_PLANS: Plan[] = (["starter", "pro"] as PlanId[]).map((id) => {
+  const allowance = getCreditAllowance(id);
+  const display = PLAN_DISPLAY[id];
+  return {
+    id,
+    name: display.name,
+    buildCredits: allowance.build,
+    actionCredits: allowance.action,
+    price: display.priceMonthlyUsd ?? 0,
+    highlight: id === "pro",
+    badge: id === "pro" ? "Most popular" : undefined,
+  };
+});
 
 interface CreditsUpgradeModalProps {
   onClose: () => void;
@@ -29,8 +41,8 @@ interface CreditsUpgradeModalProps {
 }
 
 export function CreditsUpgradeModal({ onClose, currentPlanId = "free" }: CreditsUpgradeModalProps) {
-  const { remaining, totalUsedThisPeriod } = useCreditsStore();
-  const totalCredits = remaining + totalUsedThisPeriod;
+  const { build, totalUsedThisPeriod } = useCreditsStore();
+  const totalCredits = build.available + totalUsedThisPeriod;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/25 backdrop-blur-sm p-4">
@@ -41,14 +53,13 @@ export function CreditsUpgradeModal({ onClose, currentPlanId = "free" }: Credits
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
         className="w-full max-w-lg overflow-hidden rounded-[var(--radius-xl)] bg-background shadow-2xl ring-1 ring-border"
       >
-        {/* Header */}
         <div className="relative flex items-start justify-between gap-3 border-b border-border px-6 py-5">
           <div className="flex items-start gap-3">
             <div className="flex size-9 items-center justify-center rounded-full bg-accent/10">
               <Zap className="size-5 text-accent" strokeWidth={1.75} />
             </div>
             <div>
-              <p className="text-[15px] font-semibold text-foreground">You&apos;re out of tokens</p>
+              <p className="text-[15px] font-semibold text-foreground">You&apos;re out of Build Credits</p>
               <p className="mt-0.5 text-[12px] text-muted-foreground">
                 Upgrade to keep building. Your progress is saved.
               </p>
@@ -62,7 +73,6 @@ export function CreditsUpgradeModal({ onClose, currentPlanId = "free" }: Credits
           </button>
         </div>
 
-        {/* Usage summary */}
         <div className="px-6 pt-4">
           <div className="flex items-center justify-between rounded-lg bg-surface px-4 py-3 ring-1 ring-border">
             <div className="flex items-center gap-2">
@@ -71,69 +81,57 @@ export function CreditsUpgradeModal({ onClose, currentPlanId = "free" }: Credits
             </div>
             <div className="flex items-center gap-1.5 text-[12.5px]">
               <span className="font-semibold tabular-nums text-foreground">{totalUsedThisPeriod.toLocaleString()}</span>
-              <span className="text-muted-foreground">/ {totalCredits.toLocaleString()} credits used</span>
+              <span className="text-muted-foreground">/ {totalCredits.toLocaleString()} Build Credits used</span>
             </div>
           </div>
         </div>
 
-        {/* Plans */}
         <div className="space-y-2.5 p-6">
-          {UPGRADE_PLANS.filter((p) => p.id !== currentPlanId).map((plan) => (
-            <div
-              key={plan.id}
-              className={cn(
-                "relative flex items-center gap-4 rounded-[var(--radius-xl)] p-4 ring-1 transition",
-                plan.highlight
-                  ? "bg-accent/6 ring-accent/30"
-                  : "bg-surface ring-border hover:ring-accent/20",
-              )}
-            >
-              {plan.badge && (
-                <span className="absolute -top-2 right-4 rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold text-white">
-                  {plan.badge}
-                </span>
-              )}
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent/10">
-                <Zap className="size-5 text-accent" strokeWidth={1.75} />
+          {UPGRADE_PLANS.map((plan) => {
+            const isCurrent = currentPlanId === plan.id;
+            return (
+              <div
+                key={plan.id}
+                className={cn(
+                  "flex items-center justify-between rounded-xl px-4 py-3 ring-1 transition",
+                  plan.highlight ? "ring-accent/30 bg-accent/5" : "ring-border bg-surface",
+                )}
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[13px] font-semibold text-foreground">{plan.name}</p>
+                    {plan.badge && (
+                      <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-semibold text-accent">
+                        {plan.badge}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    {plan.buildCredits.toLocaleString()} Build + {plan.actionCredits.toLocaleString()} Action Credits / mo
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-[13px] font-semibold text-foreground">${plan.price}/mo</span>
+                  {isCurrent ? (
+                    <span className="text-[11px] text-muted-foreground">Current</span>
+                  ) : (
+                    <Button size="sm" asChild>
+                      <Link href="/pricing">
+                        Upgrade
+                        <ArrowRight className="size-3.5" />
+                      </Link>
+                    </Button>
+                  )}
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-[13.5px] font-semibold text-foreground">{plan.name}</p>
-                <p className="text-[12px] text-muted-foreground">
-                  {plan.credits.toLocaleString()} credits / month
-                </p>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <span className="text-[14px] font-semibold text-foreground">
-                  ${plan.price}<span className="text-[11px] font-normal text-muted-foreground">/mo</span>
-                </span>
-                <Button
-                  variant={plan.highlight ? "accent" : "secondary"}
-                  size="sm"
-                  asChild
-                  className="gap-1"
-                >
-                  <Link href="/pricing" onClick={onClose}>
-                    Upgrade
-                    <ArrowRight className="size-3.5" strokeWidth={2} />
-                  </Link>
-                </Button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        {/* Footer */}
-        <div className="border-t border-border px-6 pb-5 pt-3 text-center">
-          <p className="text-[12px] text-muted-foreground">
-            Need more flexibility?{" "}
-            <Link href="/pricing" onClick={onClose} className="text-accent hover:underline underline-offset-2">
-              View all plans
-            </Link>
-            {" "}or{" "}
-            <Link href="/credits" onClick={onClose} className="text-accent hover:underline underline-offset-2">
-              purchase a credit pack
-            </Link>
-          </p>
+        <div className="border-t border-border px-6 py-4">
+          <Button variant="ghost" className="w-full" onClick={onClose}>
+            Keep editing later
+          </Button>
         </div>
       </motion.div>
     </div>

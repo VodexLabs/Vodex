@@ -1,14 +1,11 @@
 import type { PlanId } from "@/lib/supabase/types";
+import { BUILD_CREDITS_BY_PLAN } from "@/lib/billing/plan-credit-economics";
+import { normalizePlanId as normalizePlanIdCore } from "@/lib/billing/normalize-plan-id";
 
-/** Monthly credit allowance per plan ($1 = 10 credits). */
-export const PLAN_MONTHLY_TOKENS: Record<PlanId, number> = {
-  free: 30,
-  starter: 200,
-  pro: 500,
-  business: 500,
-  infinity: 1_000,
-  enterprise: 1_000,
-};
+/** Monthly Build Credit allowance per plan. */
+export const PLAN_MONTHLY_TOKENS: Record<PlanId, number> = BUILD_CREDITS_BY_PLAN;
+
+export { normalizePlanIdCore as normalizePlanId };
 
 export const PLAN_DISPLAY: Record<
   PlanId,
@@ -30,15 +27,8 @@ export function isStripeCheckoutPlan(plan: string): plan is StripeCheckoutPlan {
   return (STRIPE_CHECKOUT_PLANS as readonly string[]).includes(plan);
 }
 
-export function normalizePlanId(plan: string): PlanId {
-  if (plan === "business") return "pro";
-  if (plan === "enterprise") return "infinity";
-  if (plan in PLAN_MONTHLY_TOKENS) return plan as PlanId;
-  return "free";
-}
-
 export function monthlyTokensForPlan(plan: PlanId): number {
-  return PLAN_MONTHLY_TOKENS[normalizePlanId(plan)] ?? PLAN_MONTHLY_TOKENS.free;
+  return PLAN_MONTHLY_TOKENS[normalizePlanIdCore(plan)] ?? PLAN_MONTHLY_TOKENS.free;
 }
 
 export const STRIPE_ENV_KEYS = [

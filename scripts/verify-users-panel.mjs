@@ -9,9 +9,9 @@ const panel = fs.readFileSync(path.join(root, "src/components/create/workspace/a
 const combined = dash + panel;
 
 const checks = [
-  [!combined.includes('"users"'), "Users tab removed from app dashboard"],
+  [combined.includes('"users"'), "Users section in app dashboard"],
   [combined.includes("Setup") || combined.includes("setup"), "Setup tab present"],
-  [!combined.includes("Invite"), "No invite UI in app dashboard"],
+  [!/Invite team member/i.test(combined), "No legacy invite UI copy in app dashboard"],
 ];
 
 let failed = false;

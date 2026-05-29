@@ -98,7 +98,7 @@ export async function resolvePublishSlug(
 
 export type PublishStartResult =
   | { ok: true; publicUrl: string; slug: string; mode: "subdomain" | "path"; version: number }
-  | { ok: false; error: string; code: string };
+  | { ok: false; error: string; code: string; details?: { blockers: string[]; warnings?: string[] } };
 
 export async function startPublish(input: {
   writer: Writer;
@@ -132,6 +132,7 @@ export async function startPublish(input: {
     projectId: input.projectId,
     ownerId: input.userId,
     metadata: prevMeta,
+    buildStatus: project.build_status ?? null,
     routeMap,
     customSlug: input.customSlug,
   });
@@ -141,6 +142,7 @@ export async function startPublish(input: {
       ok: false,
       error: readiness.blockers[0] ?? "Publish readiness checks failed",
       code: "not_publish_ready",
+      details: { blockers: readiness.blockers, warnings: readiness.warnings },
     };
   }
 

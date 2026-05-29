@@ -58,6 +58,13 @@ export function isUserVisibleProject(row: UserVisibleProjectRow): boolean {
   if (row.is_favorite) return true;
 
   const meta = (row.metadata ?? {}) as Record<string, unknown>;
+  if (
+    meta.create_flow_state === "project_ready" &&
+    typeof meta.initial_prompt === "string" &&
+    meta.initial_prompt.trim().length > 0
+  ) {
+    return true;
+  }
   if (meta.hide_from_list === true || meta.hide_from_home === true) return false;
   if (meta.shell_only === true) return false;
   if (meta.source === "question_only" || meta.intent === "question_only") return false;

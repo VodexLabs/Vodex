@@ -4,7 +4,12 @@ import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { normalizePlanId } from "@/lib/billing/plans";
 import { monthlyActionCreditsForPlan } from "@/lib/action-credits/action-credit-allowances";
 import { loadCanonicalCredits, serializeCanonicalCredits } from "@/lib/credits/canonical-credits";
+import {
+  applyE2eCreditBypassDisplay,
+  shouldApplyE2eCreditBypass,
+} from "@/lib/credits/e2e-credit-bypass-server";
 import { getChargeTokensProbeCached } from "@/lib/db/charge-probe-cache";
+import { maybeNotifyActionCreditWarning } from "@/lib/action-credits/action-credit-warnings";
 
 export async function GET() {
   const t0 = performance.now();
@@ -51,7 +56,7 @@ export async function GET() {
   const actionBalance = (actionRow as { balance: number } | null)?.balance;
   const actionAvailable = typeof actionBalance === "number" ? actionBalance : actionPlanAllowance;
 
-  const canonical = await loadCanonicalCredits({
+  let canonical = await loadCanonicalCredits({
     userId: user.id,
     planId: profile.plan_id,
     email: profile.email,
@@ -61,13 +66,30 @@ export async function GET() {
     skipLedger: true,
   });
 
+  if (shouldApplyE2eCreditBypass(user.id, profile.email)) {
+    canonical = applyE2eCreditBypassDisplay(
+      canonical,
+      profile.credits_remaining,
+      typeof actionBalance === "number" ? actionBalance : actionAvailable,
+    );
+  }
+
   const tCanonical = performance.now();
+
+  const actionWarning = await maybeNotifyActionCreditWarning({
+    userId: user.id,
+    email: profile.email ?? user.email ?? null,
+    planId,
+    balance: typeof actionBalance === "number" ? actionBalance : actionAvailable,
+  });
+
   const chargeProbe = await getChargeTokensProbeCached();
   const tDone = performance.now();
 
   return NextResponse.json(
     {
       ...serializeCanonicalCredits(canonical),
+      actionCreditWarning: actionWarning,
       charging_enabled: chargeProbe.ok,
       charging_error: chargeProbe.ok ? null : chargeProbe.lastError,
       ...(process.env.NODE_ENV === "development"

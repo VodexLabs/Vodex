@@ -43,6 +43,8 @@ export async function GET(request: Request) {
 
   const projects = [];
   let backfillBudget = 16;
+  /** Full reconcile on every row is O(n) DB work — cap so list stays responsive after create. */
+  let reconcileBudget = reconcile ? 12 : 0;
   for (const row of rows ?? []) {
     let icon_svg = row.icon_svg;
     let banner_svg = readBannerSvg(row.metadata);
@@ -62,9 +64,10 @@ export async function GET(request: Request) {
     }
 
     let lifecycle = readLifecycleFromMetadata(metadata).lifecycle_status;
-    if (reconcile) {
+    if (reconcile && reconcileBudget > 0) {
       const r = await reconcileProjectLifecycle(writer, row.id, user.id);
       lifecycle = r.lifecycle;
+      reconcileBudget -= 1;
     } else if (!lifecycle) {
       lifecycle = normalizeProjectStatus(
         {

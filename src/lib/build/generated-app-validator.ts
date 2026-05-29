@@ -96,12 +96,22 @@ export function validateGeneratedApp(input: {
   }
 
   if (input.routeMap?.length) {
-    const paths = input.files.map((f) => f.path).join("\n");
-    const missing = input.routeMap.filter(
-      (r) =>
-        !paths.includes(r.replace(/^\//, "")) &&
-        !new RegExp(r.replace(/^\//, "").replace(/\//g, "[/\\\\]"), "i").test(paths),
-    );
+    const pathList = input.files.map((f) => f.path.replace(/\\/g, "/"));
+    const paths = pathList.join("\n");
+    const pathsLower = paths.toLowerCase();
+    const missing = input.routeMap.filter((r) => {
+      const norm = r.replace(/^\//, "").toLowerCase();
+      if (norm === "dashboard" || norm === "home") {
+        const hasDashboard =
+          pathList.some((p) => /(^|\/)app\/page\.(tsx|jsx|js)$/i.test(p)) ||
+          pathsLower.includes("dashboard");
+        return !hasDashboard;
+      }
+      return (
+        !pathsLower.includes(norm) &&
+        !new RegExp(norm.replace(/\//g, "[/\\\\]"), "i").test(paths)
+      );
+    });
     if (missing.length) reasons.push(`missing_blueprint_routes:${missing.slice(0, 5).join(",")}`);
   }
 

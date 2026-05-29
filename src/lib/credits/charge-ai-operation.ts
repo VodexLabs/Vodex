@@ -4,8 +4,15 @@ import { ensureUserProfileServer } from "@/lib/auth/ensure-user-profile-server";
 import { buildChargeTokensRpcPayload } from "@/lib/db/charge-tokens-rpc";
 import { assertProfitableCharge } from "@/lib/billing/credit-profit-guard";
 import { MIN_CHARGEABLE_CREDITS } from "@/lib/billing/credit-pricing";
+import { logCreditEconomicsAdmin } from "@/lib/billing/credit-admin-log";
+import type { BuildCreditOperationType } from "@/lib/billing/build-credit-floors";
+import {
+  providerUsdToInternalCredits,
+  TARGET_REVENUE_MULTIPLIER,
+} from "@/lib/billing/pricing-config";
 import { logSecurityAudit } from "@/lib/security/audit-events";
 import { writeCreditEvent } from "@/lib/credits/credit-events";
+import { canAffordAtomicAction } from "@/lib/billing/partial-build-credits";
 
 type Writer = SupabaseClient<Database>;
 
@@ -24,6 +31,9 @@ export type ChargeAiOperationInput = {
   tokensOutput?: number | null;
   provider?: string | null;
   routeReason?: string | null;
+  operationType?: BuildCreditOperationType;
+  userCreditsReserved?: number | null;
+  minimumFloorApplied?: boolean;
 };
 
 export type ChargeAiOperationResult = {
@@ -61,14 +71,38 @@ export async function chargeAiOperation(
     return { charged: false, remaining: null, error: "invalid_amount" };
   }
 
+  const atomicModes = new Set([
+    "image",
+    "email",
+    "speech",
+    "video",
+    "upload",
+    "action",
+    "app_logo_generation",
+  ]);
+  if (atomicModes.has(input.mode) || input.operationType) {
+    const balance = await fetchProfileBalance(writer, input.userId);
+    if (balance !== null && !canAffordAtomicAction(balance, input.amount)) {
+      return {
+        charged: false,
+        remaining: balance,
+        error: "insufficient_action_credits",
+      };
+    }
+  }
+
   const profitProviderUsd =
     input.mode === "discuss"
       ? Math.min(input.providerCostUsd ?? 0, 0.03)
       : (input.providerCostUsd ?? 0);
   const profitCheck =
     input.mode === "discuss"
-      ? { ok: true as const }
-      : assertProfitableCharge(input.amount, profitProviderUsd);
+      ? assertProfitableCharge(input.amount, profitProviderUsd, "discuss")
+      : assertProfitableCharge(
+          input.amount,
+          profitProviderUsd,
+          input.operationType ?? (input.mode === "build" ? "first_build_standard" : "normal_edit"),
+        );
   if (!profitCheck.ok) {
     logCredits("warn", "charge blocked — below 3x margin", {
       reason: profitCheck.reason,
@@ -113,6 +147,20 @@ export async function chargeAiOperation(
     model: input.modelId,
     amount: input.amount,
     user_id: input.userId,
+  });
+
+  const providerUsd = input.providerCostUsd ?? 0;
+  logCreditEconomicsAdmin("charge", {
+    provider_cost_usd: providerUsd,
+    internal_cost_credits: providerUsdToInternalCredits(providerUsd),
+    user_credits_reserved: input.userCreditsReserved ?? null,
+    user_credits_charged: input.amount,
+    operation_type: input.operationType ?? input.mode,
+    model_used: input.modelId,
+    markup_multiplier: TARGET_REVENUE_MULTIPLIER,
+    minimum_floor_applied: input.minimumFloorApplied ?? false,
+    operation_id: input.operationId,
+    mode: input.mode,
   });
 
   const rpcPayload = buildChargeTokensRpcPayload({

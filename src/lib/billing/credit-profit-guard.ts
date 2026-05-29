@@ -1,15 +1,29 @@
 import { FULL_BUILD_CAP_USD } from "@/lib/ai/cost-budget";
+import type { FirstPassTier } from "@/lib/build/first-pass-scope";
+import {
+  applyBuildCreditPricing,
+  formatBuildCreditsWhenSuccessful,
+  resolveBuildCreditOperationType,
+  type BuildCreditOperationType,
+} from "@/lib/billing/build-credit-floors";
 import {
   TARGET_REVENUE_MULTIPLIER,
   grossMarginFromCharge,
-  minimumUserCreditsForProviderCost,
   providerUsdToInternalCredits,
   revenueMultiplierFromCharge,
   USER_CREDITS_PER_USD,
   type GenerationMode,
 } from "@/lib/billing/pricing-config";
+import { DISCUSS_FLAT_CREDITS } from "@/lib/billing/credit-pricing";
 import { estimateProviderCostUsd } from "@/lib/credits/usage-cost";
 import { estimateTokenProviderCostUsd } from "@/lib/credits/token-cost";
+
+/** Pricing policy id — discuss_flat_0.4: charge 0.4 Build Credits only after successful discuss. */
+export const DISCUSS_CREDIT_POLICY_ID = "discuss_flat_0.4";
+
+export function discussFlatCreditsOnSuccess(): number {
+  return DISCUSS_FLAT_CREDITS;
+}
 
 export type QuoteGenerationCostInput = {
   mode: GenerationMode;
@@ -23,13 +37,17 @@ export type QuoteGenerationCostInput = {
   expectedFiles?: number;
   userPlan?: string | null;
   reserveBuffer?: number;
+  /** Override auto-detected operation floor */
+  operationType?: BuildCreditOperationType;
+  firstPassTier?: FirstPassTier;
+  isContinuation?: boolean;
+  editScope?: "tiny" | "normal";
 };
 
 export type GenerationCostQuote = {
   userCreditsRequired: number;
   userCreditsReserved: number;
   internalCostCredits: number;
-  /** Actual revenue_usd / provider_cost_usd */
   revenueMultiplier: number;
   estimatedGrossMargin: number;
   providerHardCapUsd: number;
@@ -37,9 +55,13 @@ export type GenerationCostQuote = {
   floorReason: string;
   safeToRun: boolean;
   userFacingLabel: string;
+  operationType: BuildCreditOperationType;
   adminBreakdown: {
+    operationType: BuildCreditOperationType;
     productFloorCredits: number;
     minimumProfitableCredits: number;
+    minimum_floor_applied: boolean;
+    markup_multiplier: number;
     promptBump: number;
     fileBump: number;
     bufferApplied: number;
@@ -87,136 +109,43 @@ export function providerHardCapForMode(mode: GenerationMode): number {
   return 0.02;
 }
 
-/** Discuss / create-question — charge provider cost × 3 from actual or estimated usage. */
-export function quoteDiscussCost(input: {
-  selectedModel: string;
-  estimatedProviderCostUsd?: number;
-  inputTokens?: number | null;
-  outputTokens?: number | null;
-}): GenerationCostQuote {
-  const providerUsd =
-    input.estimatedProviderCostUsd != null && input.estimatedProviderCostUsd > 0
-      ? input.estimatedProviderCostUsd
-      : input.inputTokens != null && input.outputTokens != null
-        ? estimateTokenProviderCostUsd(input.selectedModel, input.inputTokens, input.outputTokens)
-        : Math.min(estimateProviderCostUsd(input.selectedModel, "discuss"), 0.012);
-
-  const userCreditsRequired = Math.max(0.1, minimumUserCreditsForProviderCost(providerUsd));
-  const minProfitable = minimumUserCreditsForProviderCost(providerUsd);
-  const revenueMultiplier = revenueMultiplierFromCharge(userCreditsRequired, providerUsd);
-  const grossMargin = grossMarginFromCharge(userCreditsRequired, providerUsd);
-
-  return {
-    userCreditsRequired,
-    userCreditsReserved: Math.max(userCreditsRequired, Math.ceil(userCreditsRequired * 1.1)),
-    internalCostCredits: providerUsdToInternalCredits(providerUsd),
-    revenueMultiplier,
-    estimatedGrossMargin: grossMargin,
-    providerHardCapUsd: 0.012,
-    estimatedProviderCostUsd: providerUsd,
-    floorReason: "target_revenue_3x",
-    safeToRun: userCreditsRequired >= minProfitable,
-    userFacingLabel: `Discuss · ~${userCreditsRequired} credits (3× provider cost)`,
-    adminBreakdown: {
-      productFloorCredits: 0,
-      minimumProfitableCredits: minProfitable,
-      promptBump: 0,
-      fileBump: 0,
-      bufferApplied: 1.1,
-      revenueUsd: userCreditsRequired / USER_CREDITS_PER_USD,
-      costUsd: providerUsd,
-      modelId: input.selectedModel,
-      mode: "discuss",
-      complexity: 1,
-    },
-  };
+function resolveOperation(input: QuoteGenerationCostInput): BuildCreditOperationType {
+  if (input.operationType) return input.operationType;
+  return resolveBuildCreditOperationType({
+    mode: input.mode,
+    firstPassTier: input.firstPassTier,
+    promptWasHuge: input.promptWasCompressed,
+    isContinuation: input.isContinuation,
+    editScope: input.editScope,
+    complexity: input.complexity,
+  });
 }
 
-/** Create-page question — same 3× provider cost rule as Discuss. */
-export function quoteCreateQuestionCost(input: {
-  selectedModel: string;
-  estimatedProviderCostUsd?: number;
-  inputTokens?: number | null;
-  outputTokens?: number | null;
-}): GenerationCostQuote {
-  const providerUsd =
-    input.estimatedProviderCostUsd != null && input.estimatedProviderCostUsd > 0
-      ? input.estimatedProviderCostUsd
-      : input.inputTokens != null && input.outputTokens != null
-        ? estimateTokenProviderCostUsd(input.selectedModel, input.inputTokens, input.outputTokens)
-        : Math.min(estimateProviderCostUsd(input.selectedModel, "discuss"), 0.015);
-
-  const userCreditsRequired = Math.max(0.1, minimumUserCreditsForProviderCost(providerUsd));
-  const minProfitable = minimumUserCreditsForProviderCost(providerUsd);
-  const revenueMultiplier = revenueMultiplierFromCharge(userCreditsRequired, providerUsd);
-  const grossMargin = grossMarginFromCharge(userCreditsRequired, providerUsd);
-
-  return {
-    userCreditsRequired,
-    userCreditsReserved: Math.max(userCreditsRequired, Math.ceil(userCreditsRequired * 1.1)),
-    internalCostCredits: providerUsdToInternalCredits(providerUsd),
-    revenueMultiplier,
-    estimatedGrossMargin: grossMargin,
-    providerHardCapUsd: 0.015,
-    estimatedProviderCostUsd: providerUsd,
-    floorReason: "target_revenue_3x",
-    safeToRun: userCreditsRequired >= minProfitable,
-    userFacingLabel: `Create question · ~${userCreditsRequired} credits (3× provider cost)`,
-    adminBreakdown: {
-      productFloorCredits: 0,
-      minimumProfitableCredits: minProfitable,
-      promptBump: 0,
-      fileBump: 0,
-      bufferApplied: 1.1,
-      revenueUsd: userCreditsRequired / USER_CREDITS_PER_USD,
-      costUsd: providerUsd,
-      modelId: input.selectedModel,
-      mode: "discuss" as GenerationMode,
-      complexity: 1,
-    },
-  };
-}
-
-export function quoteGenerationCost(input: QuoteGenerationCostInput): GenerationCostQuote {
-  if (input.mode === "discuss") {
-    return quoteDiscussCost({
-      selectedModel: input.selectedModel,
-      estimatedProviderCostUsd: input.estimatedProviderCostUsd,
-      inputTokens: input.estimatedInputTokens,
-      outputTokens: input.estimatedOutputTokens,
-    });
-  }
-
+function quoteWithFloors(
+  input: QuoteGenerationCostInput & { mode: GenerationMode },
+): GenerationCostQuote {
   const complexity = Math.min(10, Math.max(1, input.complexity ?? 5));
   const providerUsd = resolveProviderCostUsd(input);
-  const internalCostCredits = providerUsdToInternalCredits(providerUsd);
-  const minimumProfitable = minimumUserCreditsForProviderCost(providerUsd);
-  const userCreditsRequired = Math.max(1, minimumProfitable);
+  const operationType = resolveOperation(input);
+  const applied = applyBuildCreditPricing({
+    operationType,
+    providerCostUsd: providerUsd,
+    complexity,
+  });
+
+  const userCreditsRequired = applied.userCreditsRequired;
   const buffer = input.reserveBuffer ?? 1.1;
   const userCreditsReserved = Math.max(
     userCreditsRequired,
     Math.ceil(userCreditsRequired * buffer),
   );
-
+  const internalCostCredits = providerUsdToInternalCredits(providerUsd);
   const revenueMultiplier = revenueMultiplierFromCharge(userCreditsRequired, providerUsd);
   const grossMargin = grossMarginFromCharge(userCreditsRequired, providerUsd);
 
-  const modeLabel =
-    input.mode === "full_build"
-      ? "Full app build"
-      : input.mode === "build"
-        ? "App build"
-        : input.mode === "edit"
-          ? "Targeted edit"
-          : input.mode === "deploy"
-          ? "Deploy preparation"
-          : input.mode === "polish"
-            ? "Polish pass"
-            : input.mode === "repair"
-              ? "AI repair"
-              : "Conversation";
-
-  const floorReason = "target_revenue_3x";
+  const floorReason = applied.minimumFloorApplied
+    ? `operation_floor_${operationType}`
+    : "provider_markup";
 
   return {
     userCreditsRequired,
@@ -228,12 +157,17 @@ export function quoteGenerationCost(input: QuoteGenerationCostInput): Generation
     estimatedProviderCostUsd: providerUsd,
     floorReason,
     safeToRun:
-      minimumProfitable === 0 ||
-      revenueMultiplier >= TARGET_REVENUE_MULTIPLIER - 0.001,
-    userFacingLabel: `${modeLabel} · ~${userCreditsRequired} credits`,
+      applied.profitableCredits === 0 ||
+      revenueMultiplier >= TARGET_REVENUE_MULTIPLIER - 0.001 ||
+      applied.minimumFloorApplied,
+    userFacingLabel: formatBuildCreditsWhenSuccessful(userCreditsRequired),
+    operationType,
     adminBreakdown: {
-      productFloorCredits: 0,
-      minimumProfitableCredits: minimumProfitable,
+      operationType,
+      productFloorCredits: applied.operationMinimumCredits,
+      minimumProfitableCredits: applied.profitableCredits,
+      minimum_floor_applied: applied.minimumFloorApplied,
+      markup_multiplier: applied.markupMultiplier,
       promptBump: 0,
       fileBump: 0,
       bufferApplied: buffer,
@@ -246,22 +180,76 @@ export function quoteGenerationCost(input: QuoteGenerationCostInput): Generation
   };
 }
 
+/** Discuss / create-question — same floor + markup rules. */
+export function quoteDiscussCost(input: {
+  selectedModel: string;
+  estimatedProviderCostUsd?: number;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+}): GenerationCostQuote {
+  return quoteWithFloors({
+    mode: "discuss",
+    selectedModel: input.selectedModel,
+    estimatedProviderCostUsd: input.estimatedProviderCostUsd,
+    estimatedInputTokens: input.inputTokens,
+    estimatedOutputTokens: input.outputTokens,
+    operationType: "discuss",
+    complexity: 1,
+  });
+}
+
+export function quoteCreateQuestionCost(input: {
+  selectedModel: string;
+  estimatedProviderCostUsd?: number;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+}): GenerationCostQuote {
+  return quoteWithFloors({
+    mode: "discuss",
+    selectedModel: input.selectedModel,
+    estimatedProviderCostUsd: input.estimatedProviderCostUsd,
+    estimatedInputTokens: input.inputTokens,
+    estimatedOutputTokens: input.outputTokens,
+    operationType: "discuss",
+    complexity: 1,
+  });
+}
+
+export function quoteGenerationCost(input: QuoteGenerationCostInput): GenerationCostQuote {
+  if (input.mode === "discuss") {
+    return quoteDiscussCost({
+      selectedModel: input.selectedModel,
+      estimatedProviderCostUsd: input.estimatedProviderCostUsd,
+      inputTokens: input.estimatedInputTokens,
+      outputTokens: input.estimatedOutputTokens,
+    });
+  }
+  return quoteWithFloors(input);
+}
+
 export function assertProfitableCharge(
   userCredits: number,
   providerCostUsd: number,
+  operationType?: BuildCreditOperationType,
 ): { ok: boolean; reason?: string } {
-  const minUser = minimumUserCreditsForProviderCost(providerCostUsd);
-  if (providerCostUsd > 0 && userCredits < minUser) {
+  const applied = applyBuildCreditPricing({
+    operationType: operationType ?? "normal_edit",
+    providerCostUsd,
+  });
+  if (userCredits < applied.userCreditsRequired - 1e-9) {
     return {
       ok: false,
-      reason: `Charge ${userCredits} below ${TARGET_REVENUE_MULTIPLIER}× revenue minimum ${minUser} (provider $${providerCostUsd.toFixed(4)})`,
+      reason: `Charge ${userCredits} below required ${applied.userCreditsRequired} (floor ${applied.operationMinimumCredits}, profitable ${applied.profitableCredits})`,
     };
   }
   return { ok: true };
 }
 
-export function creditsFromProviderCostUsd(providerCostUsd: number): number {
-  return Math.max(1, minimumUserCreditsForProviderCost(providerCostUsd));
+export function creditsFromProviderCostUsd(
+  providerCostUsd: number,
+  operationType: BuildCreditOperationType = "normal_edit",
+): number {
+  return applyBuildCreditPricing({ operationType, providerCostUsd }).userCreditsRequired;
 }
 
 /** @deprecated Use revenueMultiplier on quote */

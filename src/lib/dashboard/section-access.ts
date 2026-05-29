@@ -14,6 +14,7 @@ export type DashboardSectionId =
   | "marketing"
   | "domains"
   | "integrations"
+  | "payments"
   | "security"
   | "automations"
   | "logs"
@@ -44,10 +45,22 @@ export function isProjectPublished(project: ProjectAccessInput | null | undefine
 }
 
 /** Available before first publish — setup-focused sections only. */
-const PRE_PUBLISH_UNLOCKED: DashboardSectionId[] = ["overview", "settings", "secrets", "security", "data"];
+const PRE_PUBLISH_UNLOCKED: DashboardSectionId[] = ["overview", "settings"];
 
 /** Requires live publish before use. */
-const PUBLISH_GATED: DashboardSectionId[] = ["users", "analytics", "marketing", "logs", "automations"];
+const PUBLISH_GATED: DashboardSectionId[] = [
+  "users",
+  "data",
+  "analytics",
+  "marketing",
+  "logs",
+  "automations",
+  "payments",
+  "security",
+  "secrets",
+  "integrations",
+  "domains",
+];
 
 const PLAN_GATED: DashboardSectionId[] = ["api", "automations"];
 const INTEGRATIONS_GATED: DashboardSectionId[] = ["integrations", "domains"];
@@ -61,9 +74,6 @@ export function getDashboardSectionAccess(
 
   if (!isProjectPublished(project)) {
     if (PUBLISH_GATED.includes(section)) return "locked_publish_required";
-    if (section === "integrations" || section === "domains") {
-      return !isPaidPlan(userPlan) ? "locked_plan_required" : "locked_publish_required";
-    }
     return "locked_publish_required";
   }
 

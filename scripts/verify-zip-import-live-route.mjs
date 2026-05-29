@@ -7,7 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import JSZip from "jszip";
 import { createClient } from "@supabase/supabase-js";
-import { requireDevServer } from "./lib/dev-server.mjs";
+import { ensureDevServerReady, warmDevRoutes } from "./lib/dev-server.mjs";
 import { readAuthFile, cookiesHeader } from "./lib/e2e-live.mjs";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -44,7 +44,18 @@ async function makeFixtureZip() {
 async function main() {
   console.log("\n=== verify:zip-import-live-route ===\n");
 
-  await requireDevServer(base);
+  const diag = await ensureDevServerReady({
+    baseUrl: base,
+    startIfDown: true,
+    killIfBroken: true,
+    root,
+  });
+  if (diag.state !== "healthy") {
+    console.error(`✗ Dev server not healthy: ${diag.message}`);
+    console.error("  Run: npm run doctor:dev-server");
+    process.exit(1);
+  }
+  console.log(`[dev-server] ✓ ${diag.message}`);
 
   const env = { ...process.env, ...loadEnvLocal() };
   const url = env.NEXT_PUBLIC_SUPABASE_URL;
@@ -88,6 +99,12 @@ async function main() {
     cookieHeader = `sb-${ref}-auth-token=${encodeURIComponent(JSON.stringify(signIn.session))}`;
     console.log("✓ Signed in test user for HTTP route");
   }
+
+  await warmDevRoutes(
+    base,
+    ["/api/dev/ping", "/api/projects/import-zip"],
+    { cookie: cookieHeader ?? undefined, retries: 1 },
+  );
 
   const zipBuf = await makeFixtureZip();
   const form = new FormData();

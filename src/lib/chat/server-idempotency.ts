@@ -39,6 +39,25 @@ export async function hasRecentRunningBuildJob(
   return Boolean(data?.id);
 }
 
+export async function findRecentRunningBuildJobId(
+  writer: Writer,
+  projectId: string,
+  prompt: string,
+): Promise<string | null> {
+  const since = new Date(Date.now() - 2 * 60_000).toISOString();
+  const { data } = await writer
+    .from("build_jobs")
+    .select("id")
+    .eq("project_id", projectId)
+    .eq("status", "running")
+    .eq("prompt", prompt)
+    .gte("started_at", since)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.id ?? null;
+}
+
 /** Skip duplicate user message for same operation_id in conversation. */
 export async function hasUserMessageForOperation(
   writer: Writer,

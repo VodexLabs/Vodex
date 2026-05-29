@@ -72,14 +72,28 @@ const r = spawnSync("npx", ["playwright", "test", "mobile-layout", "--grep", "st
 if (r.status === 0) ok.push("mobile-layout structure E2E");
 else errors.push(`mobile-layout structure E2E: ${(r.stderr || r.stdout || "").slice(-400)}`);
 
-const r2 = spawnSync("npx", ["playwright", "test", "mobile-layout", "--grep", "quick smoke"], {
-  cwd: root,
-  shell: true,
-  encoding: "utf8",
-});
-if (r2.status === 0) ok.push("mobile-layout smoke E2E");
-else if (!fs.existsSync(authPath)) ok.push("mobile-layout smoke E2E (skipped — no auth)");
-else errors.push(`mobile-layout smoke E2E: ${(r2.stderr || r2.stdout || "").slice(-400)}`);
+let smokeRan = false;
+if (fs.existsSync(authPath)) {
+  const { ensureDevServerReady } = await import("./lib/dev-server.mjs");
+  const diag = await ensureDevServerReady({ root, startIfDown: true });
+  if (diag.state !== "healthy") {
+    ok.push(`mobile-layout smoke E2E (skipped — dev server ${diag.state})`);
+  } else {
+    smokeRan = true;
+  }
+}
+if (!fs.existsSync(authPath)) {
+  ok.push("mobile-layout smoke E2E (skipped — no auth)");
+} else if (smokeRan) {
+  const r2 = spawnSync("npx", ["playwright", "test", "mobile-layout", "--grep", "quick smoke"], {
+    cwd: root,
+    shell: true,
+    encoding: "utf8",
+    env: { ...process.env, PLAYWRIGHT_SKIP_SERVER: "1" },
+  });
+  if (r2.status === 0) ok.push("mobile-layout smoke E2E");
+  else errors.push(`mobile-layout smoke E2E: ${(r2.stderr || r2.stdout || "").slice(-400)}`);
+}
 
 if (!live || !fs.existsSync(authPath)) {
   console.log("⚠ STRUCTURE-ONLY — live overflow sweep requires E2E_RUN_LIVE=1 + .playwright-auth.json");

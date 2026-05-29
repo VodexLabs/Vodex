@@ -36,6 +36,14 @@ type BillingState = {
     pendingDowngradePlan: string | null;
   } | null;
   stripe: { configured: boolean; missingEnv: string[] };
+  paddle?: {
+    configured: boolean;
+    userMessage: string;
+    missing: string[];
+    primary: string;
+  };
+  monthlyActionCredits?: number;
+  billingProviderPrimary?: string;
 };
 
 export function BillingSettings() {
@@ -144,6 +152,8 @@ export function BillingSettings() {
   const planInfo = PLAN_DISPLAY[planId as keyof typeof PLAN_DISPLAY] ?? PLAN_DISPLAY.free;
   const isPaid = planId !== "free";
   const stripeReady = billing?.stripe.configured ?? false;
+  const paddleReady = billing?.paddle?.configured ?? false;
+  const monthlyAction = billing?.monthlyActionCredits ?? action.planAllowance;
 
   const daysUntilReset = (billing?.resetAt ?? build.resetDate)
     ? Math.max(0, Math.ceil((new Date(billing?.resetAt ?? build.resetDate!).getTime() - Date.now()) / 86400000))
@@ -151,15 +161,33 @@ export function BillingSettings() {
 
   return (
     <motion.div variants={variants.staggerContainer} initial="hidden" animate="show" className="dashboard-shell space-y-6 overflow-x-hidden">
-      {!stripeReady && !loading && (
+      {!paddleReady && !loading && (
         <motion.div
           variants={variants.fadeUp}
           className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-[13px]"
         >
-          <p className="font-medium text-foreground">Stripe setup required</p>
+          <p className="font-medium text-foreground">Paddle checkout — setup required</p>
           <p className="mt-1 text-muted-foreground">
-            Paid upgrades need server env vars (names only):{" "}
-            {(billing?.stripe.missingEnv ?? []).join(", ") || "STRIPE_SECRET_KEY, STRIPE_*_PRICE_ID, STRIPE_WEBHOOK_SECRET"}
+            {billing?.paddle?.userMessage ??
+              "DreamOS86 subscriptions use Paddle. Checkout is not live until credentials are configured."}
+          </p>
+          {(billing?.paddle?.missing ?? []).length > 0 && (
+            <p className="mt-1 text-[11px] text-muted-foreground/80">
+              Missing: {(billing?.paddle?.missing ?? []).join(", ")}
+            </p>
+          )}
+        </motion.div>
+      )}
+
+      {!stripeReady && !loading && (
+        <motion.div
+          variants={variants.fadeUp}
+          className="rounded-xl border border-border bg-surface px-4 py-3 text-[13px]"
+        >
+          <p className="font-medium text-foreground">Legacy Stripe (optional)</p>
+          <p className="mt-1 text-muted-foreground">
+            Stripe env vars remain for migration only:{" "}
+            {(billing?.stripe.missingEnv ?? []).join(", ") || "not configured"}
           </p>
         </motion.div>
       )}
@@ -181,7 +209,7 @@ export function BillingSettings() {
                     <h2 className="text-[24px] font-bold tracking-tight">{planInfo.name}</h2>
                     <p className="mt-1 text-[13px] text-muted-foreground">
                       {planInfo.priceMonthlyUsd != null ? `$${planInfo.priceMonthlyUsd} / month` : "Custom pricing"} ·{" "}
-                      {planInfo.description}
+                      {monthlyAction.toLocaleString()} Action Credits / mo
                     </p>
                     {billing?.subscription?.cancelAtPeriodEnd && billing.subscription.currentPeriodEnd && (
                       <p className="mt-2 flex items-center gap-1.5 text-[12px] text-amber-600">

@@ -50,9 +50,14 @@ import {
   recordProviderSuccess,
 } from "@/lib/ai/provider-availability";
 import { executeStagedBuildJob } from "@/lib/build/execute-staged-build-job";
+import { shouldRunInlineAsyncBuild } from "@/lib/build/schedule-async-build";
 import { emitInitialBuildEvents } from "@/lib/build/build-job-events";
 import { buildIntakeFromPrompt } from "@/lib/ai/huge-prompt-intake";
 import { effectivePromptLengthForCredits } from "@/lib/ai/build-credit-classifier";
+import {
+  resolveBuildCreditAllowance,
+  userFacingPartialBuildStartMessage,
+} from "@/lib/billing/partial-build-credits";
 import {
   formatFinishEverythingEstimate,
   parseContinueIntent,
@@ -76,12 +81,14 @@ import { formatBlueprintForBuild } from "@/lib/build/format-blueprint-prompt";
 import { maybeCreatePendingDiffFromChatEdit } from "@/lib/chat/post-edit-pending-diff";
 import {
   hasRecentRunningBuildJob,
+  findRecentRunningBuildJobId,
   hasSuccessfulChargeForOperation,
   hasUserMessageForOperation,
 } from "@/lib/chat/server-idempotency";
 import {
   classifyBuildIntent,
   shouldStartBuildPipeline,
+  shouldStartBuildPipelineInProject,
 } from "@/lib/ai/build-intent-classifier";
 import { ensureUserProfileServer } from "@/lib/auth/ensure-user-profile-server";
 import { getChargeTokensProbeCached } from "@/lib/db/charge-probe-cache";
@@ -252,6 +259,8 @@ export async function POST(request: Request) {
     stylePresetId?: string;
     createQuestion?: boolean;
     planFirstOnly?: boolean;
+    strategy?: "build_now" | "plan_first";
+    forceBuildPipeline?: boolean;
   };
 
   try {
@@ -394,17 +403,32 @@ export async function POST(request: Request) {
 
   const userTextEarly = lastUserText(uiMessages);
   const createQuestionRequest = raw.createQuestion === true;
-  const planFirstOnly = raw.planFirstOnly === true;
+  const explicitStrategy =
+    raw.strategy === "build_now" || raw.strategy === "plan_first" ? raw.strategy : undefined;
+  const forceBuildPipeline = raw.forceBuildPipeline === true;
+  let planFirstOnly = raw.planFirstOnly === true;
+  if (explicitStrategy === "build_now" && forceBuildPipeline) {
+    planFirstOnly = false;
+  }
   const buildIntent =
     mode === "build" && userTextEarly ? classifyBuildIntent(userTextEarly) : null;
-  let startBuildPipeline = shouldStartBuildPipeline(mode, buildIntent);
+  let startBuildPipeline =
+    projectId && mode === "build" && userTextEarly
+      ? shouldStartBuildPipelineInProject(mode, projectId, userTextEarly)
+      : shouldStartBuildPipeline(mode, buildIntent);
   if (planFirstOnly) {
     startBuildPipeline = false;
   }
+  if (forceBuildPipeline && explicitStrategy === "build_now" && mode === "build" && userTextEarly.trim()) {
+    startBuildPipeline = true;
+    planFirstOnly = false;
+  }
   const firstCreateIntent =
-    userTextEarly && (createQuestionRequest || mode === "build")
+    userTextEarly && mode === "build" && !projectId
       ? classifyFirstCreatePrompt(userTextEarly)
-      : null;
+      : userTextEarly && createQuestionRequest
+        ? classifyFirstCreatePrompt(userTextEarly)
+        : null;
 
   let chargeMode: "discuss" | "create_question" | "edit" | "build" =
     mode === "build" && !startBuildPipeline ? "discuss" : mode;
@@ -418,7 +442,8 @@ export async function POST(request: Request) {
     mode === "build" &&
     startBuildPipeline &&
     !createQuestionRequest &&
-    !planFirstOnly
+    !planFirstOnly &&
+    !projectId
   ) {
     return NextResponse.json(
       {
@@ -431,6 +456,8 @@ export async function POST(request: Request) {
     );
   }
 
+  const wantsAsyncBuild = request.headers.get("X-DreamOS-Async-Build") === "1";
+
   console.info("[build-intent]", {
     intent: buildIntent?.intent ?? "n/a",
     confidence: buildIntent?.confidence,
@@ -439,7 +466,34 @@ export async function POST(request: Request) {
     chargeMode,
     createQuestion: createQuestionRequest,
     firstCreateIntent: firstCreateIntent?.intent,
+    wantsAsyncBuild,
   });
+
+  if (wantsAsyncBuild && mode === "build" && projectId && userTextEarly.trim().length >= 3) {
+    if (
+      (forceBuildPipeline && explicitStrategy === "build_now") ||
+      shouldStartBuildPipelineInProject(mode, projectId, userTextEarly)
+    ) {
+      startBuildPipeline = true;
+      chargeMode = "build";
+      planFirstOnly = false;
+    }
+  }
+
+  if (wantsAsyncBuild && mode === "build" && !startBuildPipeline) {
+    return NextResponse.json(
+      {
+        error: "This prompt cannot start a background build.",
+        code: "build_pipeline_unavailable",
+        intent: buildIntent?.intent ?? null,
+        hint:
+          buildIntent?.intent === "support_answer"
+            ? "Phrases like “contact form” on a page are app features — try “Build a site with a contact form”."
+            : "Use Build with a clear app request (e.g. “Build a portfolio…”), or switch to Discuss for questions.",
+      },
+      { status: 409 },
+    );
+  }
 
   const freePlan = planIsFree(profileRow.plan_id as string | undefined);
   const requestedModel =
@@ -560,8 +614,23 @@ export async function POST(request: Request) {
   });
   const tokensNeeded = budgetPlan.creditQuote.userCreditsReserved;
   const balance = profileRow.credits_remaining ?? 0;
+  const buildAllowance = startBuildPipeline
+    ? resolveBuildCreditAllowance(balance, budgetPlan.creditQuote)
+    : null;
 
-  if (balance < tokensNeeded) {
+  if (buildAllowance?.blocked) {
+    return NextResponse.json(
+      {
+        error: "Your Build Credits are used up. Add credits or upgrade to keep building.",
+        code: "blocked_zero_credits",
+        tokens_remaining: balance,
+        tokens_required: tokensNeeded,
+      },
+      { status: 402 },
+    );
+  }
+
+  if (!startBuildPipeline && balance < tokensNeeded) {
     return NextResponse.json(
       {
         error: "insufficient_tokens",
@@ -570,10 +639,10 @@ export async function POST(request: Request) {
         estimated_cost: budgetPlan.creditQuote.userCreditsRequired,
         hint:
           chargeMode === "discuss"
-            ? "Discuss charges 3× our provider cost based on actual usage."
+            ? "Add Build Credits to continue Discuss."
             : chargeMode === "create_question"
-              ? "Create questions charge 3× our provider cost based on actual usage."
-              : "Add credits or use a cheaper build mode.",
+              ? "Add Build Credits to get an answer."
+              : "Add Build Credits or use a smaller build scope.",
       },
       { status: 402 },
     );
@@ -653,6 +722,9 @@ export async function POST(request: Request) {
   let buildJobId: string | null = null;
   if (startBuildPipeline && projectId && userText) {
     const dupBuild = await hasRecentRunningBuildJob(writer, projectId, userText);
+    if (dupBuild) {
+      buildJobId = await findRecentRunningBuildJobId(writer, projectId, userText);
+    }
     if (!dupBuild) {
     const { data: projMetaRow } = await writer
       .from("projects")
@@ -863,6 +935,7 @@ export async function POST(request: Request) {
       promptLength: reservePromptLength,
       expectedFiles: 12,
       userPlan: profileRow.plan_id as string | undefined,
+      overrideReserveAmount: buildAllowance?.reserveAmount,
     });
 
     if (!reserve.ok) {
@@ -873,7 +946,12 @@ export async function POST(request: Request) {
           tokens_remaining: balance,
           tokens_required: reserve.quote?.userCreditsReserved ?? tokensNeeded,
         },
-        { status: reserve.code === "insufficient_tokens" ? 402 : 503 },
+        {
+          status:
+            reserve.code === "insufficient_tokens" || reserve.code === "blocked_zero_credits"
+              ? 402
+              : 503,
+        },
       );
     }
 
@@ -915,13 +993,26 @@ export async function POST(request: Request) {
       conversationId,
       modelId: billedModelId,
       reservedCredits: reserve.reserved,
+      partialCreditBuild: buildAllowance?.partial ?? false,
+      quotedCreditsRequired: buildAllowance?.quotedReserve ?? tokensNeeded,
       blueprintBlock: blueprintBlock || undefined,
       userSelectedModelId: requestedModel,
     };
 
-    after(async () => {
-      await executeStagedBuildJob(jobInput);
-    });
+    const runAsyncBuild = () =>
+      executeStagedBuildJob(jobInput).catch((err) => {
+        console.error("[async-build] worker_error", {
+          buildJobId,
+          operationId: opId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+
+    if (shouldRunInlineAsyncBuild()) {
+      void runAsyncBuild();
+    } else {
+      after(runAsyncBuild);
+    }
 
     return NextResponse.json(
       {
@@ -932,7 +1023,11 @@ export async function POST(request: Request) {
         projectId,
         conversationId: conversationId ?? null,
         eventsUrl: `/api/projects/${projectId}/build-jobs/${buildJobId}/events`,
-        message: "Build started — track progress via events.",
+        message: buildAllowance?.partial
+          ? userFacingPartialBuildStartMessage(buildAllowance.balance)
+          : "Build started — track progress via events.",
+        partialBuild: buildAllowance?.partial ?? false,
+        creditsReserved: reserve.reserved,
       },
       {
         status: 202,
@@ -1308,6 +1403,10 @@ export async function POST(request: Request) {
             routeReason: manualModelSelection
               ? "user_selected_model"
               : (buildIntent?.reason ?? routed.routeReason ?? null),
+            operationType: chargeCalc.operationType,
+            minimumFloorApplied: chargeCalc.minimumFloorApplied,
+            userCreditsReserved:
+              startBuildPipeline ? budgetPlan.creditQuote.userCreditsReserved : null,
           });
           charged = charge.charged;
           chargeError = charge.error ?? null;

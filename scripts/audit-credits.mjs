@@ -34,8 +34,8 @@ if (!url || !key) {
 
 const admin = createClient(url, key, { auth: { persistSession: false } });
 
-const PLAN_BUILD = { free: 30, starter: 500, pro: 2000, business: 5000, infinity: 10000, enterprise: 10000 };
-const PLAN_ACTION = { free: 25, starter: 500, pro: 2000, business: 5000, infinity: 10000, enterprise: 10000 };
+const PLAN_BUILD = { free: 30, starter: 200, pro: 500, business: 500, infinity: 1000, enterprise: 1000 };
+const PLAN_ACTION = { free: 25, starter: 500, pro: 1250, business: 1250, infinity: 2500, enterprise: 2500 };
 
 function bonus(available, allowance) {
   return Math.max(0, Math.round((available - allowance) * 10) / 10);

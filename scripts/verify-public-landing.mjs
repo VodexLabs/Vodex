@@ -39,7 +39,7 @@ mustInclude("src/components/marketing/public-landing.tsx", 'data-testid="public-
 mustInclude("src/components/marketing/public-conversion-cards.tsx", 'data-testid="public-conversion-cards"');
 mustInclude("src/components/marketing/how-it-works-demo.tsx", 'data-testid="how-it-works-demo"');
 mustInclude("src/components/marketing/how-it-works-demo.tsx", "From idea to live app");
-mustInclude("src/components/chat/message-cost-header.tsx", "message-cost-final");
+mustInclude("src/components/chat/message-cost-header.tsx", "MessageCostBadge");
 mustInclude("src/components/create/workspace/dreamos-message-shell.tsx", "MessageCostBadge");
 
 const landing = fs.readFileSync(path.join(root, "src/components/marketing/public-landing.tsx"), "utf8");

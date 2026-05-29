@@ -255,6 +255,31 @@ export function readAuthFile() {
   return { ok: errors.length === 0, errors, meta, json };
 }
 
+/** Resolve E2E account email from env or Playwright storage (never log tokens). */
+export function resolveE2eUserEmail(env = process.env) {
+  const fromEnv = env.E2E_TEST_EMAIL?.trim();
+  if (fromEnv) return fromEnv;
+  const auth = readAuthFile();
+  if (!auth.json) return null;
+  const cookies = auth.json.cookies ?? [];
+  const tokenCookie = cookies.find(
+    (c) => typeof c.name === "string" && c.name.includes("auth-token") && c.value,
+  );
+  if (!tokenCookie?.value) return null;
+  try {
+    let raw = String(tokenCookie.value);
+    if (raw.startsWith("base64-")) {
+      raw = Buffer.from(raw.slice(7), "base64").toString("utf8");
+    }
+    const parsed = JSON.parse(raw);
+    const session = Array.isArray(parsed) ? parsed[0] : parsed;
+    const user = session?.user ?? session;
+    return typeof user?.email === "string" ? user.email.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
 export function cookiesHeader(authJson) {
   const cookies = authJson?.cookies ?? [];
   if (!cookies.length) return null;

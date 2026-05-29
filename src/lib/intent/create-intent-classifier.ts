@@ -181,6 +181,7 @@ export function classifyCreateIntent(prompt: string, hasProjectId: boolean): Cre
   }
 
   if (
+    !hasProjectId &&
     (PRICING_PATTERNS.some((p) => p.test(text)) ||
       IMPORT_QUESTION.test(text) ||
       SUPABASE_QUESTION.test(text) ||
@@ -191,6 +192,19 @@ export function classifyCreateIntent(prompt: string, hasProjectId: boolean): Cre
     return baseQuestionResult(
       "Quick answer from Create — no app will be created until you send a build request.",
     );
+  }
+
+  /** Inside an existing app builder, honor Build mode for substantive prompts. */
+  if (hasProjectId && (buildSignals || buildIntent.intent === "build_app" || buildIntent.intent === "edit_app")) {
+    return {
+      intent: "app_build_request",
+      confidence: 0.9,
+      shouldCreateProject: false,
+      shouldReserveBuildCredits: true,
+      shouldFullBuild: true,
+      needsClarification: false,
+      userMessage: "Build started for this app.",
+    };
   }
 
   if (SUPPORT_PATTERNS.some((p) => p.test(text)) && !buildSignals) {

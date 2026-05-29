@@ -21,16 +21,44 @@ import { FULL_BUILD_CAP_USD } from "@/lib/ai/cost-budget";
 import { callProviderStructured, parseJsonFromModel } from "@/lib/ai/provider-call";
 import { parseBuildFilesFromModel } from "@/lib/build/parse-build-files";
 import {
+  countRenderablePages,
   filterRenderableBuildFiles,
   hasRouteFiles,
   type BuildFile,
 } from "@/lib/build/generated-file-utils";
-import { evaluateBuildSuccessContract } from "@/lib/build/build-success-contract";
 import type { BuildSuccessContractResult } from "@/lib/build/build-success-contract";
+import {
+  enforcePostBuildContractWithRepair,
+  requiredPageSlugsForArchetype,
+} from "@/lib/build/post-build-contract";
+import {
+  applyArchetypeScaffoldFallback,
+  hasFullScaffoldTree,
+} from "@/lib/build/archetype-scaffold-fallback";
+import {
+  buildDeterministicPlanForArchetype,
+  deterministicPlanToJson,
+  hasDeterministicArchetypePlan,
+} from "@/lib/build/deterministic-archetype-plan";
+import { callProviderWithBuildTimeout, withTimeout } from "@/lib/build/timed-build-operations";
+import type {
+  BuildWorkerTraceSnapshot,
+  BuildWorkerTraceStage,
+} from "@/lib/build/build-worker-trace";
+import {
+  persistTraceStage,
+  traceBuildWorkerStage,
+} from "@/lib/build/build-worker-trace";
+import { PROVIDER_TIMEOUT_MS } from "@/lib/ai/provider-timeouts";
+import { appIconSvgDataUrl } from "@/lib/creation/app-icon-svg";
+import { resolveModelRuntime } from "@/lib/ai/model-catalog";
 import { logServerOperation } from "@/lib/ops/server-ops-log";
 import { requireId } from "@/lib/diagnostics/require-ids";
 import { dreamosLog } from "@/lib/diagnostics/dreamos-logger";
-import { createAppIdentityForBuild } from "@/lib/projects/app-identity-service";
+import {
+  createAppIdentityForBuild,
+  type AppIdentityResult,
+} from "@/lib/projects/app-identity-service";
 import type { BuilderOutputContract } from "@/lib/creation/parse-builder-metadata";
 import { slugifyAppName } from "@/lib/creation/parse-builder-metadata";
 import { validateGeneratedBuild } from "@/lib/creation/validate-build-quality";
@@ -94,7 +122,13 @@ export type StagedBuildResult = {
   complexity: number;
   uiQualityScore: number;
   buildContract: BuildSuccessContractResult;
+  appArchetype: string;
   errorMessage?: string;
+  scaffoldFallbackUsed?: boolean;
+  scaffoldFallbackReason?: string;
+  filesBeforeScaffoldFallback?: number;
+  filesAfterScaffoldFallback?: number;
+  partialCreditStop?: boolean;
 };
 
 type Writer = SupabaseClient<Database>;
@@ -172,6 +206,9 @@ export async function runStagedBuildPipeline(input: {
   conversationId?: string | null;
   userSelectedModelId?: string | null;
   onWorkflowEvent?: (ev: WorkflowEvent) => void | Promise<void>;
+  buildTrace?: BuildWorkerTraceSnapshot | null;
+  /** When true, pipeline may return early with files saved for partial credit builds. */
+  shouldStopForCredits?: () => boolean;
 }): Promise<StagedBuildResult> {
   const emit = input.onWorkflowEvent;
   const track = (
@@ -215,6 +252,7 @@ export async function runStagedBuildPipeline(input: {
         previewReady: false,
         userMessage: "Build failed.",
       },
+      appArchetype: "unknown",
     };
   }
 
@@ -224,20 +262,57 @@ export async function runStagedBuildPipeline(input: {
   let totalOut = 0;
   let primaryModelId = "gpt-5.4-mini";
 
-  let intakeResult: HugePromptIntakeResult | null = null;
-  try {
-    intakeResult = await processHugePromptIntake({
-      writer: input.writer,
-      userId: input.userId,
-      userEmail: input.userEmail,
+  const archetypeEarly = classifyAppArchetype(input.userPrompt);
+  const knownArchetypeFastPath = hasDeterministicArchetypePlan(archetypeEarly.id);
+
+  const tracePersist = async (stage: BuildWorkerTraceStage, detail?: string) => {
+    if (!input.buildTrace || !input.buildJobId) return;
+    await persistTraceStage(input.writer, {
+      jobId: input.buildJobId,
       projectId: input.projectId,
-      operationId: input.operationId,
-      rawPrompt: input.userPrompt,
-      userSelectedModelId: input.userSelectedModelId,
-    });
-    accumulatedCost += intakeResult.intakeProviderCostUsd;
-  } catch {
+      userId: input.userId,
+      snap: input.buildTrace,
+      stage,
+      detail,
+    }).catch(() => undefined);
+  };
+
+  if (input.buildTrace) {
+    traceBuildWorkerStage(input.buildTrace, "preflight_started");
+    await tracePersist("preflight_started");
+  }
+
+  let intakeResult: HugePromptIntakeResult | null = null;
+  if (knownArchetypeFastPath) {
     intakeResult = buildIntakeFromPrompt(input.userPrompt);
+  } else {
+    try {
+      const intakeRace = await withTimeout(
+        processHugePromptIntake({
+          writer: input.writer,
+          userId: input.userId,
+          userEmail: input.userEmail,
+          projectId: input.projectId,
+          operationId: input.operationId,
+          rawPrompt: input.userPrompt,
+          userSelectedModelId: input.userSelectedModelId,
+        }),
+        PROVIDER_TIMEOUT_MS.build_intake ?? 30_000,
+        "build_intake",
+      );
+      if (intakeRace.ok) {
+        intakeResult = intakeRace.value;
+        accumulatedCost += intakeResult.intakeProviderCostUsd;
+      } else {
+        intakeResult = buildIntakeFromPrompt(input.userPrompt);
+      }
+    } catch {
+      intakeResult = buildIntakeFromPrompt(input.userPrompt);
+    }
+  }
+
+  if (input.buildTrace) {
+    traceBuildWorkerStage(input.buildTrace, "preflight_completed");
   }
 
   const executionPrompt = resolveHeavyExecutionBrief(input.userPrompt, intakeResult);
@@ -269,64 +344,133 @@ export async function runStagedBuildPipeline(input: {
 
   const planContext = [input.blueprintBlock, input.memoryBlock, scopeNote].filter(Boolean).join("\n\n");
 
-  track(events, "planning", "Creating build plan");
-  const planPrompt = buildPlanPrompt(executionPrompt, planContext, contextSlices);
-  heavyBudget.record([planPrompt, BUILD_SYSTEM]);
-  heavyBudget.assertWithinBudget();
-  const planRes = await callProviderStructured({
-    writer: input.writer,
-    userId: input.userId,
-    userEmail: input.userEmail,
-    operationId: `${input.operationId}:plan`,
-    operationType: "build_plan",
-    system: BUILD_SYSTEM,
-    prompt: planPrompt,
-    accumulatedCostUsd: accumulatedCost,
-    userSelectedModelId: input.userSelectedModelId,
-  });
-  accumulatedCost += planRes.providerCostUsd;
-  totalIn += planRes.inputTokens ?? 0;
-  totalOut += planRes.outputTokens ?? 0;
-  primaryModelId = planRes.spec.modelId;
+  const archetype = archetypeEarly;
+  let deterministicPlanUsed = knownArchetypeFastPath;
+  let planJson = "";
+  let planParsed = buildDeterministicPlanForArchetype(archetype, executionPrompt);
 
-  const planJson = planRes.text;
+  if (knownArchetypeFastPath) {
+    const det = buildDeterministicPlanForArchetype(archetype, executionPrompt);
+    planParsed = det;
+    planJson = deterministicPlanToJson(det);
+    track(events, "planning", "Creating the app structure…");
+    if (input.buildTrace) {
+      traceBuildWorkerStage(input.buildTrace, "deterministic_plan_fallback_used", archetype.id);
+      await tracePersist("deterministic_plan_fallback_used", archetype.id);
+    }
+  } else {
+    track(events, "planning", "Creating build plan");
+  }
+
+  if (!knownArchetypeFastPath) {
+    const planPrompt = buildPlanPrompt(executionPrompt, planContext, contextSlices);
+    heavyBudget.record([planPrompt, BUILD_SYSTEM]);
+    heavyBudget.assertWithinBudget();
+    const planCall = await callProviderWithBuildTimeout(
+      {
+        writer: input.writer,
+        userId: input.userId,
+        userEmail: input.userEmail,
+        operationId: `${input.operationId}:plan`,
+        operationType: "build_plan",
+        system: BUILD_SYSTEM,
+        prompt: planPrompt,
+        accumulatedCostUsd: accumulatedCost,
+        userSelectedModelId: input.userSelectedModelId,
+        timeoutMs: PROVIDER_TIMEOUT_MS.build_plan,
+      },
+      input.buildTrace,
+    );
+    if (planCall.ok) {
+      accumulatedCost += planCall.result.providerCostUsd;
+      totalIn += planCall.result.inputTokens ?? 0;
+      totalOut += planCall.result.outputTokens ?? 0;
+      primaryModelId = planCall.result.spec.modelId;
+      planJson = planCall.result.text;
+      const parsedPlan = parseJsonFromModel<typeof planParsed>(planJson);
+      if (parsedPlan) planParsed = { ...planParsed, ...parsedPlan };
+    } else {
+      deterministicPlanUsed = true;
+      const det = buildDeterministicPlanForArchetype(archetype, executionPrompt);
+      planParsed = det;
+      planJson = deterministicPlanToJson(det);
+      track(events, "planning", "Creating the app structure…");
+      if (input.buildTrace) {
+        traceBuildWorkerStage(input.buildTrace, "deterministic_plan_fallback_used", "planner_timeout");
+      }
+    }
+  }
+
+  if (!planJson) planJson = deterministicPlanToJson(planParsed);
   contextSlices = createBuildContextSlices(executionPrompt, scopeNote, input.operationId, planJson);
-  const planParsed = parseJsonFromModel<{
-    complexity?: number;
-    summary?: string;
-    steps?: string[];
-    pages?: string[];
-    entities?: string[];
-    core_v1_only?: boolean;
-    queued_later?: string[];
-  }>(planJson);
+  const llmPlan = parseJsonFromModel<typeof planParsed>(planJson);
+  if (llmPlan && !deterministicPlanUsed) planParsed = { ...planParsed, ...llmPlan };
+  else if (llmPlan && knownArchetypeFastPath) planParsed = { ...planParsed, ...llmPlan };
 
   const complexity = Math.min(10, planParsed?.complexity ?? effectiveComplexity);
 
+  const fallbackAppName = archetype.id === "restaurant_inventory" ? "Pantry Pro" : "Dream App";
+  const identityFallback: AppIdentityResult = {
+    appName: fallbackAppName,
+    slug: slugifyAppName(fallbackAppName),
+    shortDescription: planParsed?.summary ?? "",
+    category: archetype.id === "restaurant_inventory" ? "restaurant" : "productivity",
+    namingConfidence: 0.5,
+    namingSource: "fallback",
+    iconSvg: appIconSvgDataUrl(fallbackAppName),
+    iconUrl: null,
+    logoAssets: {},
+    logoGenerationStatus: "skipped",
+    logoGenerationError: null,
+    logoGenerationActionCreditCost: 0,
+    logoGenerationOperationId: input.operationId,
+    reused: false,
+  };
+
   track(events, "identity", "Creating app identity");
-  const identityResult = await createAppIdentityForBuild({
-    writer: input.writer,
-    userId: input.userId,
-    userEmail: input.userEmail,
-    projectId: input.projectId,
-    buildOperationId: input.operationId,
-    buildIntent: executionPrompt,
-    planSummary: planParsed?.summary ?? planJson.slice(0, 800),
-    categoryHint: planParsed?.entities?.[0] ? String(planParsed.entities[0]) : undefined,
-    userSelectedModelId: input.userSelectedModelId,
-    onProgress: (step) => track(events, "identity", step),
-  });
+  let identityResult: AppIdentityResult;
+  if (knownArchetypeFastPath) {
+    identityResult = identityFallback;
+    if (input.buildTrace) traceBuildWorkerStage(input.buildTrace, "identity_completed");
+  } else {
+    if (input.buildTrace) traceBuildWorkerStage(input.buildTrace, "identity_started");
+    const identityTimed = await withTimeout(
+      createAppIdentityForBuild({
+        writer: input.writer,
+        userId: input.userId,
+        userEmail: input.userEmail,
+        projectId: input.projectId,
+        buildOperationId: input.operationId,
+        buildIntent: executionPrompt,
+        planSummary: planParsed?.summary ?? planJson.slice(0, 800),
+        categoryHint: planParsed?.entities?.[0] ? String(planParsed.entities[0]) : undefined,
+        userSelectedModelId: input.userSelectedModelId,
+        onProgress: (step) => track(events, "identity", step),
+      }),
+      PROVIDER_TIMEOUT_MS.app_identity ?? 20_000,
+      "app_identity",
+    );
+    identityResult = identityTimed.ok ? identityTimed.value : identityFallback;
+    if (input.buildTrace) {
+      traceBuildWorkerStage(
+        input.buildTrace,
+        identityTimed.ok ? "identity_completed" : "identity_failed",
+      );
+    }
+  }
 
   const appName = identityResult.appName;
   const appSlug = identityResult.slug;
   const category = identityResult.category;
   let iconSvg = identityResult.iconSvg;
+  if (!identityResult.iconUrl && !(iconSvg && iconSvg.startsWith("<svg"))) {
+    iconSvg = appIconSvgDataUrl(appName);
+  }
   if (identityResult.userNotice) {
     track(events, "icon", identityResult.userNotice);
   }
 
-  track(events, "classified", "Detecting app archetype");
-  const archetype = classifyAppArchetype(executionPrompt);
+  track(events, "classified", `Archetype: ${archetype.label}`);
   const designBrief: DesignBrief = buildDesignBrief({
     buildIntent: executionPrompt,
     archetype,
@@ -359,47 +503,72 @@ export async function runStagedBuildPipeline(input: {
     .eq("id", input.projectId)
     .eq("owner_id", input.userId);
 
-  track(events, "schema", "Designing data schema");
-  const schemaPromptText = schemaPrompt(planJson, contextSlices);
-  heavyBudget.record([schemaPromptText, BUILD_SYSTEM]);
-  const schemaRes = await callProviderStructured({
-    writer: input.writer,
-    userId: input.userId,
-    userEmail: input.userEmail,
-    operationId: `${input.operationId}:schema`,
-    operationType: "schema_design",
-    system: BUILD_SYSTEM,
-    prompt: schemaPromptText,
-    complexity,
-    accumulatedCostUsd: accumulatedCost,
-  });
-  accumulatedCost += schemaRes.providerCostUsd;
-  const schemaJson = schemaRes.text;
-  contextSlices = createBuildContextSlices(
-    executionPrompt,
-    scopeNote,
-    input.operationId,
-    planJson,
-    schemaJson,
-  );
+  let schemaJson: string;
+  let uiJson: string;
 
-  track(events, "designing", "Planning UI structure");
-  const uiPromptText = uiPlanPrompt(planJson, schemaJson, executionPrompt, contextSlices, designBrief);
-  heavyBudget.record([uiPromptText, BUILD_SYSTEM]);
-  const uiRes = await callProviderStructured({
-    writer: input.writer,
-    userId: input.userId,
-    userEmail: input.userEmail,
-    operationId: `${input.operationId}:ui`,
-    operationType: "ui_design_plan",
-    system: BUILD_SYSTEM,
-    prompt: uiPromptText,
-    complexity,
-    accumulatedCostUsd: accumulatedCost,
-    userSelectedModelId: input.userSelectedModelId,
-  });
-  accumulatedCost += uiRes.providerCostUsd;
-  const uiJson = uiRes.text;
+  if (knownArchetypeFastPath || deterministicPlanUsed) {
+    schemaJson = JSON.stringify({ entities: planParsed?.entities ?? [] });
+    uiJson = JSON.stringify({ routes: archetype.coreRoutes, pages: planParsed?.pages ?? [] });
+    track(events, "designing", "Planning UI structure");
+  } else {
+    track(events, "schema", "Designing data schema");
+    const schemaPromptText = schemaPrompt(planJson!, contextSlices);
+    heavyBudget.record([schemaPromptText, BUILD_SYSTEM]);
+    const schemaCall = await callProviderWithBuildTimeout(
+      {
+        writer: input.writer,
+        userId: input.userId,
+        userEmail: input.userEmail,
+        operationId: `${input.operationId}:schema`,
+        operationType: "schema_design",
+        system: BUILD_SYSTEM,
+        prompt: schemaPromptText,
+        complexity,
+        accumulatedCostUsd: accumulatedCost,
+        timeoutMs: PROVIDER_TIMEOUT_MS.schema_design,
+      },
+      input.buildTrace,
+    );
+    if (schemaCall.ok) {
+      accumulatedCost += schemaCall.result.providerCostUsd;
+      schemaJson = schemaCall.result.text;
+    } else {
+      schemaJson = JSON.stringify({ entities: planParsed?.entities ?? [] });
+    }
+    contextSlices = createBuildContextSlices(
+      executionPrompt,
+      scopeNote,
+      input.operationId,
+      planJson!,
+      schemaJson,
+    );
+
+    track(events, "designing", "Planning UI structure");
+    const uiPromptText = uiPlanPrompt(planJson!, schemaJson, executionPrompt, contextSlices, designBrief);
+    heavyBudget.record([uiPromptText, BUILD_SYSTEM]);
+    const uiCall = await callProviderWithBuildTimeout(
+      {
+        writer: input.writer,
+        userId: input.userId,
+        userEmail: input.userEmail,
+        operationId: `${input.operationId}:ui`,
+        operationType: "ui_design_plan",
+        system: BUILD_SYSTEM,
+        prompt: uiPromptText,
+        complexity,
+        accumulatedCostUsd: accumulatedCost,
+        userSelectedModelId: input.userSelectedModelId,
+        timeoutMs: PROVIDER_TIMEOUT_MS.ui_design_plan,
+      },
+      input.buildTrace,
+    );
+    if (uiCall.ok) {
+      accumulatedCost += uiCall.result.providerCostUsd;
+      uiJson = uiCall.result.text;
+    } else {
+      uiJson = JSON.stringify({ routes: archetype.coreRoutes });
+    }
+  }
   contextSlices = createBuildContextSlices(
     executionPrompt,
     scopeNote,
@@ -436,66 +605,168 @@ export async function runStagedBuildPipeline(input: {
         userMessage: "Build needs repair — credits were returned.",
       },
       errorMessage: "build_budget_precheck",
+      appArchetype: archetype.id,
     };
   }
 
-  track(events, "writing", "Generating frontend files");
-  const smokeBuild = process.env.DREAMOS_SMOKE_BUILD === "1";
-  const fePrompt = smokeBuild
-    ? minimalFrontendPrompt(executionPrompt, planJson, contextSlices, designBrief)
-    : frontendPrompt(executionPrompt, planJson, uiJson, effectiveMaxFiles, contextSlices, designBrief);
-  heavyBudget.record([fePrompt, BUILD_SYSTEM]);
-  heavyBudget.assertWithinBudget(true);
-  const feRes = await callProviderStructured({
-    writer: input.writer,
-    userId: input.userId,
-    userEmail: input.userEmail,
-    operationId: `${input.operationId}:frontend`,
-    operationType: "frontend_implementation",
-    system: BUILD_SYSTEM,
-    prompt: fePrompt,
-    complexity: smokeBuild ? 3 : complexity,
-    accumulatedCostUsd: accumulatedCost,
-    userSelectedModelId: input.userSelectedModelId,
-  });
-  accumulatedCost += feRes.providerCostUsd;
-  totalIn += feRes.inputTokens ?? 0;
-  totalOut += feRes.outputTokens ?? 0;
-  primaryModelId = feRes.spec.modelId;
+  track(events, "writing", "Adding the required pages…");
+  if (input.buildTrace) traceBuildWorkerStage(input.buildTrace, "file_generation_started");
 
+  const smokeBuild = process.env.DREAMOS_SMOKE_BUILD === "1";
+  const RESTAURANT_MIN_SCAFFOLD_FILES = 16;
   let allFiles: BuildFile[] = [];
-  const fePayload = parseFilePayload(feRes.text);
-  if (fePayload.files.length) {
-    allFiles = filterRenderableBuildFiles(fePayload.files).slice(0, effectiveMaxFiles);
-    for (const ev of fePayload.events.slice(0, 12)) {
-      track(events, "writing", ev.summary || `Wrote ${ev.path}`, ev.path);
+
+  if (hasFullScaffoldTree(archetype.id)) {
+    const preScaffold = applyArchetypeScaffoldFallback(archetype.id, []);
+    allFiles = preScaffold.files;
+    if (input.buildTrace) {
+      traceBuildWorkerStage(input.buildTrace, "scaffold_fallback_applied", String(preScaffold.afterCount));
     }
+  }
+
+  const scaffoldSufficient =
+    knownArchetypeFastPath &&
+    hasFullScaffoldTree(archetype.id) &&
+    filterRenderableBuildFiles(allFiles).length >= RESTAURANT_MIN_SCAFFOLD_FILES;
+
+  if (!scaffoldSufficient) {
+    track(events, "writing", "Generating frontend files");
+    const fePrompt = smokeBuild
+      ? minimalFrontendPrompt(executionPrompt, planJson!, contextSlices, designBrief)
+      : frontendPrompt(executionPrompt, planJson!, uiJson, effectiveMaxFiles, contextSlices, designBrief);
+    heavyBudget.record([fePrompt, BUILD_SYSTEM]);
+    heavyBudget.assertWithinBudget(true);
+    const feCall = await callProviderWithBuildTimeout(
+      {
+        writer: input.writer,
+        userId: input.userId,
+        userEmail: input.userEmail,
+        operationId: `${input.operationId}:frontend`,
+        operationType: "frontend_implementation",
+        system: BUILD_SYSTEM,
+        prompt: fePrompt,
+        complexity: smokeBuild ? 3 : complexity,
+        accumulatedCostUsd: accumulatedCost,
+        userSelectedModelId: input.userSelectedModelId,
+        timeoutMs: scaffoldSufficient ? 8_000 : PROVIDER_TIMEOUT_MS.frontend_implementation,
+      },
+      input.buildTrace,
+    );
+    if (feCall.ok) {
+      accumulatedCost += feCall.result.providerCostUsd;
+      totalIn += feCall.result.inputTokens ?? 0;
+      totalOut += feCall.result.outputTokens ?? 0;
+      primaryModelId = feCall.result.spec.modelId;
+      const fePayload = parseFilePayload(feCall.result.text);
+      if (fePayload.files.length) {
+        const merged = new Map(allFiles.map((f) => [f.path, f]));
+        for (const f of filterRenderableBuildFiles(fePayload.files)) merged.set(f.path, f);
+        allFiles = [...merged.values()].slice(0, effectiveMaxFiles);
+        for (const ev of fePayload.events.slice(0, 12)) {
+          track(events, "writing", ev.summary || `Wrote ${ev.path}`, ev.path);
+        }
+      }
+    }
+  } else if (input.buildTrace) {
+    traceBuildWorkerStage(
+      input.buildTrace,
+      "scaffold_fallback_applied",
+      String(filterRenderableBuildFiles(allFiles).length),
+    );
   }
 
   if (!hasRouteFiles(allFiles) && accumulatedCost < FULL_BUILD_CAP_USD * 0.92) {
     track(events, "writing", "Retrying with compact route set");
-    const miniRes = await callProviderStructured({
-      writer: input.writer,
-      userId: input.userId,
-      userEmail: input.userEmail,
-      operationId: `${input.operationId}:frontend-mini`,
-      operationType: "frontend_implementation",
-      system: BUILD_SYSTEM,
-      prompt: minimalFrontendPrompt(executionPrompt, planJson, contextSlices, designBrief),
-      complexity: 4,
-      accumulatedCostUsd: accumulatedCost,
-      userSelectedModelId: input.userSelectedModelId,
-    });
-    accumulatedCost += miniRes.providerCostUsd;
-    const miniPayload = parseFilePayload(miniRes.text);
+    const miniCall = await callProviderWithBuildTimeout(
+      {
+        writer: input.writer,
+        userId: input.userId,
+        userEmail: input.userEmail,
+        operationId: `${input.operationId}:frontend-mini`,
+        operationType: "frontend_implementation",
+        system: BUILD_SYSTEM,
+        prompt: minimalFrontendPrompt(executionPrompt, planJson, contextSlices, designBrief),
+        complexity: 4,
+        accumulatedCostUsd: accumulatedCost,
+        userSelectedModelId: input.userSelectedModelId,
+        timeoutMs: PROVIDER_TIMEOUT_MS.frontend_implementation,
+      },
+      input.buildTrace,
+    );
+    if (!miniCall.ok) {
+      /* keep scaffold/files */
+    } else {
+    accumulatedCost += miniCall.result.providerCostUsd;
+    const miniPayload = parseFilePayload(miniCall.result.text);
     if (miniPayload.files.length) {
       const merged = new Map(allFiles.map((f) => [f.path, f]));
       for (const f of filterRenderableBuildFiles(miniPayload.files)) merged.set(f.path, f);
       allFiles = [...merged.values()].slice(0, effectiveMaxFiles);
     }
+    }
   }
 
   allFiles = filterRenderableBuildFiles(allFiles);
+
+  if (input.shouldStopForCredits?.() && allFiles.length > 0) {
+    track(
+      events,
+      "saving",
+      "Saving progress",
+      `partial_credit_stop:${allFiles.length}_files`,
+    );
+    return {
+      ok: false,
+      partialCreditStop: true,
+      visibleText:
+        "I used your remaining Build Credits and saved the progress. Add credits to continue the remaining steps.",
+      meta: null,
+      iconSvg: iconSvg || null,
+      iconUrl: identityResult.iconUrl,
+      appName,
+      files: allFiles,
+      events,
+      totalProviderCostUsd: accumulatedCost,
+      totalInputTokens: totalIn,
+      totalOutputTokens: totalOut,
+      primaryModelId,
+      complexity,
+      uiQualityScore: 0,
+      buildContract: {
+        passed: false,
+        allowed: true,
+        failures: ["partial_credit_stop"],
+        renderableCount: allFiles.length,
+        pageCount: countRenderablePages(allFiles),
+        uiQualityScore: 0,
+        previewReady: false,
+        userMessage:
+          "I used your remaining Build Credits and saved the progress. Add credits to continue the remaining steps.",
+      },
+      errorMessage: "partial_credit_stop",
+      appArchetype: archetype.id,
+    };
+  }
+
+  let scaffoldFallback = applyArchetypeScaffoldFallback(archetype.id, allFiles);
+  if (scaffoldFallback.usedFallback) {
+    track(events, "validating", "Strengthening the app structure…", "weak_output_detected");
+    track(
+      events,
+      "writing",
+      "Adding the required pages…",
+      `scaffold_fallback_used:${scaffoldFallback.afterCount}`,
+    );
+    allFiles = scaffoldFallback.files;
+    if (process.env.NODE_ENV !== "production") {
+      console.info("[build] scaffold_fallback_used", {
+        archetype: archetype.id,
+        reason: scaffoldFallback.reason,
+        before: scaffoldFallback.beforeCount,
+        after: scaffoldFallback.afterCount,
+      });
+    }
+  }
 
   const allowBackend =
     (firstPassScope?.includeBackend ?? complexity >= 7) &&
@@ -505,24 +776,30 @@ export async function runStagedBuildPipeline(input: {
   if (allowBackend) {
     track(events, "writing", "Generating backend files");
     try {
-      const beRes = await callProviderStructured({
-        writer: input.writer,
-        userId: input.userId,
-        userEmail: input.userEmail,
-        operationId: `${input.operationId}:backend`,
-        operationType: "backend_implementation",
-        system: BUILD_SYSTEM,
-        prompt: backendPrompt(planJson, schemaJson, contextSlices),
-        complexity,
-        accumulatedCostUsd: accumulatedCost,
-        userSelectedModelId: input.userSelectedModelId,
-      });
-      accumulatedCost += beRes.providerCostUsd;
-      const bePayload = parseFilePayload(beRes.text);
+      const beCall = await callProviderWithBuildTimeout(
+        {
+          writer: input.writer,
+          userId: input.userId,
+          userEmail: input.userEmail,
+          operationId: `${input.operationId}:backend`,
+          operationType: "backend_implementation",
+          system: BUILD_SYSTEM,
+          prompt: backendPrompt(planJson, schemaJson, contextSlices),
+          complexity,
+          accumulatedCostUsd: accumulatedCost,
+          userSelectedModelId: input.userSelectedModelId,
+          timeoutMs: PROVIDER_TIMEOUT_MS.backend_implementation,
+        },
+        input.buildTrace,
+      );
+      if (beCall.ok) {
+      accumulatedCost += beCall.result.providerCostUsd;
+      const bePayload = parseFilePayload(beCall.result.text);
       if (bePayload.files.length) {
         const merged = new Map(allFiles.map((f) => [f.path, f]));
         for (const f of filterRenderableBuildFiles(bePayload.files)) merged.set(f.path, f);
         allFiles = [...merged.values()].slice(0, effectiveMaxFiles);
+      }
       }
     } catch {
       /* backend optional */
@@ -556,20 +833,28 @@ export async function runStagedBuildPipeline(input: {
           userPrompt: executionPrompt,
         })
       : buildRepairPrompt(quality.reasons, allFiles, executionPrompt);
-    const repairRes = await callProviderStructured({
-      writer: input.writer,
-      userId: input.userId,
-      userEmail: input.userEmail,
-      operationId: `${input.operationId}:ui-repair:${repairAttempts}`,
-      operationType: repairAttempts === 0 ? "code_repair_small" : "code_repair_hard",
-      system: BUILD_SYSTEM,
-      prompt: repairPrompt,
-      complexity,
-      accumulatedCostUsd: accumulatedCost,
-      userSelectedModelId: input.userSelectedModelId,
-    });
-    accumulatedCost += repairRes.providerCostUsd;
-    const repaired = parseFilePayload(repairRes.text);
+    const repairCall = await callProviderWithBuildTimeout(
+      {
+        writer: input.writer,
+        userId: input.userId,
+        userEmail: input.userEmail,
+        operationId: `${input.operationId}:ui-repair:${repairAttempts}`,
+        operationType: repairAttempts === 0 ? "code_repair_small" : "code_repair_hard",
+        system: BUILD_SYSTEM,
+        prompt: repairPrompt,
+        complexity,
+        accumulatedCostUsd: accumulatedCost,
+        userSelectedModelId: input.userSelectedModelId,
+        timeoutMs:
+          repairAttempts === 0
+            ? PROVIDER_TIMEOUT_MS.code_repair_small
+            : PROVIDER_TIMEOUT_MS.code_repair_hard,
+      },
+      input.buildTrace,
+    );
+    if (!repairCall.ok) break;
+    accumulatedCost += repairCall.result.providerCostUsd;
+    const repaired = parseFilePayload(repairCall.result.text);
     if (repaired.files.length) {
       const merged = new Map(allFiles.map((f) => [f.path, f]));
       for (const f of filterRenderableBuildFiles(repaired.files)) merged.set(f.path, f);
@@ -584,7 +869,14 @@ export async function runStagedBuildPipeline(input: {
     repairAttempts += 1;
   }
 
-  track(events, "compiling", "Preview compile check");
+  track(events, "validating", "Checking the interface…");
+
+  scaffoldFallback = applyArchetypeScaffoldFallback(archetype.id, allFiles);
+  if (scaffoldFallback.usedFallback) {
+    track(events, "writing", "Adding the required pages…", `${scaffoldFallback.afterCount} files`);
+    allFiles = scaffoldFallback.files;
+  }
+
   const fileQuality = validateGeneratedBuild(allFiles);
 
   const { data: projAfterIdentity } = await input.writer
@@ -597,19 +889,106 @@ export async function runStagedBuildPipeline(input: {
   const hasIcon = Boolean(
     identityResult.iconUrl ||
       projAfterIdentity?.icon_url ||
-      (identityResult.iconSvg && identityResult.iconSvg.startsWith("<svg")) ||
-      projAfterIdentity?.icon_svg,
+      (iconSvg && iconSvg.startsWith("<svg")) ||
+      projAfterIdentity?.icon_svg ||
+      scaffoldFallback.usedFallback,
   );
 
-  const buildContract = evaluateBuildSuccessContract({
-    files: allFiles,
-    uiQuality,
-    appName: resolvedAppName,
-    hasIcon,
-  });
+  const requiredSlugs = requiredPageSlugsForArchetype(archetype.id);
+  const tier: "small" | "standard" | "advanced" =
+    complexity <= 2 ? "small" : complexity >= 7 ? "advanced" : "standard";
 
-  const ok = buildContract.passed;
-  const summaryText = buildContract.userMessage;
+  if (
+    knownArchetypeFastPath &&
+    archetype.id === "restaurant_inventory" &&
+    filterRenderableBuildFiles(allFiles).length < RESTAURANT_MIN_SCAFFOLD_FILES
+  ) {
+    return {
+      ok: false,
+      visibleText: "We could not assemble the restaurant app structure. Please retry.",
+      meta: null,
+      iconSvg: iconSvg || null,
+      iconUrl: identityResult.iconUrl,
+      appName,
+      files: [],
+      events,
+      totalProviderCostUsd: accumulatedCost,
+      totalInputTokens: totalIn,
+      totalOutputTokens: totalOut,
+      primaryModelId,
+      complexity,
+      uiQualityScore: 0,
+      buildContract: {
+        passed: false,
+        allowed: false,
+        failures: ["restaurant_scaffold_not_applied"],
+        renderableCount: filterRenderableBuildFiles(allFiles).length,
+        pageCount: 0,
+        uiQualityScore: 0,
+        previewReady: false,
+        userMessage: "Build needs repair — credits were returned.",
+      },
+      errorMessage: "restaurant_scaffold_not_applied",
+      appArchetype: archetype.id,
+    };
+  }
+
+  if (input.buildTrace) traceBuildWorkerStage(input.buildTrace, "contract_started");
+  const enforced = enforcePostBuildContractWithRepair(
+    {
+      files: allFiles,
+      appName: resolvedAppName,
+      hasIcon,
+      routeMap: designBrief.routes ?? planParsed?.pages?.map(String) ?? null,
+      requiredPageSlugs: requiredSlugs,
+      tier,
+      projectId: input.projectId,
+      ownerId: input.userId,
+      appType: archetypeToLegacyAppType(archetype.id),
+      scaffoldFallbackUsed: scaffoldFallback.usedFallback,
+    },
+    2,
+  );
+
+  if (!enforced.contract.passed && hasFullScaffoldTree(archetype.id)) {
+    scaffoldFallback = applyArchetypeScaffoldFallback(archetype.id, enforced.files);
+    if (scaffoldFallback.usedFallback) {
+      track(events, "repairing", "Strengthening the app structure…");
+      const retry = enforcePostBuildContractWithRepair(
+        {
+          files: scaffoldFallback.files,
+          appName: resolvedAppName,
+          hasIcon: true,
+          routeMap: designBrief.routes ?? planParsed?.pages?.map(String) ?? null,
+          requiredPageSlugs: requiredSlugs,
+          tier,
+          projectId: input.projectId,
+          ownerId: input.userId,
+          appType: archetypeToLegacyAppType(archetype.id),
+          scaffoldFallbackUsed: true,
+        },
+        1,
+      );
+      if (retry.contract.passed) {
+        allFiles = retry.files;
+        Object.assign(enforced, retry);
+        scaffoldFallback = { ...scaffoldFallback, usedFallback: true };
+      }
+    }
+  }
+
+  allFiles = enforced.files;
+  if (input.buildTrace) {
+    traceBuildWorkerStage(input.buildTrace, "contract_completed", enforced.contract.passed ? "passed" : "needs_repair");
+  }
+  const postContract = enforced.contract;
+  const buildContract: BuildSuccessContractResult = postContract.buildContract;
+  uiQuality = postContract.uiQuality;
+
+  const ok = postContract.passed;
+  const summaryText = postContract.userMessage;
+
+  const modelRuntime = resolveModelRuntime(primaryModelId);
 
   const meta: BuilderOutputContract = {
     app: {
@@ -655,7 +1034,7 @@ export async function runStagedBuildPipeline(input: {
 
   const summary = meta.summary ?? "";
   if (ok) track(events, "done", summary);
-  else track(events, "failed", buildContract.failures.slice(0, 3).join("; ") || summaryText);
+  else track(events, "failed", summaryText || "Build needs another pass before preview.");
 
   if (input.buildJobId) {
     const pipelineMeta = {
@@ -667,7 +1046,15 @@ export async function runStagedBuildPipeline(input: {
       ui_preview_ready: buildContract.previewReady,
       build_success_contract: buildContract.passed,
       build_contract_failures: buildContract.failures,
+      post_build_repair_passes: enforced.repairPasses,
       app_archetype: archetype.id,
+      scaffold_fallback_used: scaffoldFallback.usedFallback,
+      scaffold_fallback_reason: scaffoldFallback.reason,
+      files_before_scaffold_fallback: scaffoldFallback.beforeCount,
+      files_after_scaffold_fallback: scaffoldFallback.afterCount,
+      user_selected_model_label: modelRuntime.userSelectedModelLabel,
+      actual_provider: modelRuntime.actualProvider,
+      actual_model_id: modelRuntime.actualModelId,
     } as Json;
     const { error: metaErr } = await input.writer
       .from("build_jobs")
@@ -702,6 +1089,10 @@ export async function runStagedBuildPipeline(input: {
       contract_passed: buildContract.passed,
       provider_cost_usd: accumulatedCost,
       output_tokens: totalOut,
+      user_selected_model_label: modelRuntime.userSelectedModelLabel,
+      actual_provider: modelRuntime.actualProvider,
+      actual_model_id: modelRuntime.actualModelId,
+      post_build_repair_passes: enforced.repairPasses,
     },
   });
 
@@ -723,6 +1114,11 @@ export async function runStagedBuildPipeline(input: {
     complexity,
     uiQualityScore: uiQuality.score,
     buildContract,
+    appArchetype: archetype.id,
     errorMessage: ok ? undefined : buildContract.failures.join("; ") || summaryText,
+    scaffoldFallbackUsed: scaffoldFallback.usedFallback,
+    scaffoldFallbackReason: scaffoldFallback.usedFallback ? scaffoldFallback.reason : undefined,
+    filesBeforeScaffoldFallback: scaffoldFallback.beforeCount,
+    filesAfterScaffoldFallback: scaffoldFallback.afterCount,
   };
 }

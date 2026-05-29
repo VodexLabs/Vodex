@@ -41,13 +41,12 @@ else errors.push("missing Vercel poll helper");
 if (types.includes("external_hosted")) ok.push("external_hosted provider level defined");
 else errors.push("missing external_hosted type");
 
-const dash = fs.readFileSync(path.join(root, "src/components/create/workspace/app-dashboard-panel.tsx"), "utf8");
-if (dash.includes("PreviewWorkspace")) ok.push("PreviewWorkspace wired in dashboard");
-else errors.push("PreviewWorkspace not wired");
-
-const builder = fs.readFileSync(path.join(root, "src/components/builder/app-builder-workspace.tsx"), "utf8");
-if (builder.includes("PreviewWorkspace")) ok.push("PreviewWorkspace wired in builder");
-else errors.push("PreviewWorkspace not in builder");
+const immersive = fs.readFileSync(
+  path.join(root, "src/components/create/workspace/immersive-workspace.tsx"),
+  "utf8",
+);
+if (immersive.includes("PreviewPanel")) ok.push("PreviewPanel wired in immersive workspace");
+else errors.push("PreviewPanel not wired in immersive workspace");
 
 const toolbar = fs.readFileSync(path.join(root, "src/components/preview/preview-toolbar.tsx"), "utf8");
 if (toolbar.includes("Tablet") && toolbar.includes("Smartphone") && toolbar.includes("Copy link")) {

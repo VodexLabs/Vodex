@@ -11,6 +11,10 @@ import {
 } from "@/lib/mobile/capacitor-generator";
 import { sanitizeMobileBuildLog } from "@/lib/mobile/secrets";
 import { validateAndroidPackageId } from "@/lib/mobile/package-validation";
+import {
+  buildDreamosBillingJson,
+  loadMobileRevenueCatPublicConfig,
+} from "@/lib/mobile-billing/wrapper-config";
 
 export const runtime = "nodejs";
 
@@ -130,6 +134,9 @@ export async function POST(
     (project.published_subdomain ? `https://${project.published_subdomain}` : null) ??
     "https://your-app.dreamos86.app";
 
+  const rcPublic = await loadMobileRevenueCatPublicConfig(projectId);
+  const billingConfigJson = buildDreamosBillingJson(rcPublic);
+
   const wrapperFiles =
     wrapperType === "twa"
       ? generateTwaManifest({ config: cfg as never, webUrl })
@@ -137,6 +144,7 @@ export async function POST(
           config: cfg as never,
           webUrl,
           appFiles: files,
+          billingConfigJson,
         });
 
   const zip = new JSZip();

@@ -40,8 +40,11 @@ export function PrivacyContent() {
           session management.
         </LegalParagraph>
         <LegalParagraph>
-          <strong className="text-foreground">Payment data.</strong> If you purchase a paid plan, payment details are
-          processed by Stripe. We receive subscription status and billing identifiers, not full card numbers.
+          <strong className="text-foreground">Payment data.</strong> If you purchase a DreamOS86 paid plan, payment
+          details are processed by our platform billing provider (for example, Paddle or Stripe). We receive subscription
+          status and billing identifiers, not full card numbers. If you connect payment providers for a generated app, we
+          may store connection metadata, encrypted API keys, product mappings, and webhook events needed for billing health,
+          entitlements, and fraud prevention. We do not intentionally expose raw payment secrets to clients.
         </LegalParagraph>
         <LegalParagraph>
           <strong className="text-foreground">Contact and sales inquiries.</strong> Information you submit through contact

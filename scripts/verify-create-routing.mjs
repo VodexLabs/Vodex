@@ -18,7 +18,7 @@ function must(rel, needle, label) {
 }
 
 must("src/app/(workspace)/create/page.tsx", "CreateWorkspaceEntry", "real create funnel");
-must("src/app/(workspace)/apps/[appId]/builder/page.tsx", "ImmersiveWorkspace", "builder route");
+must("src/app/(workspace)/apps/[appId]/builder/page.tsx", "BuilderProjectGate", "builder route");
 must("src/components/create/premium-create-funnel.tsx", "/create", "create path");
 
 console.log("\n=== verify:create-routing ===\n");

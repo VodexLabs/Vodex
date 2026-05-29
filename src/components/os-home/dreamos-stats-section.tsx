@@ -137,36 +137,45 @@ export function DreamOsStatsSection() {
 
   React.useEffect(() => {
     let cancelled = false;
-    let fetchFailed = false;
     const ac = new AbortController();
-    const timeout = window.setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
+    const abortTimer = window.setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
+    const forceReadyTimer = window.setTimeout(() => {
+      if (!cancelled) {
+        setStatsUnavailable(true);
+        setState("ready");
+      }
+    }, FETCH_TIMEOUT_MS + 500);
 
     void fetch("/api/public/stats", { cache: "no-store", signal: ac.signal })
-      .then((r) => r.json())
-      .then((body: PublicStatsResponse) => {
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`stats_http_${r.status}`);
+        return r.json() as Promise<PublicStatsResponse>;
+      })
+      .then((body) => {
         if (cancelled) return;
-        if (body.ok) setStats(body);
-        else fetchFailed = true;
+        if (body.ok) {
+          setStats(body);
+          setStatsUnavailable(body.source === "showcase");
+        } else {
+          setStatsUnavailable(true);
+        }
       })
       .catch(() => {
-        fetchFailed = true;
+        if (!cancelled) setStatsUnavailable(true);
       })
       .finally(() => {
         if (!cancelled) {
-          if (fetchFailed) {
-            setStatsUnavailable(true);
-            setState("unavailable");
-          } else {
-            setState("ready");
-          }
-          window.clearTimeout(timeout);
+          setState("ready");
+          window.clearTimeout(abortTimer);
+          window.clearTimeout(forceReadyTimer);
         }
       });
 
     return () => {
       cancelled = true;
       ac.abort();
-      window.clearTimeout(timeout);
+      window.clearTimeout(abortTimer);
+      window.clearTimeout(forceReadyTimer);
     };
   }, []);
 

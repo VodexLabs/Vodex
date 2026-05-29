@@ -13,6 +13,7 @@ export function PublicMarketingHeader({ className }: { className?: string }) {
   const secondaryLinks = [
     { href: "/privacy", label: "Privacy" },
     { href: "/terms", label: "Terms" },
+    { href: "/refunds", label: "Refunds" },
     { href: "/auth/login", label: "Log in" },
   ] as const;
 
@@ -125,6 +126,12 @@ export function PublicMarketingFooter({ className }: { className?: string }) {
             className="text-muted-foreground transition hover:text-foreground hover:underline underline-offset-4"
           >
             Terms
+          </Link>
+          <Link
+            href="/refunds"
+            className="text-muted-foreground transition hover:text-foreground hover:underline underline-offset-4"
+          >
+            Refunds
           </Link>
           <Link
             href="/contact"

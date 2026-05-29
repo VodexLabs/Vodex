@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireDreamosOwner } from "@/lib/admin/require-owner";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
+import { allPlanEconomicsRows } from "@/lib/billing/plan-credit-economics";
 import {
   grossMarginFromCharge,
   revenueMultiplierFromCharge,
@@ -151,7 +152,23 @@ export async function GET(request: Request) {
   const totalRequests = filtered.length + failedCharges.length;
   const failedChargeCount = failedCharges.length;
 
+  const planEconomics = allPlanEconomicsRows().map((row) => ({
+    plan: row.name,
+    planId: row.planId,
+    priceUsd: row.priceUsd,
+    buildCredits: row.buildCredits,
+    actionCredits: row.actionCredits,
+    paddleFeeUsd: row.paddleFeeUsd,
+    buildProviderPoolUsd: row.buildProviderPoolUsd,
+    actionProviderPoolUsd: row.actionProviderPoolUsd,
+    totalMaxCostUsd: row.totalMaxCostUsd,
+    profitUsd: row.profitUsd,
+    marginPercent: row.marginPercent,
+  }));
+
   return NextResponse.json({
+    planEconomics,
+    billingProcessor: "paddle",
     range,
     totalRequests,
     failedChargeCount,

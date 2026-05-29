@@ -1,0 +1,42 @@
+{
+  "capturedAt": "2026-05-29T08:43:58.892Z",
+  "stage": "queue",
+  "message": "queue\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoHaveLength\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected length: \u001b[32m0\u001b[39m\nReceived length: \u001b[31m3\u001b[39m\nReceived array:  \u001b[31m[\"queue:queue:8plus1_or_empty_or_dup\", \"queue:8plus1_or_empty_or_dup\", \"console_errors:15\"]\u001b[39m",
+  "url": "http://localhost:3000/apps/a876813c-e165-4171-bcb1-6c193e36c785/dashboard",
+  "projectId": "a876813c-e165-4171-bcb1-6c193e36c785",
+  "fileCount": 16,
+  "consoleErrors": [
+    "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "WebSocket is already in CLOSING or CLOSED state.",
+    "WebSocket is already in CLOSING or CLOSED state.",
+    "WebSocket is already in CLOSING or CLOSED state.",
+    "WebSocket is already in CLOSING or CLOSED state.",
+    "WebSocket is already in CLOSING or CLOSED state.",
+    "WebSocket is already in CLOSING or CLOSED state.",
+    "WebSocket is already in CLOSING or CLOSED state.",
+    "WebSocket is already in CLOSING or CLOSED state.",
+    "WebSocket is already in CLOSING or CLOSED state.",
+    "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\n%s%s https://react.dev/link/hydration-mismatch \n\n  ...\n    <RedirectErrorBoundary router={{...}}>\n      <InnerLayoutRouter url=\"/apps/a876...\" tree={[...]} params={{appId:\"a87...\"}} cacheNode={{rsc:{...}, ...}} ...>\n        <SegmentViewNode type=\"page\" pagePath=\"(workspace...\">\n          <SegmentTrieNode>\n          <AppBuilderPage>\n            <Suspense fallback={<div>}>\n              <BuilderProjectGate appId=\"a876813c-e...\" userId=\"3c08502e-9...\" initialProject={{id:\"a87681...\", ...}} ...>\n                <ImmersiveWorkspace initialPrompt=\"\" initialMode=\"build\" initialAutoStart={false} ...>\n                  <DropZone onFiles={function ImmersiveWorkspace.useCallback[onFiles]} disabled={false} ...>\n                    <div onDragEnter={function DropZone.useCallback[onDragEnter]} ...>\n                      <span>\n                      <WorkspaceLauncher>\n                      <div className=\"flex min-h...\">\n                        <div>\n                        <div className=\"flex min-h...\">\n                          <div>\n                          <div>\n                          <div ref={{current:null}} className=\"relative z...\">\n                            <AttachmentRail>\n                            <div>\n                            <ComposerPromptQueue>\n                            <form\n                              ref={{current:null}}\n                              data-testid=\"create-composer-form\"\n                              data-build-strategy=\"plan_first\"\n                              data-mode=\"build\"\n                              data-plan-first-enabled=\"true\"\n                              data-can-enqueue-build=\"false\"\n                              data-queue-ready=\"false\"\n                              data-queue-count=\"0\"\n+                             data-queue-disabled-reason=\"none\"\n-                             data-queue-disabled-reason=\"empty\"\n                              data-active-project-id=\"a876813c-e165-4171-bcb1-6c193e36c785\"\n                              className=\"relative z-10 rounded-xl composer-shell border border-violet-500/25 bg-surfac...\"\n                              onInputCapture={function ImmersiveWorkspace.useCallback[handleComposerInputCapture]}\n                              onSubmitCapture={function ImmersiveWorkspace.useCallback[handleFormSubmitCapture]}\n                              onSubmit={function ImmersiveWorkspace.useCallback[handleFormSubmit]}\n                            >\n                        ...\n                      ...\n                      ...\n        ...\n      ...\n"
+  ],
+  "networkErrors": [],
+  "page": {
+    "_type": "Page",
+    "_guid": "page@d79caedbf2e53a062d9fe7ab6bf6f234"
+  },
+  "localStorageKeys": [
+    "dreamos-auth",
+    "dreamos-recent-pages",
+    "dreamos86.submittedOp:0b2389d1-4bd6-4795-af7c-6d3449c7fc90",
+    "dreamos86.submittedOp:714002cd-83ee-43d1-a46a-3194d0f1079c",
+    "dreamos86.consumedPrompt:0b2389d1-4bd6-4795-af7c-6d3449c7fc90",
+    "dreamos86.consumedPrompt:70fce0d7-ac77-4ce4-b8c4-9f849e2db3c0",
+    "dreamos-editor-session:a876813c-e165-4171-bcb1-6c193e36c785",
+    "dreamos86.consumedPrompt:714002cd-83ee-43d1-a46a-3194d0f1079c",
+    "dreamos86.consumedPrompt:f0b5aa40-5ca9-4ba9-bbac-7a4baae6fcd2"
+  ]
+}

@@ -194,5 +194,5 @@ export async function markBacklogCompleted(
 }
 
 export function estimateContinuationCredits(items: BuildBacklogItem[]): number {
-  return items.reduce((sum, i) => sum + (i.estimated_credits ?? 12), 0);
+  return items.reduce((sum, i) => sum + (i.estimated_credits ?? 2), 0);
 }

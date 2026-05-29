@@ -13,6 +13,8 @@ export interface DocArticle {
   description: string;
   category: string;
   readMinutes: number;
+  /** Extra terms for Help Center search (errors, provider names, env keys). */
+  keywords?: string[];
   content: string;
 }
 
@@ -114,9 +116,16 @@ The AI automatically includes relevant files in its context window. You can pin 
   {
     slug: "supabase-setup",
     title: "Supabase Setup",
-    description: "Connect your project to Supabase for auth, database, and realtime.",
+    description: "Connect your generated app to your own Supabase project — auth, database, and redirect URLs.",
     category: "Integrations",
     readMinutes: 7,
+    keywords: [
+      "Supabase callback",
+      "provider not enabled",
+      "redirect URL",
+      "YOUR_SUPABASE_PROJECT",
+      "auth/v1/callback",
+    ],
     content: `## Prerequisites
 
 - A [Supabase account](https://supabase.com)
@@ -139,12 +148,24 @@ NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 \`\`\`
 
-## Step 3: Configure redirect URLs
+## Step 3: Configure redirect URLs (generated app)
 
-1. In Supabase: **Auth → URL Configuration**
-2. Add your app URL to **Redirect URLs**:
-   - \`http://localhost:3000/auth/callback\` (development)
-   - \`https://yourdomain.com/auth/callback\` (production)
+Use **your generated app’s public URL**, not the DreamOS86 platform login domain.
+
+| Context | Redirect URL |
+|---------|----------------|
+| Local dev | \`http://localhost:3000/auth/callback\` |
+| Published subdomain | \`https://APP_SLUG.dreamos86.app/auth/callback\` (when wildcard DNS is enabled) |
+| Path publish mode | \`https://YOUR_APP_DOMAIN/p/APP_SLUG\` — set \`NEXT_PUBLIC_APP_URL\` to \`YOUR_APP_DOMAIN\` and add \`https://YOUR_APP_DOMAIN/auth/callback\` |
+| Custom domain | \`https://YOUR_CUSTOM_DOMAIN/auth/callback\` |
+
+In Supabase: **Auth → URL Configuration → Redirect URLs**, add every URL you use (local + production).
+
+**Supabase provider callback (Google/GitHub dashboards):** always use  
+\`https://YOUR_SUPABASE_PROJECT.supabase.co/auth/v1/callback\`  
+— never your app URL in the Google/GitHub “authorized redirect” field.
+
+**DreamOS86 platform login only:** if you are configuring sign-in to **dreamos86.com** itself, add \`https://dreamos86.com/auth/callback\`. That does **not** apply to apps you publish from DreamOS86.
 
 ## Row Level Security (RLS)
 
@@ -233,7 +254,7 @@ The TWA manifest links your Android app to your web domain. Add to \`assetlinks.
 }]
 \`\`\`
 
-Host this at \`https://yourdomain.com/.well-known/assetlinks.json\`.
+Host this at \`https://YOUR_CUSTOM_DOMAIN/.well-known/assetlinks.json\` (use your published app domain).
 
 ## Step 4: Build and upload
 
@@ -337,6 +358,7 @@ Once imported, you can use the AI to continue building:
     description: "Manage secrets and configuration across local, preview, and production environments.",
     category: "Configuration",
     readMinutes: 4,
+    keywords: ["NEXT_PUBLIC_APP_URL", "YOUR_APP_DOMAIN", "webhook URL", "STRIPE_WEBHOOK_SECRET"],
     content: `## How environment variables work
 
 DreamOS86 projects use standard Next.js environment variables:
@@ -353,8 +375,8 @@ Every DreamOS86 project needs these:
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 
-# App URL (set this for production deployments)
-NEXT_PUBLIC_APP_URL=https://yourdomain.com
+# App URL — your generated app's public origin (not dreamos86.com unless you own that deployment)
+NEXT_PUBLIC_APP_URL=https://YOUR_APP_DOMAIN
 \`\`\`
 
 ## Common optional variables
@@ -384,13 +406,18 @@ Set environment variables in your deployment platform (Vercel, Railway, Fly.io) 
 
 ## NEXT_PUBLIC_APP_URL
 
-This is required for correct OAuth redirects and email links in production. Set it to your canonical domain:
+This is required for correct OAuth redirects, Stripe webhooks, and email links in production. Set it to the URL users actually visit:
 
 \`\`\`env
-NEXT_PUBLIC_APP_URL=https://app.yourdomain.com
+# Published subdomain example
+NEXT_PUBLIC_APP_URL=https://APP_SLUG.dreamos86.app
+# Or your custom domain
+NEXT_PUBLIC_APP_URL=https://YOUR_CUSTOM_DOMAIN
 \`\`\`
 
-Without this, redirects fall back to \`window.location.origin\`, which works in most cases but can misbehave behind proxies or CDNs.
+Use **your generated app URL** unless you connected a custom domain — then use \`YOUR_CUSTOM_DOMAIN\`. Do not set this to \`https://dreamos86.com\` for a generated app.
+
+Without this, redirects fall back to \`window.location.origin\`, which can misbehave behind proxies or CDNs.
 `,
   },
 
@@ -515,6 +542,7 @@ This removes DreamOS86's access to your repositories. Existing code is unaffecte
     description: "Understand how DreamOS86 credits are calculated, why different actions cost different amounts, and how to use them efficiently.",
     category: "Billing",
     readMinutes: 5,
+    keywords: ["Build Credits", "Action Credits", "why did a build use credits"],
     content: `## Two credit types
 
 DreamOS86 uses two separate credit pools so building and live app actions stay predictable:
@@ -621,7 +649,14 @@ When a pool reaches zero, related actions are paused. You can:
 
 Monthly plan credits reset each billing cycle. They do not roll over.
 
-If you upgrade your plan mid-cycle, your used credits carry forward — you won't lose progress. For example, if you used 100 out of 500 Build Credits on the Starter plan and upgrade to Pro (5,000 credits), your balance becomes 100 / 5,000 used — not 0 / 5,000.
+If you upgrade your plan mid-cycle, your used credits carry forward — you won't lose progress. For example, if you used 100 out of 200 Build Credits on Starter and upgrade to Pro (500 Build Credits), your balance reflects 100 used against the new 500 allowance — not a full reset to zero used.
+
+| Plan | Build Credits / mo | Action Credits / mo |
+|------|-------------------|---------------------|
+| Free | 30 | 25 |
+| Starter | 200 | 500 |
+| Pro | 500 | 1,250 |
+| Infinity | 1,000 | 2,500 |
 
 ## Credit packs
 
@@ -637,85 +672,96 @@ If you believe credits were charged incorrectly, contact support with the conver
   {
     slug: "oauth-setup",
     title: "Google & GitHub OAuth Setup",
-    description: "Enable Google and GitHub sign-in for your DreamOS86 account and generated apps.",
+    description: "Separate DreamOS86 platform login from OAuth for apps you build — correct callback URLs for each.",
     category: "Integrations",
-    readMinutes: 6,
-    content: `## Overview
+    readMinutes: 8,
+    keywords: [
+      "redirect_uri_mismatch",
+      "redirect URI mismatch",
+      "callback_failed",
+      "custom domain OAuth",
+      "Google OAuth",
+      "GitHub OAuth",
+      "YOUR_APP_DOMAIN",
+      "YOUR_CUSTOM_DOMAIN",
+      "APP_SLUG",
+    ],
+    content: `## Two different OAuth setups
 
-DreamOS86 uses Supabase Auth for all authentication, including OAuth providers. The platform supports **Google** and **GitHub** sign-in out of the box.
+Do **not** mix these up:
 
-## Setting up Google OAuth
+| Purpose | Site URL / homepage | App redirect (Supabase → your app) | Provider callback (Google/GitHub → Supabase) |
+|---------|---------------------|-------------------------------------|-----------------------------------------------|
+| **DreamOS86 platform login** | \`https://dreamos86.com\` | \`https://dreamos86.com/auth/callback\` | \`https://YOUR_SUPABASE_PROJECT.supabase.co/auth/v1/callback\` |
+| **Generated app you built** | \`https://YOUR_APP_DOMAIN\` or \`https://APP_SLUG.dreamos86.app\` | \`https://YOUR_APP_DOMAIN/auth/callback\` (or custom domain) | Same Supabase \`/auth/v1/callback\` on **your** project |
 
-### 1. Create a Google Cloud project
+**Rule:** For apps created inside DreamOS86, use **your generated app URL** unless you connected a **custom domain** — then use that domain everywhere (OAuth, payments, webhooks).
+
+---
+
+## Generated app — Google OAuth
+
+### 1. Google Cloud Console
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com)
-2. Create a new project or select an existing one
-3. Navigate to **APIs & Services → Credentials**
+2. **APIs & Services → Credentials → Create OAuth client ID → Web application**
+3. **Authorized redirect URIs** — add **only** the Supabase callback:
+   - \`https://YOUR_SUPABASE_PROJECT.supabase.co/auth/v1/callback\`
 
-### 2. Create OAuth credentials
+Do **not** put \`dreamos86.com\` here unless you are configuring platform login, not your generated app.
 
-1. Click **Create Credentials → OAuth client ID**
-2. Select **Web application**
-3. Add your authorised redirect URIs:
-   - \`http://localhost:3000/auth/callback\` (development)
-   - \`https://yourdomain.com/auth/callback\` (production)
-   - Add the Supabase callback too: \`https://your-project.supabase.co/auth/v1/callback\`
+### 2. Supabase (your project)
 
-### 3. Configure Supabase
+1. **Auth → Providers → Google** — enable, paste Client ID + Secret
+2. **Auth → URL Configuration → Redirect URLs** — add every app URL users will land on after login:
+   - Local: \`http://localhost:3000/auth/callback\`
+   - Published: \`https://APP_SLUG.dreamos86.app/auth/callback\` (subdomain mode) **or** \`https://YOUR_APP_DOMAIN/auth/callback\`
+   - Custom domain: \`https://YOUR_CUSTOM_DOMAIN/auth/callback\`
 
-1. Go to your [Supabase project dashboard](https://supabase.com/dashboard)
-2. **Auth → Providers → Google**
-3. Enable Google, paste your **Client ID** and **Client Secret**
+Set \`NEXT_PUBLIC_APP_URL\` in the generated app to match production (see [Environment variables](/help/docs/environment-variables)).
 
-### 4. Add redirect URLs to Supabase
+---
 
-**Auth → URL Configuration → Redirect URLs:**
-- \`http://localhost:3000/auth/callback\`
+## Generated app — GitHub OAuth
+
+1. [GitHub Developer Settings](https://github.com/settings/developers) → **OAuth Apps → New**
+2. **Homepage URL:** \`https://YOUR_APP_DOMAIN\` (or your custom domain / published subdomain URL)
+3. **Authorization callback URL:** \`https://YOUR_SUPABASE_PROJECT.supabase.co/auth/v1/callback\`
+4. Enable GitHub in Supabase and add the same **Redirect URLs** list as Google above.
+
+---
+
+## DreamOS86 platform login only
+
+If you are signing into **DreamOS86 itself** (the builder), add to Supabase redirect URLs:
+
 - \`https://dreamos86.com/auth/callback\`
 
----
-
-## Setting up GitHub OAuth
-
-### 1. Create a GitHub OAuth App
-
-1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
-2. Click **OAuth Apps → New OAuth App**
-3. Set:
-   - **Homepage URL**: \`https://dreamos86.com\`
-   - **Authorization callback URL**: \`https://your-project.supabase.co/auth/v1/callback\`
-
-### 2. Configure Supabase
-
-1. **Auth → Providers → GitHub**
-2. Enable GitHub, paste your **Client ID** and **Client Secret**
-
-### 3. Add redirect URLs
-
-Same as Google — add both localhost and production URLs to Supabase's allowed redirect list.
+Local platform development may also use \`http://localhost:3000/auth/callback\` when running the platform locally.
 
 ---
 
-## Testing OAuth locally
+## Local development (generated app)
 
-Google and GitHub OAuth both work on \`localhost:3000\` as long as:
-1. \`http://localhost:3000/auth/callback\` is in your Supabase redirect URLs
-2. The Google Cloud credentials have \`http://localhost:3000/auth/callback\` as an authorised URI
-3. Your \`NEXT_PUBLIC_APP_URL=http://localhost:3000\` in \`.env.local\`
+1. \`http://localhost:3000/auth/callback\` in Supabase redirect URLs
+2. \`NEXT_PUBLIC_APP_URL=http://localhost:3000\` in \`.env.local\`
+3. Google Cloud redirect URI remains the Supabase \`/auth/v1/callback\` URL only
+
+---
 
 ## Troubleshooting
 
-**"Provider not enabled"**
-→ The provider hasn't been enabled in Supabase Auth settings.
+**redirect_uri_mismatch**
+→ Google/GitHub is comparing against the Supabase callback URL. Fix the **Authorization callback** in the provider dashboard, not \`dreamos86.com\`, unless you are configuring platform login.
 
-**"Redirect URI mismatch"**
-→ The URL your app is redirecting to doesn't match exactly what's registered in Google Console or Supabase. Check for trailing slashes.
+**Provider not enabled**
+→ Enable the provider under Supabase **Auth → Providers**.
 
-**"callback_failed" error after OAuth**
-→ Usually a network error or SSL certificate issue in local development. The \`src/instrumentation.ts\` file in your project automatically handles SSL certificate issues on Windows in development.
+**callback_failed**
+→ Check SSL locally, \`NEXT_PUBLIC_APP_URL\`, and that the app route \`/auth/callback\` exists in your generated project.
 
-**Session not persisting after OAuth login**
-→ Ensure your middleware is refreshing the session on every request and that cookies are being set correctly.
+**Works locally but not after publish**
+→ Add your **published** app URL and custom domain to Supabase redirect URLs; update \`NEXT_PUBLIC_APP_URL\` in production env vars.
 `,
   },
 
@@ -726,6 +772,7 @@ Google and GitHub OAuth both work on \`localhost:3000\` as long as:
     description: "Deploy your generated app to production with Vercel, custom domains, and environment management.",
     category: "Deployment",
     readMinutes: 6,
+    keywords: ["publish", "YOUR_APP_DOMAIN", "custom domain", "webhook URL", "APP_SLUG"],
     content: `## Overview
 
 DreamOS86 generates production-ready Next.js apps. Deployment targets:
@@ -754,7 +801,7 @@ In Vercel project settings → **Environment Variables**, add all variables from
 \`\`\`
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY
-NEXT_PUBLIC_APP_URL=https://yourdomain.com
+NEXT_PUBLIC_APP_URL=https://YOUR_APP_DOMAIN
 STRIPE_SECRET_KEY
 STRIPE_WEBHOOK_SECRET
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
@@ -763,31 +810,28 @@ ANTHROPIC_API_KEY
 
 ### 3. Set NEXT_PUBLIC_APP_URL
 
-This is critical for OAuth redirects to work in production:
+Critical for OAuth, webhooks, and email links on **your generated app**:
 \`\`\`
-NEXT_PUBLIC_APP_URL=https://yourdomain.com
+NEXT_PUBLIC_APP_URL=https://APP_SLUG.dreamos86.app
+# or
+NEXT_PUBLIC_APP_URL=https://YOUR_CUSTOM_DOMAIN
 \`\`\`
-
-Without this, OAuth callbacks will redirect to the wrong URL.
 
 ### 4. Update Supabase redirect URLs
 
-Add your production domain to **Supabase → Auth → URL Configuration → Redirect URLs**:
+Add every production URL users hit to **Supabase → Auth → URL Configuration → Redirect URLs**:
 \`\`\`
-https://yourdomain.com/auth/callback
+https://YOUR_APP_DOMAIN/auth/callback
+https://YOUR_CUSTOM_DOMAIN/auth/callback
 \`\`\`
+
+Also add payment provider webhook URLs using the same domain (see [Payments setup](/help/docs/payments-providers)).
 
 ---
 
 ## Custom domains
 
-### Vercel
-1. Vercel project → **Settings → Domains**
-2. Add your domain
-3. Update your DNS: add a CNAME pointing to \`cname.vercel-dns.com\`
-
-### Supabase redirect URLs
-After adding your domain, update the allowed redirect URLs in Supabase to include your new domain.
+See [Custom domains for generated apps](/help/docs/custom-domains) for DNS, OAuth, and webhook updates when you connect \`YOUR_CUSTOM_DOMAIN\`.
 
 ---
 
@@ -824,6 +868,255 @@ This triggers a re-deployment of the selected build.
 
 **Webhook not firing**
 → Set the webhook endpoint in Stripe Dashboard to your production URL, and update \`STRIPE_WEBHOOK_SECRET\` with the production signing secret.
+`,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    slug: "custom-domains",
+    title: "Custom Domains",
+    description: "Connect YOUR_CUSTOM_DOMAIN to a published app and update OAuth, payments, and webhooks.",
+    category: "Deployment",
+    readMinutes: 5,
+    keywords: ["custom domain OAuth", "YOUR_CUSTOM_DOMAIN", "webhook URL", "DNS"],
+    content: `## Overview
+
+When you connect a custom domain to a **generated app**, every external integration must use that domain — not \`dreamos86.com\` and not a placeholder.
+
+## DNS
+
+1. Publish the app from DreamOS86 (you receive \`APP_SLUG\` / subdomain or path URL).
+2. In your host (Vercel, etc.), add \`YOUR_CUSTOM_DOMAIN\`.
+3. Point DNS (CNAME or A record) per your host’s instructions.
+
+## OAuth after custom domain
+
+In **your Supabase project** → **Auth → URL Configuration → Redirect URLs**, add:
+
+\`\`\`
+https://YOUR_CUSTOM_DOMAIN/auth/callback
+\`\`\`
+
+Keep \`http://localhost:3000/auth/callback\` for local dev.
+
+Google/GitHub **Authorization callback URL** stays:
+
+\`\`\`
+https://YOUR_SUPABASE_PROJECT.supabase.co/auth/v1/callback
+\`\`\`
+
+Set in the generated app:
+
+\`\`\`env
+NEXT_PUBLIC_APP_URL=https://YOUR_CUSTOM_DOMAIN
+\`\`\`
+
+## Payments & webhooks
+
+Stripe (and similar) webhook endpoints must use the same public origin, for example:
+
+\`\`\`
+https://YOUR_CUSTOM_DOMAIN/api/webhooks/stripe
+\`\`\`
+
+Update signing secrets in production env vars after changing domains.
+
+## What DreamOS86 does vs you
+
+| DreamOS86 | You |
+|-----------|-----|
+| Generates app code with \`/auth/callback\` routes | Own Supabase project & provider dashboards |
+| Publish + subdomain (\`APP_SLUG.dreamos86.app\`) when enabled | DNS for custom domain |
+| Connection UI in Settings | Provider approval, taxes, compliance |
+
+See [FAQ](/help/docs/help-faq) for redirect mismatch errors.
+`,
+  },
+
+  {
+    slug: "generated-app-authentication",
+    title: "Generated App Authentication",
+    description: "How end-user login works in apps you build — separate from your DreamOS86 builder account.",
+    category: "Integrations",
+    readMinutes: 5,
+    keywords: ["generated app login", "DreamOS86 login", "YOUR_SUPABASE_PROJECT"],
+    content: `## Two logins
+
+| Login | Who | Typical URL |
+|-------|-----|-------------|
+| **DreamOS86 platform** | You, the builder | \`https://dreamos86.com\` |
+| **Your generated app** | Your app’s end users | \`https://YOUR_APP_DOMAIN\` or \`https://YOUR_CUSTOM_DOMAIN\` |
+
+Signing into DreamOS86 does **not** configure OAuth for an app you ship. Each generated app uses **your Supabase project** (recommended) and your chosen public URL.
+
+## Do I need my own Supabase project?
+
+**Yes, for production apps you publish.** DreamOS86 generates code that expects \`NEXT_PUBLIC_SUPABASE_URL\` and keys from **your** project. You control Auth providers, RLS, and redirect URLs.
+
+## Callback URLs summary
+
+- **App (after Supabase redirects back):** \`https://YOUR_APP_DOMAIN/auth/callback\`
+- **Supabase (provider → Supabase):** \`https://YOUR_SUPABASE_PROJECT.supabase.co/auth/v1/callback\`
+- **Platform only:** \`https://dreamos86.com/auth/callback\`
+
+Use [Google & GitHub OAuth setup](/help/docs/oauth-setup) for step-by-step provider configuration.
+`,
+  },
+
+  {
+    slug: "payments-providers",
+    title: "Payments: Stripe, Paddle, Lemon Squeezy & PayPal",
+    description: "Connect payment processors to your generated app — accounts, webhooks, and responsibilities.",
+    category: "Billing",
+    readMinutes: 7,
+    keywords: [
+      "payment provider",
+      "Stripe",
+      "Paddle",
+      "Lemon Squeezy",
+      "PayPal",
+      "webhook URL",
+      "RevenueCat",
+    ],
+    content: `## Overview
+
+DreamOS86 can generate checkout flows and webhook handlers in **your app**. You connect **your own** processor accounts — DreamOS86 does not become the merchant of record for your app’s sales.
+
+## Connect a provider
+
+1. Create an account with Stripe, Paddle, Lemon Squeezy, or PayPal.
+2. Add API keys to your generated app env vars (server-only secrets without \`NEXT_PUBLIC_\`).
+3. Set webhook URL to your **app’s public domain**, e.g. \`https://YOUR_APP_DOMAIN/api/webhooks/stripe\`.
+4. If you use a **custom domain**, use \`https://YOUR_CUSTOM_DOMAIN/...\` for the same paths.
+
+## Mobile / app wrapping
+
+For Play Store or App Store builds, see [Play Store setup](/help/docs/play-store-setup) and your provider’s mobile SDK or [RevenueCat](https://www.revenuecat.com) docs if you add subscription sync.
+
+## Your responsibilities
+
+DreamOS86 provides integration tools, generated code, and connection flows. **You** are responsible for:
+
+- Creating and maintaining processor accounts
+- Provider approval and KYC
+- Taxes, invoicing, and local regulations
+- Disputes, chargebacks, and refunds under the processor’s terms
+- Compliance with card network and platform rules
+
+DreamOS86 is not a payment facilitator for apps you publish.
+
+## Troubleshooting
+
+- **Webhook 404:** \`NEXT_PUBLIC_APP_URL\` must match the domain configured in the dashboard.
+- **Signature errors:** Use the production webhook secret from the processor, not test mode.
+- **OAuth vs payments:** Payment return URLs use your app domain — same rule as [custom domains](/help/docs/custom-domains).
+`,
+  },
+
+  {
+    slug: "help-faq",
+    title: "FAQ",
+    description: "Common questions about domains, OAuth, credits, publishing, payments, and mobile apps.",
+    category: "FAQ",
+    readMinutes: 12,
+    keywords: [
+      "redirect_uri_mismatch",
+      "provider not enabled",
+      "callback_failed",
+      "Action Credits",
+      "Build Credits",
+      "Play Store",
+      "app wrapping",
+      "RevenueCat",
+    ],
+    content: `## Domains & OAuth
+
+### Which domain should I use for OAuth callbacks?
+
+Use the URL **end users open for your app**:
+
+- Local: \`http://localhost:3000/auth/callback\`
+- Published: \`https://APP_SLUG.dreamos86.app/auth/callback\` or \`https://YOUR_APP_DOMAIN/auth/callback\`
+- Custom domain: \`https://YOUR_CUSTOM_DOMAIN/auth/callback\`
+
+In Google/GitHub, register **Supabase’s** callback: \`https://YOUR_SUPABASE_PROJECT.supabase.co/auth/v1/callback\`.
+
+Only use \`https://dreamos86.com/auth/callback\` when configuring **DreamOS86 platform login**, not your generated app.
+
+### What is the difference between DreamOS86 login and my generated app login?
+
+**DreamOS86 login** is for building apps on dreamos86.com. **Generated app login** is for *your* customers on *your* deployed URL, usually powered by *your* Supabase project.
+
+### How do custom domains affect OAuth, payments, and webhooks?
+
+Everything public-facing must switch to \`YOUR_CUSTOM_DOMAIN\`: Supabase redirect URLs, \`NEXT_PUBLIC_APP_URL\`, Stripe webhooks, and email links. See [Custom domains](/help/docs/custom-domains).
+
+### Why does Google say redirect URI mismatch?
+
+The URI sent to Google must exactly match what you registered — almost always \`https://YOUR_SUPABASE_PROJECT.supabase.co/auth/v1/callback\`. A common mistake is putting \`dreamos86.com\` or your app URL in Google instead of Supabase.
+
+### Why does Supabase say provider not enabled?
+
+Enable Google or GitHub under **Auth → Providers** and save Client ID / Secret.
+
+### What should I do if OAuth works locally but not after publishing?
+
+Add your **published** and **custom** URLs to Supabase redirect URLs, set production \`NEXT_PUBLIC_APP_URL\`, and redeploy.
+
+---
+
+## Payments
+
+### How do I connect Stripe / Paddle / Lemon Squeezy / PayPal to my generated app?
+
+See [Payments setup](/help/docs/payments-providers). Use **your** processor account and webhook URLs on **your** app domain.
+
+### Who handles approvals, disputes, taxes, and compliance?
+
+You do, through your processor account. DreamOS86 supplies integration code and UI patterns, not merchant-of-record services for your app.
+
+---
+
+## Supabase & building
+
+### Do I need my own Supabase project for generated apps?
+
+Yes for real deployments. You own data, Auth, and RLS in your project.
+
+### What are Build Credits vs Action Credits?
+
+- **Build Credits:** AI building inside DreamOS86 (Discuss, Create, Build, edits).
+- **Action Credits:** Runtime actions in live apps (AI, email, images, automations).
+
+Details: [How credits work](/help/docs/how-credits-work).
+
+### Why did a build use credits?
+
+Build and Agent modes run models and pipelines that consume **Build Credits**. See your usage in **Settings → Billing**.
+
+### Why do AI / image / email actions use Action Credits?
+
+Those run in **deployed apps** against your plan’s Action pool, separate from building in the editor.
+
+---
+
+## Publishing & mobile
+
+### How do I publish a generated app?
+
+Use **Publish** in the app dashboard after a successful build. DreamOS86 assigns \`APP_SLUG\` and a public URL (subdomain or \`/p/APP_SLUG\` depending on DNS settings). See [Deploying your app](/help/docs/deployment).
+
+### How do I prepare for Play Store / App Store wrapping?
+
+See [Play Store setup](/help/docs/play-store-setup). You need package ID, SHA256 fingerprints, and \`assetlinks.json\` on **your** domain.
+
+### What does DreamOS86 handle vs what I configure?
+
+| DreamOS86 | You |
+|-----------|-----|
+| AI generation, builder UI, publish flow | Supabase project, OAuth providers, DNS |
+| Code for auth/checkout routes | Payment accounts, webhooks, taxes |
+| Credits for platform AI | Store listings, compliance, support for your users |
 `,
   },
 
@@ -891,6 +1184,182 @@ Disable specific models to prevent them from being used, even by Auto routing. G
 | Large codebase analysis | Gemini Pro (2M context) |
 | Code refactoring | Composer (Cursor) |
 `,
+  },
+
+  {
+    slug: "action-credits-overview",
+    title: "What Action Credits Are Used For",
+    description: "Runtime AI, email, media, and automations in your live apps.",
+    category: "Billing",
+    readMinutes: 4,
+    keywords: ["Action Credits", "runtime", "email", "video"],
+    content: `## Action Credits power live apps
+
+**Action Credits** pay for provider work when a **deployed/generated app** runs paid actions:
+
+- Runtime AI and chatbots
+- Email notifications and contact forms
+- Image and logo generation
+- Draft video clips
+- Automations that call external providers
+- File transformations with real infrastructure cost
+
+**Build Credits** are separate — they cover building inside DreamOS86 (Discuss, Edit, Build).
+
+Visitors to your published app do **not** pay DreamOS86 directly. **You** (the app owner) spend Action Credits when your app triggers paid provider work.
+
+See also: [How credits work](/help/docs/how-credits-work).`,
+  },
+
+  {
+    slug: "generated-app-runtime-billing",
+    title: "Generated App Owner Runtime Billing",
+    description: "How DreamOS86 meters Action Credits for live app features.",
+    category: "Billing",
+    readMinutes: 4,
+    keywords: ["runtime billing", "app owner", "visitor"],
+    content: `## Who pays?
+
+When someone uses your published app and triggers AI, email, or media, **your** DreamOS86 Action Credit balance is charged — not the visitor's.
+
+Normal app features keep working without Action Credits:
+
+- Database reads/writes you configured
+- Page navigation and forms
+- Local validation and config reads
+
+Paid provider actions pause if you run out of Action Credits. Visitors see a friendly message; you see warnings in the dashboard.`,
+  },
+
+  {
+    slug: "action-credits-depleted",
+    title: "What Happens When Action Credits Run Out",
+    description: "Provider actions pause; your app pages and database keep working.",
+    category: "Billing",
+    readMinutes: 3,
+    keywords: ["out of credits", "depleted", "unavailable"],
+    content: `## At 100% usage
+
+- Runtime AI, email, images, video, and similar **provider** actions are **blocked before they start**
+- Visitors see: *This AI feature is temporarily unavailable. Please try again later.*
+- You receive dashboard (and email, when possible) warnings
+
+## What still works
+
+- App pages and navigation
+- Database CRUD you set up
+- Forms that only save data (no paid email/AI)
+
+Credits restore on your **monthly plan reset** or when you purchase a top-up.`,
+  },
+
+  {
+    slug: "video-action-credits",
+    title: "Why Video Costs More Action Credits",
+    description: "Draft video uses many Action Credits because provider costs are much higher than email or small AI calls.",
+    category: "Billing",
+    readMinutes: 3,
+    keywords: ["video", "draft video", "Action Credits"],
+    content: `## Draft video only by default
+
+DreamOS86 routes published apps to **cheap draft video** providers — not premium cinematic models.
+
+A typical **5-second draft clip** uses roughly **55–60 Action Credits** because underlying video generation costs far more than a single email or small AI reply.
+
+Longer clips scale proportionally. If a provider quotes higher than expected, DreamOS86 asks for confirmation before running.
+
+**Free** plans cannot use video. **Starter** may use limited draft video when you have enough Action Credits.`,
+  },
+
+  {
+    slug: "email-action-credits",
+    title: "Email Notifications and Action Credits",
+    description: "Contact forms and notification emails consume Action Credits on the app owner account.",
+    category: "Billing",
+    readMinutes: 3,
+    keywords: ["email", "contact form", "Resend"],
+    content: `## Metered emails
+
+When your live app sends:
+
+- Contact form notifications to you
+- Transactional or notification emails through DreamOS86 routing
+
+…the **app owner's** Action Credits are charged **before** the email is sent.
+
+If you lack credits, the form can still save the submission, but the notification email will not send until credits are available again.
+
+Bulk or per-recipient automations charge **per recipient** — no partial sends.`,
+  },
+
+  {
+    slug: "image-logo-action-credits",
+    title: "Image & Logo Generation and Action Credits",
+    description: "DreamOS86 Logo and image tiers use Action Credits with pre-checks before generation.",
+    category: "Billing",
+    readMinutes: 3,
+    keywords: ["logo", "image", "DreamOS86 Logo"],
+    content: `## User-facing labels
+
+You see simple names like **DreamOS86 Logo**, **DreamOS86 Image Small**, and **DreamOS86 Image Medium** — not raw provider model names.
+
+Logos generated during a real **build** consume Action Credits. Casual Discuss questions do not auto-generate logos.
+
+Regenerating a logo from the dashboard checks your balance **before** generation starts.
+
+Premium ultra-HD or experimental image modes are not enabled by default.`,
+  },
+
+  {
+    slug: "reduce-runtime-costs",
+    title: "How to Reduce Runtime Costs",
+    description: "Practical tips to stretch Action Credits on live apps.",
+    category: "Billing",
+    readMinutes: 4,
+    keywords: ["save credits", "reduce cost", "runtime"],
+    content: `## Tips
+
+1. Use Discuss/planning in the builder (Build Credits) before enabling heavy runtime AI in production.
+2. Prefer simple notification emails over bulk sequences during early launches.
+3. Use draft video sparingly — clips are the largest Action Credit use.
+4. Cache static responses where your app allows it.
+5. Upgrade plan or top up before marketing spikes that drive contact forms and AI chat.`,
+  },
+
+  {
+    slug: "dreamos86-paddle-billing",
+    title: "DreamOS86 Billing with Paddle",
+    description: "DreamOS86 subscriptions are billed through Paddle as Merchant of Record.",
+    category: "Billing",
+    readMinutes: 3,
+    keywords: ["Paddle", "subscription", "DreamOS86 billing"],
+    content: `## Platform subscriptions
+
+DreamOS86 **plan** subscriptions (Free, Starter, Pro, Infinity) are processed by **Paddle**.
+
+Paddle handles checkout, tax, and subscription management for your **DreamOS86 account**.
+
+This is separate from payment processors you connect to **your generated apps** for your own customers.`,
+  },
+
+  {
+    slug: "app-payments-vs-dreamos-billing",
+    title: "Generated App Payment Processors vs DreamOS86 Billing",
+    description: "Your app checkout is yours; DreamOS86 plans use Paddle.",
+    category: "Billing",
+    readMinutes: 4,
+    keywords: ["Stripe", "Paddle", "Lemon Squeezy", "generated app"],
+    content: `## Two billing layers
+
+| | DreamOS86 plans | Your generated app |
+|---|---|---|
+| **Processor** | Paddle (DreamOS86) | Stripe, Paddle, Lemon Squeezy, PayPal, RevenueCat, etc. |
+| **Who pays** | You, for builder + Action Credits | Your end customers |
+| **Compliance** | DreamOS86 + Paddle | **You** and your processor |
+
+DreamOS86 is **not** responsible for your app's chargebacks, taxes, disputes, refunds, or KYC — only for integration patterns and UI.
+
+See [Payments setup](/help/docs/payments-providers) for connecting processors to apps.`,
   },
 ];
 

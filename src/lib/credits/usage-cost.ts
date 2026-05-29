@@ -1,34 +1,17 @@
 /**
- * Owner-facing provider cost estimates (USD) for admin analytics.
- * User credits use calculateTokens (3× margin) in cost-engine.ts.
+ * Provider cost estimates (USD) from per-model $/1M input/output rates.
+ * User credits: provider_usd × TARGET_REVENUE_MULTIPLIER × USER_CREDITS_PER_USD (see pricing-config).
  */
 
-const PROVIDER_COST_USD: Record<string, number> = {
-  "claude-opus-4-7": 0.18,
-  "claude-opus-4-6": 0.12,
-  "claude-sonnet-4-6": 0.04,
-  "claude-haiku-4-5": 0.008,
-  "gpt-5-5": 0.16,
-  "gpt-5-4": 0.08,
-  "gpt-4o": 0.05,
-  "gpt-4o-mini": 0.004,
-  "gemini-2-5-pro": 0.06,
-  "gemini-2-0-flash": 0.008,
-  "gemini-2.0-flash": 0.008,
-  "gemini-flash": 0.004,
-  "deepseek-chat": 0.007,
-  "deepseek-reasoner": 0.015,
-  "grok-4": 0.12,
-  "llama-4-maverick": 0.012,
-  "command-r-plus": 0.025,
-  "mistral-large": 0.018,
-};
+import { estimateTokenProviderCostUsd } from "@/lib/credits/token-cost";
 
-const MODE_MULTIPLIER: Record<string, number> = {
-  discuss: 1,
-  edit: 1.4,
-  build: 2.2,
-};
+/** Typical token envelope when usage is not known yet. */
+export function defaultTokenEnvelopeForMode(mode: string): { input: number; output: number } {
+  if (mode === "discuss") return { input: 2000, output: 800 };
+  if (mode === "edit") return { input: 3000, output: 2000 };
+  if (mode === "build") return { input: 4000, output: 12000 };
+  return { input: 2000, output: 4000 };
+}
 
 export function estimateProviderCostUsd(
   modelId: string,
@@ -36,12 +19,10 @@ export function estimateProviderCostUsd(
   tokensInput?: number | null,
   tokensOutput?: number | null,
 ): number {
-  const base = PROVIDER_COST_USD[modelId] ?? 0.04;
-  const modeMul = MODE_MULTIPLIER[mode] ?? 1;
-  const inTok = tokensInput ?? 2000;
-  const outTok = tokensOutput ?? 4000;
-  const tokenScale = Math.min(3, (inTok + outTok) / 6000);
-  return base * modeMul * Math.max(0.5, tokenScale);
+  const defaults = defaultTokenEnvelopeForMode(mode);
+  const inTok = tokensInput ?? defaults.input;
+  const outTok = tokensOutput ?? defaults.output;
+  return estimateTokenProviderCostUsd(modelId, inTok, outTok);
 }
 
 export function estimateOwnerRevenueUsd(creditsCharged: number): number {

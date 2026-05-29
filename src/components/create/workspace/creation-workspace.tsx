@@ -243,7 +243,7 @@ function OutOfCreditsCard({
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-[15px] font-bold text-foreground tracking-tight">You&apos;re out of credits</p>
+                <p className="text-[15px] font-bold text-foreground tracking-tight">Build Credits are used up</p>
                 <span className="rounded-full bg-amber-500/12 px-2 py-0.5 text-[10px] font-semibold text-amber-600 ring-1 ring-amber-500/25 dark:text-amber-400">
                   {meta.name} plan
                 </span>

@@ -30,7 +30,9 @@ import {
   Lock,
   Monitor,
   Wrench,
+  CreditCard,
 } from "lucide-react";
+import { ProjectPaymentsPanel } from "@/components/payments/project-payments-panel";
 import { cn } from "@/lib/utils";
 import type { Tables } from "@/lib/supabase/types";
 import { createClient } from "@/lib/supabase/client";
@@ -84,6 +86,7 @@ const MAIN_NAV: Array<{ id: DashSection; label: string; icon: React.ElementType 
   { id: "marketing", label: "Growth", icon: Megaphone },
   { id: "domains", label: "Domains", icon: Globe },
   { id: "integrations", label: "Integrations", icon: Plug },
+  { id: "payments", label: "Payments", icon: CreditCard },
   { id: "security", label: "Security", icon: Shield },
   { id: "automations", label: "Automations", icon: Workflow },
   { id: "logs", label: "Activity", icon: ScrollText },
@@ -653,6 +656,8 @@ export function AppDashboardPanel({
         );
       case "integrations":
         return <ProjectIntegrationsPanel projectId={projectId} planId={planId} />;
+      case "payments":
+        return <ProjectPaymentsPanel projectId={projectId} planId={planId} published={published} />;
       case "security":
         return (
           <SectionCard title="Security">

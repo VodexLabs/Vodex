@@ -31,6 +31,7 @@ export function isAiPreflightSuccess(r: AiPreflightResponse): r is AiPreflightSu
 export function preflightBlockedLabel(code: string | undefined, status: number): string {
   if (code === "unauthorized") return "blocked:auth";
   if (code === "insufficient_tokens") return "blocked:tokens";
+  if (code === "blocked_zero_credits") return "blocked:zero-credits";
   if (code === "edit_no_app") return "blocked:edit-no-app";
   if (code === "profile_unavailable") return "blocked:profile";
   if (code === "llm_setup") return "blocked:provider";

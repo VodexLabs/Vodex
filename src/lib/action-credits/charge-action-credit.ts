@@ -1,4 +1,5 @@
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
+import { assertActionCreditsAffordable } from "@/lib/action-credits/assert-action-credits-affordable";
 import {
   isExemptPlatformAction,
   quoteActionCredits,
@@ -64,6 +65,17 @@ export async function chargeActionCredit(
   }
 
   const credits = quote.finalActionCredits;
+
+  const affordable = await assertActionCreditsAffordable({
+    ownerUserId: input.ownerUserId,
+    projectId: input.projectId,
+    actionType: input.actionType,
+    providerCostUsd: input.providerCostUsd,
+  });
+  if (!affordable.ok) {
+    return { ok: false, error: "Action Credits depleted.", code: "insufficient" };
+  }
+
   const admin = createSupabaseAdmin();
 
   const { data, error } = await admin.rpc(

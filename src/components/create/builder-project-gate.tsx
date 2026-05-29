@@ -92,7 +92,7 @@ export function BuilderProjectGate({
         attemptsRef.current += 1;
         const ok = await fetchProject();
         if (ok) return;
-        await new Promise((r) => setTimeout(r, 200));
+        await new Promise((r) => setTimeout(r, 500));
       }
       if (!cancelled) {
         if (process.env.NODE_ENV !== "production") {

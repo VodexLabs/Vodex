@@ -7,6 +7,7 @@ import { monthlyTokensForPlan, normalizePlanId } from "@/lib/billing/plans";
 import { monthlyActionCreditsForPlan } from "@/lib/action-credits/action-credit-allowances";
 import type { PlanId } from "@/lib/supabase/types";
 import { creditCap, normalizeAvailableCredits, repairProfileCreditsIfInflated } from "@/lib/credits/normalize-credit-balance";
+import { isE2eCreditTestAccount } from "@/lib/credits/e2e-credit-account";
 
 export type LoadCanonicalCreditsOptions = {
   userId: string;
@@ -246,7 +247,9 @@ export async function loadCanonicalCredits(
     ledgerUsed: buildLedgerUsed,
   });
 
-  if (buildNorm.inflated && buildAvailable != null) {
+  const skipInflationRepair = isE2eCreditTestAccount(input.email);
+
+  if (buildNorm.inflated && buildAvailable != null && !skipInflationRepair) {
     try {
       await repairProfileCreditsIfInflated(admin, input.userId, buildNorm.available);
       if (process.env.NODE_ENV === "development") {

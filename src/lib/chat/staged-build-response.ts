@@ -6,10 +6,11 @@ import { calculateCreditsForStagedBuild } from "@/lib/credits/credit-pricing";
 import { reconcileGenerationReservation } from "@/lib/billing/credit-reservations";
 import { assertProfitableCharge } from "@/lib/billing/credit-profit-guard";
 import { finalizeBuildSuccess, finalizeBuildFailed } from "@/lib/build/finalize-build";
-import { completeBuildWithValidation } from "@/lib/build/complete-build-with-validation";
 import { getAppUrl } from "@/lib/app-url";
 import { hasSuccessfulChargeForOperation } from "@/lib/chat/server-idempotency";
 import { persistGeneratedBuildFiles } from "@/lib/build/persist-generated-files";
+import { assertBuildFilesPersisted } from "@/lib/build/assert-build-files-persisted";
+import { startPreviewSession } from "@/lib/preview/preview-build-service";
 import { MIN_RENDERABLE_FILES } from "@/lib/build/build-success-contract";
 import { lifecyclePatch } from "@/lib/projects/project-lifecycle";
 
@@ -127,11 +128,28 @@ export function createStagedBuildStreamResponse(input: {
           files: pr.files,
         });
 
+        const fileGate = await assertBuildFilesPersisted({
+          writer: input.writer,
+          projectId: input.projectId,
+          archetypeId: pr.appArchetype,
+        });
+
+        const previewResult =
+          persist.ok && fileGate.ok
+            ? await startPreviewSession({
+                writer: input.writer,
+                userId: input.userId,
+                projectId: input.projectId,
+              })
+            : { ok: false as const, error: "files not persisted", code: "no_files" };
+
         const buildSucceeded =
           pr.ok &&
           pr.buildContract.passed &&
           persist.ok &&
-          persist.savedCount >= MIN_RENDERABLE_FILES;
+          persist.savedCount >= MIN_RENDERABLE_FILES &&
+          fileGate.ok &&
+          previewResult.ok;
 
         if (!buildSucceeded) {
           await refundBuildReservation({
@@ -205,15 +223,9 @@ export function createStagedBuildStreamResponse(input: {
           appDescription: pr.meta?.app?.description ?? null,
           iconSvg: pr.iconSvg,
           meta: pr.meta,
-          fileCount: persist.savedCount,
+          fileCount: fileGate.fileCount,
           creditsCharged: 0,
           charged: false,
-        });
-
-        await completeBuildWithValidation({
-          writer: input.writer,
-          userId: input.userId,
-          projectId: input.projectId,
         });
 
         if (!alreadyCharged && input.reservedCredits && input.reservedCredits > 0) {

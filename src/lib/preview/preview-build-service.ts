@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createServiceRoleClient } from "@/lib/supabase/admin";
 import { validateGeneratedApp } from "@/lib/build/generated-app-validator";
 import { uiQualityBlocksGenerated, reviewGeneratedUi } from "@/lib/generation/generated-ui-review";
 import { readCreateFlowConfig } from "@/lib/create/create-flow-config";
@@ -41,13 +42,61 @@ const PREVIEW_ELIGIBLE = [
   "imported_needs_setup",
 ] as const;
 
+const OPTIONAL_PREVIEW_SESSION_COLUMNS = [
+  "deployment_id",
+  "external_url",
+  "provider_level",
+] as const;
+
+function isPreviewColumnSchemaError(message: string, column?: string): boolean {
+  const m = message.toLowerCase();
+  if (!m.includes("schema cache") && !m.includes("does not exist") && !m.includes("column")) {
+    return false;
+  }
+  if (column) return m.includes(column.toLowerCase());
+  return m.includes("preview_sessions");
+}
+
+function missingPreviewColumn(message: string): (typeof OPTIONAL_PREVIEW_SESSION_COLUMNS)[number] | null {
+  for (const col of OPTIONAL_PREVIEW_SESSION_COLUMNS) {
+    if (isPreviewColumnSchemaError(message, col)) return col;
+  }
+  return null;
+}
+
 async function insertPreviewSession(input: {
   writer: Writer;
   row: Record<string, unknown>;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { error } = await input.writer.from("preview_sessions" as never).insert(input.row as never);
-  if (error) return { ok: false, error: error.message };
-  return { ok: true };
+}): Promise<
+  | { ok: true }
+  | { ok: false; error: string; code?: string }
+> {
+  const db = (createServiceRoleClient() ?? input.writer) as Writer;
+  let row = { ...input.row };
+  let lastError = "";
+
+  for (let attempt = 0; attempt <= OPTIONAL_PREVIEW_SESSION_COLUMNS.length; attempt++) {
+    const { error } = await db.from("preview_sessions" as never).insert(row as never);
+    if (!error) return { ok: true };
+    lastError = error.message;
+
+    const missingCol = missingPreviewColumn(error.message);
+    if (missingCol && row[missingCol] != null) {
+      const { [missingCol]: _drop, ...next } = row;
+      row = next;
+      continue;
+    }
+
+    if (isPreviewColumnSchemaError(error.message)) {
+      return { ok: false, error: error.message, code: "preview_schema_missing" };
+    }
+    return { ok: false, error: error.message, code: "db_error" };
+  }
+
+  if (isPreviewColumnSchemaError(lastError)) {
+    return { ok: false, error: lastError, code: "preview_schema_missing" };
+  }
+  return { ok: false, error: lastError || "Preview session insert failed", code: "db_error" };
 }
 
 async function updateProjectPreviewState(input: {
@@ -242,7 +291,11 @@ export async function startPreviewSession(input: {
 
   const inserted = await insertPreviewSession({ writer: input.writer, row });
   if (!inserted.ok) {
-    return { ok: false, error: inserted.error, code: "db_error" };
+    return {
+      ok: false,
+      error: inserted.error,
+      code: inserted.code ?? "db_error",
+    };
   }
 
   const lifecycleStatus = await updateProjectPreviewState({

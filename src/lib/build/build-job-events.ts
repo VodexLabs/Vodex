@@ -2,8 +2,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/supabase/types";
 import type { WorkflowEvent, WorkflowEventType } from "@/lib/build/build-pipeline";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
+import {
+  isBuildEventsSchemaError,
+  logBuildEventsSetupWarningOnce,
+  markBuildJobEventsTableMissing,
+} from "@/lib/build/build-events-schema-health";
 
 export type BuildJobEventType =
+  | "job_created"
   | "queued"
   | "understanding_request"
   | "planning_app"
@@ -17,6 +23,7 @@ export type BuildJobEventType =
   | "saving_files"
   | "preparing_preview"
   | "completed"
+  | "partial_credit_stop"
   | "failed"
   | "refunded";
 
@@ -54,7 +61,7 @@ const WORKFLOW_TO_JOB: Partial<Record<WorkflowEventType, BuildJobEventType>> = {
   charging: "preparing_preview",
   finalizing: "preparing_preview",
   done: "completed",
-  failed: "failed",
+  failed: "fixing_error",
 };
 
 function extractFilePath(detail?: string): string | null {
@@ -65,6 +72,29 @@ function extractFilePath(detail?: string): string | null {
 
 export function mapWorkflowEventToJobType(type: WorkflowEventType): BuildJobEventType {
   return WORKFLOW_TO_JOB[type] ?? "understanding_request";
+}
+
+const EVENT_PROGRESS_FLOOR: Partial<Record<BuildJobEventType, number>> = {
+  job_created: 1,
+  queued: 2,
+  understanding_request: 5,
+  planning_app: 12,
+  generating_app_identity: 18,
+  generating_app_icon: 20,
+  writing_file: 25,
+  editing_file: 35,
+  checking_file: 45,
+  fixing_error: 50,
+  saving_files: 65,
+  validating_preview: 75,
+  preparing_preview: 90,
+  completed: 100,
+  partial_credit_stop: 100,
+  failed: 100,
+};
+
+export function defaultProgressForEventType(type: BuildJobEventType): number {
+  return EVENT_PROGRESS_FLOOR[type] ?? 15;
 }
 
 export function userTitleForJobEvent(type: BuildJobEventType, label: string): string {
@@ -82,6 +112,7 @@ export function userTitleForJobEvent(type: BuildJobEventType, label: string): st
     saving_files: "Saving files",
     preparing_preview: "Preparing preview",
     completed: "Preview ready",
+    partial_credit_stop: "Saved partial progress",
     failed: "Build needs repair",
     refunded: "Credits returned",
   };
@@ -117,11 +148,18 @@ export async function persistBuildJobEvent(
   const admin = createServiceRoleClient();
   const db = admin ?? writer;
   const { error } = await db.from("build_job_events").insert(row as never);
-  if (error && process.env.NODE_ENV !== "production") {
+  if (error) {
     const msg = error.message ?? "";
-    if (!msg.includes("build_job_events") || !msg.includes("does not exist")) {
+    if (isBuildEventsSchemaError(msg)) {
+      markBuildJobEventsTableMissing(true);
+      logBuildEventsSetupWarningOnce();
+      return;
+    }
+    if (process.env.NODE_ENV !== "production") {
       console.warn("[build-events] persist failed:", msg);
     }
+  } else {
+    markBuildJobEventsTableMissing(false);
   }
 }
 
@@ -131,8 +169,15 @@ export async function persistWorkflowEvent(
   ev: WorkflowEvent,
   progressPercent?: number,
 ): Promise<void> {
+  // Terminal "failed" is written only by executeStagedBuildJob after finalizeBuildFailed.
+  if (ev.type === "failed") return;
+
   const type = mapWorkflowEventToJobType(ev.type);
   const filePath = extractFilePath(ev.detail) ?? extractFilePath(ev.label);
+  const pct = Math.max(
+    progressPercent ?? defaultProgressForEventType(type),
+    defaultProgressForEventType(type),
+  );
   await persistBuildJobEvent(writer, {
     jobId: ctx.jobId,
     projectId: ctx.projectId,
@@ -141,7 +186,7 @@ export async function persistWorkflowEvent(
     title: userTitleForJobEvent(type, ev.label),
     detail: ev.detail ?? ev.label,
     filePath,
-    progressPercent,
+    progressPercent: pct,
   });
 }
 
@@ -151,16 +196,37 @@ export async function emitInitialBuildEvents(
 ): Promise<void> {
   await persistBuildJobEvent(writer, {
     ...ctx,
-    type: "queued",
-    title: "Queued",
-    detail: "Starting your build…",
-    progressPercent: 2,
+    type: "job_created",
+    title: "Starting build",
+    detail: "Reading your prompt and choosing the right build path",
+    progressPercent: 1,
   });
   await persistBuildJobEvent(writer, {
     ...ctx,
     type: "understanding_request",
-    title: "Understanding your app",
-    detail: "Learning what you want to build",
+    title: "Understanding request",
+    detail: "Reading your prompt and choosing the right build path",
     progressPercent: 5,
+  });
+  await persistBuildJobEvent(writer, {
+    ...ctx,
+    type: "planning_app",
+    title: "Planning app structure",
+    detail: "Creating routes, pages, and data model",
+    progressPercent: 12,
+  });
+  await persistBuildJobEvent(writer, {
+    ...ctx,
+    type: "understanding_request",
+    title: "Planning data model",
+    detail: "Mapping tables and relationships",
+    progressPercent: 14,
+  });
+  await persistBuildJobEvent(writer, {
+    ...ctx,
+    type: "checking_file",
+    title: "Checking existing files",
+    detail: "Scanning your project workspace",
+    progressPercent: 16,
   });
 }

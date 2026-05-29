@@ -1,6 +1,5 @@
 import type { User } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Json } from "@/lib/supabase/types";
 import type { Database } from "@/lib/supabase/types";
 import { classifyFirstCreatePrompt } from "@/lib/intent/create-intent-classifier";
 import { createProjectFromPrompt } from "@/lib/projects/create-project-from-prompt";
@@ -26,7 +25,6 @@ export type StartFromHomeResult =
       intent: "build";
       projectId: string;
       conversationId: string;
-      jobId: string | null;
       builderUrl: string;
       messageId: string | null;
     }
@@ -178,38 +176,11 @@ export async function startProjectFromHome(
     messageId = userMsg?.id ?? null;
   }
 
-  let jobId: string | null = null;
-  if (input.strategy === "build_now") {
-    const { data: bj, error: bjErr } = await input.writer
-      .from("build_jobs")
-      .insert({
-        user_id: input.user.id,
-        project_id: projectId,
-        conversation_id: conv.id,
-        status: "queued",
-        started_at: new Date().toISOString(),
-        prompt,
-        result_summary: null,
-        error_message: null,
-        meta: {
-          model_id: modelId,
-          source: "home_start",
-          strategy: input.strategy,
-        } as Json,
-      } as never)
-      .select("id")
-      .single();
-
-    if (bjErr && process.env.NODE_ENV !== "production") {
-      console.warn("[start-from-home] build_jobs insert:", bjErr.message);
-    } else {
-      jobId = bj?.id ?? null;
-    }
-  }
+  // Build job is created by /api/chat when autostart runs — a placeholder "queued" job here
+  // blocked the first prompt from starting (composer treated the pipeline as busy).
 
   const builderUrl = buildBuilderUrl({
     projectId,
-    jobId,
     conversationId: conv.id,
     autostart: true,
     strategy: input.strategy,
@@ -221,7 +192,6 @@ export async function startProjectFromHome(
     intent: "build",
     projectId,
     conversationId: conv.id,
-    jobId,
     builderUrl,
     messageId,
   };

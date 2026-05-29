@@ -76,9 +76,8 @@ function roundToClean(raw: number): number {
   return Math.max(snapped, 0.5);
 }
 
-// Convert USD cost → credits
-// 1 credit = $0.001 USD base (before platform multiplier is applied)
-const USD_PER_CREDIT = 0.001;
+// Convert USD revenue → user credits ($1 = 10 credits per pricing-config)
+const USD_PER_CREDIT = 0.1;
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 

@@ -7,6 +7,10 @@ import { createChatFetch } from "@/lib/chat/create-chat-fetch";
 export type ChatTransportBody = {
   modelId: string;
   mode: "discuss" | "edit" | "build";
+  /** Explicit build strategy for server routing (never infer plan-first from prompt heuristics alone). */
+  strategy?: "build_now" | "plan_first";
+  /** When true with strategy=build_now, server must enqueue async build (not discuss/plan). */
+  forceBuildPipeline?: boolean;
   scope?: string | null;
   editTarget?: string | null;
   projectId?: string;
@@ -20,6 +24,7 @@ export type ChatTransportBody = {
   stylePresetId?: string;
   /** Create-page question answer — flat 0.8 credit pricing, no project creation. */
   createQuestion?: boolean;
+  planFirstOnly?: boolean;
 };
 
 export function createDreamChatTransport({
@@ -61,6 +66,9 @@ export function createDreamChatTransport({
           messageId,
           modelId: extra.modelId,
           mode: extra.mode,
+          strategy: requestBody.strategy ?? extra.strategy,
+          forceBuildPipeline: requestBody.forceBuildPipeline ?? extra.forceBuildPipeline,
+          planFirstOnly: requestBody.planFirstOnly ?? extra.planFirstOnly,
           scope: requestBody.scope ?? extra.scope ?? undefined,
           editTarget: requestBody.editTarget ?? extra.editTarget ?? undefined,
           projectId: isCreateQuestion

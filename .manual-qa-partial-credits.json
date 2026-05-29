@@ -1,0 +1,178 @@
+{
+  "runAt": "2026-05-29T11:31:26.402Z",
+  "baseUrl": "http://localhost:3000",
+  "tests": {
+    "schema": {
+      "ok": true,
+      "columnType": "text (no enum)",
+      "readBack": {
+        "type": "partial_credit_stop",
+        "title": "QA schema probe"
+      }
+    },
+    "zeroCredits": {
+      "preflightStatus": 402,
+      "preflightCode": "blocked_zero_credits",
+      "preflightError": "Your Build Credits are used up. Add credits or upgrade to keep building.",
+      "enqueueStatus": 402,
+      "enqueueCode": "blocked_zero_credits",
+      "latestJobStatus": "completed",
+      "newJobStarted": false,
+      "creditsAfter": 0,
+      "pass": true
+    },
+    "threeCredits": {
+      "creditsBefore": 3,
+      "creditsAfter": 0,
+      "preflightOk": true,
+      "enqueueStatus": 202,
+      "enqueueMessage": "You have 3 Build Credits left. I can start and save as much progress as those credits allow.",
+      "partialBuildFlag": true,
+      "microStepCount": 10,
+      "microStepsFirst8": [
+        "Starting build",
+        "Understanding request",
+        "Planning app structure",
+        "Planning data model",
+        "Checking existing files",
+        "Understanding your app",
+        "Creating the app plan",
+        "Generating a name and icon"
+      ],
+      "terminalEventType": null,
+      "terminalTitle": null,
+      "jobStatus": "completed",
+      "projectBuildStatus": "partial",
+      "partialMeta": true,
+      "fileCount": 16,
+      "creditsNeverNegative": true,
+      "pass": true
+    },
+    "atomicAction": {
+      "quoteStatus": 200,
+      "actionCreditsQuoted": 4,
+      "confirmStatus": 402,
+      "confirmCode": "insufficient",
+      "confirmError": "Action Credits depleted.",
+      "actionCreditsAfter": 0,
+      "iconUrlChanged": false,
+      "logoStorageFilesAfter": 0,
+      "pass": true
+    },
+    "atomicActionCharge": {
+      "confirmStatus": 402,
+      "creditsBefore": 0,
+      "creditsAfter": 0,
+      "creditsDeducted": 0,
+      "pass": false
+    }
+  },
+  "microStepTitles": [
+    "Starting build",
+    "Understanding request",
+    "Planning app structure",
+    "Planning data model",
+    "Checking existing files",
+    "Understanding your app",
+    "Creating the app plan",
+    "Generating a name and icon",
+    "Writing files",
+    "Saving files"
+  ],
+  "userMessages": [],
+  "blockers": [],
+  "user": {
+    "email": "e2e-live@dreamos86.test",
+    "userId": "3c08502e-9771-413e-b9bd-4446b179c962"
+  },
+  "originalCredits": {
+    "build": 190,
+    "action": 0
+  },
+  "allEventTitles": [
+    {
+      "type": "job_created",
+      "title": "Starting build",
+      "detail": "Reading your prompt and choosing the right build path"
+    },
+    {
+      "type": "understanding_request",
+      "title": "Understanding request",
+      "detail": "Reading your prompt and choosing the right build path"
+    },
+    {
+      "type": "planning_app",
+      "title": "Planning app structure",
+      "detail": "Creating routes, pages, and data model"
+    },
+    {
+      "type": "understanding_request",
+      "title": "Planning data model",
+      "detail": "Mapping tables and relationships"
+    },
+    {
+      "type": "checking_file",
+      "title": "Checking existing files",
+      "detail": "Scanning your project workspace"
+    },
+    {
+      "type": "understanding_request",
+      "title": "Starting build",
+      "detail": "worker_claim_attempt"
+    },
+    {
+      "type": "understanding_request",
+      "title": "Understanding your app",
+      "detail": "Archetype: Restaurant inventory"
+    },
+    {
+      "type": "understanding_request",
+      "title": "Understanding your app",
+      "detail": "First pass (simple)"
+    },
+    {
+      "type": "planning_app",
+      "title": "Creating the app plan",
+      "detail": "Creating design brief"
+    },
+    {
+      "type": "generating_app_identity",
+      "title": "Generating a name and icon",
+      "detail": "Creating app identity"
+    },
+    {
+      "type": "planning_app",
+      "title": "Creating the app plan",
+      "detail": "Creating the app structure…"
+    },
+    {
+      "type": "writing_file",
+      "title": "Writing files",
+      "detail": "Adding the required pages…"
+    },
+    {
+      "type": "saving_files",
+      "title": "Saving files",
+      "detail": "partial_credit_stop:16_files"
+    },
+    {
+      "type": "planning_app",
+      "title": "Creating the app plan",
+      "detail": "Planning UI structure"
+    },
+    {
+      "type": "partial_credit_stop",
+      "title": "Saved partial progress",
+      "detail": "I used your remaining 3 Build Credits and saved the progress. The next steps are ready when you continue."
+    },
+    {
+      "type": "partial_credit_stop",
+      "title": "Saved partial progress",
+      "detail": "I used your remaining 3 Build Credits and saved the progress. The next steps are ready when you continue."
+    }
+  ],
+  "restoredCredits": {
+    "build": 190,
+    "action": 0
+  }
+}

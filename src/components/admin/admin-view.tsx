@@ -28,6 +28,7 @@ import { AdminAiUsagePanel } from "@/components/admin/admin-ai-usage-panel";
 import { AdminAuditPanel, AdminStoragePanel } from "@/components/admin/admin-lazy-panels";
 import { ActionUsagePanel } from "@/components/admin/action-usage-panel";
 import { AdminMobileBuildsPanel } from "@/components/admin/admin-mobile-builds-panel";
+import { AdminAppPaymentsPanel } from "@/components/admin/admin-app-payments-panel";
 import { AdminSchemaHealthBanner } from "@/components/admin/admin-schema-health-banner";
 
 export type AdminTab =
@@ -110,6 +111,7 @@ export function AdminView({ initialTab = "users" }: { initialTab?: AdminTab }) {
         <div className="space-y-6">
           <AdminCreditEconomyPanel />
           <AdminBillingPanel />
+          <AdminAppPaymentsPanel />
         </div>
       )}
       {activeTab === "ai" && <AdminAiUsagePanel />}

@@ -7,12 +7,16 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const errors = [];
 const ok = [];
 
-const dash = path.join(root, "src/components/apps/app-project-dashboard.tsx");
+const dash = path.join(root, "src/components/create/workspace/app-dashboard-panel.tsx");
 const panel = path.join(root, "src/components/projects/project-contacts-panel.tsx");
 const api = path.join(root, "src/app/api/projects/[id]/contacts/route.ts");
 
-if (fs.existsSync(dash) && fs.readFileSync(dash, "utf8").includes('"contacts"')) ok.push("app dashboard contacts tab");
-else errors.push("app dashboard contacts tab missing");
+const dashSrc = fs.existsSync(dash) ? fs.readFileSync(dash, "utf8") : "";
+if (dashSrc.includes("Contact inbox") && dashSrc.includes("/contacts")) {
+  ok.push("app dashboard contact inbox");
+} else {
+  errors.push("app dashboard contact inbox missing");
+}
 
 if (fs.existsSync(panel) && fs.existsSync(api)) ok.push("project contacts panel + API");
 else errors.push("project contacts inbox missing");

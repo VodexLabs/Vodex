@@ -52,9 +52,13 @@ if (workspace.includes("PreviewStatusPanel") && workspace.includes("poll=1")) {
   ok.push("PreviewWorkspace polls session status");
 } else errors.push("PreviewWorkspace missing status polling");
 
-const builder = fs.readFileSync(path.join(root, "src/components/builder/app-builder-workspace.tsx"), "utf8");
-if (builder.includes("PreviewWorkspace")) ok.push("PreviewWorkspace wired in builder");
-else errors.push("PreviewWorkspace not in builder");
+const immersive = fs.readFileSync(
+  path.join(root, "src/components/create/workspace/immersive-workspace.tsx"),
+  "utf8",
+);
+if (immersive.includes("PreviewPanel")) {
+  ok.push("preview wired in immersive workspace");
+} else errors.push("preview not wired in immersive workspace");
 
 const r = spawnSync("npx", ["tsx", path.join(root, "scripts/preview-publish-tests.ts")], {
   cwd: root,

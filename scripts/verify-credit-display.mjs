@@ -21,11 +21,11 @@ function mustNotInclude(rel, needle, label) {
 
 mustInclude("src/lib/credits/credit-summary.ts", "formatCreditAmount", "credit formatter");
 mustInclude("src/lib/credits/credit-summary.ts", "available", "available balance field");
+mustInclude("src/lib/credits/credit-summary.ts", "loadCanonicalCredits", "canonical credits loader");
 mustInclude("src/components/layout/sidebar.tsx", "formatCreditAmount", "sidebar uses formatter");
-mustInclude("src/lib/credits/canonical-credit-display.ts", "formatUserCreditDisplay", "canonical user credit display");
-mustInclude("src/lib/credits/credit-summary.ts", "buildCreditBreakdown", "credit summary uses breakdown");
-mustInclude("src/components/layout/sidebar.tsx", "Plan allowance", "plan allowance label");
-mustInclude("src/components/layout/sidebar.tsx", "Bonus", "sidebar shows bonus separately");
+mustInclude("src/components/layout/sidebar.tsx", "Build Credits", "build credits label");
+mustInclude("src/lib/credits/canonical-credit-display.ts", "formatCanonicalCreditDisplay", "canonical user credit display");
+mustInclude("src/lib/credits/canonical-credit-display.ts", "buildCreditBreakdown", "credit breakdown helper");
 mustNotInclude("src/lib/supabase/load-profile-billing.ts", "capFreePlanBalance", "free plan cap removed");
 mustNotInclude("src/components/providers/app-provider.tsx", "Math.min(creditsValue", "profile credit cap removed");
 

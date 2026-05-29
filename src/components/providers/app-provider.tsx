@@ -23,6 +23,7 @@ import { RecentPagesTracker } from "@/components/navigation/recent-pages-tracker
 import { NavigationProgress } from "@/components/layout/navigation-progress";
 import { AuthStateDebug } from "@/components/dev/auth-state-debug";
 import { hasActiveSession, isStalePersistedProfile } from "@/lib/auth/client-identity";
+import { isE2eCreditTestAccount } from "@/lib/credits/e2e-credit-account";
 import {
   getCachedBootstrap,
   invalidateBootstrapCache,
@@ -75,7 +76,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (profile.onboarding_completed !== true) {
-      router.replace("/onboarding");
+      if (pathname.startsWith("/create")) {
+        void (async () => {
+          const { data } = await createClient()
+            .from("profiles")
+            .select("onboarding_completed")
+            .eq("id", profile.id)
+            .maybeSingle();
+          if (data?.onboarding_completed === true) {
+            setProfile({ ...profile, onboarding_completed: true });
+          }
+        })();
+        return;
+      }
+      if (!isE2eCreditTestAccount(profile.email ?? user?.email)) {
+        router.replace("/onboarding");
+      }
     }
   }, [loading, session, user, profile?.id, profile?.onboarding_completed, pathname, router]);
 

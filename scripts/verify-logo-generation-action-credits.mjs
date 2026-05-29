@@ -16,7 +16,8 @@ function mustInclude(file, needle, label) {
 
 mustInclude(
   "src/lib/action-credits/logo-generation-pricing.ts",
-  "STANDARD_LOGO_ACTION_CREDITS = 0.5",
+  "assertActionCreditsAffordable",
+  "STANDARD_LOGO_ACTION_CREDITS = 4",
   "standard logo costs 0.5 AC",
 );
 mustInclude("src/lib/projects/app-identity-service.ts", "app_logo_generation", "logo uses action credits");

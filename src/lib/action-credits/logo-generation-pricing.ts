@@ -1,10 +1,10 @@
 import { quoteActionCredits } from "@/lib/action-credits/action-credit-pricing";
 
-/** User-facing Action Credit cost for automatic app logo generation. */
-export const STANDARD_LOGO_ACTION_CREDITS = 0.5;
+/** User-facing Action Credit floor for automatic app logo generation. */
+export const STANDARD_LOGO_ACTION_CREDITS = 4;
 
-/** User-facing Action Credit cost for manual logo regeneration. */
-export const REGENERATE_LOGO_ACTION_CREDITS = 0.5;
+/** User-facing Action Credit floor for manual logo regeneration. */
+export const REGENERATE_LOGO_ACTION_CREDITS = 4;
 
 export function quoteLogoGenerationCredits(providerCostUsd?: number | null) {
   return quoteActionCredits({

@@ -12,7 +12,10 @@ export type BuildJobPollState = {
   progressPercent: number;
   error: string | null;
   done: boolean;
+  reconnecting?: boolean;
 };
+
+const MAX_404_ATTEMPTS = 5;
 
 export function useBuildJobProgress(
   job: { jobId: string; eventsUrl: string } | null,
@@ -28,6 +31,13 @@ export function useBuildJobProgress(
 
     let cancelled = false;
     let afterCursor: string | null = null;
+    let notFoundAttempts = 0;
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const schedule = (ms: number) => {
+      if (pollTimer) clearTimeout(pollTimer);
+      pollTimer = setTimeout(() => void poll(), ms);
+    };
 
     const poll = async () => {
       const url = afterCursor
@@ -36,7 +46,13 @@ export function useBuildJobProgress(
       try {
         const res = await fetch(url, { credentials: "include" });
         const body = (await res.json()) as {
-          job?: { status?: string; error_message?: string | null };
+          ok?: boolean;
+          setup_warning?: string;
+          job?: {
+            status?: string;
+            progress?: number;
+            error_message?: string | null;
+          };
           events?: Array<{
             id: string;
             created_at: string;
@@ -48,26 +64,80 @@ export function useBuildJobProgress(
             metadata?: Record<string, unknown>;
           }>;
           error?: string;
+          code?: string;
         };
         if (cancelled) return;
-        if (!res.ok) {
-          setState((prev) =>
-            prev
-              ? { ...prev, error: body.error ?? "Could not load build progress" }
-              : {
-                  jobId: job.jobId,
-                  eventsUrl: job.eventsUrl,
-                  status: null,
-                  events: [],
-                  latest: null,
-                  progressPercent: 0,
-                  error: body.error ?? "Could not load build progress",
-                  done: false,
-                },
-          );
+
+        if (res.status === 404 || body.code === "job_not_found") {
+          notFoundAttempts += 1;
+          setState((prev) => ({
+            jobId: job.jobId,
+            eventsUrl: job.eventsUrl,
+            status: prev?.status ?? "starting",
+            events: prev?.events ?? [],
+            latest: prev?.latest ?? null,
+            progressPercent: Math.max(prev?.progressPercent ?? 1, 1),
+            error:
+              notFoundAttempts >= MAX_404_ATTEMPTS
+                ? "Build session ended — retry from the composer."
+                : null,
+            done: notFoundAttempts >= MAX_404_ATTEMPTS,
+            reconnecting: notFoundAttempts < MAX_404_ATTEMPTS,
+          }));
+          if (notFoundAttempts >= MAX_404_ATTEMPTS) return;
+          schedule(Math.min(8000, 400 * 2 ** notFoundAttempts));
           return;
         }
 
+        if (!res.ok || body.ok === false) {
+          setState((prev) =>
+            prev
+              ? { ...prev, error: body.error ?? "Could not load build progress", reconnecting: false }
+              : {
+                  jobId: job.jobId,
+                  eventsUrl: job.eventsUrl,
+                  status: "starting",
+                  events: [],
+                  latest: null,
+                  progressPercent: 1,
+                  error: body.error ?? "Could not load build progress",
+                  done: false,
+                  reconnecting: false,
+                },
+          );
+          schedule(2000);
+          return;
+        }
+
+        if (body.setup_warning && (body.events?.length ?? 0) === 0) {
+          setState((prev) => ({
+            jobId: job.jobId,
+            eventsUrl: job.eventsUrl,
+            status: body.job?.status ?? "starting",
+            events: prev?.events ?? [],
+            latest: prev?.latest ?? {
+              id: "starting",
+              created_at: new Date().toISOString(),
+              job_id: job.jobId,
+              project_id: "",
+              user_id: "",
+              type: "understanding_request",
+              title: "Starting build…",
+              detail: body.setup_warning ?? null,
+              file_path: null,
+              progress_percent: body.job?.progress ?? 1,
+              metadata: {},
+            },
+            progressPercent: Math.max(body.job?.progress ?? 1, prev?.progressPercent ?? 1),
+            error: null,
+            done: false,
+            reconnecting: false,
+          }));
+          schedule(2500);
+          return;
+        }
+
+        notFoundAttempts = 0;
         const incoming = (body.events ?? []).map(
           (e): BuildJobEventRow => ({
             id: e.id,
@@ -89,7 +159,7 @@ export function useBuildJobProgress(
         }
 
         const jobStatus = body.job?.status ?? null;
-        const terminal =
+        const isTerminal =
           jobStatus === "completed" ||
           jobStatus === "failed" ||
           incoming.some((e) => e.type === "completed" || e.type === "failed");
@@ -97,9 +167,12 @@ export function useBuildJobProgress(
         setState((prev) => {
           const merged = [...(prev?.events ?? []), ...incoming];
           const latest = merged[merged.length - 1] ?? null;
-          const progressPercent =
-            latest?.progress_percent ??
-            (terminal ? 100 : Math.min(90, merged.length * 4));
+          const fromJob = body.job?.progress;
+          const fromEvent = latest?.progress_percent;
+          const progressPercent = Math.max(
+            1,
+            fromJob ?? fromEvent ?? (isTerminal ? 100 : Math.min(90, 5 + merged.length * 3)),
+          );
           const next: BuildJobPollState = {
             jobId: job.jobId,
             eventsUrl: job.eventsUrl,
@@ -108,11 +181,14 @@ export function useBuildJobProgress(
             latest,
             progressPercent,
             error: body.job?.error_message ?? null,
-            done: terminal,
+            done: isTerminal,
+            reconnecting: false,
           };
-          if (terminal) onTerminal?.(next);
+          if (isTerminal) onTerminal?.(next);
           return next;
         });
+
+        if (!isTerminal) schedule(800);
       } catch (err) {
         if (cancelled) return;
         setState((prev) =>
@@ -120,17 +196,28 @@ export function useBuildJobProgress(
             ? {
                 ...prev,
                 error: err instanceof Error ? err.message : "Progress poll failed",
+                reconnecting: true,
               }
-            : null,
+            : {
+                jobId: job.jobId,
+                eventsUrl: job.eventsUrl,
+                status: "starting",
+                events: [],
+                latest: null,
+                progressPercent: 1,
+                error: err instanceof Error ? err.message : "Progress poll failed",
+                done: false,
+                reconnecting: true,
+              },
         );
+        schedule(2000);
       }
     };
 
     void poll();
-    const id = setInterval(() => void poll(), 800);
     return () => {
       cancelled = true;
-      clearInterval(id);
+      if (pollTimer) clearTimeout(pollTimer);
     };
   }, [job?.jobId, job?.eventsUrl, onTerminal]);
 

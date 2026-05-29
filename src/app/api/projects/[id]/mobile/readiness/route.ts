@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { loadMobileRevenueCatPublicConfig } from "@/lib/mobile-billing/wrapper-config";
 import {
   scanAndroidReadiness,
   scanGeneralReadiness,
@@ -82,6 +83,8 @@ export async function POST(
 
   const secretNames = new Set((secrets ?? []).map((s) => s.key_name as string));
   const cfg = (config ?? {}) as Record<string, unknown>;
+  const rcPublic = await loadMobileRevenueCatPublicConfig(projectId);
+  const revenueCatConfigured = rcPublic.enabled;
 
   const results = [];
   if (platforms.includes("general")) {
@@ -103,6 +106,7 @@ export async function POST(
         hasFirebase: secretNames.has(MOBILE_SECRET_KEYS.firebase_google_services),
         fileCount: fileCount ?? 0,
         previewUrl: project.preview_url,
+        revenueCatConfigured,
       }),
     );
   }
@@ -112,6 +116,7 @@ export async function POST(
         hasAscApiKey: secretNames.has(MOBILE_SECRET_KEYS.asc_api_private_key),
         hasApnsKey: secretNames.has(MOBILE_SECRET_KEYS.apns_key),
         hasSigningAssets: secretNames.has(MOBILE_SECRET_KEYS.android_signing_keystore),
+        revenueCatConfigured,
       }),
     );
   }

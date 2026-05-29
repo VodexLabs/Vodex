@@ -17,6 +17,7 @@ export const REQUIRED_TABLES = [
   "message_attachments",
   "app_files",
   "build_jobs",
+  "build_job_events",
   "publish_jobs",
   "wrap_jobs",
   "ai_usage_logs",

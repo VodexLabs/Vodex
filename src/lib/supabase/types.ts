@@ -637,6 +637,10 @@ export interface Database {
           started_at: string | null;
           completed_at: string | null;
           credits_charged: number | null;
+          claimed_by: string | null;
+          claimed_at: string | null;
+          execution_instance_id: string | null;
+          terminal_reason: string | null;
         };
         Insert: Omit<
           Database["public"]["Tables"]["build_jobs"]["Row"],
