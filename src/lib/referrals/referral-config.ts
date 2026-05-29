@@ -4,20 +4,10 @@ export const REFERRAL_CREDITS_PER_USER = 5;
 /** Max invites per referrer. */
 export const MAX_REFERRALS_PER_USER = 5;
 
-import { isLocalhostOrigin, resolveSiteOrigin } from "@/lib/url/app-origin";
-
-/** Canonical share origin for invite links in production. */
+/** Canonical public origin for share/copy links — never localhost. */
 export const REFERRAL_SHARE_ORIGIN = "https://dreamos86.com";
 
-export function buildReferralInviteUrl(code: string, requestOrigin?: string): string {
-  let origin = REFERRAL_SHARE_ORIGIN;
-  if (typeof window !== "undefined") {
-    origin = isLocalhostOrigin(window.location.origin)
-      ? window.location.origin
-      : REFERRAL_SHARE_ORIGIN;
-  } else if (requestOrigin) {
-    const resolved = resolveSiteOrigin(requestOrigin);
-    origin = isLocalhostOrigin(resolved) ? resolved : REFERRAL_SHARE_ORIGIN;
-  }
-  return `${origin.replace(/\/$/, "")}/auth/sign-up?ref=${encodeURIComponent(code)}`;
+/** Always dreamos86.com so dev tabs never share localhost invite links. */
+export function buildReferralInviteUrl(code: string, _requestOrigin?: string): string {
+  return `${REFERRAL_SHARE_ORIGIN}/auth/sign-up?ref=${encodeURIComponent(code.trim().toUpperCase())}`;
 }

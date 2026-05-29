@@ -22,6 +22,8 @@ const apiRoute = read("src/app/api/referrals/route.ts");
 const dashboardUi = read("src/components/referrals/referrals-dashboard.tsx");
 const bootstrap = read("src/lib/auth/profile-bootstrap.ts");
 const migration = read("supabase/migrations/20260603180000_referral_reward_cap.sql");
+const referralConfig = read("src/lib/referrals/referral-config.ts");
+const serverReferral = read("src/lib/referrals/server-referral.ts");
 const appOrigin = read("src/lib/url/app-origin.ts");
 const callback = read("src/app/auth/callback/route.ts");
 const oauthPrep = read("src/lib/auth/oauth-prep.ts");
@@ -60,6 +62,19 @@ const suites = {
   "referral-max-five-cap": () => {
     assert(migration.includes("v_referrer_rewarded_count >= 5"), "5 cap in SQL");
     assert(dashboard.includes("MAX_REFERRALS_PER_USER"), "max in dashboard");
+    assert(
+      !serverReferral.includes("referral_limit_reached") ||
+        !serverReferral.match(/count.*>=.*MAX_REFERRALS/),
+      "attach does not block invites at cap",
+    );
+  },
+  "referral-share-link-dreamos86": () => {
+    assert(referralConfig.includes("REFERRAL_SHARE_ORIGIN"), "share origin constant");
+    assert(
+      referralConfig.includes("https://dreamos86.com") &&
+        !referralConfig.includes("window.location.origin"),
+      "invite URL always dreamos86.com",
+    );
   },
   "referral-grants-referrer-five-build-credits": () => {
     assert(migration.includes("Referral reward (inviter)"), "referrer grant");

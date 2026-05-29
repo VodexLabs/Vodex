@@ -1,6 +1,8 @@
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
+import { MAX_REFERRALS_PER_USER } from "@/lib/referrals/referral-config";
 
-export const MAX_REFERRALS_PER_REFERRER = 5;
+/** Max rewarded referrals per referrer (rewards only; invites are unlimited). */
+export const MAX_REFERRALS_PER_REFERRER = MAX_REFERRALS_PER_USER;
 
 export async function resolveReferrerUserId(code: string): Promise<string | null> {
   const normalized = code.trim().toUpperCase();
@@ -61,15 +63,6 @@ export async function attachReferralByCode(
   }
   if (referrerId === referredUserId) {
     return { ok: false, error: "self_referral" };
-  }
-
-  const { count } = await admin
-    .from("referrals")
-    .select("id", { count: "exact", head: true })
-    .eq("referrer_id", referrerId);
-
-  if ((count ?? 0) >= MAX_REFERRALS_PER_REFERRER) {
-    return { ok: false, error: "referral_limit_reached" };
   }
 
   const { data: existingRef } = await admin

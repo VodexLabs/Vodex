@@ -162,7 +162,7 @@ function statusLabel(status: ReferralStatus): string {
     case "rewarded":
       return "Rewarded";
     case "capped":
-      return "Capped";
+      return "Reward cap";
     case "pending":
       return "Joined";
     case "blocked":
@@ -248,8 +248,10 @@ export function ReferralsDashboard() {
   }));
   const nextMilestone =
     milestones.find((m) => data.stats.rewarded < m.count) ?? milestones[milestones.length - 1];
-  const progressPct = Math.min(100, (data.stats.rewarded / data.maxReferrals) * 100);
+  const rewardSlotsUsed = Math.min(data.stats.rewarded, data.maxReferrals);
+  const progressPct = Math.min(100, (rewardSlotsUsed / data.maxReferrals) * 100);
   const referredBy = data.referredByProfile;
+  const extraInvitesBeyondCap = Math.max(0, data.stats.total - data.maxReferrals);
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -348,9 +350,13 @@ export function ReferralsDashboard() {
         <StatCard
           icon={Users}
           label="Friends invited"
-          value={data.slotsUsed}
+          value={data.stats.total}
           accent="#1e6bff"
-          hint={`${data.stats.rewarded}/${data.maxReferrals} rewarded`}
+          hint={
+            data.stats.total > data.maxReferrals
+              ? `${data.stats.rewarded}/${data.maxReferrals} rewarded · ${data.stats.total} joined`
+              : `${data.stats.rewarded}/${data.maxReferrals} rewarded`
+          }
         />
         <StatCard icon={Trophy} label="Rewarded" value={data.stats.rewarded} accent="#10b981" />
         <StatCard
@@ -377,11 +383,18 @@ export function ReferralsDashboard() {
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-[14px] font-semibold text-foreground">
-              {data.maxReached ? "Maximum referrals reached" : `Next milestone: ${nextMilestone.label}`}
+              {data.maxReached
+                ? extraInvitesBeyondCap > 0
+                  ? `${data.stats.total} friends joined · rewards capped`
+                  : "Maximum rewards reached"
+                : `Next milestone: ${nextMilestone.label}`}
             </h3>
             <p className="mt-0.5 text-[12px] text-muted-foreground">
               <span className="font-semibold text-accent">{data.stats.rewarded}</span> / {data.maxReferrals}{" "}
-              rewarded · {nextMilestone.reward}
+              rewarded
+              {extraInvitesBeyondCap > 0
+                ? ` · ${data.stats.total} friends invited`
+                : ` · ${nextMilestone.reward}`}
             </p>
           </div>
         </div>

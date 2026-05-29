@@ -125,7 +125,7 @@ export async function loadReferralDashboard(
     .select("id, referred_id, status, created_at, rewarded_at, reward_amount, code")
     .eq("referrer_id", userId)
     .order("created_at", { ascending: false })
-    .limit(MAX_REFERRALS_PER_USER + 5);
+    .limit(100);
 
   const rows = referralRows ?? [];
   const referredIds = rows.map((r) => r.referred_id as string);
