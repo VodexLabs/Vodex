@@ -24,6 +24,7 @@ import { resolveDisplayName } from "@/lib/profile-display";
 import { cn } from "@/lib/utils";
 import { useHydrated } from "@/lib/hooks/use-hydrated";
 import { LogoutConfirmModal } from "@/components/auth/logout-confirm-modal";
+import { Avatar } from "@/components/ui/avatar";
 
 type MenuItem = {
   id: string;
@@ -89,7 +90,6 @@ export function UserMenu() {
   const entitlements = getEntitlements(effectivePlanId);
   const dreamLabel = resolveDreamSpaceLabel(safeProfile, hydrated ? user : null);
   const displayName = resolveDisplayName(safeProfile, hydrated ? user : null);
-  const avatarInitial = (displayName || dreamLabel).charAt(0).toUpperCase();
   const isFree = entitlements.tier === "free";
 
   React.useEffect(() => {
@@ -133,18 +133,12 @@ export function UserMenu() {
           <p className="truncate text-[12px] font-medium tracking-[-0.01em]">{dreamLabel}</p>
           {hydrated ? <PlanBadge planId={effectivePlanId} size="xs" className="shrink-0" /> : null}
         </div>
-        {safeProfile?.avatar_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={safeProfile.avatar_url}
-            alt=""
-            className="size-8 shrink-0 rounded-full object-cover ring-2 ring-accent/20"
-          />
-        ) : (
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent to-violet-600 text-[12px] font-bold text-white ring-2 ring-accent/20">
-            {avatarInitial}
-          </span>
-        )}
+        <Avatar
+          name={displayName || dreamLabel}
+          src={safeProfile?.avatar_url}
+          size="md"
+          className="ring-2 ring-accent/20"
+        />
       </button>
 
       <AnimatePresence>
@@ -158,18 +152,11 @@ export function UserMenu() {
           >
             <div className="shrink-0 border-b border-border/60 bg-gradient-to-br from-accent/[0.06] via-background to-background px-4 py-3">
               <div className="flex items-start gap-3">
-                {safeProfile?.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={safeProfile.avatar_url}
-                    alt=""
-                    className="size-10 shrink-0 rounded-full object-cover ring-1 ring-border/80 shadow-sm"
-                  />
-                ) : (
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent to-violet-600 text-sm font-bold text-white ring-1 ring-border/80 shadow-sm">
-                    {avatarInitial}
-                  </span>
-                )}
+                <Avatar
+                  name={displayName || dreamLabel}
+                  src={safeProfile?.avatar_url}
+                  size="lg"
+                />
                 <div className="min-w-0 flex-1">
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
                     <p className="truncate text-[13.5px] font-semibold tracking-[-0.02em]">{dreamLabel}</p>

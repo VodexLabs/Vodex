@@ -139,6 +139,7 @@ Set in **Vercel → Project → Settings → Environment Variables → Productio
 | `OPENAI_API_KEY` | If using OpenAI |
 | `ANTHROPIC_API_KEY` | If using Anthropic |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | If using Gemini (`GEMINI_API_KEY` also accepted) |
+| `VERCEL_ACCESS_TOKEN` | Deployment Center / Vercel API (create at [Vercel tokens](https://vercel.com/account/settings/tokens)) — **server only**, not in Supabase |
 
 After changing any env var → **Redeploy** Production (Deployments → ⋯ → Redeploy).
 

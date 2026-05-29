@@ -28,10 +28,13 @@ function CreateOnboardingBanner() {
       className="shrink-0 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-center text-[12px] text-amber-950 dark:text-amber-100"
       data-testid="create-onboarding-banner"
     >
-      <Link href="/onboarding?next=%2Fcreate%3Fmode%3Dbuild" className="font-semibold underline">
-        Finish onboarding
+      <Link
+        href="/onboarding?next=%2Fcreate"
+        className="font-semibold underline"
+      >
+        Complete quick setup
       </Link>{" "}
-      — you can still compose your app below.
+      (2 min) — you can keep building below without leaving this page.
     </div>
   );
 }

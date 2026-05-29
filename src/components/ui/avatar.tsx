@@ -67,6 +67,13 @@ export function Avatar({ name, src, size = "md", className, ring = true }: Avata
   const { wrapper, text } = sizeMap[size];
   const gradient = getGradient(name);
   const initials = getInitials(name);
+  const [imageFailed, setImageFailed] = React.useState(false);
+
+  React.useEffect(() => {
+    setImageFailed(false);
+  }, [src]);
+
+  const showImage = Boolean(src?.trim()) && !imageFailed;
 
   return (
     <span
@@ -76,10 +83,18 @@ export function Avatar({ name, src, size = "md", className, ring = true }: Avata
         ring && "ring-1 ring-border shadow-[var(--shadow-xs)]",
         className,
       )}
-      style={src ? undefined : { background: gradient }}
+      style={showImage ? undefined : { background: gradient }}
     >
-      {src ? (
-        <Image src={src} alt={name} fill className="object-cover" sizes="80px" />
+      {showImage ? (
+        <Image
+          src={src!}
+          alt={name}
+          fill
+          className="object-cover"
+          sizes="80px"
+          unoptimized
+          onError={() => setImageFailed(true)}
+        />
       ) : (
         <span
           className={cn(

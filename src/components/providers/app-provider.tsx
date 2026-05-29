@@ -37,6 +37,7 @@ import {
 } from "@/lib/supabase/load-user-profile";
 import type { Profile } from "@/lib/supabase/types";
 import { installChunkLoadRecovery } from "@/lib/navigation/chunk-load-recovery";
+import { isOnboardingExemptPath } from "@/lib/onboarding/exempt-paths";
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -71,14 +72,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!profile?.id) return;
     if (!pathname) return;
     if (pathname.startsWith("/auth")) return;
-    if (pathname.startsWith("/onboarding")) return;
     if (pathname.startsWith("/api")) return;
     if (pathname === "/" || pathname === "/terms" || pathname === "/privacy" || pathname === "/contact") {
       return;
     }
 
     if (profile.onboarding_completed !== true) {
-      if (pathname.startsWith("/create")) {
+      if (isOnboardingExemptPath(pathname)) {
         void (async () => {
           const { data } = await createClient()
             .from("profiles")
@@ -92,7 +92,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       if (!isE2eCreditTestAccount(profile.email ?? user?.email)) {
-        router.replace("/onboarding");
+        router.replace(`/onboarding?next=${encodeURIComponent(pathname)}`);
       }
     }
   }, [loading, session, user, profile?.id, profile?.onboarding_completed, pathname, router]);

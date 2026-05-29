@@ -14,6 +14,7 @@ import {
   Shield,
   Trophy,
   Smartphone,
+  PieChart,
 } from "lucide-react";
 import { CompetitiveScorePanel } from "@/components/admin/competitive-score-panel";
 import { variants } from "@/lib/motion";
@@ -30,8 +31,10 @@ import { ActionUsagePanel } from "@/components/admin/action-usage-panel";
 import { AdminMobileBuildsPanel } from "@/components/admin/admin-mobile-builds-panel";
 import { AdminAppPaymentsPanel } from "@/components/admin/admin-app-payments-panel";
 import { AdminSchemaHealthBanner } from "@/components/admin/admin-schema-health-banner";
+import { AdminOnboardingInsightsPanel } from "@/components/admin/admin-onboarding-insights-panel";
 
 export type AdminTab =
+  | "onboarding"
   | "users"
   | "contacts"
   | "ai"
@@ -53,6 +56,7 @@ export function AdminView({ initialTab = "users" }: { initialTab?: AdminTab }) {
   }, [initialTab]);
 
   const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
+    { id: "onboarding", label: "Onboarding", icon: PieChart },
     { id: "users", label: "Users", icon: Users },
     { id: "contacts", label: "Contacts", icon: Mail },
     { id: "ai", label: "AI usage", icon: Activity },
@@ -105,6 +109,7 @@ export function AdminView({ initialTab = "users" }: { initialTab?: AdminTab }) {
         ))}
       </div>
 
+      {activeTab === "onboarding" && <AdminOnboardingInsightsPanel />}
       {activeTab === "users" && <AdminUsersPanel />}
       {activeTab === "contacts" && <ContactRequestsPanel />}
       {activeTab === "billing" && (

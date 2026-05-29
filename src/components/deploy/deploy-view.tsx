@@ -94,9 +94,39 @@ export function DeployView() {
       </motion.div>
 
       {connection && (
-        <div className="rounded-xl border border-border bg-surface/60 p-4 text-[13px]">
+        <div
+          className={cn(
+            "rounded-xl border p-4 text-[13px]",
+            connection.state === "missing_env" || connection.state === "token_invalid"
+              ? "border-amber-500/30 bg-amber-500/10"
+              : "border-border bg-surface/60",
+          )}
+        >
           <p className="font-medium">Vercel: {connection.state.replace(/_/g, " ")}</p>
           {connection.message && <p className="mt-1 text-muted-foreground">{connection.message}</p>}
+          {(connection.state === "missing_env" || connection.state === "token_invalid") && (
+            <div className="mt-3 space-y-1.5 text-[12px] text-muted-foreground">
+              <p className="font-medium text-foreground">How to connect (server-only, not Supabase):</p>
+              <ol className="list-decimal space-y-1 pl-4">
+                <li>
+                  Create a token at{" "}
+                  <a
+                    href="https://vercel.com/account/settings/tokens"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-accent underline"
+                  >
+                    vercel.com/account/settings/tokens
+                  </a>
+                </li>
+                <li>
+                  Add <code className="rounded bg-muted px-1">VERCEL_ACCESS_TOKEN</code> to{" "}
+                  <strong>.env.local</strong> (local) or <strong>Vercel → Project → Environment Variables → Production</strong>
+                </li>
+                <li>Redeploy, then refresh this page</li>
+              </ol>
+            </div>
+          )}
         </div>
       )}
 

@@ -24,6 +24,7 @@ import {
 } from "@/lib/auth/ref-cookie";
 import { DreamOsSetupIcon } from "@/components/onboarding/dreamos-setup-icon";
 import { DreamOS86BrandLockup } from "@/components/brand/dreamos86-brand-lockup";
+import { Avatar } from "@/components/ui/avatar";
 
 const HEAR_ABOUT = [
   { id: "friend", label: "Friend / referral" },
@@ -203,18 +204,12 @@ export function OnboardingView() {
       content: (
         <div className="space-y-6">
           <motion.div className="flex items-center gap-4">
-            {avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={avatarUrl}
-                alt=""
-                className="size-16 shrink-0 rounded-2xl object-cover ring-1 ring-border"
-              />
-            ) : (
-              <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-accent/30 to-violet-500/40 text-xl font-bold text-white ring-1 ring-border">
-                {displayName.charAt(0).toUpperCase()}
-              </div>
-            )}
+            <Avatar
+              name={displayName}
+              src={avatarUrl}
+              size="2xl"
+              className="!rounded-2xl"
+            />
             <div className="min-w-0">
               <p className="truncate text-[17px] font-semibold text-foreground">{displayName}</p>
               <p className="truncate text-[13px] text-muted-foreground">{email}</p>

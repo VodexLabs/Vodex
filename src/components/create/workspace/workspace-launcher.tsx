@@ -38,6 +38,7 @@ import { CreditsTracker } from "@/components/credits/credits-tracker";
 import { resolveDisplayName } from "@/lib/profile-display";
 import { useHydrated } from "@/lib/hooks/use-hydrated";
 import { PlanBadge } from "@/components/billing/plan-badge";
+import { Avatar } from "@/components/ui/avatar";
 import { normalizePlanId } from "@/lib/billing/plans";
 import { PublishModal, type PublishUiState } from "@/components/create/workspace/publish-modal";
 import {
@@ -168,18 +169,7 @@ function WorkspaceDropdown({
       </div>
       <div className="border-b border-border px-3 py-1.5">
         <div className="flex items-center gap-2">
-          {profile?.avatar_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={profile.avatar_url}
-              alt={launcherName}
-              className="size-8 shrink-0 rounded-full object-cover ring-1 ring-border"
-            />
-          ) : (
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent to-violet-600 text-[12px] font-bold text-white">
-              {launcherName.charAt(0).toUpperCase()}
-            </div>
-          )}
+          <Avatar name={launcherName} src={profile?.avatar_url} size="md" />
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-2">
               <p className="truncate text-[12px] font-semibold text-foreground">{launcherName}</p>

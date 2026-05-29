@@ -3,7 +3,7 @@
 import * as React from "react";
 import useSWR from "swr";
 import { motion, AnimatePresence } from "framer-motion";
-import Image from "next/image";
+import { Avatar } from "@/components/ui/avatar";
 import {
   Copy,
   Check,
@@ -44,6 +44,7 @@ interface ReferredByProfile {
 interface ReferralResponse {
   code: string;
   inviteUrl: string;
+  warning?: string;
   slotsUsed: number;
   slotsRemaining: number;
   maxReferrals: number;
@@ -61,8 +62,11 @@ interface ReferralResponse {
 
 const fetcher = async (url: string): Promise<ReferralResponse> => {
   const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  const body = (await res.json()) as ReferralResponse & { error?: string };
+  if (!res.ok && !body.inviteUrl) {
+    throw new Error(body.error ?? `HTTP ${res.status}`);
+  }
+  return body;
 };
 
 function AnimatedCounter({ value, duration = 0.6 }: { value: number; duration?: number }) {
@@ -134,26 +138,14 @@ function UserAvatar({
   avatarUrl: string | null;
   size?: number;
 }) {
-  const initials = (name || email || "U").slice(0, 2).toUpperCase();
-  if (avatarUrl) {
-    return (
-      <Image
-        src={avatarUrl}
-        alt={name}
-        width={size}
-        height={size}
-        className="shrink-0 rounded-full object-cover ring-1 ring-border"
-        unoptimized
-      />
-    );
-  }
+  const px = size <= 32 ? "sm" : size <= 36 ? "md" : "lg";
   return (
-    <div
-      className="flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500/30 to-indigo-500/20 text-[10.5px] font-semibold text-foreground ring-1 ring-border"
-      style={{ width: size, height: size }}
-    >
-      {initials}
-    </div>
+    <Avatar
+      name={name || email || "User"}
+      src={avatarUrl}
+      size={px}
+      ring
+    />
   );
 }
 
@@ -233,13 +225,25 @@ export function ReferralsDashboard() {
     );
   }
 
-  if (error || !data) {
+  if ((error || !data) && !data?.inviteUrl) {
     return (
-      <div className="rounded-xl bg-destructive/10 p-4 text-[13px] text-destructive ring-1 ring-destructive/20">
-        Couldn’t load your referral data. Try refreshing.
+      <div className="rounded-xl bg-muted/40 p-6 text-center ring-1 ring-border">
+        <p className="text-[13px] font-medium text-foreground">Referrals are loading</p>
+        <p className="mt-1 text-[12px] text-muted-foreground">
+          We couldn’t sync stats right now. Your link will appear when ready.
+        </p>
+        <button
+          type="button"
+          onClick={() => mutate()}
+          className="mt-4 rounded-lg bg-accent px-4 py-2 text-[12px] font-semibold text-white"
+        >
+          Try again
+        </button>
       </div>
     );
   }
+
+  if (!data) return null;
 
   const milestones = [1, 2, 3, 4, 5].map((count) => ({
     count,
@@ -255,6 +259,11 @@ export function ReferralsDashboard() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
+      {data.warning && (
+        <div className="rounded-xl bg-amber-500/10 px-4 py-2.5 text-[12px] text-amber-950 ring-1 ring-amber-500/25 dark:text-amber-100">
+          {data.warning}
+        </div>
+      )}
       {referredBy && (
         <motion.div
           initial={{ opacity: 0, y: 6 }}

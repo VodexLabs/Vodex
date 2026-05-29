@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Image from "next/image";
+import { Avatar } from "@/components/ui/avatar";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useChat } from "@ai-sdk/react";
@@ -114,20 +115,7 @@ function MessageBubble({
     >
       <div className="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ring-border">
         {isUser ? (
-          userAvatar ? (
-            <Image
-              src={userAvatar}
-              alt={userName}
-              width={28}
-              height={28}
-              className="size-full object-cover"
-              unoptimized
-            />
-          ) : (
-            <span className="text-[10px] font-semibold text-foreground">
-              {userName.slice(0, 1).toUpperCase()}
-            </span>
-          )
+          <Avatar name={userName} src={userAvatar} size="sm" ring={false} className="size-7" />
         ) : (
           <div className="flex size-full items-center justify-center bg-gradient-to-br from-accent/30 to-accent/10">
             <Sparkles className="size-3.5 text-accent" strokeWidth={1.75} />
@@ -791,7 +779,11 @@ export function CreationWorkspace({
 
             {/* Live build status */}
             {isBusy && messages[messages.length - 1]?.role === "user" && (
-              <BuildStatusNarrator isStreaming={isBusy} className="mt-1" />
+              <BuildStatusNarrator
+                isStreaming={isBusy}
+                streamingText={lastAssistantText}
+                className="mt-1 xl:hidden"
+              />
             )}
 
             {/* Out-of-credits upgrade card */}
