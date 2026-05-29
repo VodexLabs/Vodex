@@ -59,6 +59,11 @@ import { PreviewBlockedPopup, type PreviewBlockingIssue } from "@/components/pre
 import { buildRepairChatPrompt } from "@/lib/repair/repair-chat-prompt";
 import { buildStaticPreviewHtml } from "@/lib/preview/static-preview-builder";
 import { BuildLiveProgress } from "@/components/create/workspace/build-live-progress";
+import {
+  deriveBuildStatusFacts,
+  resolveBuildRunSummary,
+  type WorkflowRunStatus,
+} from "@/lib/build/workflow-status-guards";
 import { BuildRunSummaryCard } from "@/components/create/workspace/build-run-summary";
 import {
   userFacingPartialBuildStartMessage,
@@ -351,10 +356,16 @@ export function ImmersiveWorkspace({
   const [creditBlockedZero, setCreditBlockedZero] = React.useState(false);
   const [buildRunSummary, setBuildRunSummary] = React.useState<{
     variant: "completed" | "partial" | "failed";
+    status?: WorkflowRunStatus;
+    headline?: string;
+    bodyLines?: string[];
     creditsUsed?: number;
     remainingSummary?: string;
     errorMessage?: string;
     refunded?: boolean;
+    showRefundLine?: boolean;
+    showRepairActions?: boolean;
+    showPreviewActions?: boolean;
   } | null>(null);
   const [conversationId, setConversationId] = React.useState<string | null>(
     initialConversationId ?? null,
@@ -673,6 +684,7 @@ export function ImmersiveWorkspace({
 
       const finishCreditsAndStatus = async () => {
         let buildNeedsRepair = false;
+        let creditsRefundedFlag = false;
         if (uid && pid) {
           await reconcileProjectBuildState(supabase, pid, uid);
           if (mode === "build") {
@@ -685,8 +697,9 @@ export function ImmersiveWorkspace({
               proj?.metadata && typeof proj.metadata === "object" && !Array.isArray(proj.metadata)
                 ? (proj.metadata as Record<string, unknown>)
                 : {};
+            creditsRefundedFlag = meta.credits_refunded === true;
             buildNeedsRepair =
-              proj?.build_status === "needs_repair" || meta.credits_refunded === true;
+              proj?.build_status === "needs_repair" || creditsRefundedFlag;
           }
         }
 
@@ -695,7 +708,33 @@ export function ImmersiveWorkspace({
           const after = useCreditsStore.getState().remaining;
           const delta = Math.max(0, beforeCredits - after);
           if (buildNeedsRepair) {
-            setSubmitStatusLabel("Needs repair — credits returned");
+            const fileCount = projectFiles.length;
+            const facts = deriveBuildStatusFacts({
+              terminal: null,
+              projectFileCount: fileCount,
+            });
+            facts.failureKind = fileCount > 0 ? "repair_needed" : "failed_before_generation";
+            facts.hasFiles = fileCount > 0;
+            facts.fileCount = fileCount;
+            facts.creditsRefunded = creditsRefundedFlag;
+            facts.terminalStatus = "failed";
+            const resolved = resolveBuildRunSummary({
+              facts,
+              appName: project?.name ?? undefined,
+              filesCount: fileCount,
+              errorDetail: undefined,
+            });
+            setBuildRunSummary({
+              variant: resolved.variant,
+              status: resolved.status,
+              headline: resolved.headline,
+              bodyLines: resolved.bodyLines,
+              showRefundLine: resolved.showRefundLine,
+              showRepairActions: resolved.showRepairActions,
+              showPreviewActions: resolved.showPreviewActions,
+              refunded: resolved.showRefundLine,
+            });
+            setSubmitStatusLabel(resolved.headline);
             setLastMessageCost({ state: "final", credits: 0 });
           } else {
             setSubmitStatusLabel("Done");
@@ -735,6 +774,50 @@ export function ImmersiveWorkspace({
     return () => clearTimeout(t);
   }, [streamActive, unlockStream]);
 
+  const applyTerminalBuildSummary = React.useCallback(
+    (terminal: BuildJobPollState, fileCountHint = 0) => {
+      const facts = deriveBuildStatusFacts({
+        terminal,
+        projectFileCount: fileCountHint,
+      });
+      const resolved = resolveBuildRunSummary({
+        facts,
+        appName: project?.name ?? undefined,
+        filesCount: facts.fileCount,
+        creditsUsed:
+          typeof terminal.latest?.metadata?.credits_used === "number"
+            ? terminal.latest.metadata.credits_used
+            : undefined,
+        errorDetail: terminal.error ?? terminal.latest?.detail ?? undefined,
+        previewReady: facts.hasPreviewSession,
+      });
+      setBuildRunSummary({
+        variant: resolved.variant,
+        status: resolved.status,
+        headline: resolved.headline,
+        bodyLines: resolved.bodyLines,
+        creditsUsed:
+          typeof terminal.latest?.metadata?.credits_used === "number"
+            ? terminal.latest.metadata.credits_used
+            : undefined,
+        remainingSummary: terminal.latest?.detail ?? undefined,
+        errorMessage: terminal.error ?? terminal.latest?.detail ?? undefined,
+        refunded: resolved.showRefundLine,
+        showRefundLine: resolved.showRefundLine,
+        showRepairActions: resolved.showRepairActions,
+        showPreviewActions: resolved.showPreviewActions,
+      });
+      setSubmitStatusLabel(
+        resolved.status === "partial_credit_stop"
+          ? "Partial save — add credits to continue"
+          : resolved.status === "completed"
+            ? "Done"
+            : resolved.headline,
+      );
+    },
+    [project?.name],
+  );
+
   const buildJobProgress = useBuildJobProgress(
     activeBuildJob ? { jobId: activeBuildJob.jobId, eventsUrl: activeBuildJob.eventsUrl } : null,
     React.useCallback(
@@ -743,26 +826,7 @@ export function ImmersiveWorkspace({
         setProjectDataRefresh((n) => n + 1);
         const pid = projectIdRef.current;
         if (pid) invalidateProjectFilesCache(pid);
-        const partial = terminal.latest?.type === "partial_credit_stop";
-        const failed =
-          terminal.status === "failed" || terminal.latest?.type === "failed";
-        setSubmitStatusLabel(
-          partial
-            ? "Partial save — add credits to continue"
-            : failed
-              ? "Needs repair — credits returned"
-              : "Done",
-        );
-        setBuildRunSummary({
-          variant: partial ? "partial" : failed ? "failed" : "completed",
-          creditsUsed:
-            typeof terminal.latest?.metadata?.credits_used === "number"
-              ? terminal.latest.metadata.credits_used
-              : undefined,
-          remainingSummary: terminal.latest?.detail ?? undefined,
-          errorMessage: failed ? terminal.error ?? terminal.latest?.detail ?? undefined : undefined,
-          refunded: failed && !partial,
-        });
+        applyTerminalBuildSummary(terminal, projectFiles.length);
         setLastMessageCost({ state: "final", credits: 0 });
         if (uid) {
           void refreshCredits({ reason: "charge" }).then(() => {
@@ -798,7 +862,7 @@ export function ImmersiveWorkspace({
         }
         setTimeout(() => drainPromptQueueRef.current(), 400);
       },
-      [clearBuildJob, setMessages, supabase, uid],
+      [applyTerminalBuildSummary, clearBuildJob, projectFiles.length, setMessages, supabase, uid],
     ),
   );
 
@@ -2409,15 +2473,30 @@ export function ImmersiveWorkspace({
               {buildRunSummary && !buildJobActive && (
                 <BuildRunSummaryCard
                   variant={buildRunSummary.variant}
+                  status={buildRunSummary.status}
+                  headline={buildRunSummary.headline}
+                  bodyLines={buildRunSummary.bodyLines}
                   appName={project?.name ?? undefined}
                   creditsUsed={buildRunSummary.creditsUsed}
                   remainingSummary={buildRunSummary.remainingSummary}
                   errorMessage={buildRunSummary.errorMessage}
                   refunded={buildRunSummary.refunded}
+                  showRefundLine={buildRunSummary.showRefundLine}
+                  showRepairActions={buildRunSummary.showRepairActions}
+                  showPreviewActions={buildRunSummary.showPreviewActions}
                   onContinue={
                     buildRunSummary.variant === "partial"
                       ? () => {
                           setBuildRunSummary(null);
+                          composerTextareaRef.current?.focus();
+                        }
+                      : undefined
+                  }
+                  onRepair={
+                    buildRunSummary.showRepairActions
+                      ? () => {
+                          setRightTab("code");
+                          setMobilePanel("code");
                           composerTextareaRef.current?.focus();
                         }
                       : undefined

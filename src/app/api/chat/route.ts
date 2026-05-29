@@ -979,6 +979,7 @@ export async function POST(request: Request) {
       jobId: buildJobId,
       projectId,
       userId: user.id,
+      promptHint: buildPrompt.trim().slice(0, 160) || undefined,
     });
 
     const jobInput = {

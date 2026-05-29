@@ -2,25 +2,34 @@
 
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import type { WorkflowRunStatus } from "@/lib/build/workflow-status-guards";
 
 export type BuildRunSummaryVariant = "completed" | "partial" | "failed";
 
 export function BuildRunSummaryCard({
   variant,
+  status,
+  headline,
+  bodyLines = [],
   appName,
   filesCount,
   pages,
   previewReady,
   publishReady,
   creditsUsed,
-  completedSummary,
-  remainingSummary,
   errorMessage,
   refunded,
+  showRefundLine = false,
+  showRepairActions = false,
+  showPreviewActions = false,
   onContinue,
+  onRepair,
   className,
 }: {
   variant: BuildRunSummaryVariant;
+  status?: WorkflowRunStatus;
+  headline?: string;
+  bodyLines?: string[];
   appName?: string;
   filesCount?: number;
   pages?: string[];
@@ -31,11 +40,40 @@ export function BuildRunSummaryCard({
   remainingSummary?: string;
   errorMessage?: string;
   refunded?: boolean;
+  showRefundLine?: boolean;
+  showRepairActions?: boolean;
+  showPreviewActions?: boolean;
   onContinue?: () => void;
+  onRepair?: () => void;
   className?: string;
 }) {
-  const partial = variant === "partial";
+  const partial = variant === "partial" || status === "partial_credit_stop";
   const failed = variant === "failed";
+
+  const title =
+    headline ??
+    (failed
+      ? status === "failed_before_generation"
+        ? "Couldn't start the build"
+        : "Build needs attention"
+      : partial
+        ? "Partial progress saved"
+        : "Build complete");
+
+  const lines =
+    bodyLines.length > 0
+      ? bodyLines
+      : [
+          ...(variant === "completed" && typeof filesCount === "number"
+            ? [`${filesCount} file${filesCount === 1 ? "" : "s"} created or updated`]
+            : []),
+          ...(pages?.length ? [`Screens: ${pages.slice(0, 5).join(", ")}`] : []),
+          ...(partial && typeof creditsUsed === "number"
+            ? [`Used ${creditsUsed} Build Credit${creditsUsed === 1 ? "" : "s"} on this pass.`]
+            : []),
+          ...(failed && errorMessage ? [errorMessage] : []),
+          ...(showRefundLine || refunded ? ["Credits were returned for this attempt."] : []),
+        ].filter(Boolean);
 
   return (
     <div
@@ -46,6 +84,7 @@ export function BuildRunSummaryCard({
       )}
       data-testid="build-run-summary"
       data-variant={variant}
+      data-status={status}
     >
       <div
         className={cn(
@@ -58,50 +97,38 @@ export function BuildRunSummaryCard({
         )}
       />
       <div className="px-4 py-3.5">
-        <p className="text-[13px] font-semibold text-foreground">
-          {failed
-            ? "Build needs attention"
-            : partial
-              ? "Partial build saved"
-              : "Build complete"}
-        </p>
-        {appName ? (
+        <p className="text-[13px] font-semibold text-foreground">{title}</p>
+        {appName && variant === "completed" ? (
           <p className="mt-0.5 text-[11.5px] text-muted-foreground">{appName}</p>
         ) : null}
 
-        {variant === "completed" && (
+        {lines.length > 0 ? (
           <ul className="mt-2 space-y-1 text-[11px] text-muted-foreground">
-            {typeof filesCount === "number" ? (
-              <li>{filesCount} file{filesCount === 1 ? "" : "s"} created or updated</li>
-            ) : null}
-            {pages?.length ? <li>Pages: {pages.slice(0, 5).join(", ")}</li> : null}
-            <li>Preview: {previewReady ? "Ready" : "Preparing"}</li>
-            {publishReady != null ? (
-              <li>Publish: {publishReady ? "Ready when you are" : "Finish setup in dashboard"}</li>
-            ) : null}
-            {completedSummary ? <li className="text-foreground/80">{completedSummary}</li> : null}
+            {lines.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
           </ul>
-        )}
+        ) : null}
 
-        {partial && (
-          <div className="mt-2 space-y-1 text-[11px] text-muted-foreground">
-            {typeof creditsUsed === "number" ? (
-              <p>
-                Used {creditsUsed} Build Credit{creditsUsed === 1 ? "" : "s"} on this pass.
-              </p>
-            ) : null}
-            {remainingSummary ? <p className="text-foreground/85">{remainingSummary}</p> : null}
-          </div>
-        )}
-
-        {failed && (
-          <div className="mt-2 space-y-1 text-[11px] text-muted-foreground">
-            {errorMessage ? <p>{errorMessage}</p> : null}
-            {refunded ? <p>Credits were returned for this attempt.</p> : null}
-          </div>
-        )}
+        {variant === "completed" && previewReady != null ? (
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            Preview: {previewReady ? "Ready" : "Preparing"}
+            {publishReady != null
+              ? ` · Publish: ${publishReady ? "Ready when you are" : "Finish setup in dashboard"}`
+              : ""}
+          </p>
+        ) : null}
 
         <div className="mt-3 flex flex-wrap gap-2">
+          {showPreviewActions && (
+            <button
+              type="button"
+              className="rounded-xl bg-accent px-3 py-2 text-[11.5px] font-semibold text-white shadow-sm"
+              data-testid="summary-open-preview"
+            >
+              Open preview
+            </button>
+          )}
           {partial && onContinue ? (
             <button
               type="button"
@@ -111,18 +138,41 @@ export function BuildRunSummaryCard({
               Continue build
             </button>
           ) : null}
-          <Link
-            href="/pricing"
-            className="rounded-xl bg-surface px-3 py-2 text-[11.5px] font-medium text-foreground ring-1 ring-border"
-          >
-            Upgrade
-          </Link>
-          <Link
-            href="/settings"
-            className="rounded-xl bg-surface px-3 py-2 text-[11.5px] font-medium text-muted-foreground ring-1 ring-border"
-          >
-            Add credits
-          </Link>
+          {showRepairActions && onRepair ? (
+            <button
+              type="button"
+              onClick={onRepair}
+              className="rounded-xl border border-border/70 bg-background px-3 py-2 text-[11.5px] font-medium text-foreground"
+              data-testid="summary-repair-build"
+            >
+              Repair build
+            </button>
+          ) : null}
+          {partial || failed ? (
+            <>
+              <Link
+                href="/pricing"
+                className="rounded-xl bg-surface px-3 py-2 text-[11.5px] font-medium text-foreground ring-1 ring-border"
+              >
+                {failed && status === "insufficient_credits_before_start" ? "Upgrade" : "Add credits"}
+              </Link>
+              {partial ? (
+                <button
+                  type="button"
+                  className="rounded-xl bg-surface px-3 py-2 text-[11.5px] font-medium text-muted-foreground ring-1 ring-border"
+                >
+                  Continue later
+                </button>
+              ) : null}
+            </>
+          ) : (
+            <Link
+              href="/settings"
+              className="rounded-xl bg-surface px-3 py-2 text-[11.5px] font-medium text-muted-foreground ring-1 ring-border"
+            >
+              Add credits
+            </Link>
+          )}
         </div>
       </div>
     </div>

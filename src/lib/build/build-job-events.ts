@@ -61,7 +61,6 @@ const WORKFLOW_TO_JOB: Partial<Record<WorkflowEventType, BuildJobEventType>> = {
   charging: "preparing_preview",
   finalizing: "preparing_preview",
   done: "completed",
-  failed: "fixing_error",
 };
 
 function extractFilePath(detail?: string): string | null {
@@ -107,13 +106,13 @@ export function userTitleForJobEvent(type: BuildJobEventType, label: string): st
     writing_file: "Writing files",
     editing_file: "Editing files",
     checking_file: "Checking files",
-    fixing_error: "Applying repair pass",
+    fixing_error: "Fixing issues",
     validating_preview: "Checking preview",
     saving_files: "Saving files",
     preparing_preview: "Preparing preview",
     completed: "Preview ready",
     partial_credit_stop: "Saved partial progress",
-    failed: "Build needs repair",
+    failed: "Build stopped",
     refunded: "Credits returned",
   };
   return map[type] ?? label;
@@ -173,60 +172,68 @@ export async function persistWorkflowEvent(
   if (ev.type === "failed") return;
 
   const type = mapWorkflowEventToJobType(ev.type);
-  const filePath = extractFilePath(ev.detail) ?? extractFilePath(ev.label);
+  const filePath =
+    extractFilePath(ev.detail) ??
+    extractFilePath(ev.label) ??
+    (ev.detail && /^[\w./-]+\.[a-z0-9]+$/i.test(ev.detail.trim()) ? ev.detail.trim() : null);
   const pct = Math.max(
     progressPercent ?? defaultProgressForEventType(type),
     defaultProgressForEventType(type),
   );
+  const specificTitle = ev.label?.trim();
+  const useSpecific =
+    Boolean(specificTitle) &&
+    specificTitle !== userTitleForJobEvent(type, specificTitle);
   await persistBuildJobEvent(writer, {
     jobId: ctx.jobId,
     projectId: ctx.projectId,
     userId: ctx.userId,
     type,
-    title: userTitleForJobEvent(type, ev.label),
+    title: useSpecific ? specificTitle! : userTitleForJobEvent(type, ev.label),
     detail: ev.detail ?? ev.label,
     filePath,
     progressPercent: pct,
+    metadata: {
+      stream_category:
+        ev.type === "repairing"
+          ? "repair_started"
+          : ev.type === "writing"
+            ? "file_created"
+            : ev.type === "editing"
+              ? "file_edited"
+              : undefined,
+      display_title: useSpecific ? specificTitle : undefined,
+      repair_pass: ev.type === "repairing" ? true : undefined,
+    },
   });
 }
 
 export async function emitInitialBuildEvents(
   writer: Writer,
-  ctx: { jobId: string; projectId: string; userId: string },
+  ctx: { jobId: string; projectId: string; userId: string; promptHint?: string },
 ): Promise<void> {
+  const hint = ctx.promptHint?.trim().slice(0, 160);
   await persistBuildJobEvent(writer, {
     ...ctx,
     type: "job_created",
-    title: "Starting build",
-    detail: "Reading your prompt and choosing the right build path",
-    progressPercent: 1,
+    title: "Starting your build",
+    detail: hint
+      ? `I'll shape this into an app based on your request.`
+      : "Reading your prompt and choosing the right build path",
+    progressPercent: 2,
+    metadata: {
+      stream_category: "assistant_message",
+      display_title: hint
+        ? `I'll build this based on your request.`
+        : "Starting your build",
+    },
   });
   await persistBuildJobEvent(writer, {
     ...ctx,
     type: "understanding_request",
-    title: "Understanding request",
-    detail: "Reading your prompt and choosing the right build path",
-    progressPercent: 5,
-  });
-  await persistBuildJobEvent(writer, {
-    ...ctx,
-    type: "planning_app",
-    title: "Planning app structure",
-    detail: "Creating routes, pages, and data model",
-    progressPercent: 12,
-  });
-  await persistBuildJobEvent(writer, {
-    ...ctx,
-    type: "understanding_request",
-    title: "Planning data model",
-    detail: "Mapping tables and relationships",
-    progressPercent: 14,
-  });
-  await persistBuildJobEvent(writer, {
-    ...ctx,
-    type: "checking_file",
-    title: "Checking existing files",
-    detail: "Scanning your project workspace",
-    progressPercent: 16,
+    title: hint ? `Understanding: ${hint}` : "Understanding your request",
+    detail: "Mapping screens, data, and flows",
+    progressPercent: 8,
+    metadata: { stream_category: "phase_started" },
   });
 }

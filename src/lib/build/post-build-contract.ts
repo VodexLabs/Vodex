@@ -179,13 +179,16 @@ export function evaluatePostBuildContract(input: PostBuildContractInput): PostBu
         (input.scaffoldFallbackUsed && renderable.length >= STANDARD_MIN_RENDERABLE_FILES)),
   );
 
+  const hasRenderableFiles = renderable.length > 0;
   const userMessage = passed
     ? "Preview ready — your first version is ready."
-    : missingImports.length > 0
-      ? "Build needs repair — generated files reference components that were not created."
-      : failures.some((f) => f.startsWith("ui_quality"))
-        ? "The build needs another repair pass before preview."
-        : "Build needs repair — generated files were incomplete.";
+    : !hasRenderableFiles
+      ? "I couldn't generate files for this request. Try again or simplify your prompt."
+      : missingImports.length > 0
+        ? "Generated files reference components that were not created — a repair pass can fix this."
+        : failures.some((f) => f.startsWith("ui_quality"))
+          ? "The first version was saved, but UI quality needs a repair pass before preview."
+          : "The first version was saved, but some checks did not pass yet.";
 
   return {
     passed,

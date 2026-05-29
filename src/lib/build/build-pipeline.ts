@@ -359,7 +359,7 @@ export async function runStagedBuildPipeline(input: {
       await tracePersist("deterministic_plan_fallback_used", archetype.id);
     }
   } else {
-    track(events, "planning", "Creating build plan");
+    track(events, "planning", "Designing routes and screens");
   }
 
   if (!knownArchetypeFastPath) {

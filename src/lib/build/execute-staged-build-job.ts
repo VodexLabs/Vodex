@@ -22,6 +22,11 @@ import {
   persistBuildJobEvent,
   persistWorkflowEvent,
 } from "@/lib/build/build-job-events";
+import {
+  failureKindForPersist,
+  userSafeFailureDetail,
+  userSafeFailureTitle,
+} from "@/lib/build/workflow-status-guards";
 import { logServerOperation } from "@/lib/ops/server-ops-log";
 import { normalizeBuildError } from "@/lib/build/build-error";
 import {
@@ -88,7 +93,8 @@ async function refundBuildReservation(input: {
     userId: input.userId,
     type: "refunded",
     title: "Credits returned",
-    detail: "Build did not pass quality checks — reserved credits were returned.",
+    detail: "Reserved credits were returned for this attempt.",
+    metadata: { stream_category: "assistant_message" },
     progressPercent: 100,
   });
 }
@@ -471,14 +477,20 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
         skipJobStatusUpdate: true,
       });
 
+      const preGenKind = failureKindForPersist({
+        fileCount: 0,
+        repairAttempted: false,
+      });
       await persistBuildJobEvent(input.writer, {
         ...eventCtx,
         type: "failed",
-        title: "Build needs repair",
-        detail: pr.buildContract.userMessage,
+        title: userSafeFailureTitle(preGenKind),
+        detail: userSafeFailureDetail(preGenKind, pr.buildContract.userMessage),
         progressPercent: 100,
         metadata: {
           failures: pr.buildContract.failures,
+          failure_kind: preGenKind,
+          file_count: 0,
           execution_instance_id: workerCtx.executionInstanceId,
         },
       });
@@ -577,13 +589,25 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
         skipJobStatusUpdate: true,
       });
 
+      const persistFailKind = failureKindForPersist({
+        fileCount: 0,
+        repairAttempted: false,
+      });
       await persistBuildJobEvent(input.writer, {
         ...eventCtx,
         type: "failed",
-        title: "Build needs repair",
-        detail: fileGate.code ?? "files_persistence_failed",
+        title: userSafeFailureTitle(persistFailKind),
+        detail: userSafeFailureDetail(
+          persistFailKind,
+          fileGate.code ?? "files_persistence_failed",
+        ),
         progressPercent: 100,
-        metadata: { failures: fileGate.failures, persist_error: persist.error },
+        metadata: {
+          failures: fileGate.failures,
+          persist_error: persist.error,
+          failure_kind: persistFailKind,
+          file_count: 0,
+        },
       });
       return;
     }
