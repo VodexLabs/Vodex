@@ -21,6 +21,7 @@ import { logAuthEvent } from "@/lib/auth/auth-diagnostics";
 import { persistReferralCodeForBrowser } from "@/lib/auth/ref-cookie";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { hasActiveSession } from "@/lib/auth/client-identity";
+import { clearStaleSupabaseAuthCookies } from "@/lib/supabase/supabase-auth-cookies";
 import { cn } from "@/lib/utils";
 
 function PasswordStrength({ password }: { password: string }) {
@@ -82,6 +83,10 @@ export function SignupView() {
   const [success, setSuccess] = React.useState(false);
   const [isOnline, setIsOnline] = React.useState(true);
   const [referralFromUrl, setReferralFromUrl] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    clearStaleSupabaseAuthCookies();
+  }, []);
 
   React.useEffect(() => {
     try {

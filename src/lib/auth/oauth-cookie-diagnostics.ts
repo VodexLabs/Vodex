@@ -1,5 +1,9 @@
 import { DREAMOS_REF_COOKIE } from "@/lib/auth/ref-cookie";
 import { DREAMOS_RETURN_TO_COOKIE } from "@/lib/auth/oauth-prep";
+import {
+  detectPkceProjectMismatch,
+  getConfiguredSupabaseProjectRef,
+} from "@/lib/supabase/supabase-auth-cookies";
 
 export const OPTIONAL_OAUTH_STATE_COOKIES = [
   DREAMOS_REF_COOKIE,
@@ -25,14 +29,23 @@ export type OAuthCallbackCookieDiagnostics = {
   supabaseAuthCookieNames: string[];
   optionalStateCookieNames: string[];
   allCookieNames: string[];
+  configuredSupabaseRef: string | null;
+  pkceVerifierRefs: string[];
+  pkceProjectMismatch: boolean;
 };
 
 export function diagnoseOAuthCallbackCookies(
   cookies: { name: string }[],
 ): OAuthCallbackCookieDiagnostics {
   const allCookieNames = listCookieNames(cookies);
+  const pkce = detectPkceProjectMismatch(allCookieNames);
+  const configuredRef = getConfiguredSupabaseProjectRef();
+  const hasVerifierForConfigured = configuredRef
+    ? allCookieNames.some((n) => n === `sb-${configuredRef}-auth-token-code-verifier` || n.startsWith(`sb-${configuredRef}-auth-token-code-verifier.`))
+    : allCookieNames.some(isSupabasePkceVerifierCookie);
+
   return {
-    hasPkceVerifier: allCookieNames.some(isSupabasePkceVerifierCookie),
+    hasPkceVerifier: hasVerifierForConfigured || allCookieNames.some(isSupabasePkceVerifierCookie),
     hasReferralCookie: allCookieNames.includes(DREAMOS_REF_COOKIE),
     hasReturnToCookie: allCookieNames.includes(DREAMOS_RETURN_TO_COOKIE),
     supabaseAuthCookieNames: allCookieNames.filter(
@@ -42,5 +55,8 @@ export function diagnoseOAuthCallbackCookies(
       (OPTIONAL_OAUTH_STATE_COOKIES as readonly string[]).includes(n),
     ),
     allCookieNames,
+    configuredSupabaseRef: pkce.configuredRef,
+    pkceVerifierRefs: pkce.verifierRefs,
+    pkceProjectMismatch: pkce.mismatch,
   };
 }

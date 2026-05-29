@@ -79,6 +79,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/auth/login?error=missing_code`);
   }
 
+  if (cookieDiag.pkceProjectMismatch) {
+    logAuthEvent(
+      "auth_cookie_missing",
+      {
+        slug: "auth_cookie_project_mismatch",
+        configured_supabase_ref: cookieDiag.configuredSupabaseRef,
+        pkce_verifier_refs: cookieDiag.pkceVerifierRefs,
+      },
+      "warn",
+      "server",
+    );
+    const params = new URLSearchParams({ error: "auth_cookie_project_mismatch" });
+    return NextResponse.redirect(`${origin}/auth/login?${params}`);
+  }
+
   const pendingSessionCookies: PendingAuthCookie[] = [];
   const exchangeJar = NextResponse.next({ request });
   const supabase = createRouteHandlerClient(request, exchangeJar, pendingSessionCookies);

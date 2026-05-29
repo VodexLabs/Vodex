@@ -21,6 +21,7 @@ import {
   expectedGoogleOAuthRedirectUri,
 } from "@/lib/supabase/supabase-project-config";
 import { getSupabaseOAuthBlockReason } from "@/lib/supabase/supabase-oauth-guard";
+import { clearStaleSupabaseAuthCookies } from "@/lib/supabase/supabase-auth-cookies";
 
 export { getAppUrl } from "@/lib/app-url";
 export {
@@ -72,6 +73,10 @@ export async function authSignInWithOAuth(
       data: { provider, url: null },
       error: new Error(`supabase_project_mismatch:${oauthBlock.message}`),
     };
+  }
+
+  if (typeof window !== "undefined") {
+    clearStaleSupabaseAuthCookies();
   }
 
   const client = createClient();
@@ -312,6 +317,8 @@ export const CALLBACK_ERROR_MESSAGES: Record<string, string> = {
     "Sign-in redirect URL mismatch. Add your app URL and /auth/callback to Supabase Auth redirect URLs.",
   auth_cookie_missing:
     "Sign-in session cookie was missing (often caused by blocked cookies or opening the link in a different browser). Try again in the same browser.",
+  auth_cookie_project_mismatch:
+    "Stale sign-in cookies from an old DreamOS86 environment were detected. Clear site data for this host and try Google sign-in again.",
 };
 
 /** Safe provider error_description for display (no tokens/codes). */

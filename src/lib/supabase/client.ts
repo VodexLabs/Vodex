@@ -6,6 +6,7 @@
  */
 
 import { createBrowserClient } from "@supabase/ssr";
+import { clearStaleSupabaseAuthCookies } from "@/lib/supabase/supabase-auth-cookies";
 import type { Database } from "./types";
 
 let client: ReturnType<typeof createBrowserClient<Database>> | undefined;
@@ -26,6 +27,10 @@ export function createClient() {
 
   // Recreate client when env changes (e.g. after editing .env.local) so OAuth never hits a stale project URL.
   if (client && cachedUrl === url && cachedKey === key) return client;
+
+  if (typeof window !== "undefined" && cachedUrl && cachedUrl !== url) {
+    clearStaleSupabaseAuthCookies();
+  }
 
   client = createBrowserClient<Database>(url, key);
   cachedUrl = url;

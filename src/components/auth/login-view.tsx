@@ -23,6 +23,7 @@ import { logAuthEvent } from "@/lib/auth/auth-diagnostics";
 import { ensureProfileAfterLogin } from "@/lib/auth/post-login";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { hasActiveSession } from "@/lib/auth/client-identity";
+import { clearStaleSupabaseAuthCookies } from "@/lib/supabase/supabase-auth-cookies";
 
 export function LoginView() {
   const router = useRouter();
@@ -40,6 +41,10 @@ export function LoginView() {
   const [oauthLoading, setOauthLoading] = React.useState<"google" | "github" | null>(null);
   const [isOnline, setIsOnline] = React.useState(true);
   const [lastAction, setLastAction] = React.useState<(() => void) | null>(null);
+
+  React.useEffect(() => {
+    clearStaleSupabaseAuthCookies();
+  }, []);
 
   React.useEffect(() => {
     try {

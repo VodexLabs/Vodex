@@ -45,8 +45,16 @@ async function resolveProxyUser(supabase: {
   }
 }
 
+function isSupabasePkceVerifierCookieName(name: string): boolean {
+  return name.includes("code-verifier") || name.includes("code_verifier");
+}
+
 function hasSupabaseSessionCookie(request: NextRequest): boolean {
-  return request.cookies.getAll().some((c) => c.name.startsWith("sb-") && c.name.includes("auth"));
+  return request.cookies.getAll().some((c) => {
+    if (!c.name.startsWith("sb-") || !c.name.includes("auth")) return false;
+    if (isSupabasePkceVerifierCookieName(c.name)) return false;
+    return true;
+  });
 }
 
 function logProxyAuthFailure(err: unknown, supabaseHost: string): void {
@@ -123,6 +131,11 @@ function redirectLoggedInReferralAttempt(request: NextRequest): NextResponse {
 
 export async function proxy(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
+
+  // Never run session refresh on OAuth callback — PKCE verifier cookies must reach the route handler intact.
+  if (pathname === "/auth/callback" || pathname.startsWith("/auth/callback/")) {
+    return NextResponse.next({ request });
+  }
 
   // OAuth mis-config: Supabase sometimes lands PKCE code on Site URL (/) instead of /auth/callback
   const oauthRedirect = buildAuthCallbackRedirectFromSearchParams(
