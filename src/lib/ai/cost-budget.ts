@@ -1,5 +1,9 @@
 import type { AiOperationType } from "@/lib/ai/operation-types";
 import { estimateTokenProviderCostUsd } from "@/lib/credits/token-cost";
+import {
+  isImplementationOperation,
+  minOutputTokensForOperation,
+} from "@/lib/ai/output-token-floors";
 
 export const GLOBAL_MAX_OUTPUT_TOKENS = 4000;
 export const GLOBAL_MAX_VISIBLE_OUTPUT_TOKENS = 900;
@@ -42,14 +46,14 @@ export function maxBudgetForOperation(
   complexity = 5,
 ): number {
   if (op === "frontend_implementation") {
-    if (complexity <= 4) return 0.003;
-    if (complexity <= 7) return 0.006;
-    return 0.01;
+    if (complexity <= 4) return 0.014;
+    if (complexity <= 7) return 0.024;
+    return 0.038;
   }
   if (op === "backend_implementation") {
-    if (complexity <= 4) return 0.0025;
-    if (complexity <= 7) return 0.005;
-    return 0.008;
+    if (complexity <= 4) return 0.01;
+    if (complexity <= 7) return 0.018;
+    return 0.028;
   }
   return OP_BUDGET_USD[op] ?? 0.002;
 }
@@ -75,11 +79,16 @@ export function checkOperationBudget(input: BudgetCheckInput): BudgetCheckResult
   const isChatVisible =
     input.operationType.startsWith("discuss") ||
     input.operationType === "edit_stream";
-  const cappedOutput = Math.min(
+  const qualityFloor = minOutputTokensForOperation(
+    input.operationType,
+    input.complexity ?? 5,
+  );
+  let cappedOutput = Math.min(
     input.maxOutputTokens,
     GLOBAL_MAX_OUTPUT_TOKENS,
     isChatVisible ? GLOBAL_MAX_VISIBLE_OUTPUT_TOKENS : GLOBAL_MAX_OUTPUT_TOKENS,
   );
+  cappedOutput = Math.max(cappedOutput, qualityFloor);
   const estimated = estimateTokenProviderCostUsd(
     input.modelId,
     input.maxInputTokens,
@@ -99,11 +108,15 @@ export function checkOperationBudget(input: BudgetCheckInput): BudgetCheckResult
   }
 
   if (estimated > maxAllowed) {
+    const shrunk = Math.floor(cappedOutput * (maxAllowed / estimated));
+    const floor = isImplementationOperation(input.operationType)
+      ? qualityFloor
+      : 200;
     return {
       allowed: false,
       estimatedCostUsd: estimated,
       maxAllowedUsd: maxAllowed,
-      cappedOutputTokens: Math.max(200, Math.floor(cappedOutput * (maxAllowed / estimated))),
+      cappedOutputTokens: Math.max(floor, shrunk),
       reason: "operation_budget_exceeded",
     };
   }

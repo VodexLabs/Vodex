@@ -11,6 +11,8 @@ export type DeterministicBuildPlan = {
 };
 
 const KNOWN_FAST_PATH_ARCHETYPES = new Set<AppArchetypeId>([
+  "mental_wellness_journal",
+  "subscription_box_manager",
   "restaurant_inventory",
   "crm",
   "booking",
@@ -37,7 +39,11 @@ export function buildDeterministicPlanForArchetype(
   const summary =
     archetype.id === "restaurant_inventory"
       ? "Restaurant inventory dashboard with stock, suppliers, alerts, and settings."
-      : `${archetype.label} app with core operational screens.`;
+      : archetype.id === "mental_wellness_journal"
+        ? "Mental wellness journal with mood check-ins, guided prompts, insights, and encrypted messaging."
+        : archetype.id === "subscription_box_manager"
+          ? "Subscription box manager with subscribers, curation, shipments, and churn analytics."
+          : `${archetype.label} app with core operational screens.`;
 
   const steps = [
     "App shell and navigation",
@@ -57,7 +63,14 @@ export function buildDeterministicPlanForArchetype(
   if (/mobile|ios|android/.test(briefLower)) queued.push("Mobile app wrapper");
 
   return {
-    complexity: archetype.id === "restaurant_inventory" ? 5 : 4,
+    complexity:
+      archetype.id === "mental_wellness_journal"
+        ? 7
+        : archetype.id === "subscription_box_manager"
+          ? 6
+          : archetype.id === "restaurant_inventory"
+            ? 5
+            : 4,
     summary,
     steps,
     pages: pages.length ? pages : ["Dashboard", "Settings"],

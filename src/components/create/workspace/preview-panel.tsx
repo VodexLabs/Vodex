@@ -42,6 +42,13 @@ export interface PreviewPanelProps {
   buildStepLabel?: string | null;
   tokensEstimate?: number | null;
   modelLabel?: string | null;
+  /** When true, show the building shell instead of empty/unrenderable preview. */
+  buildActive?: boolean;
+}
+
+function isUnrenderableSrcDoc(doc: string | null | undefined): boolean {
+  if (!doc?.trim()) return true;
+  return /no renderable content/i.test(doc);
 }
 
 export function PreviewPanel({
@@ -58,6 +65,7 @@ export function PreviewPanel({
   buildStepLabel = null,
   tokensEstimate = null,
   modelLabel = null,
+  buildActive = false,
 }: PreviewPanelProps) {
   const [viewport, setViewport] = React.useState<Viewport>("desktop");
   const [reloadKey, setReloadKey] = React.useState(0);
@@ -72,14 +80,15 @@ export function PreviewPanel({
     if (url || srcDoc) setIframeLoading(true);
   }, [url, srcDoc, reloadKey]);
 
-  const hasInline = !!srcDoc?.trim();
+  const hasInline = !!srcDoc?.trim() && !isUnrenderableSrcDoc(srcDoc);
   const hasPreviewArtifact = !!url || hasInline;
-  const showArtifact = hasPreviewArtifact && !thinking;
-  const shellState = thinking
-    ? previewState === "compiling"
-      ? "compiling"
-      : "building"
-    : "idle";
+  const showArtifact = hasPreviewArtifact && !thinking && !buildActive;
+  const shellState =
+    buildActive || thinking
+      ? previewState === "compiling"
+        ? "compiling"
+        : "building"
+      : "idle";
   const displayHost = hasInline
     ? "live preview (generated)"
     : hasPreviewArtifact && url

@@ -12,6 +12,7 @@ export type RepairIssueType =
   | "token_invalid"
   | "generated_placeholder"
   | "no_files"
+  | "incomplete_source"
   | "provider_cap_hit"
   | "auth_session";
 
@@ -61,6 +62,7 @@ function aiIssue(
 }
 
 export function classifyRepairIssues(input: {
+  sourceIncomplete?: boolean;
   lifecycleStatus?: string | null;
   buildStatus?: string | null;
   fileCount?: number;
@@ -117,6 +119,18 @@ export function classifyRepairIssues(input: {
         "This project has no app files yet.",
         "Preview and publish require at least one generated file.",
         "Run a build from the create flow or use AI repair to generate starter files.",
+        "high",
+        { fileCount: input.fileCount ?? 0 },
+      ),
+    );
+  } else if (input.sourceIncomplete === true) {
+    issues.push(
+      aiIssue(
+        "incomplete_source",
+        "Generated files are incomplete",
+        "File paths exist but source content is missing or too thin to render.",
+        "Preview and the code editor need real React source, not empty stubs.",
+        "Run repair to generate the missing code for your routes and components.",
         "high",
         { fileCount: input.fileCount ?? 0 },
       ),

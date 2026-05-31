@@ -75,7 +75,7 @@ export function formatBuildResultSummary(input: {
     .map((b) => `${b.title} (${b.category})`);
 
   return {
-    headline: `Built the strongest first version of ${input.appName} with the core screens and preview-ready flow.`,
+    headline: `First version ready — ${input.appName} is live with core screens.`,
     completedNow,
     queuedNext,
     suggestedActions: buildSuggestedActions(input.backlog),
@@ -87,7 +87,7 @@ export function renderBuildResultMarkdown(summary: BuildResultSummary): string {
   const lines: string[] = [
     `## ${summary.headline}`,
     "",
-    "Built the strongest first version with the core screens and preview-ready flow. The remaining advanced items are queued so you can continue with backend, integrations, auth, or polish next.",
+    "Your app shell, core screens, and preview are ready. The remaining advanced items are queued so you can continue with backend, integrations, auth, or polish next.",
     "",
     "### Included in this version",
     ...summary.completedNow.map((item) => `- ${item}`),

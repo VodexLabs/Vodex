@@ -17,8 +17,8 @@ import { Download, Save, Sparkles, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { loadProjectFileContent } from "@/lib/projects/load-project-files";
 import { preferredEntryFile } from "@/lib/projects/imported-project-state";
+import { fileMeetsMeaningfulThreshold } from "@/lib/build/source-integrity-validator";
 import { canManualCodeEdit } from "@/lib/billing/plan-features";
-import { RepairCenter } from "@/components/repair/repair-center";
 
 export type BuilderFile = { path: string; content: string };
 
@@ -121,7 +121,12 @@ export function AppBuilderWorkspace({
         return;
       }
     }
-    const entry = preferredEntryFile(files.map((f) => f.path));
+    const withContent = files.filter((f) => fileMeetsMeaningfulThreshold(f));
+    const entry =
+      withContent.find((f) => f.path === preferredEntryFile(files.map((x) => x.path)))?.path ??
+      withContent.find((f) => /page\.(tsx|jsx)$/i.test(f.path))?.path ??
+      withContent[0]?.path ??
+      preferredEntryFile(files.map((f) => f.path));
     if (entry) {
       setTabs([{ path: entry, dirty: false }]);
       setActivePath(entry);
@@ -177,6 +182,12 @@ export function AppBuilderWorkspace({
   const displayContent = activePath
     ? localContent[activePath] ?? files.find((f) => f.path === activePath)?.content ?? ""
     : "";
+
+  const activeFileEmpty =
+    Boolean(activePath) &&
+    !contentLoadingPath &&
+    !loading &&
+    !displayContent.trim();
 
   const onContentChange = (text: string) => {
     if (!activePath) return;
@@ -670,19 +681,30 @@ export function AppBuilderWorkspace({
               />
             </div>
           ) : null}
+          {activeFileEmpty ? (
+            <div className="border-b border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-900 dark:text-amber-100">
+              This file exists but has no saved content. Run repair to generate the missing code.
+            </div>
+          ) : null}
           <CodeEditorWithLines
             value={displayContent}
             onChange={onContentChange}
             readOnly={!canEdit || !activePath || pendingPaths.has(activePath)}
             activePath={activePath}
             placeholder={
-              loading
-                ? "Loading files…"
-                : !canEdit
-                  ? "Upgrade to a paid plan to edit code manually"
-                  : activePath && pendingPaths.has(activePath)
-                    ? "Accept or reject AI changes first"
-                    : "Select a file from the tree"
+              contentLoadingPath === activePath
+                ? "Loading file…"
+                : activePath
+                  ? activeFileEmpty
+                    ? ""
+                    : ""
+                  : loading
+                    ? "Loading files…"
+                    : !canEdit
+                      ? "Upgrade to a paid plan to edit code manually"
+                      : pendingPaths.has(activePath ?? "")
+                        ? "Accept or reject AI changes first"
+                        : "Select a file from the tree"
             }
           />
           {checkpoints.length > 0 ? (
@@ -699,11 +721,6 @@ export function AppBuilderWorkspace({
           ) : null}
         </div>
       </div>
-      {projectId ? (
-        <div className="shrink-0 border-t border-border/60 px-3 py-2">
-          <RepairCenter projectId={projectId} compact />
-        </div>
-      ) : null}
     </div>
   );
 }

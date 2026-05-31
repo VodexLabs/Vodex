@@ -1,33 +1,33 @@
 {
-  "operationId": "57d4b92b-0f9f-43a1-a5c1-0862094a341c",
-  "executionInstanceId": "57d4b92b-0f9f-43a1-a5c1-0862094a341c:83d76b50-557b-4180-b3c3-087bab62aabe",
-  "projectId": "24d63fb2-7668-45d5-b32f-ca28283b4080",
+  "operationId": "830caf40-e7ef-4028-88b6-f63a61230b4d",
+  "executionInstanceId": "830caf40-e7ef-4028-88b6-f63a61230b4d:d7a4c284-31fb-46ca-9a7c-cd4d9cedd47d",
+  "projectId": "45c75b29-2c01-48fa-8e3e-d5e3aaf082ad",
   "ownerId": "d026ba49-4de5-489d-ace7-12ec78d98e70",
   "before": {
-    "generatedCount": 17,
-    "routeCount": 8,
-    "componentCount": 5,
-    "totalBytes": 10812,
+    "generatedCount": 23,
+    "routeCount": 10,
+    "componentCount": 8,
+    "totalBytes": 24473,
     "samplePaths": [
       "app/layout.tsx",
       "app/login/page.tsx",
       "app/globals.css",
       "app/page.tsx",
       "app/dashboard/page.tsx",
-      "app/subscribers/page.tsx",
-      "app/boxes/page.tsx",
-      "app/shipments/page.tsx",
-      "app/analytics/page.tsx",
-      "app/settings/page.tsx"
+      "app/check-ins/page.tsx",
+      "app/journal/page.tsx",
+      "app/prompts/page.tsx",
+      "app/insights/page.tsx",
+      "app/private-messages/page.tsx"
     ]
   },
   "upsert": {
     "ok": true,
-    "rowCount": 17
+    "rowCount": 23
   },
   "after": {
-    "serviceRoleCount": 17,
-    "generatedSourceCount": 17,
-    "visibleCount": 17
+    "serviceRoleCount": 23,
+    "generatedSourceCount": 23,
+    "visibleCount": 23
   }
 }

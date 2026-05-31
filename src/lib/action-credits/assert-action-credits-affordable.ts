@@ -1,6 +1,6 @@
 import { quoteActionCredits } from "@/lib/action-credits/action-credit-pricing";
 import { isFreeRuntimeAction } from "@/lib/action-credits/action-catalog";
-import { getActionCreditBalance } from "@/lib/action-credits/charge-action-credit";
+import { getActionCreditAvailability } from "@/lib/action-credits/get-action-credit-availability";
 
 export const RUNTIME_ACTION_UNAVAILABLE_MESSAGE =
   "This AI feature is temporarily unavailable. Please try again later.";
@@ -33,15 +33,20 @@ export async function assertActionCreditsAffordable(
     dynamicFloor: input.dynamicFloor,
   });
 
+  const availability = await getActionCreditAvailability(input.ownerUserId, {
+    projectId: input.projectId,
+    actionType: input.actionType,
+    providerCostUsd: input.providerCostUsd,
+  });
+
   if (quote.isFree || isFreeRuntimeAction(quote.canonicalType)) {
-    const balance = await getActionCreditBalance(input.ownerUserId, input.projectId);
-    return { ok: true, required: 0, balance, quote };
+    return { ok: true, required: 0, balance: availability.totalAvailable, quote };
   }
 
   const required = quote.finalActionCredits;
-  const balance = await getActionCreditBalance(input.ownerUserId, input.projectId);
+  const balance = availability.totalAvailable;
 
-  if (balance < required) {
+  if (!availability.available || balance < required) {
     return { ok: false, required, balance, code: "insufficient", quote };
   }
 

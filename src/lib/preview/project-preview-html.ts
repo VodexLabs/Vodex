@@ -1,6 +1,9 @@
+import "server-only";
+
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isHiddenGeneratedPath } from "@/lib/build/generated-file-utils";
 import { buildStaticPreviewHtml, type PreviewHtmlOptions } from "@/lib/preview/static-preview-builder";
+import { analyzePreviewHtml, type PreviewHtmlDiagnostics } from "@/lib/preview/preview-html-diagnostics";
 import type { Database } from "@/lib/supabase/types";
 
 const PAGE = 500;
@@ -46,7 +49,12 @@ export async function resolveProjectPreviewHtml(
   client: SupabaseClient<Database>,
   projectId: string,
   meta: Record<string, unknown>,
-): Promise<{ html: string; fileCount: number; archetypeId: string | null }> {
+): Promise<{
+  html: string;
+  fileCount: number;
+  archetypeId: string | null;
+  diagnostics: PreviewHtmlDiagnostics;
+}> {
   const archetypeId =
     (typeof meta.app_archetype === "string" && meta.app_archetype) ||
     (typeof meta.archetype_id === "string" && meta.archetype_id) ||
@@ -58,5 +66,8 @@ export async function resolveProjectPreviewHtml(
     previewSessionId:
       typeof meta.last_preview_session_id === "string" ? meta.last_preview_session_id : undefined,
   });
-  return { html, fileCount: files.length, archetypeId };
+  const diagnostics = analyzePreviewHtml(html, files, {
+    previewSessionOk: typeof meta.last_preview_session_id === "string",
+  });
+  return { html, fileCount: files.length, archetypeId, diagnostics };
 }

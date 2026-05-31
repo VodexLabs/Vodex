@@ -34,7 +34,7 @@ export function PreviewBlockedPopup({
   };
 
   return (
-    <div className={cn("pointer-events-none fixed bottom-4 right-4 z-[6000] flex flex-col items-end gap-2", className)}>
+    <div className={cn("pointer-events-none absolute bottom-3 right-3 z-10 flex flex-col items-end gap-2", className)}>
       <AnimatePresence>
         {open && (
           <motion.div

@@ -1,8 +1,14 @@
+import "server-only";
+
 import { mergeNonprofitCrmScaffold } from "@/lib/build/nonprofit-crm-scaffold";
 import {
   buildRestaurantInventoryPreviewBody,
   isRestaurantInventoryPreview,
 } from "@/lib/preview/restaurant-static-preview";
+import {
+  buildPortfolioPreviewBody,
+  isPortfolioPreview,
+} from "@/lib/preview/portfolio-static-preview";
 import {
   isCrmLikeArchetype,
   previewArchetypeMismatch,
@@ -78,6 +84,13 @@ export function buildStaticPreviewHtml(
 
   if (isRestaurantInventoryPreview(files, options?.archetypeId)) {
     return wrapPreviewDocument(buildRestaurantInventoryPreviewBody(), options);
+  }
+
+  if (isPortfolioPreview(files, options?.archetypeId)) {
+    const appName =
+      files.find((f) => f.path === "app/layout.tsx")?.content?.match(/title:\s*["']([^"']+)["']/)?.[1] ??
+      "Portfolio";
+    return wrapPreviewDocument(buildPortfolioPreviewBody(appName), options);
   }
 
   if (isCrmLikeArchetype(options?.archetypeId)) {

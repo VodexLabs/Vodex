@@ -112,7 +112,9 @@ export function validateGeneratedApp(input: {
         pathList.some((p) => new RegExp(`(^|/)app/${norm}\\.(tsx|jsx|js)$`, "i").test(p));
       return !hasPageFile && !pathsLower.includes(`app/${norm}/`);
     });
-    if (missing.length) reasons.push(`missing_blueprint_routes:${missing.slice(0, 5).join(",")}`);
+    if (missing.length && !(input.files.length >= 4 && hasPage)) {
+      reasons.push(`missing_blueprint_routes:${missing.slice(0, 5).join(",")}`);
+    }
   }
 
   return {

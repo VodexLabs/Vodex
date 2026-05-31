@@ -117,6 +117,7 @@ export function AdminPaddleTestCheckout({ userId, userEmail, config, testingCont
         entitlementApplied?: boolean;
         message?: string;
         planId?: string;
+        failureReasons?: string[];
       };
       if (cancelled) return;
       setBillingStatus(json);
@@ -185,9 +186,19 @@ export function AdminPaddleTestCheckout({ userId, userEmail, config, testingCont
         url?: string;
         error?: string;
         transactionId?: string;
+        failureReasons?: string[];
+        planChange?: { description?: string };
       };
       setLastResponse(json);
-      if (!res.ok) throw new Error(json.error ?? "Checkout failed");
+      if (!res.ok) {
+        const reasons = json.failureReasons?.length
+          ? `\n${json.failureReasons.join("\n")}`
+          : "";
+        throw new Error(
+          [json.error, json.planChange?.description].filter(Boolean).join(" — ") +
+            reasons || "Checkout failed",
+        );
+      }
       setPendingTransactionId(json.transactionId ? String(json.transactionId) : null);
       setCheckoutState("waiting_webhook");
       if (json.url) window.location.href = String(json.url);
@@ -491,6 +502,17 @@ export function AdminPaddleTestCheckout({ userId, userEmail, config, testingCont
                   <p className="text-amber-700 dark:text-amber-300">
                     Webhook not received yet — plan will not change until processed.
                   </p>
+                ) : null}
+                {Array.isArray(billingStatus.failureReasons) &&
+                (billingStatus.failureReasons as string[]).length > 0 ? (
+                  <div className="mt-2 space-y-1 border-t border-border/60 pt-2">
+                    <dt className="font-medium text-foreground">Why plan may not have changed</dt>
+                    <ul className="list-disc pl-4 text-[11px] text-muted-foreground">
+                      {(billingStatus.failureReasons as string[]).map((line) => (
+                        <li key={line}>{line}</li>
+                      ))}
+                    </ul>
+                  </div>
                 ) : null}
               </dl>
             ) : null}

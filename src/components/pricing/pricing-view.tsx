@@ -18,7 +18,15 @@ import { toast } from "@/lib/toast";
 import { BUILD_CREDIT_HINTS, CREDIT_PACKAGE_EXAMPLES, USER_CREDITS_PER_USD } from "@/lib/pricing";
 import { planPricingCardCopy } from "@/lib/billing/plan-credit-economics";
 import { catalogAmountUsd } from "@/lib/billing/plan-billing-catalog";
-import { infinityTierIdToBillablePlan } from "@/lib/billing/billable-plans";
+import {
+  billablePlanDefinition,
+  infinityTierIdToBillablePlan,
+  type BillablePlanId,
+} from "@/lib/billing/billable-plans";
+import { resolveAnnualPriceDisplay } from "@/lib/billing/pricing-display";
+import { BillingDowngradeModal } from "@/components/billing/billing-downgrade-modal";
+import { planActionTargetToPlanId } from "@/lib/billing/plan-action-resolver";
+import { billablePlanFromStoragePlanId } from "@/lib/billing/plan-billing-catalog";
 import {
   usePaddleBillingReady,
   usePaddleCheckout,
@@ -453,6 +461,8 @@ interface PlanCardProps {
   ctaOnClick?: () => void;
   /** When set, CTA navigates here (e.g. public marketing signup). */
   ctaHref?: string;
+  /** Paid-tier downgrade from pricing (not cancel-to-free). */
+  onPaidDowngrade?: () => void;
   /** Slightly tighter card when the app sidebar is expanded */
   compact?: boolean;
 }
@@ -460,21 +470,29 @@ interface PlanCardProps {
 function PlanCard({
   id, name, price, annualPrice, annual, credits, actionCredits, actionCreditsBlurb, tagline, features,
   notIncluded = [], highlight, badge, cta: ctaProp, actionTarget, currentPlanId, publicMode = false,
-  children, ctaOnClick, ctaHref: ctaHrefProp, compact,
+  children, ctaOnClick, ctaHref: ctaHrefProp, onPaidDowngrade, compact,
 }: PlanCardProps) {
   const normalizedCurrent = currentPlanId ? normalizePlanId(currentPlanId) : null;
   const planAction = resolvePlanAction(normalizedCurrent, actionTarget, { publicMode });
   const isCurrent = planAction.kind === "current";
   const cta = ctaProp ?? planAction.label;
-  const ctaHref =
-    planAction.kind === "downgrade" && !publicMode
-      ? "/settings/billing"
-      : ctaHrefProp;
+  const isCancelDowngrade =
+    planAction.kind === "downgrade" && actionTarget === "free" && !publicMode;
+  const isPaidDowngrade =
+    planAction.kind === "downgrade" && actionTarget !== "free" && !publicMode;
+  const ctaHref = isCancelDowngrade ? "/settings/billing?cancel=1" : ctaHrefProp;
   const effectiveOnClick =
-    !isCurrent && !planAction.disabled && planAction.kind !== "downgrade" ? ctaOnClick : undefined;
-  const displayPrice = annual && annualPrice != null ? annualPrice : price;
-  const originalPrice =
-    annual && annualPrice != null ? Math.round(price! * 12) : null;
+    !isCurrent && !planAction.disabled
+      ? isPaidDowngrade
+        ? onPaidDowngrade
+        : planAction.kind !== "downgrade"
+          ? ctaOnClick
+          : undefined
+      : undefined;
+  const priceDisplay =
+    price != null && price > 0
+      ? resolveAnnualPriceDisplay(price, annualPrice, annual)
+      : null;
 
   return (
     <motion.div
@@ -520,19 +538,25 @@ function PlanCard({
                     compact ? "text-[28px]" : "text-[32px]",
                   )}
                 >
-                  ${displayPrice}
+                  ${priceDisplay?.monthlyDisplay ?? price}
                 </span>
-                {originalPrice !== null && originalPrice !== displayPrice && (
+                {priceDisplay?.monthlyStrikethrough != null ? (
                   <span className="text-[13px] text-muted-foreground/50 line-through leading-loose">
-                    ${originalPrice}
+                    ${priceDisplay.monthlyStrikethrough}
                   </span>
-                )}
+                ) : null}
                 <span className="text-[12px] text-muted-foreground pb-1">
-                  {annual && annualPrice != null ? "/yr" : "/mo"}
+                  {priceDisplay?.suffix ?? "/mo"}
                 </span>
               </>
             )}
           </div>
+          {priceDisplay?.annualTotal != null ? (
+            <p className="mt-0.5 text-[11px] font-medium tabular-nums text-muted-foreground/90">
+              ${priceDisplay.annualTotal.toLocaleString()}
+              <span className="font-normal text-muted-foreground/70">/yr</span>
+            </p>
+          ) : null}
           {annual ? (
             <p
               className={cn(
@@ -856,6 +880,8 @@ export function PricingView({ publicMode = false }: { publicMode?: boolean }) {
   const [paidLockedOpen, setPaidLockedOpen] = React.useState(false);
   const [contactKind, setContactKind] = React.useState<"sales" | "support">("support");
   const [contactModalKey, setContactModalKey] = React.useState(0);
+  const [downgradeTarget, setDowngradeTarget] = React.useState<BillablePlanId | null>(null);
+  const [downgradeBusy, setDowngradeBusy] = React.useState(false);
   const { configured: paddleReady, publicCheckoutEnabled } = usePaddleBillingReady();
   const { startCheckout, busy: checkoutBusy } = usePaddleCheckout();
 
@@ -891,6 +917,45 @@ export function PricingView({ publicMode = false }: { publicMode?: boolean }) {
   const proMonthly = catalogAmountUsd("pro", "monthly");
   const starterAnnual = catalogAmountUsd("starter", "annual");
   const proAnnual = catalogAmountUsd("pro", "annual");
+
+  const infBillable = infinityTierIdToBillablePlan(infTier.id);
+  const infMonthlyList = infBillable
+    ? catalogAmountUsd(infBillable, "monthly")
+    : tierOriginalPrice(infTier);
+  const infAnnualTotal = infBillable ? catalogAmountUsd(infBillable, "annual") : null;
+
+  async function confirmPricingDowngrade() {
+    if (!downgradeTarget) return;
+    setDowngradeBusy(true);
+    try {
+      const res = await fetch("/api/billing/paddle/downgrade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          planId: billablePlanDefinition(downgradeTarget).storagePlanId,
+          confirmed: true,
+        }),
+      });
+      const json = (await res.json()) as { message?: string; error?: string };
+      if (!res.ok) {
+        toast.error(json.error ?? "Could not schedule downgrade");
+        return;
+      }
+      toast.success(json.message ?? "Downgrade scheduled for your next renewal");
+      setDowngradeTarget(null);
+    } catch {
+      toast.error("Could not schedule downgrade");
+    } finally {
+      setDowngradeBusy(false);
+    }
+  }
+
+  function openPaidDowngrade(target: PlanActionTargetId) {
+    const storagePlan = planActionTargetToPlanId(target);
+    const billable = billablePlanFromStoragePlanId(storagePlan);
+    if (billable) setDowngradeTarget(billable);
+  }
 
   const pageMotion = reduceMotion
     ? { initial: false, animate: false }
@@ -1006,6 +1071,7 @@ export function PricingView({ publicMode = false }: { publicMode?: boolean }) {
           currentPlanId={publicMode ? null : planId}
           ctaHref={publicPaidCtaHref}
           ctaOnClick={paidCtaHandler("starter")}
+          onPaidDowngrade={() => openPaidDowngrade("starter")}
         />
 
         <PlanCard
@@ -1036,12 +1102,14 @@ export function PricingView({ publicMode = false }: { publicMode?: boolean }) {
           currentPlanId={publicMode ? null : planId}
           ctaHref={publicPaidCtaHref}
           ctaOnClick={paidCtaHandler("pro")}
+          onPaidDowngrade={() => openPaidDowngrade("pro")}
         />
 
         <PlanCard
           id="infinity"
           name="Infinity"
-          price={tierPrice(infTier, annual)}
+          price={infMonthlyList}
+          annualPrice={infAnnualTotal}
           annual={annual}
           compact={!sidebarCollapsed}
           credits={
@@ -1081,6 +1149,7 @@ export function PricingView({ publicMode = false }: { publicMode?: boolean }) {
               return openPaidLocked;
             })()
           }
+          onPaidDowngrade={() => openPaidDowngrade(infTier.id as PlanActionTargetId)}
         >
           <InfinityDropdown
             annual={annual}
@@ -1190,6 +1259,18 @@ export function PricingView({ publicMode = false }: { publicMode?: boolean }) {
       </p>
 
     </motion.div>
+
+    {downgradeTarget ? (
+      <BillingDowngradeModal
+        open
+        target={downgradeTarget}
+        currentPlanId={planId ?? "free"}
+        renewalDate={null}
+        acting={downgradeBusy}
+        onClose={() => setDowngradeTarget(null)}
+        onConfirm={confirmPricingDowngrade}
+      />
+    ) : null}
 
     <SubscriptionsLockedModal
       open={paidLockedOpen}

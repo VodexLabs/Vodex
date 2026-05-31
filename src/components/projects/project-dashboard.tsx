@@ -42,7 +42,7 @@ import type { GraphNode, GraphEdge } from "@/components/projects/architecture-gr
 import { ArchitectureWorkflowView } from "@/components/projects/architecture-workflow-view";
 import { ProjectIntegrationsPanel } from "@/components/integrations/project-integrations-panel";
 import { readLifecycleFromMetadata } from "@/lib/projects/project-lifecycle";
-import { resolveDisplayPublicUrl } from "@/lib/publish/publish-service";
+import { resolveDisplayPublicUrl } from "@/lib/publish/publish-display-url";
 
 interface ProjectRow {
   id: string;

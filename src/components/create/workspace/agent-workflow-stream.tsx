@@ -137,6 +137,22 @@ function AssistantBubble({ children }: { children: React.ReactNode }) {
   );
 }
 
+function AnalyzingRequestBubble({ base = "Analyzing your request" }: { base?: string }) {
+  const [dots, setDots] = React.useState(1);
+  React.useEffect(() => {
+    const id = setInterval(() => setDots((d) => (d >= 3 ? 1 : d + 1)), 420);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div data-testid="analyzing-request-message">
+      <AssistantBubble>
+        {base}
+        {".".repeat(dots)}
+      </AssistantBubble>
+    </div>
+  );
+}
+
 function ProgressRow({ event, reducedMotion }: { event: AgentWorkflowEvent; reducedMotion: boolean }) {
   const done = event.status === "done";
   const active = event.status === "active";
@@ -208,9 +224,14 @@ export function AgentWorkflowStream({
 
   const startedAt =
     buildStartedAtMs ?? (Date.parse(progress.events[0]?.created_at ?? "") || now - 500);
+  const showAnalyzing =
+    working &&
+    (openerText?.toLowerCase().startsWith("analyzing") ?? false) &&
+    serverSequential.length < 1;
+
   const ephemeral =
     working && serverSequential.length < 2
-      ? buildEphemeralWorkflowEvents(startedAt, now, openerText)
+      ? buildEphemeralWorkflowEvents(startedAt, now, showAnalyzing ? undefined : openerText)
       : [];
   const merged = mergeEphemeralWithServerEvents(ephemeral, serverSequential);
   const grouped = groupFileEvents(merged);
@@ -236,6 +257,8 @@ export function AgentWorkflowStream({
           <span className="font-medium text-foreground">{active.title}</span>
         </div>
       ) : null}
+
+      {showAnalyzing ? <AnalyzingRequestBubble /> : null}
 
       <ul className="space-y-2">
         <AnimatePresence initial={false}>

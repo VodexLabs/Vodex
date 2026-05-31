@@ -184,6 +184,14 @@ const PALETTES: Record<AppArchetypeId, GeneratedDesignSystem["palette"]> = {
     muted: "text-violet-900/55",
     border: "border-violet-100",
   },
+  mental_wellness_journal: {
+    primary: "#0d9488",
+    accent: "#6366f1",
+    background: "bg-gradient-to-b from-teal-50/80 to-white",
+    surface: "bg-white/90",
+    muted: "text-slate-600",
+    border: "border-teal-100",
+  },
   generic_app: {
     primary: "#4f46e5",
     accent: "#0ea5e9",

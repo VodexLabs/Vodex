@@ -3,7 +3,6 @@ import { reviewGeneratedUi, uiQualityBlocksGenerated } from "@/lib/generation/ge
 import { readCreateFlowConfig } from "@/lib/create/create-flow-config";
 import { stripSecretsFromFiles } from "@/lib/preview/preview-sandbox";
 import { pickPreviewEntry } from "@/lib/preview/preview-sandbox";
-import { resolveSnapshotHtml } from "@/lib/publish/render-published-html";
 import { slugifyAppName, isReservedPublishSlug, validateCustomSlug } from "@/lib/publish/app-slug";
 import { buildPublicUrl } from "@/lib/publish/public-url";
 import { rejectBannedRefs } from "@/lib/ai/file-fingerprint";
@@ -130,10 +129,16 @@ export function checkPublishReadiness(input: {
   }
 
   const entry = pickPreviewEntry(safeFiles);
-  const html = resolveSnapshotHtml(safeFiles);
   const routeRenderable = isImport
     ? safeFiles.length > 0
-    : Boolean(entry && html);
+    : Boolean(
+        entry &&
+          (entry.kind === "html"
+            ? entry.content.length > 200 && !/no renderable content/i.test(entry.content)
+            : safeFiles.some(
+                (f) => /page\.(tsx|jsx)$/i.test(f.path) && f.content.trim().length > 80,
+              )),
+      );
   if (!routeRenderable) {
     blockers.push(
       isImport

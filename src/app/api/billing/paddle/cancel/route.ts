@@ -10,7 +10,13 @@ import {
 } from "@/lib/billing/paddle-profile-fields";
 import { updateSubscriptionByPaddleId } from "@/lib/billing/paddle-subscription-legacy-store";
 
-const schema = z.object({ confirmed: z.literal(true) });
+const schema = z.object({
+  confirmed: z.literal(true),
+  reason: z
+    .string()
+    .trim()
+    .min(10, "Please tell us why you are leaving (at least 10 characters)."),
+});
 
 export async function POST(request: Request) {
   const status = getPaddleBillingStatus();
@@ -34,7 +40,7 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select(PROFILE_PADDLE_BILLING_SELECT)
+    .select(`plan_id, ${PROFILE_PADDLE_BILLING_SELECT}`)
     .eq("id", user.id)
     .single();
 
@@ -43,12 +49,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No active subscription" }, { status: 400 });
   }
 
+  const admin = createSupabaseAdmin();
+
+  const { error: feedbackErr } = await admin.from("subscription_cancellation_feedback").insert({
+    user_id: user.id,
+    reason: parsed.data.reason,
+    previous_plan_id: profile?.plan_id ?? "free",
+    paddle_subscription_id: paddleSubscriptionId,
+  } as never);
+
+  if (feedbackErr) {
+    console.error("[paddle-cancel] feedback insert failed", feedbackErr.message);
+    return NextResponse.json(
+      { error: "Could not save cancellation feedback. Please try again.", code: "feedback_failed" },
+      { status: 500 },
+    );
+  }
+
   const result = await cancelPaddleSubscriptionAtPeriodEnd(paddleSubscriptionId);
   if (!result.ok) {
     return NextResponse.json({ error: result.error, code: result.code }, { status: 502 });
   }
-
-  const admin = createSupabaseAdmin();
   const periodEndIso = result.currentPeriodEnd ?? null;
 
   const periodEndUpdate = periodEndIso ?? undefined;

@@ -10,7 +10,7 @@ type IdentityPayload = {
   workspaceId: string;
   ownerEmail: string;
   plan: { id: string; interval: string };
-  credits: { remaining: number; limit: number };
+  credits: { remaining: number; limit: number; bonus?: number };
   createdAt: string | null;
 };
 
@@ -94,6 +94,11 @@ export function AccountIdentityCard() {
                   {" "}
                   / {data.credits.limit.toLocaleString()}
                 </span>
+                {(data.credits.bonus ?? 0) > 0 ? (
+                  <span className="ml-1.5 text-[11px] font-semibold text-violet-600">
+                    +{data.credits.bonus!.toLocaleString()} bonus
+                  </span>
+                ) : null}
               </p>
             </div>
             <div className="rounded-[var(--radius-md)] bg-muted/25 px-3 py-2 ring-1 ring-border/50">

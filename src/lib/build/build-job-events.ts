@@ -11,6 +11,10 @@ import {
 import { probeBuildJobEventsTable } from "@/lib/build/probe-build-job-events-table";
 import { mapUserFacingWorkflowEvent } from "@/lib/workflow/user-facing-workflow-events";
 import { isValidWorkflowFilePath } from "@/lib/workflow/workflow-file-path";
+import {
+  sanitizeBuildJobEventDetail,
+  sanitizeBuildJobEventMetadata,
+} from "@/lib/build/sanitize-build-job-metadata";
 
 export type BuildJobEventType =
   | "job_created"
@@ -146,10 +150,10 @@ export async function persistBuildJobEvent(
     user_id: input.userId,
     type: input.type,
     title: input.title,
-    detail: input.detail ?? null,
+    detail: sanitizeBuildJobEventDetail(input.detail),
     file_path: input.filePath ?? null,
     progress_percent: input.progressPercent ?? null,
-    metadata: (input.metadata ?? {}) as Json,
+    metadata: sanitizeBuildJobEventMetadata(input.metadata ?? {}) as Json,
   };
 
   if (isBuildJobEventsTableMissing()) {

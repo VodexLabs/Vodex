@@ -7,7 +7,7 @@ import {
   readLifecycleFromMetadata,
   type ProjectLifecycleStatus,
 } from "@/lib/projects/project-lifecycle";
-import { resolveDisplayPublicUrl } from "@/lib/publish/publish-service";
+import { resolveDisplayPublicUrl } from "@/lib/publish/publish-display-url";
 
 type Writer = SupabaseClient<Database>;
 

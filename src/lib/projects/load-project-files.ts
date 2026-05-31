@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
+import { normalizeBuildFilePath } from "@/lib/build/generated-file-utils";
 
 export type ProjectFileRef = { path: string; content: string; sizeBytes?: number };
 
@@ -33,11 +34,12 @@ export async function loadProjectFileContent(
   projectId: string,
   path: string,
 ): Promise<{ content: string; error?: string }> {
+  const normalizedPath = normalizeBuildFilePath(path);
   const { data, error } = await client
     .from("app_files")
     .select("content")
     .eq("project_id", projectId)
-    .eq("path", path)
+    .eq("path", normalizedPath)
     .maybeSingle();
   if (error) return { content: "", error: error.message };
   return { content: data?.content ?? "" };

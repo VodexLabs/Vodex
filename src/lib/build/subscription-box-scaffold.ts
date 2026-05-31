@@ -1,5 +1,6 @@
 import type { BuildFile } from "@/lib/build/generated-file-utils";
 import { normalizeBuildFilePath } from "@/lib/build/generated-file-utils";
+import { shouldReplaceWithScaffold } from "@/lib/build/root-page-repair";
 import {
   dreamOSBrandingLayoutFooterJsx,
   dreamOSLoginPageScaffold,
@@ -66,8 +67,36 @@ body { font-feature-settings: "ss01"; }
     },
     {
       path: "app/page.tsx",
-      content: `import { redirect } from "next/navigation";
-export default function Home() { redirect("/dashboard"); }
+      content: `import Link from "next/link";
+import { metrics } from "@/lib/mock-data";
+import { MetricCard } from "@/components/MetricCard";
+
+export default function HomePage() {
+  return (
+    <div className="space-y-8">
+      <section className="rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-700 px-6 py-10 text-white shadow-lg">
+        <p className="text-xs font-semibold uppercase tracking-wider text-white/80">Subscription box manager</p>
+        <h1 className="mt-2 text-3xl font-bold tracking-tight">${esc(name)}</h1>
+        <p className="mt-3 max-w-xl text-sm text-white/90">
+          Manage subscriber lists, curate monthly boxes, export shipping labels, and track churn analytics in one workspace.
+        </p>
+        <Link href="/dashboard" className="mt-6 inline-flex rounded-lg bg-white px-4 py-2 text-sm font-semibold text-violet-700">
+          Open dashboard
+        </Link>
+      </section>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {metrics.map((m) => (
+          <MetricCard key={m.label} label={m.label} value={m.value} hint={m.hint} />
+        ))}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Link href="/subscribers" className="card text-sm font-semibold text-violet-800 hover:ring-2 hover:ring-violet-200">Subscriber lists</Link>
+        <Link href="/boxes" className="card text-sm font-semibold text-violet-800 hover:ring-2 hover:ring-violet-200">Monthly curation</Link>
+        <Link href="/analytics" className="card text-sm font-semibold text-violet-800 hover:ring-2 hover:ring-violet-200">Churn analytics</Link>
+      </div>
+    </div>
+  );
+}
 `,
     },
     {
@@ -247,6 +276,35 @@ export const churnMetrics = [
 `,
     },
     {
+      path: "package.json",
+      content: `{
+  "name": "${esc(name).toLowerCase().replace(/\\s+/g, "-")}",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": { "dev": "next dev", "build": "next build", "start": "next start" },
+  "dependencies": { "next": "15.1.0", "react": "^19.0.0", "react-dom": "^19.0.0" },
+  "devDependencies": { "typescript": "^5.7.0", "@types/react": "^19.0.0", "tailwindcss": "^3.4.0" }
+}
+`,
+    },
+    {
+      path: "lib/subscription-box-data.ts",
+      content: `export * from "./mock-data";
+`,
+    },
+    {
+      path: "app/curation/page.tsx",
+      content: `import { redirect } from "next/navigation";
+export default function CurationPage() { redirect("/boxes"); }
+`,
+    },
+    {
+      path: "app/shipping-labels/page.tsx",
+      content: `import { redirect } from "next/navigation";
+export default function ShippingLabelsPage() { redirect("/shipments"); }
+`,
+    },
+    {
       path: "lib/types.ts",
       content: `export type Subscriber = { id: string; name: string; plan: string; status: string; nextBox: string };
 `,
@@ -317,9 +375,18 @@ export function mergeSubscriptionBoxScaffold(files: BuildFile[], appName: string
   const scaffold = subscriptionBoxScaffoldFiles(appName);
   const byPath = new Map<string, BuildFile>();
   for (const f of scaffold) byPath.set(f.path, f);
+  let stubsReplaced = 0;
   for (const f of files) {
     const path = normalizeBuildFilePath(f.path);
-    if (path && f.content?.trim()) byPath.set(path, { path, content: f.content });
+    if (!path || !f.content?.trim()) continue;
+    if (shouldReplaceWithScaffold(path, f.content)) {
+      if (byPath.has(path)) stubsReplaced += 1;
+      continue;
+    }
+    byPath.set(path, { path, content: f.content });
+  }
+  if (process.env.NODE_ENV !== "production" && stubsReplaced > 0) {
+    console.info("[build] subscription_box_stub_pages_replaced", { count: stubsReplaced });
   }
   return [...byPath.values()];
 }

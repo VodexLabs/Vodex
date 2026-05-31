@@ -17,7 +17,10 @@ import {
 } from "@/lib/build/generated-ui-quality-checker";
 import { PREVIEW_READY_MIN_SCORE } from "@/lib/build/ui-quality-contract";
 import { repairBuildFiles } from "@/lib/build/build-contract-repair";
-import { mergeScaffoldForArchetype } from "@/lib/build/archetype-scaffold-fallback";
+import {
+  mergeScaffoldForArchetype,
+  replaceStubFilesWithArchetypeScaffold,
+} from "@/lib/build/archetype-scaffold-fallback";
 import type { AppArchetypeId } from "@/lib/build/app-archetype-classifier";
 import {
   countRenderablePages,
@@ -90,7 +93,7 @@ export function isCosmeticOnlyBuildFailure(failures: string[]): boolean {
 }
 
 const NON_BLOCKING_WITH_SAVED_FILES_RE =
-  /^(app_icon_missing|app_name_untitled|ui_too_basic|missing_app_layout|missing_app_page)$|^ui_quality_|^route_pages_|^components_|^renderable_files_|^required_pages_missing/;
+  /^(app_icon_missing|app_name_untitled|ui_too_basic|missing_app_layout|missing_app_page)$|^ui_quality_|^route_pages_|^components_|^renderable_files_|^required_pages_missing|^missing_blueprint_routes/;
 
 /** Enough files saved — preview is useful even if quality/icon checks did not pass. */
 export function canCompleteWithSavedFiles(fileCount: number, failures: string[]): boolean {
@@ -190,6 +193,12 @@ export function evaluatePostBuildContract(input: PostBuildContractInput): PostBu
     f.startsWith("components_2") ||
     f.startsWith("components_3") ||
     f.startsWith("components_4") ||
+    f === "todo_or_stub_page" ||
+    f === "todo_only_content" ||
+    (f.startsWith("placeholder_content") && input.scaffoldFallbackUsed) ||
+    (f.startsWith("ui_quality_") &&
+      input.scaffoldFallbackUsed &&
+      uiQuality.score >= Math.min(PREVIEW_READY_MIN_SCORE, 58)) ||
     (f.startsWith("ui_quality_0") && uiQuality.score >= PREVIEW_READY_MIN_SCORE) ||
     (f === "ui_too_basic" && uiQuality.score >= PREVIEW_READY_MIN_SCORE);
 
@@ -198,10 +207,11 @@ export function evaluatePostBuildContract(input: PostBuildContractInput): PostBu
     filteredFailures = failures.filter((f) => !scaffoldWaived(f));
   }
 
+  const scaffoldUiMin = Math.min(PREVIEW_READY_MIN_SCORE, 58);
   const contractOk = Boolean(
     input.scaffoldFallbackUsed
       ? filteredFailures.filter((f) => !f.startsWith("ui_quality")).length === 0 &&
-          uiQuality.score >= PREVIEW_READY_MIN_SCORE
+          uiQuality.score >= scaffoldUiMin
       : buildContract.passed,
   );
 
@@ -222,13 +232,22 @@ export function evaluatePostBuildContract(input: PostBuildContractInput): PostBu
   const hasRenderableFiles = renderable.length > 0;
   const savedUsable = canCompleteWithSavedFiles(renderable.length, filteredFailures);
 
+  const hasStubFailure = filteredFailures.some(
+    (f) =>
+      f === "todo_or_stub_page" ||
+      f === "todo_only_content" ||
+      f.startsWith("placeholder_content"),
+  );
+
   const userMessage = passed || savedUsable
     ? "First version ready — preview is live."
     : !hasRenderableFiles
       ? "I couldn't generate files for this request. Try again or simplify your prompt."
-      : missingImports.length > 0
-        ? "The files were saved, but preview could not render because of a technical issue."
-        : "The files were saved, but preview could not render because of a technical issue.";
+      : hasStubFailure
+        ? "Some generated source was incomplete. Run repair to complete the missing files."
+        : missingImports.length > 0
+          ? "The files were saved, but preview could not render yet."
+          : "The files were saved, but preview could not render yet.";
 
   return {
     passed: passed || savedUsable,
@@ -266,8 +285,16 @@ export function enforcePostBuildContractWithRepair(
   let repairPasses = 0;
 
   while (repairPasses < maxPasses && !contract.passed) {
+    const hasStubFailure = contract.failures.some(
+      (f) =>
+        f === "todo_or_stub_page" ||
+        f === "todo_only_content" ||
+        f.startsWith("placeholder_content"),
+    );
+
     const canRepair =
       contract.missingImports.length > 0 ||
+      hasStubFailure ||
       contract.failures.some(
         (f) =>
           f.startsWith("route_pages_") ||
@@ -279,12 +306,20 @@ export function enforcePostBuildContractWithRepair(
       );
     if (!canRepair) break;
 
-    if (input.scaffoldFallbackUsed && input.archetypeId) {
-      files = mergeScaffoldForArchetype(
+    if (input.archetypeId && (input.scaffoldFallbackUsed || hasStubFailure)) {
+      const stubRepair = replaceStubFilesWithArchetypeScaffold(
         input.archetypeId as AppArchetypeId,
         files,
         input.appName ?? "Dream App",
       );
+      files = stubRepair.files;
+      if (stubRepair.replaced === 0) {
+        files = mergeScaffoldForArchetype(
+          input.archetypeId as AppArchetypeId,
+          files,
+          input.appName ?? "Dream App",
+        );
+      }
     }
 
     files = repairBuildFiles({

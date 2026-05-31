@@ -27,6 +27,7 @@ import {
 } from "@/lib/billing/plan-change-router";
 import { logPlanChangeAttempt } from "@/lib/billing/plan-change-audit";
 import type { CatalogBillingInterval } from "@/lib/billing/plan-billing-catalog";
+import { buildPlanChangeDiagnostics } from "@/lib/billing/plan-change-diagnostics";
 import {
   PROFILE_PADDLE_BILLING_SELECT,
   readProfilePaddleSubscriptionId,
@@ -160,12 +161,19 @@ export async function POST(request: Request) {
   });
 
   if (planChange.action === "same_plan") {
+    const failureReasons = buildPlanChangeDiagnostics({
+      profilePlanId: normalizePlanId(profile?.plan_id ?? "free"),
+      paddleConfigured: status.configured,
+      paddleEnvironment: status.environment,
+      recentEventTypes: [],
+    });
     return NextResponse.json(
       {
         error: "You are already on this plan.",
         code: "same_plan",
         message: planChange.description,
         planChange,
+        failureReasons: [planChange.description, ...failureReasons.slice(0, 2)],
       },
       { status: 409 },
     );
@@ -247,12 +255,27 @@ export async function POST(request: Request) {
   });
 
   if (!result.ok) {
+    const paddleStatus = getPaddleBillingStatus();
+    const failureReasons = buildPlanChangeDiagnostics({
+      profilePlanId: normalizePlanId(profile?.plan_id ?? "free"),
+      paddleConfigured: paddleStatus.configured,
+      paddleEnvironment: paddleStatus.environment,
+      recentEventTypes: [],
+    });
+    console.error("[paddle-checkout] session failed", {
+      userId: user.id,
+      plan: validated.plan,
+      interval: validated.interval,
+      code: result.code,
+      error: result.error,
+    });
     return NextResponse.json(
       {
         error: result.error,
         code: result.code,
         missingEnv: result.missing,
-        paddle: getPaddleBillingStatus(),
+        paddle: paddleStatus,
+        failureReasons: [result.error, ...failureReasons.slice(0, 4)],
       },
       { status: result.code === "setup_required" ? 503 : 502 },
     );

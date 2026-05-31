@@ -120,9 +120,11 @@ export async function POST(
     .eq("owner_id", authUser.id);
 
   return NextResponse.json({
+    ok: true,
     subdomain: result.slug,
     publicWebUrl: result.publicUrl,
     publishMode: result.mode,
+    version: result.version,
     iconUrl,
   });
 }

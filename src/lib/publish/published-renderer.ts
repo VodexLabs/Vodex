@@ -1,3 +1,5 @@
+import "server-only";
+
 import type { PublishedSnapshotFile } from "@/lib/publish/published-snapshot";
 import { pickPreviewEntry } from "@/lib/preview/preview-sandbox";
 import { resolveSnapshotHtml } from "@/lib/publish/render-published-html";

@@ -6,6 +6,7 @@ import type { AiOperationType } from "@/lib/ai/operation-types";
 import { isAutomaticModelId } from "@/lib/ai/resolve-automatic-model";
 import { pickCheapDiscussModel, pickCheapPlannerModel } from "@/lib/ai/cheap-planner";
 import { routeHeavyTask } from "@/lib/ai/heavy-task-router";
+import { pickAutomaticImplementationModelId } from "@/lib/ai/resolve-automatic-model";
 import { pickFailoverCatalogModel, providerFromModelId } from "@/lib/ai/provider-errors";
 import { isProviderSelectable } from "@/lib/ai/provider-availability";
 import { isHeavyModelOperation } from "@/lib/ai/model-orchestration-policy";
@@ -45,7 +46,11 @@ function pickHelperModel(): { modelId: string; reason: string } {
   return { modelId: planner.modelId, reason: planner.reason };
 }
 
-function pickAutomaticMainModel(mode: ModelMixMode, complexity: number): string {
+function pickAutomaticMainModel(
+  mode: ModelMixMode,
+  complexity: number,
+  operationType?: AiOperationType,
+): string {
   const routing = loadSmokeRoutingConfig();
   if (mode === "discuss" || mode === "summary") {
     return pickCheapDiscussModel(null).modelId;
@@ -57,7 +62,14 @@ function pickAutomaticMainModel(mode: ModelMixMode, complexity: number): string 
     return routing.bestEdit || pickCheapDiscussModel(null).modelId;
   }
   if (mode === "build" || mode === "repair" || (mode === "edit" && complexity >= 7)) {
-    const heavy = routeHeavyTask("backend_implementation", { complexity });
+    if (
+      operationType === "frontend_implementation" ||
+      operationType === "backend_implementation" ||
+      operationType === "code_repair_hard"
+    ) {
+      return pickAutomaticImplementationModelId(complexity);
+    }
+    const heavy = routeHeavyTask(operationType ?? "frontend_implementation", { complexity });
     return heavy.modelId;
   }
   return pickCheapPlannerModel().modelId;
@@ -124,7 +136,7 @@ export function resolveModelMix(input: {
   let policyNote: string;
 
   if (automatic) {
-    mainModelId = pickAutomaticMainModel(mode, complexity);
+    mainModelId = pickAutomaticMainModel(mode, complexity, input.operationType);
     policyNote = "automatic_model_mix";
   } else {
     mainModelId = input.userSelectedModelId!.trim();

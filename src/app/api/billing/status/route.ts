@@ -6,6 +6,7 @@ import { paddlePublicCheckoutEnabled } from "@/lib/billing/paddle-public-checkou
 import { monthlyTokensForPlan, normalizePlanId } from "@/lib/billing/plans";
 import { monthlyActionCreditsForPlan } from "@/lib/action-credits/action-credit-allowances";
 import { loadCanonicalCredits } from "@/lib/credits/canonical-credits";
+import { buildPlanChangeDiagnostics } from "@/lib/billing/plan-change-diagnostics";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -111,6 +112,21 @@ export async function GET(request: Request) {
     profile?.subscription_status !== "past_due" &&
     (entitlementApplied || !webhookPending);
 
+  const failureReasons = buildPlanChangeDiagnostics({
+    profilePlanId: planId,
+    subscriptionStatus: profile?.subscription_status,
+    paddleConfigured: paddle.configured,
+    paddleEnvironment: paddle.environment,
+    webhookPending,
+    entitlementApplied,
+    lastWebhookStatus,
+    lastWebhookEventType,
+    lastWebhookError:
+      latestDiagnostics?.error != null ? String(latestDiagnostics.error) : null,
+    transactionId: txn,
+    recentEventTypes: rows.map((e) => String(e.event_type ?? "")),
+  });
+
   return NextResponse.json({
     planId,
     subscriptionStatus: profile?.subscription_status ?? (isPaid ? "active" : "free"),
@@ -144,5 +160,6 @@ export async function GET(request: Request) {
       environment: paddle.environment,
       publicCheckoutEnabled: paddlePublicCheckoutEnabled(),
     },
+    failureReasons: active && entitlementApplied ? [] : failureReasons,
   });
 }

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { isHiddenGeneratedPath } from "@/lib/build/generated-file-utils";
+import {
+  isHiddenGeneratedPath,
+  normalizeBuildFilePath,
+} from "@/lib/build/generated-file-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -29,11 +32,12 @@ export async function GET(
   const url = new URL(req.url);
   const pathOnly = url.searchParams.get("path");
   if (pathOnly) {
+    const normalizedPath = normalizeBuildFilePath(pathOnly);
     const { data, error } = await supabase
       .from("app_files")
       .select("path, content, source")
       .eq("project_id", projectId)
-      .eq("path", pathOnly)
+      .eq("path", normalizedPath)
       .maybeSingle();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if (!data) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -58,8 +62,9 @@ export async function GET(
     if (!data?.length) break;
     for (const row of data) {
       if (row.path && !isHiddenGeneratedPath(row.path)) {
+        const path = normalizeBuildFilePath(row.path);
         tree.push({
-          path: row.path,
+          path,
           source: row.source ?? null,
           updated_at: row.updated_at ?? null,
           size_bytes: row.size_bytes ?? null,

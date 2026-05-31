@@ -12,6 +12,7 @@ import {
 } from "@/lib/build/generated-file-utils";
 import { normalizeAppRouterBuildFiles } from "@/lib/build/app-router-route-normalizer";
 import { MIN_RENDERABLE_FILES } from "@/lib/build/build-success-contract";
+import { evaluateSourceIntegrity } from "@/lib/build/source-integrity-validator";
 
 type Writer = SupabaseClient<Database>;
 
@@ -20,10 +21,14 @@ function persistenceWriter(writer: Writer): Writer {
 }
 
 export type PersistBuildFilesResult = {
+  /** Rows written to storage without upsert error. */
   ok: boolean;
+  persistOk: boolean;
+  integrityOk: boolean;
   savedCount: number;
   renderableCount: number;
   error?: string;
+  errorCode?: string;
 };
 
 /** Upsert only real source files; never metadata snippets. */
@@ -40,7 +45,15 @@ export async function persistGeneratedBuildFiles(input: {
   const normalized = normalizeAppRouterBuildFiles(input.files, { appName: "Dream App" });
   const renderable = filterRenderableBuildFiles(normalized.files);
   if (renderable.length === 0) {
-    return { ok: false, savedCount: 0, renderableCount: 0, error: "no_renderable_files" };
+    return {
+      ok: false,
+      persistOk: false,
+      integrityOk: false,
+      savedCount: 0,
+      renderableCount: 0,
+      error: "no_renderable_files",
+      errorCode: "no_renderable_files",
+    };
   }
 
   if (process.env.NODE_ENV !== "production") {
@@ -80,9 +93,12 @@ export async function persistGeneratedBuildFiles(input: {
     }
     return {
       ok: false,
+      persistOk: false,
+      integrityOk: false,
       savedCount: 0,
       renderableCount: renderable.length,
       error: afErr.message,
+      errorCode: afErr.code ?? "upsert_failed",
     };
   }
 
@@ -108,10 +124,17 @@ export async function persistGeneratedBuildFiles(input: {
     });
   }
 
+  const integrity = evaluateSourceIntegrity(renderable);
+  const persistOk = visibleCount > 0;
+  const integrityOk = integrity.sourceIntegrityOk;
   return {
-    ok: visibleCount >= MIN_RENDERABLE_FILES,
+    ok: persistOk,
+    persistOk,
+    integrityOk,
     savedCount: visibleCount,
     renderableCount: renderable.length,
+    error: !integrityOk ? integrity.blockedReason ?? "source_integrity_failed" : undefined,
+    errorCode: !integrityOk ? "source_integrity_incomplete" : undefined,
   };
 }
 

@@ -192,21 +192,34 @@ export function RepairCenter({
   if (!data?.issues?.length) return null;
 
   return (
-    <div className={cn("rounded-xl bg-amber-500/5 p-4 ring-1 ring-amber-500/20", className)}>
+    <div
+      className={cn(
+        "rounded-xl bg-amber-500/5 ring-1 ring-amber-500/20",
+        compact ? "p-3" : "p-4",
+        className,
+      )}
+    >
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-[13px] font-semibold">
-          <Wrench className="size-4 text-amber-600" strokeWidth={1.75} />
-          Repair center
+        <div className="flex items-center gap-2 text-[12px] font-semibold">
+          <Wrench className="size-3.5 text-amber-600" strokeWidth={1.75} />
+          {compact ? "Preview needs a technical fix" : "Repair center"}
         </div>
-        <button
-          type="button"
-          onClick={() => navigator.clipboard.writeText(JSON.stringify(data.technicalBundle ?? data, null, 2))}
-          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] ring-1 ring-border"
-        >
-          <Copy className="size-3" />
-          Copy technical details
-        </button>
+        {!compact ? (
+          <button
+            type="button"
+            onClick={() => navigator.clipboard.writeText(JSON.stringify(data.technicalBundle ?? data, null, 2))}
+            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] ring-1 ring-border"
+          >
+            <Copy className="size-3" />
+            Copy technical details
+          </button>
+        ) : null}
       </div>
+      {compact ? (
+        <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+          The files were saved, but some source content is incomplete or one route cannot render yet.
+        </p>
+      ) : null}
 
       {runResult && (
         <div
@@ -243,16 +256,18 @@ export function RepairCenter({
                   </p>
                 </>
               )}
-              {compact && <p className="mt-0.5 text-[12px] text-muted-foreground">{issue.summary}</p>}
-              <p className="mt-1.5 text-[11px] text-muted-foreground">
-                AI needed: {issue.needsAi ? "Yes" : "No"}
-                {issue.needsAi && quote && (
-                  <span className="text-accent">
-                    {" "}
-                    · Estimated cost: {quote.estimatedCost} credits (up to {quote.reservedEstimate} reserved)
-                  </span>
-                )}
-              </p>
+              {compact && <p className="mt-0.5 text-[11px] text-muted-foreground">{issue.summary}</p>}
+              {!compact ? (
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                  AI needed: {issue.needsAi ? "Yes" : "No"}
+                  {issue.needsAi && quote && (
+                    <span className="text-accent">
+                      {" "}
+                      · Estimated cost: {quote.estimatedCost} credits (up to {quote.reservedEstimate} reserved)
+                    </span>
+                  )}
+                </p>
+              ) : null}
               <div className="mt-2 flex flex-wrap gap-2">
                 {issueActions.map((a, idx) =>
                   a.href && a.action !== "run_ai_repair" ? (

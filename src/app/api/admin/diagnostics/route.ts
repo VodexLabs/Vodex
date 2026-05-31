@@ -5,6 +5,8 @@ import { getAdminRuntimeHealth } from "@/lib/db/admin-runtime-health";
 import { mapAdminRuntimeToSchemaHealth } from "@/lib/db/schema-health";
 import { getLastSslDiagnostic } from "@/lib/network/ssl-diagnostics-store";
 import { validateSupabaseEnv } from "@/lib/supabase/validate-supabase-env";
+import { getActionCreditAvailability } from "@/lib/action-credits/get-action-credit-availability";
+import { loadActionCreditSummary } from "@/lib/action-credits/action-credit-summary";
 
 export const dynamic = "force-dynamic";
 
@@ -96,6 +98,28 @@ export async function GET() {
     pendingAdmin = pendingRes.data ?? [];
   }
 
+  let actionCreditDiagnostics: Record<string, unknown> | null = null;
+  if (gate.user?.id && admin) {
+    const userClient = admin;
+    const uiSummary = await loadActionCreditSummary(userClient, gate.user.id);
+    const serverAvail = await getActionCreditAvailability(gate.user.id, {
+      actionType: "app_icon_ai_generation",
+    });
+    const { data: lastIconCharge } = await admin
+      .from("action_credit_events" as never)
+      .select("operation_id, action_credits_charged, status, created_at, metadata")
+      .eq("owner_user_id" as never, gate.user.id)
+      .ilike("action_type" as never, "%icon%")
+      .order("created_at", { ascending: false })
+      .limit(3);
+    actionCreditDiagnostics = {
+      uiSummary,
+      serverAvailability: serverAvail,
+      iconAffordable: serverAvail.available,
+      lastIconCreditEvents: lastIconCharge ?? [],
+    };
+  }
+
   const { data: recentProjects } = admin
     ? await admin
         .from("projects")
@@ -143,6 +167,7 @@ export async function GET() {
       chargeProbe,
       providerBlocked: categories.provider_blocked,
       creditEvents: categories.credit,
+      actionCredits: actionCreditDiagnostics,
     },
     buildPipeline: {
       jobs: buildJobs ?? [],

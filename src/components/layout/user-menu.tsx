@@ -91,7 +91,7 @@ export function UserMenu() {
   const displayName = resolveDisplayName(safeProfile, hydrated ? user : null);
   const atHighestPlan = isHighestPaidPlan(effectivePlanId);
   const nextPlan = nextUpgradePlanId(effectivePlanId);
-  const upgradeHref = nextPlan ? `/settings/billing?upgrade=${nextPlan}` : "/settings/billing";
+  const upgradeHref = "/pricing";
 
   React.useEffect(() => {
     if (!open) return;
@@ -178,7 +178,7 @@ export function UserMenu() {
                 action={action}
                 planId={effectivePlanId}
                 isConfirmed={isConfirmed}
-                loading={loading || !isConfirmed}
+                loading={!isConfirmed && loading}
                 error={error}
                 variant="popover"
                 onRetry={() => void syncFromDB({ force: true, reason: "manual" })}

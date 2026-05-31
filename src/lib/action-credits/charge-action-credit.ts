@@ -24,18 +24,11 @@ export async function getActionCreditBalance(
   ownerUserId: string,
   projectId?: string | null,
 ): Promise<number> {
-  const admin = createSupabaseAdmin();
-  let balanceQuery = admin
-    .from("action_credit_balances" as never)
-    .select("balance")
-    .eq("owner_user_id" as never, ownerUserId);
-  balanceQuery =
-    projectId == null
-      ? balanceQuery.is("project_id" as never, null)
-      : balanceQuery.eq("project_id" as never, projectId);
-  const { data } = await balanceQuery.maybeSingle();
-  const row = data as { balance?: number } | null;
-  return typeof row?.balance === "number" ? Number(row.balance) : 0;
+  const { getActionCreditAvailability } = await import(
+    "@/lib/action-credits/get-action-credit-availability"
+  );
+  const availability = await getActionCreditAvailability(ownerUserId, { projectId });
+  return availability.totalAvailable;
 }
 
 export async function chargeActionCredit(
@@ -78,11 +71,14 @@ export async function chargeActionCredit(
 
   const admin = createSupabaseAdmin();
 
+  /** User-level pool (project_id null) — matches UI summary and plan sync. */
+  const chargeProjectId = input.metadata?.charge_from_user_pool === false ? input.projectId ?? null : null;
+
   const { data, error } = await admin.rpc(
     "charge_action_credits" as "charge_tokens",
     {
       p_owner_user_id: input.ownerUserId,
-      p_project_id: input.projectId ?? null,
+      p_project_id: chargeProjectId,
       p_action_type: quote.canonicalType,
       p_credits: credits,
       p_operation_id: input.operationId,

@@ -110,10 +110,12 @@ export async function tracePersistGeneratedFiles(input: {
     visibleCount: result.savedCount,
   };
 
-  if (!result.ok) {
+  if (!result.persistOk) {
     if (result.error?.includes("permission")) trace.code = "insert_failed";
     else if (result.savedCount === 0 && renderable.length > 0) trace.code = "read_after_write_failed";
-    else trace.code = "insert_failed";
+    else trace.code = result.errorCode ?? "insert_failed";
+  } else if (!result.integrityOk) {
+    trace.code = "source_integrity_incomplete";
   }
 
   logPersistTrace("after", trace);

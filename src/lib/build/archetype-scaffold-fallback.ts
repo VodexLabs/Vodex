@@ -2,12 +2,20 @@ import type { AppArchetypeId } from "@/lib/build/app-archetype-classifier";
 import {
   countRenderablePages,
   filterRenderableBuildFiles,
+  normalizeBuildFilePath,
   type BuildFile,
 } from "@/lib/build/generated-file-utils";
 import { countComponentFiles } from "@/lib/build/import-graph";
 import { mergeRestaurantInventoryScaffold } from "@/lib/build/restaurant-inventory-scaffold";
 import { mergeSubscriptionBoxScaffold } from "@/lib/build/subscription-box-scaffold";
+import { mergeMentalWellnessScaffold } from "@/lib/build/mental-wellness-scaffold";
+import { isGeneratedFileStub } from "@/lib/build/generated-file-stub";
 import { mergeGenericSaaSScaffold } from "@/lib/build/generic-saas-scaffold";
+import {
+  evaluateSourceIntegrity,
+  fileMeetsMeaningfulThreshold,
+} from "@/lib/build/source-integrity-validator";
+import { rootPageContentOk } from "@/lib/build/root-page-repair";
 import { mergeNonprofitCrmScaffold } from "@/lib/build/nonprofit-crm-scaffold";
 import {
   STANDARD_MIN_COMPONENTS,
@@ -31,9 +39,18 @@ export type ScaffoldFallbackResult = {
   componentCount: number;
   pageCount: number;
   archetypeId: AppArchetypeId;
+  filesAdded: number;
+  filesReplaced: number;
+  stubsReplaced: number;
+  rootPageReplaced: boolean;
+  sourceBytesBefore: number;
+  sourceBytesAfter: number;
+  integrityBefore: boolean;
+  integrityAfter: boolean;
 };
 
 const KNOWN_SCAFFOLD_ARCHETYPES = new Set<AppArchetypeId>([
+  "mental_wellness_journal",
   "subscription_box_manager",
   "restaurant_inventory",
   "saas_dashboard",
@@ -51,6 +68,7 @@ const KNOWN_SCAFFOLD_ARCHETYPES = new Set<AppArchetypeId>([
 
 /** Archetypes with a full deterministic file tree in-repo (expand over time). */
 const FULL_SCAFFOLD_ARCHETYPES = new Set<AppArchetypeId>([
+  "mental_wellness_journal",
   "subscription_box_manager",
   "restaurant_inventory",
   "saas_dashboard",
@@ -71,11 +89,35 @@ export function hasFullScaffoldTree(archetypeId: string): boolean {
   return FULL_SCAFFOLD_ARCHETYPES.has(archetypeId as AppArchetypeId);
 }
 
+/** Replace stub/TODO model files with deterministic scaffold before contract validation. */
+export function replaceStubFilesWithArchetypeScaffold(
+  archetypeId: AppArchetypeId,
+  files: BuildFile[],
+  appName = "Dream App",
+): { files: BuildFile[]; replaced: number } {
+  if (!hasFullScaffoldTree(archetypeId)) return { files, replaced: 0 };
+  const merged = mergeScaffoldForArchetype(archetypeId, files, appName);
+  const before = new Map(files.map((f) => [normalizeBuildFilePath(f.path), f.content]));
+  let replaced = 0;
+  for (const f of merged) {
+    const prev = before.get(f.path);
+    if (prev && isGeneratedFileStub(prev, f.path) && prev !== f.content) replaced += 1;
+  }
+  return { files: merged, replaced };
+}
+
+function sourceBytes(files: BuildFile[]): number {
+  return files.reduce((n, f) => n + (f.content?.length ?? 0), 0);
+}
+
 export function mergeScaffoldForArchetype(
   archetypeId: AppArchetypeId,
   files: BuildFile[],
   appName = "Dream App",
 ): BuildFile[] {
+  if (archetypeId === "mental_wellness_journal") {
+    return mergeMentalWellnessScaffold(files, appName);
+  }
   if (archetypeId === "subscription_box_manager") {
     return mergeSubscriptionBoxScaffold(files, appName);
   }
@@ -106,6 +148,34 @@ export function isWeakBuildOutput(files: BuildFile[], archetypeId: string): bool
 /**
  * Apply locked scaffold before contract validation — never allow known archetypes to hit `no_files`.
  */
+function emptyFallbackMetrics(
+  id: AppArchetypeId,
+  files: BuildFile[],
+  reason: ScaffoldFallbackReason,
+): ScaffoldFallbackResult {
+  const before = filterRenderableBuildFiles(files);
+  const beforeCount = before.length;
+  const integrity = evaluateSourceIntegrity(before);
+  return {
+    files,
+    usedFallback: false,
+    reason,
+    beforeCount,
+    afterCount: beforeCount,
+    componentCount: countComponentFiles(before),
+    pageCount: countRenderablePages(before),
+    archetypeId: id,
+    filesAdded: 0,
+    filesReplaced: 0,
+    stubsReplaced: 0,
+    rootPageReplaced: false,
+    sourceBytesBefore: sourceBytes(before),
+    sourceBytesAfter: sourceBytes(before),
+    integrityBefore: integrity.sourceIntegrityOk,
+    integrityAfter: integrity.sourceIntegrityOk,
+  };
+}
+
 export function applyArchetypeScaffoldFallback(
   archetypeId: string,
   files: BuildFile[],
@@ -114,43 +184,72 @@ export function applyArchetypeScaffoldFallback(
   const id = archetypeId as AppArchetypeId;
   const before = filterRenderableBuildFiles(files);
   const beforeCount = before.length;
+  const bytesBefore = sourceBytes(before);
+  const integrityBefore = evaluateSourceIntegrity(before).sourceIntegrityOk;
 
   if (!hasFullScaffoldTree(id)) {
-    return {
-      files,
-      usedFallback: false,
-      reason: "not_needed",
-      beforeCount,
-      afterCount: beforeCount,
-      componentCount: countComponentFiles(before),
-      pageCount: countRenderablePages(before),
-      archetypeId: id,
-    };
+    return emptyFallbackMetrics(id, before, "not_needed");
   }
 
-  const weak = isWeakBuildOutput(files, id);
-  if (!weak && beforeCount >= STANDARD_MIN_RENDERABLE_FILES) {
-    return {
-      files,
-      usedFallback: false,
-      reason: "not_needed",
-      beforeCount,
-      afterCount: beforeCount,
-      componentCount: countComponentFiles(before),
-      pageCount: countRenderablePages(before),
-      archetypeId: id,
-    };
+  const weak =
+    isWeakBuildOutput(files, id) ||
+    !rootPageContentOk(before) ||
+    !integrityBefore;
+
+  if (!weak && beforeCount >= STANDARD_MIN_RENDERABLE_FILES && rootPageContentOk(before)) {
+    return emptyFallbackMetrics(id, before, "not_needed");
   }
 
   let reason: ScaffoldFallbackReason = "not_needed";
   if (beforeCount === 0) reason = "llm_returned_no_files";
+  else if (!rootPageContentOk(before)) reason = "llm_output_too_weak";
   else if (countComponentFiles(before) < STANDARD_MIN_COMPONENTS) reason = "below_minimum_components";
   else if (countRenderablePages(before) < 5) reason = "below_minimum_routes";
   else if (beforeCount < STANDARD_MIN_RENDERABLE_FILES) reason = "below_minimum_renderable";
   else reason = "llm_output_too_weak";
 
-  const merged = filterRenderableBuildFiles(mergeScaffoldForArchetype(id, files, appName));
-  return {
+  const beforePaths = new Set(before.map((f) => normalizeBuildFilePath(f.path)));
+  let merged = filterRenderableBuildFiles(mergeScaffoldForArchetype(id, files, appName));
+  const stubRepair = replaceStubFilesWithArchetypeScaffold(id, merged, appName);
+  if (stubRepair.replaced > 0) merged = filterRenderableBuildFiles(stubRepair.files);
+
+  const rootBefore = before.find((f) => /^app\/page\.(tsx|jsx)$/i.test(normalizeBuildFilePath(f.path)));
+  const rootAfter = merged.find((f) => /^app\/page\.(tsx|jsx)$/i.test(normalizeBuildFilePath(f.path)));
+  const rootPageReplaced =
+    Boolean(rootAfter) &&
+    (!rootBefore ||
+      !fileMeetsMeaningfulThreshold(rootBefore) ||
+      rootBefore.content !== rootAfter!.content);
+
+  let filesReplaced = 0;
+  let filesAdded = 0;
+  for (const f of merged) {
+    const path = normalizeBuildFilePath(f.path);
+    if (!beforePaths.has(path)) filesAdded += 1;
+    else {
+      const prev = before.find((b) => normalizeBuildFilePath(b.path) === path);
+      if (prev && prev.content !== f.content) filesReplaced += 1;
+    }
+  }
+
+  const bytesAfter = sourceBytes(merged);
+  const integrityAfter = evaluateSourceIntegrity(merged).sourceIntegrityOk;
+  const improved =
+    merged.length > beforeCount ||
+    stubRepair.replaced > 0 ||
+    filesReplaced > 0 ||
+    rootPageReplaced ||
+    bytesAfter > bytesBefore + 500 ||
+    integrityAfter && !integrityBefore;
+
+  if (!improved) {
+    if (process.env.NODE_ENV !== "production" || process.env.DREAMOS_STRICT_FALLBACK === "1") {
+      throw new Error("fallback_noop_error");
+    }
+    return emptyFallbackMetrics(id, before, "llm_output_too_weak");
+  }
+
+  const result: ScaffoldFallbackResult = {
     files: merged,
     usedFallback: true,
     reason,
@@ -159,7 +258,32 @@ export function applyArchetypeScaffoldFallback(
     componentCount: countComponentFiles(merged),
     pageCount: countRenderablePages(merged),
     archetypeId: id,
+    filesAdded,
+    filesReplaced,
+    stubsReplaced: stubRepair.replaced,
+    rootPageReplaced,
+    sourceBytesBefore: bytesBefore,
+    sourceBytesAfter: bytesAfter,
+    integrityBefore,
+    integrityAfter,
   };
+
+  console.info("[build] scaffold_fallback_used", {
+    archetype: id,
+    reason,
+    before: beforeCount,
+    after: merged.length,
+    filesAdded,
+    filesReplaced,
+    stubsReplaced: stubRepair.replaced,
+    rootPageReplaced,
+    sourceBytesBefore: bytesBefore,
+    sourceBytesAfter: bytesAfter,
+    integrityBefore,
+    integrityAfter,
+  });
+
+  return result;
 }
 
 export type BuildFailureRootCause =

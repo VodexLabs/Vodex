@@ -39,12 +39,32 @@ export function buildLogoPrompt(input: {
   category?: string;
 }): string {
   const purpose = input.shortDescription.trim() || input.category || "modern SaaS app";
+  const cat = (input.category ?? "").toLowerCase();
+  if (
+    cat.includes("subscription") ||
+    /subscription box|box curation|churn analytics|shipping labels/i.test(purpose)
+  ) {
+    return [
+      `A premium modern app icon for a subscription box management SaaS called ${input.appName},`,
+      "abstract box or package symbol with subtle analytics line, glowing violet-indigo gradient,",
+      "clean SaaS style, centered symbol, no text, high contrast, rounded app icon, professional minimal.",
+    ].join(" ");
+  }
+  if (cat.includes("portfolio") || /developer portfolio|showcase/i.test(purpose)) {
+    return [
+      `A premium modern app icon for a developer portfolio called ${input.appName},`,
+      "abstract code brackets or terminal window motif, glowing indigo-violet gradient,",
+      "clean SaaS style, centered symbol, no text, high contrast, rounded app icon shape,",
+      "professional minimal design, maskable-safe center composition.",
+    ].join(" ");
+  }
   return [
-    `Create a premium modern app icon for ${input.appName}, ${purpose}.`,
+    `A premium modern app icon for ${input.appName}, ${purpose}.`,
     "Use a clean abstract symbol that reflects the app's purpose and audience.",
     "App-store-ready square icon, soft depth, crisp edges, modern SaaS style.",
     "No readable text, no watermark, high contrast, minimal but memorable.",
     "Clean background suitable for app cards and favicons.",
+    "Maskable-safe centered composition.",
   ].join(" ");
 }
 
@@ -131,12 +151,14 @@ async function uploadLogoDerivatives(
   const png1024 = await sharp(source).resize(1024, 1024, { fit: "cover" }).png().toBuffer();
   const png512 = await sharp(source).resize(512, 512, { fit: "cover" }).png().toBuffer();
   const png192 = await sharp(source).resize(192, 192, { fit: "cover" }).png().toBuffer();
+  const png180 = await sharp(source).resize(180, 180, { fit: "cover" }).png().toBuffer();
   const png64 = await sharp(source).resize(64, 64, { fit: "cover" }).png().toBuffer();
 
   const uploads: Array<{ path: string; body: Buffer; contentType: string }> = [
     { path: `${basePath}/icon-1024.png`, body: png1024, contentType: "image/png" },
     { path: `${basePath}/icon-512.png`, body: png512, contentType: "image/png" },
     { path: `${basePath}/icon-192.png`, body: png192, contentType: "image/png" },
+    { path: `${basePath}/icon-180.png`, body: png180, contentType: "image/png" },
     { path: `${basePath}/favicon-64.png`, body: png64, contentType: "image/png" },
   ];
 
@@ -199,7 +221,8 @@ export async function generateBrandIconFromSvg(input: {
   }
 }
 
-export async function generateAppLogo(input: {
+/** OpenAI image only — no silent SVG fallback (caller handles fallback + credits). */
+export async function generateAppLogoWithOpenAi(input: {
   projectId: string;
   operationId: string;
   appName: string;
@@ -207,52 +230,51 @@ export async function generateAppLogo(input: {
   category?: string;
 }): Promise<LogoGenerationResult> {
   const route = routeImageProvider("image_simple");
-
   if (!isAiLogoGenerationAvailable()) {
-    return generateBrandIconFromSvg({
-      projectId: input.projectId,
-      operationId: input.operationId,
-      appName: input.appName,
-      category: input.category,
-    });
+    return { ok: false, error: "openai_not_configured", providerCostUsd: 0 };
   }
-
-  let providerCostUsd = 0;
 
   try {
     const prompt = buildLogoPrompt(input);
     const generated = await generateOpenAiLogo(prompt);
-    providerCostUsd = generated.providerCostUsd;
-
     const validated = await validateLogoBuffer(generated.buffer);
     if (!validated.ok) {
-      const fallback = await generateBrandIconFromSvg({
-        projectId: input.projectId,
-        operationId: input.operationId,
-        appName: input.appName,
-        category: input.category,
-      });
-      return fallback.ok ? fallback : { ok: false, error: validated.error, providerCostUsd: 0 };
+      return { ok: false, error: validated.error, providerCostUsd: generated.providerCostUsd };
     }
-
     const urls = await uploadLogoDerivatives(input.projectId, input.operationId, generated.buffer);
     return {
       ok: true,
       urls,
       provider: route.provider,
       modelId: generated.modelId,
-      providerCostUsd,
+      providerCostUsd: generated.providerCostUsd,
       width: validated.width,
       height: validated.height,
     };
-  } catch {
-    return generateBrandIconFromSvg({
-      projectId: input.projectId,
-      operationId: input.operationId,
-      appName: input.appName,
-      category: input.category,
-    });
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "openai_image_failed",
+      providerCostUsd: 0,
+    };
   }
+}
+
+export async function generateAppLogo(input: {
+  projectId: string;
+  operationId: string;
+  appName: string;
+  shortDescription: string;
+  category?: string;
+}): Promise<LogoGenerationResult> {
+  const ai = await generateAppLogoWithOpenAi(input);
+  if (ai.ok) return ai;
+  return generateBrandIconFromSvg({
+    projectId: input.projectId,
+    operationId: input.operationId,
+    appName: input.appName,
+    category: input.category,
+  });
 }
 
 export function buildFallbackIconSvg(appName: string, category?: string): string {

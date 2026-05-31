@@ -4,6 +4,7 @@
 import { resolveAppTypeFromPrompt } from "@/lib/generation/app-type-ui-requirements";
 
 export type AppArchetypeId =
+  | "mental_wellness_journal"
   | "subscription_box_manager"
   | "saas_dashboard"
   | "crm"
@@ -38,6 +39,13 @@ export type AppArchetype = {
 
 const ARCHETYPE_HINTS: Array<{ id: AppArchetypeId; patterns: RegExp[]; weight?: number }> = [
   {
+    id: "mental_wellness_journal",
+    patterns: [
+      /mental wellness journal|mood check-?ins?|guided prompts?|trend insights?|private journal/i,
+      /encrypted messaging|therapy notes|emotional tracking|wellness journal/i,
+    ],
+  },
+  {
     id: "subscription_box_manager",
     patterns: [
       /subscription box|subscriber list|monthly box|curation|churn analytics|shipping labels? export/i,
@@ -54,7 +62,10 @@ const ARCHETYPE_HINTS: Array<{ id: AppArchetypeId; patterns: RegExp[]; weight?: 
   { id: "ecommerce", patterns: [/e-?commerce|online store|shop|cart|product catalog/i] },
   { id: "finance_tracker", patterns: [/finance|budget|expense|ledger|invoice|transaction/i] },
   { id: "social_community", patterns: [/community|forum|social|feed|posts|members/i] },
-  { id: "ai_tool", patterns: [/ai (?:tool|assistant|chat)|writing assistant|prompt|chatbot/i] },
+  {
+    id: "ai_tool",
+    patterns: [/ai (?:tool|assistant|chat)|writing assistant|(?:^|\s)chatbot/i],
+  },
   { id: "marketplace", patterns: [/marketplace|vendors|listings|buyers|sellers/i] },
   { id: "admin_panel", patterns: [/admin panel|backoffice|user management|audit log/i] },
   { id: "education", patterns: [/education|course|lesson|student|learning platform/i] },
@@ -67,6 +78,30 @@ const ARCHETYPE_HINTS: Array<{ id: AppArchetypeId; patterns: RegExp[]; weight?: 
 ];
 
 const ARCHETYPE_DEFS: Record<AppArchetypeId, Omit<AppArchetype, "id" | "confidence">> = {
+  mental_wellness_journal: {
+    label: "Mental wellness journal",
+    navigationStyle: "sidebar",
+    coreRoutes: [
+      "/",
+      "/dashboard",
+      "/check-ins",
+      "/journal",
+      "/prompts",
+      "/insights",
+      "/private-messages",
+      "/settings",
+    ],
+    primarySections: [
+      "calming home hero",
+      "daily mood check-in",
+      "guided reflection prompts",
+      "mood trend chart",
+      "journal entries",
+      "encrypted messaging trust card",
+    ],
+    visualTone: "calm, soft gradients, trustworthy, restorative",
+    terminology: ["mood", "journal", "insights", "encryption", "check-in", "prompts"],
+  },
   subscription_box_manager: {
     label: "Subscription box manager",
     navigationStyle: "sidebar",
@@ -295,6 +330,7 @@ export function classifyAppArchetype(buildIntent: string): AppArchetype {
 
 export function archetypeToLegacyAppType(id: AppArchetypeId): string {
   const map: Partial<Record<AppArchetypeId, string>> = {
+    mental_wellness_journal: "habit_tracker",
     subscription_box_manager: "saas_dashboard",
     saas_dashboard: "saas_dashboard",
     crm: "crm",

@@ -69,7 +69,7 @@ function planIsFree(planId: string | null | undefined): boolean {
 
 // ─── Data hooks ───────────────────────────────────────────────────────────────
 
-const CONV_LOAD_TIMEOUT_MS = 8_000;
+const CONV_LOAD_TIMEOUT_MS = 15_000;
 const MSG_LOAD_TIMEOUT_MS = 8_000;
 
 function useConversations(userId: string | undefined, sessionReady: boolean) {
@@ -96,12 +96,14 @@ function useConversations(userId: string | undefined, sessionReady: boolean) {
     setLoading(true);
     setError(null);
 
+    let sidebarTimedOut = false;
     const timeout = window.setTimeout(() => {
-      ac.abort();
       if (!cancelled) {
-        setError("Conversations took too long — tap retry.");
+        sidebarTimedOut = true;
+        setError("Sidebar is slow — you can still chat. Tap retry.");
         setLoading(false);
       }
+      ac.abort();
     }, CONV_LOAD_TIMEOUT_MS);
 
     void (async () => {
@@ -121,12 +123,15 @@ function useConversations(userId: string | undefined, sessionReady: boolean) {
           setError(body.error ?? "Could not load conversations");
         } else {
           setConversations(body.conversations ?? []);
+          if (sidebarTimedOut) setError(null);
         }
       } catch (err) {
         if (cancelled) return;
         window.clearTimeout(timeout);
         if (err instanceof Error && err.name === "AbortError") {
-          setError("Conversations took too long — tap retry.");
+          if (!sidebarTimedOut) {
+            setError("Sidebar is slow — you can still chat. Tap retry.");
+          }
         } else {
           setError(err instanceof Error ? err.message : "Could not load conversations");
         }

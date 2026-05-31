@@ -79,10 +79,18 @@ export async function loadRepairContext(
   const creditsRequired =
     typeof metaRaw.repair_credits_required === "number" ? metaRaw.repair_credits_required : undefined;
 
+  const sourceIntegrityOk = metaRaw.source_integrity_ok === true;
+  const sourceIncomplete =
+    (count ?? 0) > 0 &&
+    (sourceIntegrityOk === false ||
+      metaRaw.blocked_reason === "technical_generation_incomplete" ||
+      String(metaRaw.blocked_reason ?? "").startsWith("technical_generation_incomplete:"));
+
   const issues = classifyRepairIssues({
     lifecycleStatus: lifecycle,
     buildStatus: project.build_status,
     fileCount: count ?? 0,
+    sourceIncomplete,
     previewError: typeof metaRaw.last_preview_error === "string" ? metaRaw.last_preview_error : null,
     publishError: typeof metaRaw.last_publish_error === "string" ? metaRaw.last_publish_error : null,
     validationReasons,

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/supabase/types";
 import { assertActionCreditsAffordable } from "@/lib/action-credits/assert-action-credits-affordable";
+import { getActionCreditAvailability } from "@/lib/action-credits/get-action-credit-availability";
 import { chargeActionCredit } from "@/lib/action-credits/charge-action-credit";
 import { quoteLogoRegenerationCredits } from "@/lib/action-credits/logo-generation-pricing";
 import {
@@ -10,13 +11,24 @@ import {
 import { generateAppName } from "@/lib/projects/app-name-generator";
 import {
   buildFallbackIconSvg,
-  generateAppLogo,
+  generateAppLogoWithOpenAi,
   generateBrandIconFromSvg,
   isAiLogoGenerationAvailable,
   type LogoAssetUrls,
 } from "@/lib/projects/app-logo-generation";
+import { refundActionCredit } from "@/lib/action-credits/refund-action-credit";
+import { logServerOperation } from "@/lib/ops/server-ops-log";
 
 type Writer = SupabaseClient<Database>;
+
+export type IconGenerationMode =
+  | "ai_openai_mini"
+  | "deterministic_fallback"
+  | "user_uploaded"
+  | "skipped_no_action_credits"
+  | "skipped_no_openai_key"
+  | "skipped_provider_disabled"
+  | "reused_existing";
 
 export type AppIdentityResult = {
   appName: string;
@@ -34,6 +46,10 @@ export type AppIdentityResult = {
   logoGenerationOperationId: string;
   reused: boolean;
   userNotice?: string;
+  iconGenerationMode?: IconGenerationMode;
+  iconStoragePath?: string | null;
+  iconProviderCostUsd?: number;
+  iconErrorCode?: string | null;
 };
 
 export type CreateAppIdentityInput = {
@@ -50,6 +66,20 @@ export type CreateAppIdentityInput = {
   /** Skip AI logo (e.g. idempotent reuse). */
   skipLogo?: boolean;
 };
+
+function isUserUploadedProjectIcon(
+  iconUrl: string | null | undefined,
+  prevIdentity: Record<string, unknown> | null,
+): boolean {
+  if (prevIdentity?.user_icon_uploaded === true) return true;
+  if (prevIdentity?.logo_generation_mode === "user_uploaded") return true;
+  if (prevIdentity?.logo_generation_status === "user_uploaded") return true;
+  const url = iconUrl?.trim() ?? "";
+  if (!url) return false;
+  if (url.includes("/storage/v1/object/public/project-icons/")) return false;
+  if (url.includes("/api/projects/") && url.endsWith("/icon")) return false;
+  return true;
+}
 
 function metaRecord(metadata: Json | null | undefined): Record<string, unknown> {
   if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) {
@@ -145,6 +175,11 @@ export async function persistAppIdentity(
     logo_generated_at: identity.logoGenerationStatus === "generated" ? new Date().toISOString() : null,
     logo_generation_action_credit_cost: identity.logoGenerationActionCreditCost,
     logo_generation_operation_id: identity.logoGenerationOperationId,
+    icon_generation_mode: identity.iconGenerationMode ?? null,
+    icon_storage_path: identity.iconStoragePath ?? null,
+    icon_provider_cost_usd: identity.iconProviderCostUsd ?? null,
+    icon_error_code: identity.iconErrorCode ?? null,
+    icon_credit_charged: identity.logoGenerationActionCreditCost > 0,
   };
 
   const patch: Record<string, unknown> = {
@@ -180,13 +215,45 @@ export async function createAppIdentityForBuild(input: CreateAppIdentityInput): 
     .eq("id", input.projectId)
     .maybeSingle();
   const prevMeta = metaRecord(projRow?.metadata);
-  const prevIdentity = prevMeta.app_identity;
+  const prevIdentity =
+    prevMeta.app_identity && typeof prevMeta.app_identity === "object"
+      ? (prevMeta.app_identity as Record<string, unknown>)
+      : null;
+
   if (
     !input.skipLogo &&
     projRow?.icon_url &&
     prevIdentity &&
-    typeof prevIdentity === "object" &&
-    (prevIdentity as Record<string, unknown>).logo_generation_status === "generated"
+    isUserUploadedProjectIcon(projRow.icon_url, prevIdentity)
+  ) {
+    const reused: AppIdentityResult = {
+      appName: typeof prevIdentity.app_name === "string" ? prevIdentity.app_name : projRow.name ?? "Dream App",
+      slug: typeof prevIdentity.slug === "string" ? prevIdentity.slug : "dream-app",
+      shortDescription: typeof prevIdentity.short_description === "string" ? prevIdentity.short_description : "",
+      category: typeof prevIdentity.category === "string" ? prevIdentity.category : "productivity",
+      namingConfidence: 0.95,
+      namingSource: "build_intent",
+      iconSvg: typeof prevIdentity.icon_svg === "string" ? prevIdentity.icon_svg : buildFallbackIconSvg(projRow.name ?? "Dream App"),
+      iconUrl: projRow.icon_url,
+      logoAssets: {},
+      logoGenerationStatus: "generated",
+      logoGenerationError: null,
+      logoGenerationActionCreditCost: 0,
+      logoGenerationOperationId: `${input.buildOperationId}:logo`,
+      reused: true,
+      iconGenerationMode: "user_uploaded",
+    };
+    await persistAppIdentity(input.writer, input.projectId, input.userId, reused, input.buildOperationId);
+    return reused;
+  }
+
+  if (
+    !input.skipLogo &&
+    projRow?.icon_url &&
+    prevIdentity &&
+    prevIdentity.logo_generation_status === "generated" &&
+    (prevIdentity.icon_generation_mode === "ai_openai_mini" ||
+      String(projRow.icon_url).includes("project-icons"))
   ) {
     const row = prevIdentity as Record<string, unknown>;
     const reused: AppIdentityResult = {
@@ -209,6 +276,7 @@ export async function createAppIdentityForBuild(input: CreateAppIdentityInput): 
       logoGenerationActionCreditCost: 0,
       logoGenerationOperationId: `${input.buildOperationId}:logo`,
       reused: true,
+      iconGenerationMode: "reused_existing",
     };
     await persistAppIdentity(input.writer, input.projectId, input.userId, reused, input.buildOperationId);
     return reused;
@@ -235,6 +303,10 @@ export async function createAppIdentityForBuild(input: CreateAppIdentityInput): 
   let logoGenerationError: string | null = null;
   let logoGenerationActionCreditCost = 0;
   let userNotice: string | undefined;
+  let iconGenerationMode: IconGenerationMode | undefined;
+  let iconStoragePath: string | null = null;
+  let iconProviderCostUsd = 0;
+  let iconErrorCode: string | null = null;
 
   if (!input.skipLogo) {
     input.onProgress?.("Designing app icon");
@@ -242,35 +314,110 @@ export async function createAppIdentityForBuild(input: CreateAppIdentityInput): 
     const providerDisabled = isDreamOSMediaProviderDisabled("logo");
     const aiAvailable = isAiLogoGenerationAvailable();
 
-    if (providerDisabled) {
-      logoGenerationStatus = "failed";
-      logoGenerationError = "logo_provider_disabled";
-      userNotice = "Logo generation is temporarily unavailable.";
-    } else if (aiAvailable) {
-      const afford = await assertActionCreditsAffordable({
-        ownerUserId: input.userId,
+    const applyDeterministicFallback = async (notice?: string) => {
+      const brand = await generateBrandIconFromSvg({
         projectId: input.projectId,
-        actionType: "app_logo_generation",
+        operationId: logoOperationId,
+        appName: named.appName,
+        category,
+      });
+      if (brand.ok) {
+        iconUrl = brand.urls.iconUrl;
+        logoAssets = brand.urls;
+        logoGenerationStatus = "fallback";
+        iconGenerationMode = "deterministic_fallback";
+        iconStoragePath = `${input.projectId}/${logoOperationId}`;
+        userNotice = notice;
+        logoGenerationError = null;
+      } else {
+        logoGenerationError = brand.error;
+        iconErrorCode = brand.error;
+        iconSvg = buildFallbackIconSvg(named.appName, category);
+        logoGenerationStatus = "fallback";
+        iconGenerationMode = "deterministic_fallback";
+      }
+    };
+
+    if (providerDisabled) {
+      iconGenerationMode = "skipped_provider_disabled";
+      await applyDeterministicFallback();
+    } else if (!aiAvailable) {
+      iconGenerationMode = "skipped_no_openai_key";
+      await applyDeterministicFallback();
+    } else {
+      const creditAvail = await getActionCreditAvailability(input.userId, {
+        projectId: input.projectId,
+        actionType: "app_icon_ai_generation",
         providerCostUsd: mediaRoute.estimatedProviderCostUsd,
       });
 
-      if (afford.ok) {
+      const afford = await assertActionCreditsAffordable({
+        ownerUserId: input.userId,
+        projectId: input.projectId,
+        actionType: "app_icon_ai_generation",
+        providerCostUsd: mediaRoute.estimatedProviderCostUsd,
+      });
+
+      if (!afford.ok || !creditAvail.available) {
+        iconGenerationMode = "skipped_no_action_credits";
+        logoGenerationStatus = "insufficient_credits";
+        await applyDeterministicFallback(
+          !creditAvail.available
+            ? "Generated a fallback icon because Action Credits were unavailable."
+            : undefined,
+        );
+        await logServerOperation({
+          writer: input.writer,
+          userId: input.userId,
+          userEmail: input.userEmail ?? null,
+          stage: "build",
+          event: "app_icon_credit_check",
+          status: "skipped",
+          mode: "build",
+          projectId: input.projectId,
+          operationId: logoOperationId,
+          metadata: {
+            icon_generation_mode: "skipped_no_action_credits",
+            credit_avail: creditAvail,
+            afford_ok: afford.ok,
+          },
+        });
+      } else {
         const charge = await chargeActionCredit({
           ownerUserId: input.userId,
           projectId: input.projectId,
-          actionType: "app_logo_generation",
+          actionType: "app_icon_ai_generation",
           operationId: logoOperationId,
           provider: mediaRoute.internal.provider,
           providerCostUsd: mediaRoute.estimatedProviderCostUsd,
           metadata: {
             dreamos_label: mediaRoute.userLabel,
+            model_id: mediaRoute.internal.modelId,
             project_id: input.projectId,
             build_operation_id: input.buildOperationId,
+            charge_from_user_pool: true,
           },
         });
 
-        if (charge.ok) {
-          const logo = await generateAppLogo({
+        if (!charge.ok) {
+          iconGenerationMode = "skipped_no_action_credits";
+          logoGenerationStatus = "insufficient_credits";
+          await applyDeterministicFallback();
+          await logServerOperation({
+            writer: input.writer,
+            userId: input.userId,
+            userEmail: input.userEmail ?? null,
+            stage: "build",
+            event: "app_icon_charge_failed",
+            status: "error",
+            mode: "build",
+            projectId: input.projectId,
+            operationId: logoOperationId,
+            errorMessage: charge.error,
+            metadata: { credit_avail: creditAvail },
+          });
+        } else {
+          const logo = await generateAppLogoWithOpenAi({
             projectId: input.projectId,
             operationId: logoOperationId,
             appName: named.appName,
@@ -281,43 +428,44 @@ export async function createAppIdentityForBuild(input: CreateAppIdentityInput): 
           if (logo.ok) {
             input.onProgress?.("Saving brand assets");
             logoGenerationActionCreditCost = charge.charged;
+            iconProviderCostUsd = logo.providerCostUsd;
             iconUrl = logo.urls.iconUrl;
             logoAssets = logo.urls;
             logoGenerationStatus = "generated";
+            iconGenerationMode = "ai_openai_mini";
+            iconStoragePath = `${input.projectId}/${logoOperationId}`;
+            await logServerOperation({
+              writer: input.writer,
+              userId: input.userId,
+              userEmail: input.userEmail ?? null,
+              stage: "build",
+              event: "app_icon_generated",
+              status: "ok",
+              mode: "build",
+              modelId: logo.modelId,
+              projectId: input.projectId,
+              operationId: logoOperationId,
+              metadata: {
+                icon_generation_mode: "ai_openai_mini",
+                icon_url: logo.urls.iconUrl,
+                action_credits_charged: charge.charged,
+                provider_cost_usd: logo.providerCostUsd,
+              },
+            });
           } else {
             logoGenerationError = logo.error;
+            iconErrorCode = logo.error;
+            await refundActionCredit({
+              ownerUserId: input.userId,
+              projectId: input.projectId,
+              operationId: logoOperationId,
+              reason: "openai_image_failed",
+            });
+            logoGenerationActionCreditCost = 0;
+            await applyDeterministicFallback();
           }
         }
       }
-    }
-
-    if (!iconUrl && !providerDisabled) {
-      const brand = await generateBrandIconFromSvg({
-        projectId: input.projectId,
-        operationId: logoOperationId,
-        appName: named.appName,
-        category,
-      });
-      if (brand.ok) {
-        input.onProgress?.("Saving brand assets");
-        iconUrl = brand.urls.iconUrl;
-        logoAssets = brand.urls;
-        logoGenerationStatus = "generated";
-        logoGenerationError = null;
-        userNotice = undefined;
-      } else if (!logoGenerationError) {
-        logoGenerationError = brand.error;
-      }
-    }
-  }
-
-  if (!iconUrl) {
-    const useInlineFallback =
-      logoGenerationStatus !== "generated" &&
-      (logoGenerationStatus === "skipped" || logoGenerationStatus === "failed" || logoGenerationStatus === "insufficient_credits");
-    if (useInlineFallback) {
-      logoGenerationStatus = logoGenerationStatus === "skipped" ? "fallback" : "fallback";
-      iconSvg = buildFallbackIconSvg(named.appName, category);
     }
   }
 
@@ -337,6 +485,10 @@ export async function createAppIdentityForBuild(input: CreateAppIdentityInput): 
     logoGenerationOperationId: logoOperationId,
     reused: false,
     userNotice,
+    iconGenerationMode,
+    iconStoragePath,
+    iconProviderCostUsd,
+    iconErrorCode,
   };
 
   await persistAppIdentity(input.writer, input.projectId, input.userId, result, input.buildOperationId);
@@ -376,7 +528,12 @@ export async function regenerateAppLogo(input: {
     operationId: input.operationId,
     provider: mediaRoute.internal.provider,
     providerCostUsd: mediaRoute.estimatedProviderCostUsd,
-    metadata: { dreamos_label: mediaRoute.userLabel, regenerate: true },
+    metadata: {
+      dreamos_label: mediaRoute.userLabel,
+      regenerate: true,
+      project_id: input.projectId,
+      charge_from_user_pool: true,
+    },
   });
 
   if (!charge.ok) {
@@ -387,7 +544,7 @@ export async function regenerateAppLogo(input: {
     };
   }
 
-  const logo = await generateAppLogo({
+  const logo = await generateAppLogoWithOpenAi({
     projectId: input.projectId,
     operationId: input.operationId,
     appName: input.appName,
@@ -396,6 +553,12 @@ export async function regenerateAppLogo(input: {
   });
 
   if (!logo.ok) {
+    await refundActionCredit({
+      ownerUserId: input.userId,
+      projectId: input.projectId,
+      operationId: input.operationId,
+      reason: "openai_image_failed",
+    });
     return { ok: false, error: logo.error, code: "generation" };
   }
 

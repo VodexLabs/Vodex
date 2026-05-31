@@ -21,11 +21,23 @@ export type OnboardingUserRow = {
   answers: Record<string, unknown>;
 };
 
+export type CancellationFeedbackRow = {
+  id: string;
+  userId: string;
+  email: string | null;
+  displayName: string | null;
+  previousPlanId: string | null;
+  reason: string;
+  createdAt: string;
+};
+
 export type OnboardingInsightsPayload = {
   totalCompleted: number;
   hearAbout: OnboardingSurveySegment[];
   buildGoals: OnboardingSurveySegment[];
   experienceLevels: OnboardingSurveySegment[];
+  cancellationReasons: OnboardingSurveySegment[];
+  cancellationFeedback: CancellationFeedbackRow[];
   users: OnboardingUserRow[];
   hasMore: boolean;
   offset: number;
@@ -231,11 +243,56 @@ export async function loadOnboardingInsights(options: {
 
   const totalCompleted = totalCount ?? pageUsers.length;
 
+  const { data: cancelRows } = await admin
+    .from("subscription_cancellation_feedback")
+    .select("id, user_id, reason, previous_plan_id, created_at")
+    .order("created_at", { ascending: false })
+    .limit(500);
+
+  const cancelUserIds = (cancelRows ?? [])
+    .map((r) => r.user_id as string)
+    .filter(Boolean);
+  const cancelProfiles = new Map<string, { email: string | null; display_name: string | null }>();
+  if (cancelUserIds.length > 0) {
+    const { data: cProfiles } = await admin
+      .from("profiles")
+      .select("id, email, display_name, full_name")
+      .in("id", [...new Set(cancelUserIds)]);
+    for (const p of cProfiles ?? []) {
+      cancelProfiles.set(p.id as string, {
+        email: (p.email as string | null) ?? null,
+        display_name:
+          (p.display_name as string | null) ?? (p.full_name as string | null) ?? null,
+      });
+    }
+  }
+
+  const cancelReasonRows: Array<{ label: string }> = [];
+  const cancellationFeedback: CancellationFeedbackRow[] = [];
+
+  for (const row of cancelRows ?? []) {
+    const uid = row.user_id as string;
+    const profile = cancelProfiles.get(uid);
+    const reason = String(row.reason ?? "").trim();
+    cancelReasonRows.push({ label: reason.slice(0, 120) || "Not specified" });
+    cancellationFeedback.push({
+      id: row.id as string,
+      userId: uid,
+      email: profile?.email ?? null,
+      displayName: profile?.display_name ?? null,
+      previousPlanId: (row.previous_plan_id as string | null) ?? null,
+      reason,
+      createdAt: row.created_at as string,
+    });
+  }
+
   return {
     totalCompleted,
     hearAbout: aggregateCounts(hearRows),
     buildGoals: aggregateCounts(buildRows),
     experienceLevels: aggregateCounts(expRows),
+    cancellationReasons: aggregateCounts(cancelReasonRows),
+    cancellationFeedback,
     users: pageUsers,
     hasMore: offset + limit < totalCompleted,
     offset,

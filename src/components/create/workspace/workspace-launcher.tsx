@@ -27,6 +27,7 @@ import {
   Boxes,
   Gift,
   ScrollText as ChangelogIcon,
+  Loader2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { IntegrationIcon } from "@/components/brand/integration-icons";
@@ -40,7 +41,11 @@ import { useHydrated } from "@/lib/hooks/use-hydrated";
 import { PlanBadge } from "@/components/billing/plan-badge";
 import { Avatar } from "@/components/ui/avatar";
 import { normalizePlanId } from "@/lib/billing/plans";
-import { PublishModal, type PublishUiState } from "@/components/create/workspace/publish-modal";
+import {
+  PublishModal,
+  type PublishUiState,
+  type PublishUiPhase,
+} from "@/components/create/workspace/publish-modal";
 import {
   WorkspaceIntegrationsModal,
   type IntegrationPreset,
@@ -138,8 +143,9 @@ function WorkspaceDropdown({
   const effectivePlanId = normalizePlanId(planId || profile?.plan_id || "free");
 
   React.useEffect(() => {
+    if (!anchorRect) return;
     void syncFromDB({ reason: "popover-open" });
-  }, [syncFromDB]);
+  }, [anchorRect, syncFromDB]);
 
   if (!anchorRect) return null;
 
@@ -187,7 +193,7 @@ function WorkspaceDropdown({
             action={action}
             planId={effectivePlanId}
             isConfirmed={isConfirmed}
-            loading={loading || !isConfirmed}
+            loading={!isConfirmed && loading}
             variant="popover"
           />
         </div>
@@ -338,6 +344,8 @@ export function WorkspaceLauncher({
   const showAppMenu = Boolean(project?.id);
   const showAppIcon = Boolean(project?.icon_url?.trim());
   const [publishReady, setPublishReady] = React.useState(false);
+  const [publishPhase, setPublishPhase] = React.useState<PublishUiPhase>("idle");
+  const [publishedUrl, setPublishedUrl] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     const id = project?.id;
@@ -570,22 +578,58 @@ export function WorkspaceLauncher({
             </button>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              closeAllMenus();
-              setPublishOpen(true);
-            }}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-semibold transition active:scale-[0.98]",
-              publishReady
-                ? "bg-accent text-white shadow-[0_6px_20px_-6px_rgba(37,99,235,0.55)] hover:bg-accent/92"
-                : "bg-muted/80 text-muted-foreground hover:bg-muted",
+          <div className="flex items-center gap-2">
+            {(publishPhase === "preparing" ||
+              publishPhase === "allocating" ||
+              publishPhase === "building" ||
+              publishPhase === "finalizing") && (
+              <span
+                data-testid="publish-status-pill"
+                className="hidden items-center gap-1.5 rounded-full bg-accent/12 px-2.5 py-1 text-[11px] font-medium text-accent sm:inline-flex"
+              >
+                <Loader2 className="size-3 animate-spin" />
+                Publishing…
+              </span>
             )}
-          >
-            <Rocket className="size-3.5" strokeWidth={2} />
-            Publish
-          </button>
+            {publishPhase === "published" && publishedUrl && (
+              <span
+                data-testid="publish-status-pill"
+                className="hidden items-center gap-1.5 rounded-full bg-positive/12 px-2.5 py-1 text-[11px] font-medium text-positive sm:inline-flex"
+              >
+                Published
+              </span>
+            )}
+            {publishPhase === "failed" && (
+              <span
+                data-testid="publish-status-pill"
+                className="hidden items-center gap-1.5 rounded-full bg-destructive/12 px-2.5 py-1 text-[11px] font-medium text-destructive sm:inline-flex"
+              >
+                Publish failed
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                closeAllMenus();
+                setPublishOpen(true);
+              }}
+              disabled={
+                publishPhase === "preparing" ||
+                publishPhase === "allocating" ||
+                publishPhase === "building" ||
+                publishPhase === "finalizing"
+              }
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-semibold transition active:scale-[0.98]",
+                publishReady
+                  ? "bg-accent text-white shadow-[0_6px_20px_-6px_rgba(37,99,235,0.55)] hover:bg-accent/92"
+                  : "bg-muted/80 text-muted-foreground hover:bg-muted",
+              )}
+            >
+              <Rocket className="size-3.5" strokeWidth={2} />
+              Publish
+            </button>
+          </div>
 
           <AnimatePresence>
             {isBusy && (
@@ -615,6 +659,10 @@ export function WorkspaceLauncher({
         initialDraft={publishDraft}
         onSaved={(d) => setPublishDraft(d)}
         artifactsReady={publishReady}
+        onPublishPhaseChange={(phase, detail) => {
+          setPublishPhase(phase);
+          if (detail?.url) setPublishedUrl(detail.url);
+        }}
       />
 
       <WorkspaceIntegrationsModal

@@ -56,8 +56,8 @@ import { ModeSwitch, type EditScope } from "@/components/create/workspace/mode-s
 import { AttachmentRail, DropZone, type Attachment } from "@/components/create/workspace/attachment-rail";
 import { PreviewPanel } from "@/components/create/workspace/preview-panel";
 import { PreviewBlockedPopup, type PreviewBlockingIssue } from "@/components/preview/preview-blocked-popup";
+import { RepairCenter } from "@/components/repair/repair-center";
 import { buildRepairChatPrompt } from "@/lib/repair/repair-chat-prompt";
-import { buildStaticPreviewHtml } from "@/lib/preview/static-preview-builder";
 import { BuildLiveProgress } from "@/components/create/workspace/build-live-progress";
 import {
   deriveBuildStatusFacts,
@@ -86,6 +86,7 @@ import {
 import { BuilderAssistantMessage } from "@/components/builder/builder-event-ui";
 import { ComposerPromptQueue } from "@/components/create/workspace/composer-prompt-queue";
 import { DreamOSMessageShell } from "@/components/create/workspace/dreamos-message-shell";
+import { OptimisticAssistantRow } from "@/components/create/workspace/optimistic-assistant-row";
 import {
   parseBuildPlanCard,
   taskProgressIndex,
@@ -115,6 +116,10 @@ import {
   wasOperationSubmitted,
 } from "@/lib/create/autostart-handoff";
 import { pushRuntimeDiagnostic } from "@/lib/dev/runtime-diagnostics";
+import {
+  projectPreviewFrameUrl,
+  type ProjectPreviewStatus,
+} from "@/lib/preview/preview-frame-url";
 import { reconcileProjectBuildState } from "@/lib/build/reconcile-project-build";
 import { resolveDisplayName } from "@/lib/profile-display";
 import {
@@ -396,9 +401,7 @@ export function ImmersiveWorkspace({
     tabFromUrl === "preview" ||
     tabFromUrl === "mobile"
       ? tabFromUrl
-      : pathname.includes("/builder")
-        ? "code"
-        : "preview";
+      : "preview";
   const [rightTab, setRightTab] = React.useState<WorkspaceRightTab>(resolvedRightTab);
   React.useEffect(() => {
     setRightTab(resolvedRightTab);
@@ -417,6 +420,7 @@ export function ImmersiveWorkspace({
   const [sendCooldownUntil, setSendCooldownUntil] = React.useState(0);
   const [chatEngaged, setChatEngaged] = React.useState(false);
   const [pendingUserBubble, setPendingUserBubble] = React.useState<string | null>(null);
+  const [showOptimisticAssistant, setShowOptimisticAssistant] = React.useState(false);
   const lastPlanPromptRef = React.useRef<string | null>(null);
   const [debugClicked, setDebugClicked] = React.useState(false);
   const [debugSubmitted, setDebugSubmitted] = React.useState(false);
@@ -448,7 +452,9 @@ export function ImmersiveWorkspace({
   const {
     files: projectFiles,
     loading: projectFilesLoading,
-  } = useProjectFiles(effectiveProjectId, projectDataRefresh);
+  } = useProjectFiles(effectiveProjectId, projectDataRefresh, {
+    loadContent: rightTab === "code",
+  });
   const [prepareImportBusy, setPrepareImportBusy] = React.useState(false);
 
   const [remoteProjectPatch, setRemoteProjectPatch] = React.useState<Partial<CreateWorkspaceProject>>({});
@@ -720,8 +726,7 @@ export function ImmersiveWorkspace({
             creditsRefundedFlag = meta.credits_refunded === true;
             const fileCountForRepair = projectFiles.length;
             buildNeedsRepair =
-              (proj?.build_status === "needs_repair" || creditsRefundedFlag) &&
-              fileCountForRepair < 4;
+              proj?.build_status === "needs_repair" && fileCountForRepair < 4;
           }
         }
 
@@ -802,7 +807,13 @@ export function ImmersiveWorkspace({
         terminal,
         projectFileCount: fileCountHint,
       });
-      const previewReady = facts.hasPreviewSession || fileCountHint >= 4;
+      const meta = (terminal.latest?.metadata ?? {}) as Record<string, unknown>;
+      const sourceIntegrityOk = meta.source_integrity_ok === true;
+      const previewRenderable = meta.preview_renderable === true;
+      const previewReady =
+        sourceIntegrityOk &&
+        previewRenderable &&
+        (terminal.status === "completed" || meta.ready_reason === "source_integrity_ok_preview_live");
       const resolved = resolveBuildRunSummary({
         facts,
         appName: project?.name ?? undefined,
@@ -813,26 +824,9 @@ export function ImmersiveWorkspace({
             : undefined,
         errorDetail: terminal.error ?? terminal.latest?.detail ?? undefined,
         previewReady,
+        sourceIntegrityOk,
       });
-      const summary =
-        previewReady &&
-        facts.repairAttemptCount === 0 &&
-        resolved.variant === "failed" &&
-        facts.fileCount >= 4
-          ? {
-              ...resolved,
-              variant: "completed" as const,
-              status: "completed" as const,
-              headline: "Preview ready",
-              bodyLines: resolved.bodyLines.filter(
-                (line) =>
-                  !/repair pass|couldn't start|credits were returned/i.test(line),
-              ),
-              showRepairActions: false,
-              showRefundLine: false,
-              showPreviewActions: true,
-            }
-          : resolved;
+      const summary = resolved;
       setBuildRunSummary({
         variant: summary.variant,
         status: summary.status,
@@ -1540,6 +1534,7 @@ export function ImmersiveWorkspace({
 
     setChatEngaged(true);
     setPendingUserBubble(text);
+    setShowOptimisticAssistant(true);
     applyComposerText("");
     if (composerTextareaRef.current) composerTextareaRef.current.value = "";
     setAttachments([]);
@@ -1872,6 +1867,17 @@ export function ImmersiveWorkspace({
   }, [messages, pendingUserBubble]);
 
   React.useEffect(() => {
+    if (!showOptimisticAssistant) return;
+    const hasRealAssistant = messages.some(
+      (m) =>
+        m.role === "assistant" &&
+        !String(m.id).startsWith("optimistic-") &&
+        messageText(m).trim().length > 12,
+    );
+    if (hasRealAssistant) setShowOptimisticAssistant(false);
+  }, [messages, showOptimisticAssistant]);
+
+  React.useEffect(() => {
     if (!hydrated || !initialAutoStart) return;
     if (autostartConsumedRef.current || autoStartedRef.current) return;
 
@@ -2107,57 +2113,58 @@ export function ImmersiveWorkspace({
     if (projectFiles.length > 0) return projectFiles;
     return parsedSourceFiles;
   }, [projectFiles, parsedSourceFiles]);
-  const projectArchetypeId = React.useMemo(() => {
-    const meta = effectiveProject?.metadata;
-    if (!meta || typeof meta !== "object" || Array.isArray(meta)) return null;
-    const m = meta as Record<string, unknown>;
-    return (
-      (typeof m.app_archetype === "string" && m.app_archetype) ||
-      (typeof m.archetype_id === "string" && m.archetype_id) ||
-      null
-    );
-  }, [effectiveProject?.metadata]);
-
-  const previewSrcDoc = React.useMemo(() => {
-    if (codeFiles.length === 0) {
-      if (projectArchetypeId === "restaurant_inventory") {
-        return buildStaticPreviewHtml([], {
-          projectId: effectiveProjectId ?? undefined,
-          archetypeId: projectArchetypeId,
-        });
-      }
-      return null;
-    }
-    const hit =
-      codeFiles.find((f) => f.path === "preview/index.html") ??
-      codeFiles.find((f) => /\.html?$/i.test(f.path));
-    if (hit?.content.trim()) return hit.content;
-    return buildStaticPreviewHtml(codeFiles, {
-      projectId: effectiveProjectId ?? undefined,
-      archetypeId: projectArchetypeId,
-    });
-  }, [codeFiles, effectiveProjectId, projectArchetypeId]);
-
-  const [serverPreviewSrcDoc, setServerPreviewSrcDoc] = React.useState<string | null>(null);
+  const [previewStatus, setPreviewStatus] = React.useState<ProjectPreviewStatus | null>(null);
   React.useEffect(() => {
-    if (!effectiveProjectId || previewSrcDoc) {
-      if (previewSrcDoc) setServerPreviewSrcDoc(null);
+    if (!effectiveProjectId) {
+      setPreviewStatus(null);
       return;
     }
     let cancelled = false;
-    void fetch(`/api/projects/${effectiveProjectId}/preview-html`, { credentials: "include" })
+    void fetch(`/api/projects/${effectiveProjectId}/preview-html`, {
+      credentials: "include",
+      cache: "no-store",
+    })
       .then((r) => (r.ok ? r.json() : null))
-      .then((body: { html?: string; ready?: boolean } | null) => {
-        if (cancelled || !body?.html?.trim() || !body.ready) return;
-        setServerPreviewSrcDoc(body.html);
+      .then((body: ProjectPreviewStatus | null) => {
+        if (cancelled) return;
+        if (body && body.previewRenderable) {
+          setPreviewStatus({
+            ready: Boolean(body.ready),
+            previewRenderable: true,
+            fileCount: body.fileCount ?? 0,
+            archetypeId: body.archetypeId ?? null,
+            previewHtmlLength: body.previewHtmlLength ?? 0,
+            blockedReason: body.blockedReason ?? null,
+          });
+        } else {
+          setPreviewStatus(
+            body
+              ? {
+                  ready: Boolean(body.ready),
+                  previewRenderable: false,
+                  fileCount: body.fileCount ?? 0,
+                  archetypeId: body.archetypeId ?? null,
+                  previewHtmlLength: body.previewHtmlLength ?? 0,
+                  blockedReason: body.blockedReason ?? null,
+                }
+              : null,
+          );
+        }
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!cancelled) setPreviewStatus(null);
+      });
     return () => {
       cancelled = true;
     };
-  }, [effectiveProjectId, previewSrcDoc, projectDataRefresh]);
+  }, [effectiveProjectId, projectDataRefresh, projectFiles.length]);
 
-  const effectivePreviewSrcDoc = previewSrcDoc ?? serverPreviewSrcDoc;
+  const previewFrameUrl = effectiveProjectId
+    ? projectPreviewFrameUrl(effectiveProjectId, projectDataRefresh)
+    : null;
+  const previewSrcRenderable = previewStatus?.previewRenderable === true;
+  const buildActive =
+    mode === "build" && (buildJobActive || buildStarting || (isBusy && !previewSrcRenderable));
 
   const [previewIssue, setPreviewIssue] = React.useState<PreviewBlockingIssue | null>(null);
   const [previewDismissed, setPreviewDismissed] = React.useState(false);
@@ -2194,7 +2201,7 @@ export function ImmersiveWorkspace({
       setPreviewIssue(null);
       return;
     }
-    if (effectivePreviewSrcDoc?.trim()) {
+    if (previewSrcRenderable) {
       setPreviewIssue(null);
       return;
     }
@@ -2221,7 +2228,7 @@ export function ImmersiveWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [effectiveProjectId, codeFiles.length, projectDataRefresh, effectivePreviewSrcDoc]);
+  }, [effectiveProjectId, codeFiles.length, projectDataRefresh, previewSrcRenderable]);
   const extractedCode = React.useMemo(() => extractFencedCode(lastAssistantText), [lastAssistantText]);
   const integrationSecretKeys = React.useMemo(
     () => (mode === "build" ? detectRequiredSecretNames(lastAssistantText) : []),
@@ -2235,13 +2242,15 @@ export function ImmersiveWorkspace({
     ? taskProgressIndex(lastAssistantText.length, buildPlanForStep.taskLabels.length)
     : 0;
   const buildStepLabel = buildPlanForStep?.taskLabels[buildStepIndex] ?? null;
-  const previewShellState: "idle" | "building" | "compiling" = effectivePreviewSrcDoc
+  const previewShellState: "idle" | "building" | "compiling" = previewSrcRenderable
     ? "idle"
-    : isBusy
+    : buildActive
       ? "building"
-      : codeFiles.length > 0
+      : codeFiles.length > 0 && isBusy
         ? "compiling"
-        : "idle";
+        : buildActive
+          ? "building"
+          : "idle";
   const modelLabel =
     preflightEstimate?.provider && preflightEstimate?.modelId
       ? `${preflightEstimate.provider} · ${preflightEstimate.modelId}`
@@ -2514,7 +2523,13 @@ export function ImmersiveWorkspace({
                 })}
               </AnimatePresence>
 
+              {showOptimisticAssistant &&
+                (pendingUserBubble || isBusy || buildStarting || buildJobActive) && (
+                <OptimisticAssistantRow mode={mode === "discuss" ? "discuss" : "build"} />
+              )}
+
               {isBusy &&
+                !showOptimisticAssistant &&
                 (messages[messages.length - 1]?.role === "user" || pendingUserBubble) &&
                 !(mode === "build" && (buildJobActive || buildStarting)) && (
                 <MessageBubble
@@ -2525,25 +2540,12 @@ export function ImmersiveWorkspace({
                 />
               )}
 
-              {(buildJobActive || buildStarting) &&
-                (pendingUserBubble || messages.length > 0) &&
-                mode === "build" && (
+              {(buildJobActive || buildStarting) && mode === "build" && (
                 <BuildLiveProgress
                   progress={buildJobProgress}
                   className="mt-1"
                   buildStartedAtMs={buildStartedAtRef.current ?? undefined}
-                  openerText={userFacingArchetypeLabel(
-                    classifyAppArchetype(
-                      pendingUserBubble ??
-                        messageText(
-                          [...messages].reverse().find((m) => m.role === "user") ?? {
-                            id: "",
-                            role: "user",
-                            parts: [{ type: "text", text: "" }],
-                          },
-                        ),
-                    ).label,
-                  )}
+                  openerText="Analyzing your request"
                 />
               )}
               {buildRunSummary && !buildJobActive && (
@@ -2571,8 +2573,11 @@ export function ImmersiveWorkspace({
                   onRepair={
                     buildRunSummary.showRepairActions
                       ? () => {
-                          setRightTab("code");
-                          setMobilePanel("code");
+                          setRightTab("preview");
+                          setMobilePanel("chat");
+                          applyComposerText(
+                            "Fix the preview so it renders. Repair any missing routes or imports.",
+                          );
                           composerTextareaRef.current?.focus();
                         }
                       : undefined
@@ -2949,14 +2954,14 @@ export function ImmersiveWorkspace({
             {rightTab === "preview" && (
               <div className="relative h-full min-h-0">
               <PreviewPanel
-                url={effectiveProject?.preview_url ?? null}
-                srcDoc={effectivePreviewSrcDoc}
+                url={effectiveProject?.preview_url ?? previewFrameUrl}
                 appName={effectiveProject?.name ?? null}
-                thinking={isBusy && !effectivePreviewSrcDoc}
+                buildActive={buildActive}
+                thinking={buildActive || (isBusy && !previewSrcRenderable)}
                 editMode={mode === "edit"}
                 hasGenerated={
                   !!effectiveProject?.preview_url ||
-                  !!effectivePreviewSrcDoc ||
+                  previewSrcRenderable ||
                   codeFiles.length > 0
                 }
                 previewState={previewShellState}
@@ -2981,6 +2986,15 @@ export function ImmersiveWorkspace({
                   onFixInChat={sendPreviewRepairToChat}
                   onDismiss={() => setPreviewDismissed(true)}
                 />
+              ) : null}
+              {effectiveProject?.id &&
+              (effectiveProject.build_status === "needs_repair" ||
+                effectiveProject.build_status === "preview_failed") ? (
+                <div className="pointer-events-none absolute bottom-3 right-3 z-20 flex max-w-[min(92vw,340px)] justify-end">
+                  <div className="pointer-events-auto w-full">
+                    <RepairCenter projectId={effectiveProject.id} compact defaultOpen={false} />
+                  </div>
+                </div>
               ) : null}
               </div>
             )}

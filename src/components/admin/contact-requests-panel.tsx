@@ -53,6 +53,7 @@ export function ContactRequestsPanel({
   const [updatingId, setUpdatingId] = React.useState<string | null>(null);
   const [note, setNote] = React.useState("");
   const [emailConfigured, setEmailConfigured] = React.useState<boolean | null>(null);
+  const [resendMessage, setResendMessage] = React.useState<string | null>(null);
   const [dnsGuidance, setDnsGuidance] = React.useState<string[]>([]);
 
   const load = React.useCallback(async () => {
@@ -67,11 +68,13 @@ export function ContactRequestsPanel({
     const json = (await res.json()) as {
       requests?: ContactRequestRow[];
       emailConfigured?: boolean;
+      resendDiagnostics?: { message?: string | null; configured?: boolean };
       dnsGuidance?: string[];
     };
     if (res.ok) {
       setRequests(json.requests ?? []);
       if (typeof json.emailConfigured === "boolean") setEmailConfigured(json.emailConfigured);
+      setResendMessage(json.resendDiagnostics?.message ?? null);
       if (json.dnsGuidance) setDnsGuidance(json.dnsGuidance);
     }
     setLoading(false);
@@ -135,7 +138,10 @@ export function ContactRequestsPanel({
           <p className="flex items-center gap-1.5 font-medium text-foreground">
             <AlertTriangle className="size-3.5 text-amber-600" /> Email sending not configured
           </p>
-          <p className="mt-1">Set <code className="text-[10px]">RESEND_API_KEY</code> and <code className="text-[10px]">EMAIL_FROM</code> on the server. Requests are still saved.</p>
+          <p className="mt-1">
+            {resendMessage ??
+              "Set RESEND_API_KEY and EMAIL_FROM on the server. Requests are still saved."}
+          </p>
           {dnsGuidance.length > 0 ? (
             <ul className="mt-2 list-disc pl-4 space-y-0.5">
               {dnsGuidance.map((line) => (

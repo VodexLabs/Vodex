@@ -22,9 +22,10 @@ export async function GET() {
     .from("conversations")
     .select("*")
     .eq("user_id", user.id)
+    .is("project_id", null)
     .eq("archived", false)
     .order("updated_at", { ascending: false })
-    .limit(50);
+    .limit(20);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

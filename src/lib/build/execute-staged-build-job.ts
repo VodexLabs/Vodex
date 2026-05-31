@@ -18,6 +18,7 @@ import { assertBuildFilesPersisted } from "@/lib/build/assert-build-files-persis
 import { MIN_RENDERABLE_FILES } from "@/lib/build/build-success-contract";
 import { canCompleteWithSavedFiles } from "@/lib/build/post-build-contract";
 import { startPreviewSession } from "@/lib/preview/preview-build-service";
+import { buildProjectPreviewHtml } from "@/lib/preview/project-preview-html";
 import { lifecyclePatch } from "@/lib/projects/project-lifecycle";
 import {
   persistAssistantBuildMessage,
@@ -37,6 +38,7 @@ import {
   transitionBuildJobStatus,
 } from "@/lib/build/build-job-terminal";
 import { tracePersistGeneratedFiles } from "@/lib/build/files-persist-trace";
+import { reconcilePostPersistBuildStatus } from "@/lib/build/post-persist-status-reconciler";
 import {
   createBuildWorkerTrace,
   clearBuildWorkerTrace,
@@ -301,9 +303,10 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
     const allContractFailures = [
       ...new Set([...pr.buildContract.failures, ...(pr.postBuildFailures ?? [])]),
     ];
-    const buildSucceeded =
+    let buildSucceeded =
       (pr.ok && pr.buildContract.passed) ||
       canCompleteWithSavedFiles(saveableFileCount, allContractFailures);
+
     const partialCreditStop =
       ("partialCreditStop" in pr && pr.partialCreditStop === true) ||
       pr.errorMessage === "partial_credit_stop";
@@ -423,142 +426,6 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
         },
       });
       buildFinishedSuccess = true;
-      return;
-    }
-
-    if (
-      !buildSucceeded &&
-      !input.partialCreditBuild &&
-      saveableFileCount >= MIN_RENDERABLE_FILES
-    ) {
-      await persistStage("persist_started", `${pr.files.length} files in memory`);
-      const { result: persist } = await tracePersistGeneratedFiles({
-        writer: input.writer,
-        projectId: input.projectId,
-        ownerId: input.userId,
-        files: pr.files,
-        operationId: input.operationId,
-        executionInstanceId: workerCtx.executionInstanceId,
-      });
-
-      const savedCount = Math.max(persist.savedCount, saveableFileCount);
-      const postKind = failureKindForPersist({
-        fileCount: savedCount,
-        repairAttempted: pr.buildContract.failures.some((f) => /ui_quality|repair/i.test(f)),
-        previewFailedWithFiles: false,
-      });
-
-      await refundBuildReservation({
-        writer: input.writer,
-        userId: input.userId,
-        operationId: input.operationId,
-        reservedCredits: input.reservedCredits,
-        providerCostUsd: pr.totalProviderCostUsd,
-        projectId: input.projectId,
-        buildJobId: input.buildJobId,
-      });
-
-      const { data: curSaved } = await input.writer
-        .from("projects")
-        .select("metadata")
-        .eq("id", input.projectId)
-        .maybeSingle();
-      const prevMetaSaved =
-        curSaved?.metadata && typeof curSaved.metadata === "object" && !Array.isArray(curSaved.metadata)
-          ? (curSaved.metadata as Record<string, unknown>)
-          : {};
-
-      await input.writer
-        .from("projects")
-        .update({
-          build_status: "needs_repair",
-          metadata: {
-            ...prevMetaSaved,
-            ...lifecyclePatch("needs_attention", {
-              build_contract_failures: allContractFailures,
-              files_ready: true,
-              credits_refunded: false,
-            }),
-            file_count: savedCount,
-            ui_quality_score: pr.uiQualityScore,
-          } as Json,
-        } as never)
-        .eq("id", input.projectId)
-        .eq("owner_id", input.userId);
-
-      await transitionBuildJobStatus(input.writer, {
-        jobId: input.buildJobId,
-        ctx: workerCtx,
-        toStatus: "failed",
-        reason: pr.buildContract.userMessage,
-      });
-
-      await finalizeBuildFailed({
-        writer: input.writer,
-        buildJobId: input.buildJobId,
-        projectId: input.projectId,
-        userId: input.userId,
-        errorMessage: pr.buildContract.userMessage,
-        skipJobStatusUpdate: true,
-      });
-
-      if (!alreadyCharged && input.reservedCredits && input.reservedCredits > 0) {
-        const chargeCalc = calculateCreditsForStagedBuild({
-          providerCostUsd: pr.totalProviderCostUsd,
-          complexity: pr.complexity,
-          inputTokens: pr.totalInputTokens,
-          outputTokens: pr.totalOutputTokens,
-          primaryModelId: pr.primaryModelId,
-          fileCount: savedCount,
-        });
-        const profitable = assertProfitableCharge(
-          chargeCalc.creditsToCharge,
-          chargeCalc.estimatedProviderCostUsd,
-        );
-        if (profitable.ok) {
-          await reconcileGenerationReservation(input.writer, {
-            userId: input.userId,
-            generationId: input.operationId,
-            reservedCredits: input.reservedCredits,
-            actualUserCredits: Math.min(input.reservedCredits, chargeCalc.creditsToCharge),
-            providerCostUsd: chargeCalc.estimatedProviderCostUsd,
-            success: true,
-            projectId: input.projectId,
-          });
-        }
-      }
-
-      await persistBuildJobEvent(input.writer, {
-        ...eventCtx,
-        type: "failed",
-        title: "Build needs attention",
-        detail:
-          "The files were saved, but preview could not render because of a technical issue. Fix in chat to continue.",
-        progressPercent: 100,
-        metadata: {
-          failures: allContractFailures,
-          failure_kind: postKind,
-          file_count: savedCount,
-          files_persisted: savedCount,
-          execution_instance_id: workerCtx.executionInstanceId,
-        },
-      });
-
-      await logServerOperation({
-        writer: input.writer,
-        userId: input.userId,
-        userEmail: input.userEmail,
-        stage: "build",
-        event: "async_build_failed",
-        status: "error",
-        mode: "build",
-        modelId: pr.primaryModelId,
-        projectId: input.projectId,
-        buildJobId: input.buildJobId,
-        operationId: input.operationId,
-        errorMessage: pr.errorMessage ?? pr.buildContract.userMessage,
-        metadata: { failures: pr.buildContract.failures, files_persisted: savedCount },
-      });
       return;
     }
 
@@ -686,7 +553,160 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
       archetypeId: pr.appArchetype,
     });
 
-    if (!persist.ok || persist.savedCount < MIN_RENDERABLE_FILES || !fileGate.ok) {
+    const { data: projRow } = await input.writer
+      .from("projects")
+      .select("metadata, app_name")
+      .eq("id", input.projectId)
+      .maybeSingle();
+    const projMeta =
+      projRow?.metadata && typeof projRow.metadata === "object" && !Array.isArray(projRow.metadata)
+        ? (projRow.metadata as Record<string, unknown>)
+        : {};
+    const blueprintRoutes = Array.isArray(projMeta.blueprint_routes)
+      ? (projMeta.blueprint_routes as string[])
+      : null;
+
+    const prePreviewHtml = buildProjectPreviewHtml(pr.files, {
+      projectId: input.projectId,
+      archetypeId: pr.appArchetype,
+    });
+
+    const postPersist = await reconcilePostPersistBuildStatus({
+      writer: input.writer,
+      projectId: input.projectId,
+      ownerId: input.userId,
+      appName: pr.appName || (typeof projRow?.app_name === "string" ? projRow.app_name : "Your app"),
+      blueprintRoutes,
+      priorFailures: allContractFailures,
+      operationId: input.operationId,
+      executionInstanceId: workerCtx.executionInstanceId,
+      userPrompt: input.userPrompt,
+      archetypeId: pr.appArchetype,
+      previewHtmlLength: prePreviewHtml.length,
+      previewHtmlSnippet: prePreviewHtml.slice(0, 2000),
+    });
+
+    const integrityMeta = {
+      source_integrity_ok: postPersist.sourceIntegrity.sourceIntegrityOk,
+      meaningful_source_file_count: postPersist.sourceIntegrity.meaningfulSourceFileCount,
+      code_tab_readable_count: postPersist.sourceIntegrity.codeTabReadableCount,
+      preview_renderable: postPersist.sourceIntegrity.previewRenderable,
+      ready_reason: postPersist.sourceIntegrity.readyReason,
+      blocked_reason: postPersist.sourceIntegrity.blockedReason,
+    };
+
+    if (postPersist.technicalGenerationIncomplete || !postPersist.sourceIntegrity.sourceIntegrityOk) {
+      await input.writer
+        .from("projects")
+        .update({
+          build_status: "needs_repair",
+          metadata: {
+            ...projMeta,
+            ...integrityMeta,
+            file_count: postPersist.visibleFileCount,
+            credits_refunded: false,
+          } as Json,
+        } as never)
+        .eq("id", input.projectId)
+        .eq("owner_id", input.userId);
+
+      await transitionBuildJobStatus(input.writer, {
+        jobId: input.buildJobId,
+        ctx: workerCtx,
+        toStatus: "failed",
+        reason: postPersist.sourceIntegrity.blockedReason ?? "technical_generation_incomplete",
+      });
+
+      await persistBuildJobEvent(input.writer, {
+        ...eventCtx,
+        type: "fixing_error",
+        title: "Build needs attention",
+        detail: postPersist.sourceIntegrity.blockedReason?.includes("missing_root_page_content")
+          ? "The main page is incomplete. Run repair to regenerate it."
+          : "File paths exist, but source content is missing or too thin to render.",
+        progressPercent: 100,
+        metadata: {
+          failure_kind: "failed_after_generation",
+          file_count: postPersist.visibleFileCount,
+          files_persisted: postPersist.visibleFileCount,
+          ...integrityMeta,
+          credits_refunded: false,
+        },
+      });
+
+      if (!alreadyCharged && input.reservedCredits && input.reservedCredits > 0) {
+        const chargeCalc = calculateCreditsForStagedBuild({
+          providerCostUsd: pr.totalProviderCostUsd,
+          complexity: pr.complexity,
+          inputTokens: pr.totalInputTokens,
+          outputTokens: pr.totalOutputTokens,
+          primaryModelId: pr.primaryModelId,
+          fileCount: postPersist.visibleFileCount,
+        });
+        const profitable = assertProfitableCharge(
+          chargeCalc.creditsToCharge,
+          chargeCalc.estimatedProviderCostUsd,
+        );
+        if (profitable.ok) {
+          await reconcileGenerationReservation(input.writer, {
+            userId: input.userId,
+            generationId: input.operationId,
+            reservedCredits: input.reservedCredits,
+            actualUserCredits: Math.min(input.reservedCredits, chargeCalc.creditsToCharge),
+            providerCostUsd: chargeCalc.estimatedProviderCostUsd,
+            success: true,
+            projectId: input.projectId,
+          });
+        }
+      }
+
+      await logServerOperation({
+        writer: input.writer,
+        userId: input.userId,
+        userEmail: input.userEmail,
+        stage: "build",
+        event: "technical_generation_incomplete",
+        status: "error",
+        mode: "build",
+        modelId: pr.primaryModelId,
+        projectId: input.projectId,
+        buildJobId: input.buildJobId,
+        operationId: input.operationId,
+        metadata: integrityMeta,
+      });
+      buildFinishedSuccess = true;
+      return;
+    }
+
+    if (postPersist.persistenceFailure) {
+      const failDetail = "technical_persistence_failure:files_without_readable_content";
+      await transitionBuildJobStatus(input.writer, {
+        jobId: input.buildJobId,
+        ctx: workerCtx,
+        toStatus: "failed",
+        reason: failDetail,
+      });
+      await finalizeBuildFailed({
+        writer: input.writer,
+        buildJobId: input.buildJobId,
+        projectId: input.projectId,
+        userId: input.userId,
+        errorMessage: "Files were created but content could not be read. Try repair in chat.",
+        skipJobStatusUpdate: true,
+      });
+      await persistBuildJobEvent(input.writer, {
+        ...eventCtx,
+        type: "failed",
+        title: "Build needs attention",
+        detail:
+          "File paths were saved but readable content is missing. Use Fix in chat to repair persistence.",
+        progressPercent: 100,
+        metadata: { failure_kind: "failed_after_generation", file_count: postPersist.visibleFileCount },
+      });
+      return;
+    }
+
+    if (!persist.persistOk || persist.savedCount < MIN_RENDERABLE_FILES || !fileGate.ok) {
       if (process.env.NODE_ENV !== "production") {
         console.warn("[execute-staged-build] files_persistence_failed", {
           projectId: input.projectId,
@@ -767,10 +787,33 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
       projectId: input.projectId,
     });
 
-    if (!previewResult.ok) {
-      const previewErr = previewResult.error ?? "Preview could not be prepared.";
-      const userMessage =
-        "Your app files are ready. Preview needs a quick repair.";
+    const postPreviewHtml = buildProjectPreviewHtml(postPersist.files, {
+      projectId: input.projectId,
+      archetypeId: pr.appArchetype,
+    });
+
+    const postPreview = await reconcilePostPersistBuildStatus({
+      writer: input.writer,
+      projectId: input.projectId,
+      ownerId: input.userId,
+      appName: pr.appName || (typeof projRow?.app_name === "string" ? projRow.app_name : "Your app"),
+      blueprintRoutes,
+      priorFailures: allContractFailures,
+      operationId: input.operationId,
+      executionInstanceId: workerCtx.executionInstanceId,
+      userPrompt: input.userPrompt,
+      archetypeId: pr.appArchetype,
+      previewSessionOk: previewResult.ok,
+      previewHtmlLength: postPreviewHtml.length,
+      previewHtmlSnippet: postPreviewHtml.slice(0, 2000),
+    });
+
+    if (!previewResult.ok || !postPreview.shouldComplete) {
+      const previewErr = !previewResult.ok
+        ? (previewResult.error ?? "Preview could not be prepared.")
+        : "Preview could not be prepared.";
+      const previewCode = !previewResult.ok ? previewResult.code : undefined;
+      const filesKept = Math.max(fileGate.fileCount, postPreview.visibleFileCount);
 
       const { data: cur } = await input.writer
         .from("projects")
@@ -792,10 +835,11 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
               files_ready: true,
               files_ready_preview_failed: true,
               preview_error: previewErr,
-              preview_error_code: previewResult.code,
-              file_count: fileGate.fileCount,
+              preview_error_code: previewCode,
+              file_count: filesKept,
+              credits_refunded: false,
             }),
-            file_count: fileGate.fileCount,
+            file_count: filesKept,
             ui_quality_score: pr.uiQualityScore,
           } as Json,
         } as never)
@@ -811,15 +855,23 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
 
       await persistBuildJobEvent(input.writer, {
         ...eventCtx,
-        type: "validating_preview",
-        title: "Preview needs a quick repair",
-        detail: userMessage,
-        progressPercent: 95,
+        type: "fixing_error",
+        title: "Build needs attention",
+        detail: postPreview.sourceIntegrity.sourceIntegrityOk
+          ? "The files were saved, but preview needs a technical fix before it can render."
+          : "Files were created, but the source code was incomplete. Run repair to generate the missing code.",
+        progressPercent: 100,
         metadata: {
           preview_failed: true,
-          files_kept: fileGate.fileCount,
-          code: previewResult.code,
+          files_kept: filesKept,
+          files_persisted: filesKept,
+          failure_kind: "failed_after_generation",
+          code: previewCode,
+          source_integrity_ok: postPreview.sourceIntegrity.sourceIntegrityOk,
+          preview_renderable: postPreview.sourceIntegrity.previewRenderable,
+          blocked_reason: postPreview.sourceIntegrity.blockedReason,
           execution_instance_id: workerCtx.executionInstanceId,
+          credits_refunded: false,
         },
       });
 
@@ -830,7 +882,7 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
           inputTokens: pr.totalInputTokens,
           outputTokens: pr.totalOutputTokens,
           primaryModelId: pr.primaryModelId,
-          fileCount: fileGate.fileCount,
+          fileCount: filesKept,
         });
         const profitable = assertProfitableCharge(
           chargeCalc.creditsToCharge,
@@ -862,7 +914,7 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
         buildJobId: input.buildJobId,
         operationId: input.operationId,
         errorMessage: previewErr,
-        metadata: { code: previewResult.code, files_kept: fileGate.fileCount },
+        metadata: { code: previewCode, files_kept: filesKept },
       });
       return;
     }
@@ -962,16 +1014,17 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
     await persistBuildJobEvent(input.writer, {
       ...eventCtx,
       type: "completed",
-      title: "Preview ready",
-      detail: previewResult.previewUrl
-        ? `${pr.meta?.summary ?? `Built ${pr.appName}`} — preview live`
-        : pr.meta?.summary ?? `Built ${pr.appName}`,
+      title: "First version ready",
+      detail: "Preview is live.",
       progressPercent: 100,
       metadata: {
         credits_charged: creditsCharged,
         preview_url: previewResult.previewUrl ?? null,
         files_persisted: fileGate.fileCount,
         stream_category: "completed",
+        source_integrity_ok: true,
+        preview_renderable: true,
+        ready_reason: "source_integrity_ok_preview_live",
       },
     });
 

@@ -307,7 +307,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (event === "TOKEN_REFRESHED" && session?.user) {
-        void refreshCredits({ reason: "bootstrap" });
+        void useCreditsStore.getState().syncFromDB({ reason: "bootstrap" });
       }
 
       if (event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") {

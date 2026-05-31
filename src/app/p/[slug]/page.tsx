@@ -89,7 +89,8 @@ export default async function PublicAppPage({
       title={plan.title}
       description={plan.description}
       publicUrl={plan.publicUrl}
-      files={files}
+      frameSrc={`/api/public/${safe}/frame`}
+      hasFrame={Boolean(plan.html?.trim())}
       version={plan.version}
       showBadge={publicAppBadgeEnabled()}
     />

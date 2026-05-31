@@ -1,31 +1,32 @@
 "use client";
 
 import * as React from "react";
-import { resolveSnapshotHtml } from "@/lib/publish/render-published-html";
-import type { PublishedSnapshotFile } from "@/lib/publish/published-snapshot";
 
 export function PublicAppRenderer({
   title,
   description,
   publicUrl,
-  files,
+  frameSrc,
+  hasFrame = false,
   version,
   showBadge = true,
 }: {
   title: string;
   description: string | null;
   publicUrl: string;
-  files: PublishedSnapshotFile[];
+  /** Server-provided iframe URL — HTML is loaded by the browser, not React state. */
+  frameSrc: string | null;
+  hasFrame?: boolean;
   version?: number;
   showBadge?: boolean;
 }) {
-  const html = React.useMemo(() => resolveSnapshotHtml(files), [files]);
   const [loadError, setLoadError] = React.useState<string | null>(null);
-  const [loading, setLoading] = React.useState(true);
+  const [loading, setLoading] = React.useState(hasFrame);
 
   React.useEffect(() => {
-    setLoading(false);
-  }, [html]);
+    setLoading(hasFrame && Boolean(frameSrc));
+    setLoadError(null);
+  }, [frameSrc, hasFrame]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -76,7 +77,7 @@ export function PublicAppRenderer({
             {loadError}
           </div>
         )}
-        {!html ? (
+        {!hasFrame || !frameSrc ? (
           <div className="rounded-2xl bg-surface px-6 py-12 text-center ring-1 ring-border">
             <p className="text-[14px] font-medium text-foreground">App not ready</p>
             <p className="mt-1 text-[12px] text-muted-foreground">
@@ -86,7 +87,7 @@ export function PublicAppRenderer({
         ) : (
           <iframe
             title={title}
-            srcDoc={html}
+            src={frameSrc}
             className="h-[min(80vh,900px)] w-full rounded-2xl border border-border bg-white shadow-sm"
             sandbox="allow-scripts allow-same-origin"
             onLoad={() => setLoading(false)}

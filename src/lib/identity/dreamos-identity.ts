@@ -20,6 +20,7 @@ export type DreamosIdentity = {
   planInterval: string;
   creditsRemaining: number;
   creditsLimit: number;
+  creditsBonus: number;
   createdAt: string | null;
 };
 
@@ -29,7 +30,7 @@ export type DreamosIdentityApiPayload = {
   workspaceId: string;
   ownerEmail: string;
   plan: { id: string; interval: string };
-  credits: { remaining: number; limit: number };
+  credits: { remaining: number; limit: number; bonus: number };
   createdAt: string | null;
   apiBaseUrl: string;
   apiAccessStatus: "enabled" | "disabled";
@@ -108,6 +109,7 @@ export async function buildDreamosIdentity(
 
   let creditsRemaining = rawRemaining;
   let creditsLimit = monthlyTokensForPlan(planId);
+  let creditsBonus = 0;
 
   try {
     const admin = createSupabaseAdmin();
@@ -119,12 +121,10 @@ export async function buildDreamosIdentity(
       skipLedger: false,
     });
     creditsRemaining = canonical.build.available;
-    creditsLimit = canonical.build.planAllowance;
+    creditsBonus = Math.max(canonical.build.bonusActive, 0);
+    creditsLimit = Math.max(canonical.build.planAllowance + creditsBonus, canonical.build.planAllowance);
   } catch {
-    const profileRecord = profile as { credits_limit?: number } | null | undefined;
-    if (typeof profileRecord?.credits_limit === "number") {
-      creditsLimit = profileRecord.credits_limit;
-    }
+    creditsLimit = monthlyTokensForPlan(planId);
   }
 
   let createdAt: string | null = null;
@@ -147,6 +147,7 @@ export async function buildDreamosIdentity(
     planInterval: optional.plan_interval ?? "monthly",
     creditsRemaining,
     creditsLimit,
+    creditsBonus: creditsBonus ?? 0,
     createdAt,
   };
 }
@@ -164,6 +165,7 @@ export function toDreamosIdentityApiPayload(
     credits: {
       remaining: identity.creditsRemaining,
       limit: identity.creditsLimit,
+      bonus: identity.creditsBonus,
     },
     createdAt: identity.createdAt,
     apiBaseUrl: getDreamosApiBaseUrl(),

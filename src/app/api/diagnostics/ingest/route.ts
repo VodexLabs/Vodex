@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { persistDiagnosticLogs } from "@/lib/diagnostics/persist-server-log";
 import type { DreamosLogRow } from "@/lib/diagnostics/dreamos-logger";
+import { sanitizeDiagnosticMetadata } from "@/lib/diagnostics/truncate-large-diagnostic-string";
 
 const entrySchema = z.object({
   severity: z.enum(["debug", "info", "warn", "error"]).optional(),
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
     conversationId: e.conversationId ?? null,
     buildId: e.buildId ?? null,
     at: e.at ?? new Date().toISOString(),
-    metadata: e.metadata ?? {},
+    metadata: sanitizeDiagnosticMetadata((e.metadata ?? {}) as Record<string, unknown>),
   }));
 
   const result = await persistDiagnosticLogs(rows);

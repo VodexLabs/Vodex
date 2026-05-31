@@ -67,6 +67,15 @@ type WrapJob = {
 
 import { getEntitlements } from "@/lib/billing/plan-entitlements";
 
+export type PublishUiPhase =
+  | "idle"
+  | "preparing"
+  | "allocating"
+  | "building"
+  | "finalizing"
+  | "published"
+  | "failed";
+
 interface PublishModalProps {
   open: boolean;
   onClose: () => void;
@@ -76,6 +85,7 @@ interface PublishModalProps {
   onSaved: (draft: PublishUiState) => void;
   /** False until the app has a preview URL or icon — web publish stays honestly locked. */
   artifactsReady?: boolean;
+  onPublishPhaseChange?: (phase: PublishUiPhase, detail?: { url?: string; error?: string }) => void;
 }
 
 export function PublishModal({
@@ -86,12 +96,16 @@ export function PublishModal({
   initialDraft,
   onSaved,
   artifactsReady = true,
+  onPublishPhaseChange,
 }: PublishModalProps) {
   const [tab, setTab] = React.useState<"web" | "mobile">("web");
   const [publishInfo, setPublishInfo] = React.useState<PublishApiPayload | null>(null);
   const [readiness, setReadiness] = React.useState<ReadinessPayload | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [posting, setPosting] = React.useState(false);
+  const [publishPhase, setPublishPhase] = React.useState<PublishUiPhase>("idle");
+  const [publishError, setPublishError] = React.useState<string | null>(null);
+  const publishInFlightRef = React.useRef(false);
   const [wrapBusy, setWrapBusy] = React.useState<null | "android_apk" | "android_aab">(null);
   const [lastWrapJob, setLastWrapJob] = React.useState<WrapJob | null>(null);
   const [local, setLocal] = React.useState<PublishUiState>(initialDraft ?? {});
@@ -169,27 +183,59 @@ export function PublishModal({
     }
   }
 
+  const setPhase = React.useCallback(
+    (phase: PublishUiPhase, detail?: { url?: string; error?: string }) => {
+      setPublishPhase(phase);
+      onPublishPhaseChange?.(phase, detail);
+    },
+    [onPublishPhaseChange],
+  );
+
   async function ensureWebPublish() {
     if (!projectId) {
       toast.error("Save your app first.");
       return;
     }
+    if (publishInFlightRef.current) {
+      toast.info("Publish already in progress…");
+      return;
+    }
+    publishInFlightRef.current = true;
     setPosting(true);
+    setPublishError(null);
+    setPhase("preparing");
     try {
+      setPhase("allocating");
       const res = await fetch(`/api/projects/${projectId}/publish`, {
         method: "POST",
         credentials: "include",
       });
-      const body = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(body.error ?? "Could not allocate subdomain");
+      const body = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        message?: string;
+        code?: string;
+      };
+      if (!res.ok) {
+        const msg = body.message ?? body.error ?? body.code ?? "Publish failed";
+        throw new Error(msg);
+      }
+      setPhase("building");
       const verifyRes = await fetch(`/api/projects/${projectId}/publish`, { credentials: "include" });
       const next = (await verifyRes.json()) as PublishApiPayload;
+      setPhase("finalizing");
       await refreshPublishAfterAllocate(next);
+      setPhase("published", { url: next.publicWebUrl ?? undefined });
       toast.success("Live web URL is ready on DreamOS86.");
+      onClose();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Publish failed");
+      const msg = e instanceof Error ? e.message : "Publish failed";
+      setPublishError(msg);
+      setPhase("failed", { error: msg });
+      toast.error(msg);
     } finally {
       setPosting(false);
+      publishInFlightRef.current = false;
     }
   }
 
@@ -385,10 +431,41 @@ export function PublishModal({
 
         <motion.div className="relative min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4 pb-12">
           {posting && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background/85 backdrop-blur-[2px]">
+            <div
+              className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background/92 px-6 backdrop-blur-sm"
+              data-testid="publish-progress-overlay"
+            >
               <Loader2 className="size-8 animate-spin text-accent" />
               <p className="text-[13px] font-medium text-foreground">Publishing to web…</p>
-              <p className="text-[11.5px] text-muted-foreground">Allocating your live URL</p>
+              <p className="text-[11.5px] text-muted-foreground">
+                {publishPhase === "preparing"
+                  ? "Preparing publish"
+                  : publishPhase === "allocating"
+                    ? "Allocating subdomain"
+                    : publishPhase === "building"
+                      ? "Building deployment"
+                      : publishPhase === "finalizing"
+                        ? "Finalizing URL"
+                        : "Working…"}
+              </p>
+            </div>
+          )}
+          {publishError && !posting && (
+            <div
+              className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-[12px] text-destructive"
+              data-testid="publish-error-card"
+            >
+              <p className="font-semibold">Publish failed</p>
+              <p className="mt-1">{publishError}</p>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="mt-2"
+                onClick={() => void ensureWebPublish()}
+              >
+                Retry
+              </Button>
             </div>
           )}
           {!projectId && (

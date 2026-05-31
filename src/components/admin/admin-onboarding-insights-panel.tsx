@@ -135,6 +135,40 @@ export function AdminOnboardingInsightsPanel() {
         <DonutChart title="Experience level" segments={data.experienceLevels} total={total} />
       </div>
 
+      {data.cancellationReasons.length > 0 ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <DonutChart
+            title="Subscription cancellation reasons"
+            segments={data.cancellationReasons}
+            total={data.cancellationFeedback.length || 1}
+          />
+          <div className="rounded-xl bg-background p-5 ring-1 ring-border">
+            <p className="text-[13px] font-semibold text-foreground">Recent cancellations</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              {data.cancellationFeedback.length} submitted feedback
+            </p>
+            <ul className="mt-4 max-h-64 space-y-3 overflow-y-auto">
+              {data.cancellationFeedback.slice(0, 12).map((row) => (
+                <li key={row.id} className="rounded-lg bg-muted/30 px-3 py-2 text-[11.5px]">
+                  <p className="font-medium text-foreground">
+                    {row.displayName ?? row.email ?? row.userId.slice(0, 8)}
+                    {row.previousPlanId ? (
+                      <span className="ml-1.5 font-normal text-muted-foreground">
+                        · was {row.previousPlanId}
+                      </span>
+                    ) : null}
+                  </p>
+                  <p className="mt-1 leading-relaxed text-muted-foreground">{row.reason}</p>
+                  <p className="mt-1 text-[10px] text-muted-foreground/80">
+                    {new Date(row.createdAt).toLocaleString()}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      ) : null}
+
       <div className="rounded-xl bg-background ring-1 ring-border">
         <div className="border-b border-border px-5 py-3">
           <h3 className="text-[13px] font-semibold text-foreground">Onboarding responses</h3>

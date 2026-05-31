@@ -111,14 +111,18 @@ function userSelectedSpec(
         : "standard_fast";
 
   const maxOut =
-    operationType.includes("implementation") || operationType === "edit_patch_hard"
+    operationType.includes("implementation") ||
+    operationType === "edit_patch_hard" ||
+    operationType === "code_repair_hard"
       ? implementationMaxOut(
           operationType === "backend_implementation" ? "backend_implementation" : "frontend_implementation",
           complexity ?? 5,
         )
       : operationType.startsWith("discuss")
         ? 700
-        : 1200;
+        : operationType === "code_repair_small"
+          ? 1800
+          : 1200;
 
   return spec(operationType, modelId, maxOut, {
     tier,
@@ -129,13 +133,13 @@ function userSelectedSpec(
 
 function implementationMaxOut(op: "frontend_implementation" | "backend_implementation", complexity: number): number {
   if (op === "frontend_implementation") {
-    if (complexity <= 4) return 1600;
-    if (complexity <= 7) return 2600;
-    return 4000;
+    if (complexity <= 4) return 5000;
+    if (complexity <= 7) return 8000;
+    return 12_000;
   }
-  if (complexity <= 4) return 1400;
-  if (complexity <= 7) return 2200;
-  return 3500;
+  if (complexity <= 4) return 3500;
+  if (complexity <= 7) return 5500;
+  return 8000;
 }
 
 /** Primary router — use for every AI operation. */
@@ -194,12 +198,17 @@ export function routeOperation(ctx: RouteOperationContext): RoutedModelSpec {
     case "ui_design_plan":
       return spec(op, pickStandardFast("openai"), 1500, { strictJson: true, temperature: 0 });
     case "frontend_implementation": {
-      const m = pickStandardFast("openai");
+      const m = implementationModel(complexity, ctx.ownerEmail);
       return spec(
         op,
-        m,
-        Math.min(implementationMaxOut(op, complexity), 2000),
-        { tier: "standard_fast", strictJson: true, temperature: 0.1, routeReason: "frontend_json_files" },
+        m.id,
+        implementationMaxOut(op, complexity),
+        {
+          tier: m.tier,
+          strictJson: true,
+          temperature: 0.1,
+          routeReason: "automatic_frontend_implementation",
+        },
         complexity,
       );
     }
@@ -220,9 +229,9 @@ export function routeOperation(ctx: RouteOperationContext): RoutedModelSpec {
     case "preview_validation":
       return spec(op, "gemini-flash", 700, { strictJson: true, temperature: 0 });
     case "code_repair_small":
-      return spec(op, "claude-haiku-4.5", 1500, { temperature: 0.1 });
+      return spec(op, "claude-haiku-4.5", 1800, { temperature: 0.1 });
     case "code_repair_hard":
-      return spec(op, pickAutomaticImplementationModelId(Math.max(7, complexity), ctx.ownerEmail), 2000, {
+      return spec(op, pickAutomaticImplementationModelId(Math.max(7, complexity), ctx.ownerEmail), 4500, {
         tier: "premium_implementation",
         temperature: 0.1,
       });

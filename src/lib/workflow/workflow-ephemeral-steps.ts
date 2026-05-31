@@ -1,11 +1,10 @@
 import type { AgentWorkflowEvent } from "@/lib/build/workflow-stream-types";
 
 export const EPHEMERAL_BUILD_STEPS: readonly { title: string; stableKey: string; ms: number }[] = [
-  { title: "Reading your request", stableKey: "ephemeral:read", ms: 500 },
-  { title: "Identifying app type", stableKey: "ephemeral:type", ms: 600 },
-  { title: "Mapping core screens", stableKey: "ephemeral:screens", ms: 700 },
-  { title: "Preparing project structure", stableKey: "ephemeral:structure", ms: 800 },
-  { title: "Starting file generation", stableKey: "ephemeral:files", ms: 900 },
+  { title: "I'm mapping the screens and data model.", stableKey: "ephemeral:screens", ms: 700 },
+  { title: "I'm designing the main layout.", stableKey: "ephemeral:layout", ms: 800 },
+  { title: "I'm generating the portfolio sections.", stableKey: "ephemeral:sections", ms: 900 },
+  { title: "I'm checking imports and preview readiness.", stableKey: "ephemeral:preview", ms: 1000 },
 ] as const;
 
 export function buildEphemeralWorkflowEvents(

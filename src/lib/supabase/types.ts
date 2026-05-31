@@ -153,6 +153,27 @@ export interface Database {
         Relationships: [];
       };
 
+      subscription_cancellation_feedback: {
+        Row: {
+          id: string;
+          user_id: string;
+          reason: string;
+          previous_plan_id: string | null;
+          paddle_subscription_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          user_id: string;
+          reason: string;
+          previous_plan_id?: string | null;
+          paddle_subscription_id?: string | null;
+          id?: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["subscription_cancellation_feedback"]["Row"]>;
+        Relationships: [];
+      };
+
       workspaces: {
         Row: {
           id: string;

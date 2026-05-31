@@ -71,6 +71,25 @@ export const ARCHETYPE_UI_PATTERNS: ArchetypeUiPattern[] = [
     interactions: ["pick service", "select slot", "confirm booking"],
   },
   {
+    id: "mental_wellness_journal",
+    referenceLayout:
+      "Calm home hero, today's mood check-in card, guided prompt, mood trend chart, insight cards, encrypted messaging trust panel, CTAs to journal/check-ins/insights.",
+    mustHaveComponents: [
+      "mood check-in card",
+      "guided prompt card",
+      "trend chart",
+      "journal entry list",
+      "private message panel",
+      "insight cards",
+    ],
+    sampleDataExamples: [
+      "Mood 7/10 — steady morning",
+      "Prompt: What felt supportive today?",
+      "Encrypted thread with therapist",
+    ],
+    interactions: ["log mood", "start reflection", "open secure inbox", "view trends"],
+  },
+  {
     id: "ai_tool",
     referenceLayout: "Prompt composer left, streaming output center, history sidebar, usage meter top-right.",
     mustHaveComponents: ["textarea prompt", "generate button", "output panel", "history list", "copy/regenerate"],

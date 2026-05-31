@@ -1,5 +1,6 @@
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 import type { DreamosLogRow } from "@/lib/diagnostics/dreamos-logger";
+import { sanitizeDiagnosticMetadata } from "@/lib/diagnostics/truncate-large-diagnostic-string";
 
 type LooseDb = {
   from: (table: string) => {
@@ -29,7 +30,7 @@ export async function persistDiagnosticLogs(entries: DreamosLogRow[]): Promise<{
     project_id: e.projectId,
     conversation_id: e.conversationId,
     build_id: e.buildId,
-    metadata: e.metadata,
+    metadata: sanitizeDiagnosticMetadata(e.metadata ?? {}),
   }));
 
   const db = admin as unknown as LooseDb;

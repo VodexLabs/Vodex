@@ -39,7 +39,7 @@ export type PreviewRenderCheckOptions = {
 };
 
 type SafeGetResult =
-  | { ok: true; status: number; json: () => Promise<unknown> }
+  | { ok: true; status: number; json: () => Promise<unknown>; text: () => Promise<string> }
   | { ok: false; disposed: boolean; error: string };
 
 const MARKER_IDS = [
@@ -85,6 +85,7 @@ async function safeApiGet(
       ok: true,
       status: response.status(),
       json: () => response.json(),
+      text: () => response.text(),
     };
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
@@ -186,33 +187,41 @@ export async function assertPreviewRendered(
   let blocked = hardStop();
   if (blocked) return finish(false, blocked);
 
-  const previewHtmlPath = `/api/projects/${projectId}/preview-html`;
-  let previewHtmlBody: { html?: string; ready?: boolean; fileCount?: number } = {};
+  const previewStatusPath = `/api/projects/${projectId}/preview-html`;
+  const previewFramePath = `/api/projects/${projectId}/preview-html?format=frame`;
+  let previewHtmlBody: { ready?: boolean; previewRenderable?: boolean; fileCount?: number } = {};
   for (let attempt = 0; attempt < 6; attempt++) {
     blocked = hardStop();
     if (blocked) return finish(false, blocked);
-    const previewHtmlRes = await safeApiGet(request, previewHtmlPath, opTimeout(25_000));
-    if (!previewHtmlRes.ok) {
-      if (previewHtmlRes.disposed) requestContextAvailable = false;
+    const statusRes = await safeApiGet(request, previewStatusPath, opTimeout(25_000));
+    if (!statusRes.ok) {
+      if (statusRes.disposed) requestContextAvailable = false;
       if (attempt < 5 && remainingMs() > 3_000) {
         await new Promise((r) => setTimeout(r, 2_000));
         continue;
       }
       return finish(false, "preview_snapshot_empty");
     }
-    previewHtmlBody = ((await previewHtmlRes.json().catch(() => ({}))) ?? {}) as {
-      html?: string;
+    previewHtmlBody = ((await statusRes.json().catch(() => ({}))) ?? {}) as {
       ready?: boolean;
+      previewRenderable?: boolean;
       fileCount?: number;
     };
-    previewHtml = String(previewHtmlBody.html ?? "");
     filesCount = Number(previewHtmlBody.fileCount ?? 0);
-    if (previewHtmlBody.ready && markersPresentInHtml(previewHtml)) break;
+    const renderable = Boolean(previewHtmlBody.previewRenderable ?? previewHtmlBody.ready);
+    if (renderable) {
+      const frameRes = await safeApiGet(request, previewFramePath, opTimeout(25_000));
+      if (frameRes.ok) {
+        previewHtml = await frameRes.text().catch(() => "");
+      }
+    }
+    if (renderable && markersPresentInHtml(previewHtml)) break;
     if (attempt < 5 && remainingMs() > 3_000) {
       await new Promise((r) => setTimeout(r, 2_000));
       continue;
     }
-    if (!previewHtmlBody.ready || !markersPresentInHtml(previewHtml)) {
+    const renderableFinal = Boolean(previewHtmlBody.previewRenderable ?? previewHtmlBody.ready);
+    if (!renderableFinal || !markersPresentInHtml(previewHtml)) {
       return finish(false, "missing_preview_root_marker");
     }
   }

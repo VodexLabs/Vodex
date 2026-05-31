@@ -34,6 +34,7 @@ import {
 import {
   applyArchetypeScaffoldFallback,
   hasFullScaffoldTree,
+  replaceStubFilesWithArchetypeScaffold,
 } from "@/lib/build/archetype-scaffold-fallback";
 import {
   buildDeterministicPlanForArchetype,
@@ -43,6 +44,12 @@ import {
 import { callProviderWithBuildTimeout, withTimeout } from "@/lib/build/timed-build-operations";
 import { normalizeAppRouterBuildFiles } from "@/lib/build/app-router-route-normalizer";
 import { countThinFiles } from "@/lib/build/meaningful-file-guard";
+import {
+  evaluateSourceIntegrity,
+  isPortfolioBuildPrompt,
+} from "@/lib/build/source-integrity-validator";
+import { repairRootPageContent, rootPageContentOk } from "@/lib/build/root-page-repair";
+import { mergePortfolioScaffold } from "@/lib/build/portfolio-scaffold";
 import { resolveModelMix } from "@/lib/ai/model-mix-router";
 import type {
   BuildWorkerTraceSnapshot,
@@ -704,7 +711,7 @@ export async function runStagedBuildPipeline(input: {
   if (input.buildTrace) traceBuildWorkerStage(input.buildTrace, "file_generation_started");
 
   const smokeBuild = process.env.DREAMOS_SMOKE_BUILD === "1";
-  const RESTAURANT_MIN_SCAFFOLD_FILES = 16;
+  const MIN_FULL_SCAFFOLD_FILES = 14;
   let allFiles: BuildFile[] = [];
 
   if (hasFullScaffoldTree(archetype.id)) {
@@ -716,9 +723,9 @@ export async function runStagedBuildPipeline(input: {
   }
 
   const scaffoldSufficient =
-    knownArchetypeFastPath &&
     hasFullScaffoldTree(archetype.id) &&
-    filterRenderableBuildFiles(allFiles).length >= RESTAURANT_MIN_SCAFFOLD_FILES;
+    filterRenderableBuildFiles(allFiles).length >= MIN_FULL_SCAFFOLD_FILES &&
+    rootPageContentOk(allFiles);
 
   if (!scaffoldSufficient) {
     track(events, "writing", "Generating frontend files");
@@ -812,6 +819,16 @@ export async function runStagedBuildPipeline(input: {
 
   allFiles = filterRenderableBuildFiles(allFiles);
 
+  if (isPortfolioBuildPrompt(input.userPrompt)) {
+    const preIntegrity = evaluateSourceIntegrity(allFiles);
+    if (!preIntegrity.sourceIntegrityOk) {
+      allFiles = filterRenderableBuildFiles(mergePortfolioScaffold(allFiles, appName));
+      if (input.buildTrace) {
+        traceBuildWorkerStage(input.buildTrace, "scaffold_fallback_applied", `portfolio:${allFiles.length}`);
+      }
+    }
+  }
+
   if (input.shouldStopForCredits?.() && allFiles.length > 0) {
     track(
       events,
@@ -861,6 +878,14 @@ export async function runStagedBuildPipeline(input: {
   allFiles = routeNorm.files;
   if (routeNorm.moved.length && process.env.NODE_ENV !== "production") {
     console.info("[build] app_router_normalized", routeNorm.moved.slice(0, 12));
+  }
+
+  const rootRepairPass = repairRootPageContent(archetype.id, allFiles, appName);
+  if (rootRepairPass.rootPageRepaired || rootRepairPass.deterministicRepairApplied) {
+    allFiles = rootRepairPass.files;
+    if (input.buildTrace) {
+      traceBuildWorkerStage(input.buildTrace, "scaffold_fallback_applied", `root_page:${rootRepairPass.integrityAfterRepair.rootPageHasRealContent}`);
+    }
   }
 
   let scaffoldFallback = applyArchetypeScaffoldFallback(archetype.id, allFiles, appName);
@@ -977,7 +1002,26 @@ export async function runStagedBuildPipeline(input: {
       },
       input.buildTrace,
     );
-    if (!repairCall.ok) break;
+    if (!repairCall.ok) {
+      const budgetBlocked = repairCall.error.includes("Budget exceeded");
+      if (budgetBlocked || !rootPageContentOk(allFiles)) {
+        const deterministic = repairRootPageContent(archetype.id, allFiles, appName, {
+          repairModelAttempted: true,
+          repairBudgetBlocked: budgetBlocked,
+        });
+        allFiles = deterministic.files;
+        if (deterministic.rootPageRepaired) {
+          track(events, "repairing", "Regenerating the main screen…");
+        }
+        quality = assessBuildQuality(allFiles);
+        uiQuality = checkGeneratedUiQuality({
+          files: allFiles,
+          appType: archetypeToLegacyAppType(archetype.id),
+          routeMap: designBrief.routes,
+        });
+      }
+      break;
+    }
     accumulatedCost += repairCall.result.providerCostUsd;
     const repaired = parseFilePayload(repairCall.result.text);
     if (repaired.files.length) {
@@ -1026,7 +1070,7 @@ export async function runStagedBuildPipeline(input: {
   if (
     knownArchetypeFastPath &&
     archetype.id === "restaurant_inventory" &&
-    filterRenderableBuildFiles(allFiles).length < RESTAURANT_MIN_SCAFFOLD_FILES
+    filterRenderableBuildFiles(allFiles).length < MIN_FULL_SCAFFOLD_FILES
   ) {
     return {
       ok: false,
@@ -1059,8 +1103,16 @@ export async function runStagedBuildPipeline(input: {
     };
   }
 
+  if (hasFullScaffoldTree(archetype.id)) {
+    const preContractStub = replaceStubFilesWithArchetypeScaffold(archetype.id, allFiles, resolvedAppName);
+    if (preContractStub.replaced > 0) {
+      allFiles = preContractStub.files;
+      scaffoldFallback = { ...scaffoldFallback, usedFallback: true };
+    }
+  }
+
   if (input.buildTrace) traceBuildWorkerStage(input.buildTrace, "contract_started");
-  const enforced = enforcePostBuildContractWithRepair(
+  let enforced = enforcePostBuildContractWithRepair(
     {
       files: allFiles,
       appName: resolvedAppName,
@@ -1074,7 +1126,7 @@ export async function runStagedBuildPipeline(input: {
       scaffoldFallbackUsed: scaffoldFallback.usedFallback,
       archetypeId: archetype.id,
     },
-    2,
+    3,
   );
 
   if (!enforced.contract.passed && hasFullScaffoldTree(archetype.id)) {
@@ -1106,14 +1158,30 @@ export async function runStagedBuildPipeline(input: {
   }
 
   allFiles = enforced.files;
+  let sourceIntegrity = evaluateSourceIntegrity(allFiles);
+  if (!sourceIntegrity.sourceIntegrityOk && hasFullScaffoldTree(archetype.id)) {
+    const finalRootRepair = repairRootPageContent(archetype.id, allFiles, resolvedAppName);
+    allFiles = finalRootRepair.files;
+    sourceIntegrity = finalRootRepair.integrityAfterRepair;
+    enforced = {
+      ...enforced,
+      files: allFiles,
+      contract: {
+        ...enforced.contract,
+        passed: enforced.contract.passed && sourceIntegrity.sourceIntegrityOk,
+      },
+    };
+  }
+
   if (input.buildTrace) {
-    traceBuildWorkerStage(input.buildTrace, "contract_completed", enforced.contract.passed ? "passed" : "needs_repair");
+    const contractLabel = enforced.contract.passed && sourceIntegrity.sourceIntegrityOk ? "passed" : "needs_repair";
+    traceBuildWorkerStage(input.buildTrace, "contract_completed", contractLabel);
   }
   const postContract = enforced.contract;
   const buildContract: BuildSuccessContractResult = postContract.buildContract;
   uiQuality = postContract.uiQuality;
 
-  const ok = postContract.passed;
+  const ok = postContract.passed && sourceIntegrity.sourceIntegrityOk;
   const summaryText = postContract.userMessage;
 
   const modelRuntime = resolveModelRuntime(primaryModelId);
@@ -1145,7 +1213,7 @@ export async function runStagedBuildPipeline(input: {
   };
 
   let resultMarkdown = "";
-  if (intakeResult && ok) {
+  if (intakeResult && ok && sourceIntegrity.previewRenderable) {
     const backlog = await loadBuildBacklog(input.writer, input.projectId);
     const resultSummary = formatBuildResultSummary({
       appName,
@@ -1169,7 +1237,13 @@ export async function runStagedBuildPipeline(input: {
       pipeline: "staged",
       complexity,
       provider_cost_usd: accumulatedCost,
-      workflow_events: events as unknown as Json,
+      workflow_events: events.map((ev) => ({
+        type: ev.type,
+        label: ev.label,
+        at: ev.at,
+        detail: ev.detail && ev.detail.length > 2000 ? `${ev.detail.slice(0, 2000)}…` : ev.detail,
+        meta: ev.meta,
+      })) as unknown as Json,
       ui_quality_score: uiQuality.score,
       ui_preview_ready: buildContract.previewReady,
       build_success_contract: buildContract.passed,

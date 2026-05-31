@@ -72,7 +72,7 @@ export function BuildRunSummaryCard({
             ? [`Used ${creditsUsed} Build Credit${creditsUsed === 1 ? "" : "s"} on this pass.`]
             : []),
           ...(failed && errorMessage ? [errorMessage] : []),
-          ...(showRefundLine || refunded ? ["Credits were returned for this attempt."] : []),
+          ...(showRefundLine && refunded ? ["Credits were returned for this attempt."] : []),
         ].filter(Boolean);
 
   return (

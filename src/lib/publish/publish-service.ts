@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
 import { slugifyAppName, isReservedPublishSlug, validateCustomSlug } from "@/lib/publish/app-slug";
+import { allocatePublishSubdomain, buildSlugCandidates } from "@/lib/publish/subdomain-allocator";
 import { buildPublicUrl } from "@/lib/publish/public-url";
 import { wildcardSubdomainEnabled } from "@/lib/publish/publish-config";
 import {
@@ -49,11 +50,12 @@ export async function findUniquePublishSlug(
   baseName: string,
   excludeProjectId?: string,
 ): Promise<string | null> {
-  const base = slugifyAppName(baseName);
-  if (isReservedPublishSlug(base)) return null;
-
-  for (let i = 0; i < 80; i++) {
-    const candidate = i === 0 ? base : `${base}-${i + 1}`;
+  const candidates = buildSlugCandidates({
+    appName: baseName,
+    projectName: baseName,
+    projectId: excludeProjectId ?? "00000000-0000-4000-8000-000000000000",
+  });
+  for (const candidate of candidates) {
     if (isReservedPublishSlug(candidate)) continue;
     if (await isSlugAvailable(writer, candidate, excludeProjectId)) return candidate;
   }
@@ -174,16 +176,25 @@ export async function startPublish(input: {
     return { ok: false, error: "App is not ready to publish yet.", code: "not_publish_ready" };
   }
 
-  const slugResult = await resolvePublishSlug(input.writer, {
+  const allocated = await allocatePublishSubdomain(input.writer, {
     projectId: input.projectId,
-    projectName: project.app_name || project.name || project.slug || "app",
-    existingSubdomain: input.customSlug ? null : project.published_subdomain,
-    customSlug: input.customSlug,
+    ownerId: input.userId,
+    appName: project.app_name,
+    projectName: project.name,
+    projectSlug: project.slug,
+    desiredSlug: input.customSlug,
   });
-  if (!slugResult.ok) {
-    return { ok: false, error: slugResult.error, code: slugResult.code };
+
+  if (!allocated.ok) {
+    return {
+      ok: false,
+      error: allocated.message,
+      code: allocated.code,
+      details: { blockers: [allocated.message, allocated.debug ?? ""].filter(Boolean) },
+    };
   }
-  const slug = slugResult.slug;
+
+  const slug = allocated.slug;
 
   const { url, mode } = buildPublicUrl(slug);
   if (!url?.startsWith("http")) {
@@ -202,34 +213,52 @@ export async function startPublish(input: {
   const version = ((prevPub as { version?: number } | null)?.version ?? 0) + 1;
   const buildSnapshotId = `${input.projectId}-v${version}`;
 
-  const { data: upserted, error: upsertErr } = await (input.writer as SupabaseClient)
-    .from("published_apps" as never)
-    .upsert(
-      {
-        project_id: input.projectId,
-        owner_id: input.userId,
-        slug,
-        subdomain: wildcardSubdomainEnabled() ? slug : null,
-        public_url: url,
-        status: "published",
-        version,
-        build_snapshot_id: buildSnapshotId,
-        title: snapshot.title,
-        description: snapshot.description,
-        snapshot_files: safeFiles,
-        published_at: now,
-        updated_at: now,
-      } as never,
-      { onConflict: "slug" },
-    )
-    .select("id")
+  const pubTable = input.writer.from("published_apps" as never);
+  const { data: existingPub } = await pubTable
+    .select("id, slug")
+    .eq("project_id", input.projectId)
     .maybeSingle();
 
-  if (upsertErr) {
-    return { ok: false, error: upsertErr.message, code: "db_error" };
-  }
+  const pubPayload = {
+    project_id: input.projectId,
+    owner_id: input.userId,
+    slug,
+    subdomain: wildcardSubdomainEnabled() ? slug : null,
+    public_url: url,
+    status: "published",
+    version,
+    build_snapshot_id: buildSnapshotId,
+    title: snapshot.title,
+    description: snapshot.description,
+    snapshot_files: safeFiles,
+    published_at: now,
+    updated_at: now,
+  } as never;
 
-  const publishedAppId = (upserted as { id?: string } | null)?.id;
+  const existingRow = existingPub as { id?: string; slug?: string } | null;
+  let publishedAppId: string | undefined;
+  if (existingRow?.id) {
+    const { data: updated, error: upErr } = await pubTable
+      .update(pubPayload)
+      .eq("id", existingRow.id)
+      .select("id")
+      .maybeSingle();
+    if (upErr) {
+      return { ok: false, error: upErr.message, code: "db_error" };
+    }
+    publishedAppId = (updated as { id?: string } | null)?.id;
+  } else {
+    const { data: inserted, error: insErr } = await pubTable.insert(pubPayload).select("id").maybeSingle();
+    if (insErr) {
+      const code = insErr.code === "23505" ? "slug_conflict" : "db_error";
+      return {
+        ok: false,
+        error: insErr.code === "23505" ? "Slug already taken" : insErr.message,
+        code,
+      };
+    }
+    publishedAppId = (inserted as { id?: string } | null)?.id;
+  }
   if (!publishedAppId) {
     return { ok: false, error: "Publish verification failed — no published_apps row", code: "publish_verify_failed" };
   }
@@ -305,15 +334,4 @@ export async function startPublish(input: {
   return { ok: true, publicUrl: url, slug, mode, version };
 }
 
-/** Legacy subdomain URL when wildcard is on */
-export function resolveDisplayPublicUrl(project: {
-  published_subdomain?: string | null;
-  metadata?: unknown;
-}): string | null {
-  const meta = readLifecycleFromMetadata(project.metadata);
-  if (meta.public_url && meta.lifecycle_status === "published") return meta.public_url;
-  const sub = project.published_subdomain?.trim();
-  if (!sub) return null;
-  if (wildcardSubdomainEnabled()) return publicWebUrlForSubdomain(sub);
-  return buildPublicUrl(sub).url;
-}
+export { resolveDisplayPublicUrl } from "@/lib/publish/publish-display-url";

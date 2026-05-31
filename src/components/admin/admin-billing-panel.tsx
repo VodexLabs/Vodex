@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { AlertCircle, CreditCard } from "lucide-react";
+import { AlertCircle, CreditCard, ExternalLink, Loader2 } from "lucide-react";
+import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import type { PaddleAdminConfigStatus } from "@/lib/billing/paddle-config-status";
 
 type SubRow = {
   id: string;
@@ -22,38 +24,28 @@ export function AdminBillingPanel() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [subscriptions, setSubscriptions] = React.useState<SubRow[]>([]);
-  const [stripeMeta, setStripeMeta] = React.useState<{
-    configured: boolean;
-    missingEnv: string[];
-    webhookPath: string;
-  } | null>(null);
+  const [paddle, setPaddle] = React.useState<PaddleAdminConfigStatus | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetch("/api/admin/subscriptions")
-      .then(async (res) => {
-        const json = (await res.json()) as {
-          subscriptions?: SubRow[];
-          stripe?: { configured: boolean; missingEnv: string[]; webhookPath: string };
-          error?: string;
-        };
+    void Promise.all([
+      fetch("/api/admin/subscriptions", { credentials: "include" }).then((r) => r.json()),
+      fetch("/api/admin/billing/paddle", { credentials: "include" }).then((r) => r.json()),
+    ])
+      .then(([subJson, paddleJson]) => {
         if (cancelled) return;
-        if (!res.ok) {
-          setError(json.error ?? "Failed to load");
-          setSubscriptions([]);
-        } else {
-          setSubscriptions(json.subscriptions ?? []);
-          setStripeMeta(json.stripe ?? null);
-          setError(null);
-        }
-        setLoading(false);
+        const subs = subJson as { subscriptions?: SubRow[]; error?: string };
+        if (subs.error) setError(subs.error);
+        setSubscriptions(subs.subscriptions ?? []);
+        setPaddle(paddleJson as PaddleAdminConfigStatus);
+        setError(null);
       })
       .catch(() => {
-        if (!cancelled) {
-          setError("Network error");
-          setLoading(false);
-        }
+        if (!cancelled) setError("Network error");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
     return () => {
       cancelled = true;
@@ -71,21 +63,75 @@ export function AdminBillingPanel() {
   }
 
   return (
-    <div className="space-y-4">
-      {stripeMeta && !stripeMeta.configured && (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-[13px]">
-          <p className="font-medium text-foreground">Stripe setup required</p>
-          <p className="mt-1 text-muted-foreground">Missing env vars (names only):</p>
-          <ul className="mt-2 list-inside list-disc font-mono text-[11px]">
-            {stripeMeta.missingEnv.map((k) => (
-              <li key={k}>{k}</li>
-            ))}
-          </ul>
-          <p className="mt-2 text-[12px] text-muted-foreground">
-            Webhook endpoint: <code className="text-foreground">{stripeMeta.webhookPath}</code>
-          </p>
+    <div className="space-y-6">
+      <section className="rounded-xl border border-border bg-surface/40 p-4">
+        <h3 className="text-[14px] font-semibold text-foreground">DreamOS86 platform billing (Paddle)</h3>
+        <p className="mt-1 text-[12px] text-muted-foreground">
+          Subscriptions for the DreamOS86 product. Generated-app payment connectors (Stripe, etc.) are separate.
+        </p>
+        {paddle ? (
+          <dl className="mt-4 grid gap-2 text-[12px] sm:grid-cols-2">
+            <div>
+              <dt className="text-muted-foreground">Environment</dt>
+              <dd className="font-medium capitalize">{paddle.environment}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Checkout ready</dt>
+              <dd className="font-medium">{paddle.checkoutReady ? "Yes" : "No"}</dd>
+            </div>
+            <div className="sm:col-span-2">
+              <dt className="text-muted-foreground">Webhook URL</dt>
+              <dd className="font-mono text-[11px] break-all">{paddle.webhookUrl}</dd>
+            </div>
+            {paddle.missingEnv.length > 0 ? (
+              <div className="sm:col-span-2 rounded-lg bg-amber-500/10 px-3 py-2 text-amber-900 dark:text-amber-100">
+                <p className="font-medium">Missing Paddle env</p>
+                <p className="mt-1 font-mono text-[11px]">{paddle.missingEnv.join(", ")}</p>
+              </div>
+            ) : null}
+            {paddle.recentEvents?.length ? (
+              <div className="sm:col-span-2">
+                <dt className="mb-1 text-muted-foreground">Recent webhook events</dt>
+                <ul className="max-h-32 space-y-1 overflow-y-auto font-mono text-[10px] text-muted-foreground">
+                  {paddle.recentEvents.slice(0, 8).map((e) => (
+                    <li key={e.id}>
+                      {e.eventType} · {e.processingStatus ?? "—"} ·{" "}
+                      {new Date(e.createdAt).toLocaleString()}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="sm:col-span-2 text-[12px] text-muted-foreground">
+                No Paddle webhooks recorded yet.
+              </div>
+            )}
+          </dl>
+        ) : null}
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Link
+            href="/admin/billing/paddle"
+            className="inline-flex items-center gap-1 rounded-lg bg-accent px-3 py-1.5 text-[12px] font-medium text-white"
+          >
+            Paddle readiness
+            <ExternalLink className="size-3" />
+          </Link>
+          <Link
+            href="/admin/billing/paddle/test-checkout"
+            className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-[12px] font-medium ring-1 ring-border"
+          >
+            Owner test checkout
+          </Link>
         </div>
-      )}
+      </section>
+
+      <section className="rounded-xl border border-dashed border-border/80 bg-muted/20 p-4">
+        <p className="text-[12px] text-muted-foreground">
+          <strong className="text-foreground">Generated-app payment connectors</strong> (Stripe, Lemon Squeezy,
+          etc.) are configured per published app by the app owner — not here. See Integrations in each app
+          dashboard.
+        </p>
+      </section>
 
       {error && (
         <div className="flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">
@@ -104,14 +150,14 @@ export function AdminBillingPanel() {
               <th className="px-4 py-2.5">Period end</th>
               <th className="px-4 py-2.5">Cancel?</th>
               <th className="px-4 py-2.5">Pending downgrade</th>
-              <th className="px-4 py-2.5">Stripe sub</th>
+              <th className="px-4 py-2.5">Billing ref</th>
             </tr>
           </thead>
           <tbody>
             {subscriptions.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
-                  No subscription rows yet. Paid users appear here after Stripe webhooks run.
+                  No subscription rows yet. Rows appear after Paddle checkout webhooks apply entitlements.
                 </td>
               </tr>
             ) : (
@@ -148,7 +194,7 @@ export function AdminBillingPanel() {
 
       <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
         <CreditCard className="size-3.5" />
-        Stripe IDs are truncated. Full IDs exist only in Stripe Dashboard and secure server logs.
+        DreamOS86 platform billing is Paddle-only. Legacy column labels may still say Stripe from older schema.
       </p>
     </div>
   );

@@ -56,14 +56,29 @@ export function usePaddleCheckout() {
           source: options?.source ?? "pricing",
         }),
       });
-      const json = (await res.json()) as { url?: string; error?: string; code?: string };
+      const json = (await res.json()) as {
+        url?: string;
+        error?: string;
+        code?: string;
+        planChange?: { action?: string; description?: string };
+        failureReasons?: string[];
+        missingEnv?: string[];
+      };
       if (!res.ok) {
         if (json.code === "public_checkout_disabled") {
           toast.error(
             json.error ?? "Billing is being activated. Owner test checkout is available for admins.",
           );
         } else {
-          throw new Error(json.error ?? "Checkout could not start");
+          const detail = [
+            json.error ?? "Checkout could not start",
+            json.planChange?.description,
+            ...(json.failureReasons ?? []),
+            json.missingEnv?.length ? `Missing: ${json.missingEnv.join(", ")}` : null,
+          ]
+            .filter(Boolean)
+            .join("\n");
+          throw new Error(detail);
         }
         return;
       }

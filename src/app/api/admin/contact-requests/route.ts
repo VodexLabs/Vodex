@@ -4,7 +4,8 @@ import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { requireDreamosOwner } from "@/lib/admin/require-owner";
 import { logAdminAudit } from "@/lib/admin/audit-log";
 import { retryContactRequestEmail } from "@/lib/contact/save-contact-request";
-import { isEmailConfigured, RESEND_DNS_SENDING_GUIDANCE } from "@/lib/email/email-config";
+import { RESEND_DNS_SENDING_GUIDANCE } from "@/lib/email/email-config";
+import { getResendDiagnostics } from "@/lib/email/resend-diagnostics";
 
 const patchSchema = z.object({
   id: z.string().uuid(),
@@ -50,11 +51,14 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: error.message, requests: [] }, { status: 200 });
   }
 
+  const resend = getResendDiagnostics();
+
   return NextResponse.json({
     requests: data ?? [],
     limit,
     offset,
-    emailConfigured: isEmailConfigured(),
+    emailConfigured: resend.configured,
+    resendDiagnostics: resend,
     dnsGuidance: RESEND_DNS_SENDING_GUIDANCE,
   });
 }

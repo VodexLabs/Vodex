@@ -1,4 +1,5 @@
 import { dreamosLog } from "@/lib/diagnostics/dreamos-logger";
+import { sanitizeDiagnosticMetadata } from "@/lib/diagnostics/truncate-large-diagnostic-string";
 
 /** Owner-only in-app runtime event log (sessionStorage, max 50). */
 
@@ -102,6 +103,7 @@ export function pushRuntimeDiagnostic(
   event: RuntimeDiagnosticEvent,
   detail?: Record<string, unknown>,
 ): void {
+  const safeDetail = detail ? sanitizeDiagnosticMetadata(detail) : undefined;
   dreamosLog({
     source: "client",
     category: EVENT_CATEGORY[event] ?? "general",
@@ -111,10 +113,11 @@ export function pushRuntimeDiagnostic(
         : "info",
     action: event,
     message: event.replace(/_/g, " "),
-    metadata: detail,
-    projectId: typeof detail?.projectId === "string" ? detail.projectId : null,
-    conversationId: typeof detail?.conversationId === "string" ? detail.conversationId : null,
-    buildId: typeof detail?.buildJobId === "string" ? detail.buildJobId : null,
+    metadata: safeDetail,
+    projectId: typeof safeDetail?.projectId === "string" ? safeDetail.projectId : null,
+    conversationId:
+      typeof safeDetail?.conversationId === "string" ? safeDetail.conversationId : null,
+    buildId: typeof safeDetail?.buildJobId === "string" ? safeDetail.buildJobId : null,
   });
 
   if (typeof sessionStorage === "undefined") return;
@@ -122,7 +125,7 @@ export function pushRuntimeDiagnostic(
     const raw = sessionStorage.getItem(STORAGE_KEY);
     const prev: RuntimeDiagnosticEntry[] = raw ? (JSON.parse(raw) as RuntimeDiagnosticEntry[]) : [];
     const next: RuntimeDiagnosticEntry[] = [
-      { event, at: new Date().toISOString(), detail },
+      { event, at: new Date().toISOString(), detail: safeDetail },
       ...prev,
     ].slice(0, MAX);
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next));

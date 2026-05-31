@@ -63,6 +63,7 @@ export function BillingSettings() {
 
   const searchParams = useSearchParams();
   const paddleReturn = searchParams.get("paddle");
+  const cancelIntent = searchParams.get("cancel") === "1";
   const [activationMessage, setActivationMessage] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -185,7 +186,7 @@ export function BillingSettings() {
                   build={build}
                   action={action}
                   planId={creditsPlanId}
-                  loading={creditsLoading || !isConfirmed}
+                  loading={!isConfirmed && creditsLoading}
                   error={creditsError}
                   variant="compact"
                   showUpgrade={false}
@@ -202,6 +203,7 @@ export function BillingSettings() {
                 paddleReady={paddleReady}
                 subscription={billing?.subscription ?? null}
                 monthlyActionCredits={monthlyAction}
+                openCancelOnMount={cancelIntent}
                 onRefresh={() => {
                   void loadBilling();
                   void refreshCredits({ force: true, reason: "plan-change" });

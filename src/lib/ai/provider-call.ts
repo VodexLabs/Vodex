@@ -4,6 +4,7 @@ import { resolveGoogleLanguageModel } from "@/lib/llm/google-provider";
 import { openai } from "@ai-sdk/openai";
 import { googleGenerativeApiKey } from "@/lib/llm/env-keys";
 import { checkOperationBudget } from "@/lib/ai/cost-budget";
+import { minOutputTokensForOperation } from "@/lib/ai/output-token-floors";
 import {
   classifyProviderError,
   pickFailoverCatalogModel,
@@ -17,6 +18,7 @@ import {
 } from "@/lib/ai/provider-availability";
 import { routeOperation, downRouteOperation, type RouteOperationContext } from "@/lib/ai/model-router";
 import { routeMainModelSpec } from "@/lib/ai/model-mix-router";
+import { isAutomaticModelId } from "@/lib/ai/resolve-automatic-model";
 import { logInternalModelDecision } from "@/lib/ai/model-decision-log";
 import { resolveModelRuntime } from "@/lib/ai/model-catalog";
 import { estimateCostBucket } from "@/lib/ai/model-orchestration-policy";
@@ -105,6 +107,9 @@ export async function callProviderStructured(input: ProviderCallInput): Promise<
   });
   let spec = routedSpec;
 
+  const userSelectedLocked =
+    Boolean(input.userSelectedModelId) && !isAutomaticModelId(input.userSelectedModelId);
+
   let budget = checkOperationBudget({
     operationType: input.operationType,
     modelId: spec.modelId,
@@ -114,9 +119,9 @@ export async function callProviderStructured(input: ProviderCallInput): Promise<
     accumulatedCostUsd: input.accumulatedCostUsd,
   });
 
-  if (!budget.allowed) {
+  if (!budget.allowed && !userSelectedLocked) {
     const down = downRouteOperation(spec, input.complexity);
-    if (down) {
+    if (down && down.modelId !== spec.modelId) {
       spec = down;
       budget = checkOperationBudget({
         operationType: input.operationType,
@@ -127,15 +132,19 @@ export async function callProviderStructured(input: ProviderCallInput): Promise<
         accumulatedCostUsd: input.accumulatedCostUsd,
       });
     }
-    if (!budget.allowed && budget.cappedOutputTokens >= 200) {
-      budget = { ...budget, allowed: true };
-    }
-    if (!budget.allowed) {
-      throw new Error(`Budget exceeded for ${input.operationType}: ${budget.reason}`);
-    }
+  }
+  const qualityFloor = minOutputTokensForOperation(
+    input.operationType,
+    input.complexity ?? 5,
+  );
+  if (!budget.allowed && (userSelectedLocked || budget.cappedOutputTokens >= qualityFloor)) {
+    budget = { ...budget, allowed: true };
+  }
+  if (!budget.allowed) {
+    throw new Error(`Budget exceeded for ${input.operationType}: ${budget.reason}`);
   }
 
-  const maxTokens = budget.cappedOutputTokens;
+  const maxTokens = Math.max(budget.cappedOutputTokens, qualityFloor);
   const callStarted = performance.now();
   const timeoutMs = input.timeoutMs ?? timeoutForOperationType(input.operationType);
   const abortController = timeoutMs ? new AbortController() : null;
@@ -147,12 +156,14 @@ export async function callProviderStructured(input: ProviderCallInput): Promise<
   console.info("[provider_request_started]", {
     operation_id: input.operationId,
     operation_type: input.operationType,
-    model: spec.modelId,
+    selected_model_id: input.userSelectedModelId ?? "automatic",
+    primary_implementation_model: spec.modelId,
     helper_model: mix.helperModelId,
+    resolved_because: spec.routeReason,
+    model_mix_policy: mix.policyNote,
     api_model: spec.apiModelId,
     max_output_tokens: maxTokens,
     estimated_cost_usd: budget.estimatedCostUsd,
-    model_mix_policy: mix.policyNote,
     timeout_ms: timeoutMs ?? null,
     abort_controller: Boolean(abortController),
   });

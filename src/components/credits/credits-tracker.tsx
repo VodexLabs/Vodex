@@ -402,7 +402,7 @@ export function CreditsTracker({
   const isCompact = variant === "compact";
   const isFull = variant === "full";
 
-  if (loading || !isConfirmed) {
+  if (!isConfirmed) {
     return (
       <div className={cn(className)} data-testid="credits-loading">
         {isPopover || isCompact ? (

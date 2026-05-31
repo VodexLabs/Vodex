@@ -1,6 +1,20 @@
+import { MAX_CLIENT_CACHE_JSON_BYTES } from "@/lib/diagnostics/payload-limits";
+
 type CacheEntry<T> = { data: T; at: number };
 
 const cache = new Map<string, CacheEntry<unknown>>();
+
+function estimateJsonBytes(data: unknown): number {
+  try {
+    const s = JSON.stringify(data);
+    if (typeof TextEncoder !== "undefined") {
+      return new TextEncoder().encode(s).length;
+    }
+    return s.length * 2;
+  } catch {
+    return MAX_CLIENT_CACHE_JSON_BYTES + 1;
+  }
+}
 const inflight = new Map<string, Promise<unknown>>();
 
 export function getCached<T>(key: string, maxAgeMs: number): T | null {
@@ -11,6 +25,7 @@ export function getCached<T>(key: string, maxAgeMs: number): T | null {
 }
 
 export function setCached<T>(key: string, data: T) {
+  if (estimateJsonBytes(data) > MAX_CLIENT_CACHE_JSON_BYTES) return;
   cache.set(key, { data, at: Date.now() });
 }
 

@@ -53,7 +53,7 @@ export type BuildRunSummaryResolved = {
 };
 
 const REPAIR_DETAIL_RE =
-  /repair pass|needs repair|another repair|before preview|quality repair|ui quality|premium ui|weak_output|contract quality/i;
+  /repair pass|needs repair|another repair|before preview|quality repair|ui quality|premium ui|weak_output|contract quality|missing_blueprint_routes|ui_quality_/i;
 
 function eventFileCount(events: BuildJobEventRow[]): number {
   let max = 0;
@@ -111,9 +111,9 @@ export function deriveBuildStatusFacts(input: {
     fileCount = Math.max(fromProject, metaFileCount);
   }
   if (failureKindMeta === "failed_before_generation") {
-    fileCount = fromProject;
+    fileCount = Math.max(fromProject, metaFileCount, terminalMetaCount ?? 0);
   }
-  const hasFiles = fileCount > 0;
+  const hasFiles = fileCount >= MIN_RENDERABLE_FILES || fileCount > 0;
   const partialBuild =
     terminal?.latest?.type === "partial_credit_stop" ||
     events.some((e) => e.type === "partial_credit_stop");
@@ -135,8 +135,10 @@ export function deriveBuildStatusFacts(input: {
   const hasRepairAttempt = repairAttemptCount > 0;
 
   const generationStarted = events.some((e) =>
-    ["writing_file", "editing_file", "saving_files", "generating_app_identity"].includes(e.type),
-  );
+    ["writing_file", "editing_file", "saving_files", "generating_app_identity", "validating"].includes(
+      e.type,
+    ),
+  ) || events.some((e) => typeof e.metadata?.output_tokens === "number" && e.metadata.output_tokens > 0);
 
   let resolvedFailureKind = failureKind;
   if (failed && !partialBuild) {
@@ -168,7 +170,9 @@ export function deriveBuildStatusFacts(input: {
     terminalStatus: partialBuild ? "partial" : failed ? "failed" : completed ? "completed" : null,
     buildStarted: events.length > 0,
     generationStarted,
-    generationCompleted: events.some((e) => e.type === "saving_files" || e.type === "completed"),
+    generationCompleted:
+      events.some((e) => e.type === "saving_files" || e.type === "completed") ||
+      events.filter((e) => e.type === "writing_file" || e.type === "editing_file").length >= 3,
     contractChecked: events.some((e) => e.type === "checking_file" || e.type === "validating_preview"),
     previewAttempted: events.some((e) =>
       ["preparing_preview", "validating_preview", "completed"].includes(e.type),
@@ -181,7 +185,14 @@ export function resolveWorkflowRunStatus(facts: BuildStatusFacts): WorkflowRunSt
   if (facts.partialBuild) return "partial_credit_stop";
   if (facts.terminalStatus === "completed") return "completed";
   if (facts.hasFiles && facts.failureKind === "failed_before_generation") {
-    return facts.hasRepairAttempt ? "repair_needed" : "failed_after_generation";
+    return facts.generationStarted || facts.generationCompleted
+      ? "repair_needed"
+      : facts.hasRepairAttempt
+        ? "repair_needed"
+        : "failed_after_generation";
+  }
+  if (facts.failureKind === "failed_before_generation" && (facts.generationStarted || facts.generationCompleted)) {
+    return facts.hasFiles ? "repair_needed" : "failed_before_generation";
   }
   if (facts.failureKind === "failed_before_generation") return "failed_before_generation";
   if (facts.failureKind === "repair_failed") return "repair_failed";
@@ -199,6 +210,7 @@ export function resolveBuildRunSummary(input: {
   filesCount?: number;
   pages?: string[];
   previewReady?: boolean;
+  sourceIntegrityOk?: boolean;
   creditsUsed?: number;
   errorDetail?: string;
 }): BuildRunSummaryResolved {
@@ -249,11 +261,11 @@ export function resolveBuildRunSummary(input: {
       ],
     },
     failed_after_generation: {
-      headline: "Build needs attention",
+      headline: input.previewReady === false ? "Preview needs a technical fix" : "Build needs attention",
       bodyLines: [
         input.errorDetail && !REPAIR_DETAIL_RE.test(input.errorDetail)
           ? input.errorDetail
-          : "The files were saved, but preview could not render because of a technical issue.",
+          : "The files were saved, but preview could not render yet.",
         input.facts.creditsRefunded ? "Credits were returned for this attempt." : "",
       ].filter(Boolean),
     },
@@ -262,7 +274,9 @@ export function resolveBuildRunSummary(input: {
       bodyLines: [
         input.errorDetail && !REPAIR_DETAIL_RE.test(input.errorDetail)
           ? input.errorDetail
-          : "The files were saved, but preview could not render because of a technical issue.",
+          : /todo|stub|incomplete/i.test(input.errorDetail ?? "")
+            ? "Some source files were incomplete. Run repair to finish them."
+            : "The files were saved, but preview could not render yet.",
       ],
     },
     repair_failed: {
@@ -295,16 +309,27 @@ export function resolveBuildRunSummary(input: {
     status = firstPass && savedFilesOk ? "completed" : "failed_after_generation";
   }
 
-  if (savedFilesOk && (status === "failed_after_generation" || status === "repair_needed")) {
+  const integrityOk = input.sourceIntegrityOk !== false;
+  const canShowSuccess = integrityOk && input.previewReady === true;
+
+  if (
+    savedFilesOk &&
+    canShowSuccess &&
+    (status === "failed_after_generation" || status === "repair_needed")
+  ) {
     const cosmeticOnly =
       !input.errorDetail || REPAIR_DETAIL_RE.test(input.errorDetail);
-    if (cosmeticOnly || input.previewReady !== false) {
+    if (cosmeticOnly) {
       status = "completed";
     }
   }
 
-  if (savedFilesOk && status === "failed_before_generation") {
+  if (savedFilesOk && canShowSuccess && status === "failed_before_generation") {
     status = "completed";
+  }
+
+  if (status === "completed" && !canShowSuccess) {
+    status = savedFilesOk ? "failed_after_generation" : "failed_before_generation";
   }
 
   const block = copy[status];
@@ -318,6 +343,17 @@ export function resolveBuildRunSummary(input: {
     showRepairActions = false;
     showRefundLine = false;
     showPreviewActions = true;
+  }
+  if (savedFilesOk && filesCount >= MIN_RENDERABLE_FILES) {
+    showRefundLine = false;
+  }
+  if (input.facts.generationCompleted || input.facts.generationStarted) {
+    if (status === "failed_before_generation") {
+      status = savedFilesOk ? "repair_needed" : status;
+    }
+  }
+  if (!input.facts.creditsRefunded) {
+    showRefundLine = false;
   }
   const variant: BuildRunSummaryResolved["variant"] =
     status === "completed" || status === "preview_ready"

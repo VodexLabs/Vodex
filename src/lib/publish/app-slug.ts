@@ -1,6 +1,6 @@
 import { RESERVED_PUBLISH_SLUGS } from "@/lib/publish/publish-config";
 
-export function slugifyAppName(name: string): string {
+export function slugifyAppName(name: string, projectId?: string): string {
   let s = name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
@@ -8,7 +8,9 @@ export function slugifyAppName(name: string): string {
     .replace(/^-|-$/g, "")
     .slice(0, 48);
   if (!s || s.length < 2) s = "app";
-  if (RESERVED_PUBLISH_SLUGS.has(s)) s = `${s}-app`;
+  if (RESERVED_PUBLISH_SLUGS.has(s)) {
+    s = projectId ? `app-${projectId.replace(/-/g, "").slice(0, 8)}` : `${s}-app`;
+  }
   return s;
 }
 

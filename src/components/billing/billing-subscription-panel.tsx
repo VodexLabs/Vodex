@@ -46,6 +46,8 @@ type Props = {
   subscription: BillingSubscription | null;
   monthlyActionCredits: number;
   onRefresh: () => void;
+  /** Open cancel modal when arriving from pricing (cancel subscription). */
+  openCancelOnMount?: boolean;
 };
 
 function storageInterval(sub?: BillingSubscription | null): CatalogBillingInterval | null {
@@ -59,6 +61,7 @@ export function BillingSubscriptionPanel({
   subscription,
   monthlyActionCredits,
   onRefresh,
+  openCancelOnMount = false,
 }: Props) {
   const [upgradePlan, setUpgradePlan] = React.useState<BillablePlanId | null>(null);
   const [upgradeInterval, setUpgradeInterval] = React.useState<"monthly" | "yearly">("monthly");
@@ -74,6 +77,10 @@ export function BillingSubscriptionPanel({
   const atHighest = isHighestPaidPlan(planId);
   const recommended = recommendedUpgradeTarget(planId);
   const isPaid = planId !== "free";
+
+  React.useEffect(() => {
+    if (openCancelOnMount && isPaid) setModalDowngrade("free");
+  }, [openCancelOnMount, isPaid]);
 
   const renewalDate = subscription?.currentPeriodEnd
     ? new Date(subscription.currentPeriodEnd).toLocaleDateString(undefined, {
@@ -103,14 +110,19 @@ export function BillingSubscriptionPanel({
     }
   }
 
-  async function confirmDowngrade(plan: BillablePlanId | "free") {
+  async function confirmDowngrade(plan: BillablePlanId | "free", cancelReason?: string) {
     setActing(true);
     if (plan === "free") {
+      if (!cancelReason || cancelReason.trim().length < 10) {
+        toast.error("Please share why you are leaving (at least 10 characters).");
+        setActing(false);
+        return;
+      }
       const cancelRes = await fetch("/api/billing/paddle/cancel", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ confirmed: true }),
+        body: JSON.stringify({ confirmed: true, reason: cancelReason.trim() }),
       });
       const cancelJson = (await cancelRes.json()) as { message?: string; error?: string; portalUrl?: string };
       if (cancelRes.status === 409 && cancelJson.portalUrl) {
@@ -370,8 +382,8 @@ export function BillingSubscriptionPanel({
         currentPlanId={planId}
         renewalDate={renewalDate}
         acting={acting}
-        onConfirm={async () => {
-          if (modalDowngrade) await confirmDowngrade(modalDowngrade);
+        onConfirm={async (reason) => {
+          if (modalDowngrade) await confirmDowngrade(modalDowngrade, reason);
         }}
       />
 
