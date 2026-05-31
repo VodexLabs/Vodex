@@ -52,7 +52,43 @@ type PlanFilter = "all" | AdminUserListRow["plan_id"];
 
 type StatusFilter = "all" | "active" | "suspended";
 
+function adminCreditCap(
+  user: AdminUserListRow,
+  kind: "build" | "action",
+): number {
+  if (kind === "build") {
+    return user.build_credits_cap ?? user.monthly_token_limit + Math.max(user.bonus_credits, 0);
+  }
+  return (
+    user.action_credits_cap ??
+    user.action_credits_plan_allowance + Math.max(user.action_credits_bonus, 0)
+  );
+}
 
+function AdminCreditUsageCell({
+  remaining,
+  planAllowance,
+  bonus,
+  cap,
+}: {
+  remaining: number;
+  planAllowance: number;
+  bonus: number;
+  cap: number;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span>
+        {remaining.toLocaleString()}/{cap.toLocaleString()}
+      </span>
+      {bonus > 0 ? (
+        <span className="text-[10px] font-medium text-violet-500">
+          {planAllowance.toLocaleString()} plan + {bonus.toLocaleString()} bonus
+        </span>
+      ) : null}
+    </div>
+  );
+}
 
 type PendingActionBody = Record<string, unknown> & {
 
@@ -493,11 +529,13 @@ function UserDetailDrawer({
 
               <p className="text-muted-foreground">Build Credits</p>
 
-              <p className="font-semibold tabular-nums">{user.tokens_remaining.toLocaleString()} available</p>
+              <p className="font-semibold tabular-nums">
+                {user.tokens_remaining.toLocaleString()} / {adminCreditCap(user, "build").toLocaleString()}
+              </p>
 
               <p className="mt-1 text-[10px] text-muted-foreground">
-                Plan allowance: {user.monthly_token_limit.toLocaleString()}
-                {user.bonus_credits > 0 ? ` · Bonus +${user.bonus_credits.toLocaleString()}` : ""}
+                {user.monthly_token_limit.toLocaleString()} plan
+                {user.bonus_credits > 0 ? ` + ${user.bonus_credits.toLocaleString()} bonus` : ""}
                 {user.is_test_or_grant_account ? " · test/grant account" : ""}
               </p>
 
@@ -511,11 +549,16 @@ function UserDetailDrawer({
 
               <p className="text-muted-foreground">Action Credits</p>
 
-              <p className="font-semibold tabular-nums">{user.action_credits_remaining.toLocaleString()} available</p>
+              <p className="font-semibold tabular-nums">
+                {user.action_credits_remaining.toLocaleString()} /{" "}
+                {adminCreditCap(user, "action").toLocaleString()}
+              </p>
 
               <p className="mt-1 text-[10px] text-muted-foreground">
-                Plan allowance: {user.action_credits_plan_allowance.toLocaleString()}/mo
-                {user.action_credits_bonus > 0 ? ` · Bonus +${user.action_credits_bonus.toLocaleString()}` : ""}
+                {user.action_credits_plan_allowance.toLocaleString()} plan/mo
+                {user.action_credits_bonus > 0
+                  ? ` + ${user.action_credits_bonus.toLocaleString()} bonus`
+                  : ""}
               </p>
 
             </div>
@@ -919,7 +962,7 @@ export function AdminUsersPanel() {
 
 
 
-  const loadUsers = React.useCallback(async () => {
+  const loadUsers = React.useCallback(async (signal?: AbortSignal) => {
 
     setLoading(true);
 
@@ -935,37 +978,65 @@ export function AdminUsersPanel() {
 
     const qs = params.toString() ? `?${params}` : "";
 
-    const res = await fetch(`/api/admin/users${qs}`);
+    try {
 
-    const json = (await res.json()) as {
+      const res = await fetch(`/api/admin/users${qs}`, {
 
-      users?: AdminUserListRow[];
+        credentials: "include",
 
-      error?: string;
+        signal,
 
-      warning?: string;
+      });
 
-      hint?: string;
+      const json = (await res.json()) as {
 
-    };
+        users?: AdminUserListRow[];
 
-    if (!res.ok) {
+        error?: string;
 
-      const msg = [json.error, json.hint].filter(Boolean).join(" — ");
+        warning?: string;
 
-      setError(msg || `Failed (${res.status})`);
+        hint?: string;
+
+      };
+
+      if (signal?.aborted) return;
+
+      if (!res.ok) {
+
+        const msg = [json.error, json.hint].filter(Boolean).join(" — ");
+
+        setError(msg || `Failed (${res.status})`);
+
+        setUsers([]);
+
+      } else {
+
+        setUsers(json.users ?? []);
+
+        setError(json.warning ?? null);
+
+      }
+
+    } catch (e) {
+
+      if (signal?.aborted) return;
+
+      const msg = e instanceof Error ? e.message : "Failed to load users";
+
+      setError(msg);
 
       setUsers([]);
 
-    } else {
+    } finally {
 
-      setUsers(json.users ?? []);
+      if (!signal?.aborted) {
 
-      setError(json.warning ?? null);
+        setLoading(false);
+
+      }
 
     }
-
-    setLoading(false);
 
   }, [debouncedSearch, planFilter, statusFilter]);
 
@@ -973,7 +1044,11 @@ export function AdminUsersPanel() {
 
   React.useEffect(() => {
 
-    void loadUsers();
+    const ac = new AbortController();
+
+    void loadUsers(ac.signal);
+
+    return () => ac.abort();
 
   }, [loadUsers]);
 
@@ -1162,27 +1237,21 @@ export function AdminUsersPanel() {
                   </td>
 
                   <td className="px-4 py-3 tabular-nums">
-                    <span>
-                      {u.tokens_remaining.toLocaleString()}/
-                      {(u.monthly_token_limit + Math.max(u.bonus_credits, 0)).toLocaleString()}
-                    </span>
-                    {u.bonus_credits > 0 ? (
-                      <span className="ml-1 text-[10px] font-medium text-violet-500">
-                        +{u.bonus_credits.toLocaleString()}
-                      </span>
-                    ) : null}
+                    <AdminCreditUsageCell
+                      remaining={u.tokens_remaining}
+                      planAllowance={u.monthly_token_limit}
+                      bonus={u.bonus_credits}
+                      cap={adminCreditCap(u, "build")}
+                    />
                   </td>
 
                   <td className="px-4 py-3 tabular-nums">
-                    <span>
-                      {u.action_credits_remaining.toLocaleString()}/
-                      {(u.action_credits_plan_allowance + Math.max(u.action_credits_bonus, 0)).toLocaleString()}
-                    </span>
-                    {u.action_credits_bonus > 0 ? (
-                      <span className="ml-1 text-[10px] font-medium text-violet-500">
-                        +{u.action_credits_bonus.toLocaleString()}
-                      </span>
-                    ) : null}
+                    <AdminCreditUsageCell
+                      remaining={u.action_credits_remaining}
+                      planAllowance={u.action_credits_plan_allowance}
+                      bonus={u.action_credits_bonus}
+                      cap={adminCreditCap(u, "action")}
+                    />
                   </td>
 
                   <td className="px-4 py-3 text-muted-foreground">

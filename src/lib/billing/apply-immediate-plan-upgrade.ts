@@ -55,7 +55,16 @@ export async function applyImmediatePlanUpgrade(
 
   const buildAllowance = monthlyTokensForPlan(newPlan);
   const actionAllowance = monthlyActionCreditsForPlan(newPlan);
-  const explicitBuildBonus = await sumExplicitBuildGrants(admin, input.userId);
+  const { data: profileRow } = await admin
+    .from("profiles")
+    .select("credits_reset_at")
+    .eq("id", input.userId)
+    .maybeSingle();
+  const explicitBuildBonus = await sumExplicitBuildGrants(
+    admin,
+    input.userId,
+    profileRow?.credits_reset_at ?? null,
+  );
   const buildCredits = buildAllowance + explicitBuildBonus;
   const actionCredits = actionAllowance;
 

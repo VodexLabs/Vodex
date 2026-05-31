@@ -13,6 +13,25 @@ type PaddleStatusResponse = {
   envErrors?: string[];
 };
 
+export type PaddleBillingActionResponse = {
+  url?: string;
+  transactionId?: string;
+  mode?: string;
+  error?: string;
+  code?: string;
+  message?: string;
+  webhookRequired?: boolean;
+  planChange?: {
+    action?: string;
+    legacyAction?: string;
+    description?: string;
+    apiRoute?: string | null;
+    hasActiveSubscription?: boolean;
+  };
+  failureReasons?: string[];
+  missingEnv?: string[];
+};
+
 export function usePaddleBillingReady() {
   const [configured, setConfigured] = React.useState(false);
   const [publicCheckoutEnabled, setPublicCheckoutEnabled] = React.useState(false);
@@ -42,10 +61,10 @@ export function usePaddleCheckout() {
     plan: PaddleCheckoutPlan,
     annual: boolean,
     options?: { source?: "pricing" | "settings" },
-  ) {
+  ): Promise<PaddleBillingActionResponse | null> {
     setBusy(true);
     try {
-      const res = await fetch("/api/billing/paddle/checkout", {
+      const res = await fetch("/api/billing/paddle/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -56,14 +75,7 @@ export function usePaddleCheckout() {
           source: options?.source ?? "pricing",
         }),
       });
-      const json = (await res.json()) as {
-        url?: string;
-        error?: string;
-        code?: string;
-        planChange?: { action?: string; description?: string };
-        failureReasons?: string[];
-        missingEnv?: string[];
-      };
+      const json = (await res.json()) as PaddleBillingActionResponse;
       if (!res.ok) {
         if (json.code === "public_checkout_disabled") {
           toast.error(
@@ -71,7 +83,7 @@ export function usePaddleCheckout() {
           );
         } else {
           const detail = [
-            json.error ?? "Checkout could not start",
+            json.error ?? "Billing could not start",
             json.planChange?.description,
             ...(json.failureReasons ?? []),
             json.missingEnv?.length ? `Missing: ${json.missingEnv.join(", ")}` : null,
@@ -80,15 +92,31 @@ export function usePaddleCheckout() {
             .join("\n");
           throw new Error(detail);
         }
-        return;
+        return null;
       }
+
+      if (json.mode === "paddle_subscription_update") {
+        toast.success(
+          json.message ??
+            "Subscription updated in Paddle. Plan and credits refresh after webhook confirmation.",
+        );
+        return json;
+      }
+
+      if (json.mode === "scheduled_downgrade") {
+        toast.success(json.message ?? "Downgrade scheduled for end of billing period.");
+        return json;
+      }
+
       if (json.url) {
         window.location.href = json.url;
-        return;
+        return json;
       }
+
       throw new Error("No checkout URL returned");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Checkout failed");
+      return null;
     } finally {
       setBusy(false);
     }

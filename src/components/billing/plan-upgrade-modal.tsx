@@ -60,21 +60,34 @@ export function PlanUpgradeModal({
     setConfirming(true);
     setError(null);
     try {
-      const res = await fetch("/api/billing/paddle/upgrade", {
+      const res = await fetch("/api/billing/paddle/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId: targetPlanId, interval, confirmed: true }),
+        credentials: "include",
+        body: JSON.stringify({
+          plan: targetPlanId,
+          interval: interval === "yearly" ? "annual" : "monthly",
+          confirmed: true,
+          source: "settings",
+        }),
       });
       const json = (await res.json()) as {
         url?: string;
         error?: string;
         mode?: string;
         message?: string;
+        webhookRequired?: boolean;
       };
       if (!res.ok) throw new Error(json.error ?? "Upgrade failed");
 
       if (json.url) {
         window.location.href = json.url;
+        return;
+      }
+
+      if (json.mode === "paddle_subscription_update") {
+        onSuccess?.();
+        onClose();
         return;
       }
 

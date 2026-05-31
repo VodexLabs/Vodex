@@ -8,6 +8,12 @@ import { monthlyActionCreditsForPlan } from "@/lib/action-credits/action-credit-
 import type { PlanId } from "@/lib/supabase/types";
 import { creditCap, normalizeAvailableCredits, repairProfileCreditsIfInflated } from "@/lib/credits/normalize-credit-balance";
 import { isE2eCreditTestAccount } from "@/lib/credits/e2e-credit-account";
+import {
+  capExplicitBonus,
+  creditPeriodStart,
+  explicitBuildGrantAmount,
+  isGrantInCreditPeriod,
+} from "@/lib/credits/explicit-grants";
 
 export type LoadCanonicalCreditsOptions = {
   userId: string;
@@ -50,45 +56,58 @@ export function computeActiveBonus(_available: number, _planAllowance: number, e
   return roundCredit(Math.max(0, explicitBonus));
 }
 
-const EXPLICIT_GRANT_SOURCES = new Set([
-  "admin_grant",
-  "referral",
-  "grant",
-  "purchase",
-  "top_up",
-]);
-
 export async function sumExplicitBuildGrants(
   admin: ReturnType<typeof createSupabaseAdmin>,
   userId: string,
+  creditsResetAt?: string | null,
 ): Promise<number> {
+  const periodStart = creditPeriodStart(creditsResetAt);
   const { data } = await admin
     .from("token_ledger" as never)
-    .select("amount, source, metadata")
+    .select("amount, source, metadata, created_at")
     .eq("user_id" as never, userId)
     .neq("amount" as never, 0);
 
   if (!data?.length) return 0;
 
-  return (data as Array<{ amount?: number; source?: string; metadata?: unknown }>).reduce(
-    (sum, row) => {
-      const source = String(row.source ?? "");
-      const amount = Math.abs(Number(row.amount) || 0);
-      if (amount <= 0) return sum;
-      if (EXPLICIT_GRANT_SOURCES.has(source)) return sum + amount;
-      if (source === "adjustment") {
-        const meta =
-          row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
-            ? (row.metadata as Record<string, unknown>)
-            : {};
-        if (meta.via === "grant_credits_admin" || meta.via === "grant_credits") {
-          return sum + amount;
-        }
-      }
-      return sum;
-    },
-    0,
-  );
+  const total = (
+    data as Array<{ amount?: number; source?: string; metadata?: unknown; created_at?: string }>
+  ).reduce((sum, row) => {
+    if (!isGrantInCreditPeriod(row.created_at, periodStart)) return sum;
+    return sum + explicitBuildGrantAmount(row);
+  }, 0);
+
+  return capExplicitBonus(total);
+}
+
+const ACTION_GRANT_TYPES = new Set(["admin_grant", "referral", "grant", "purchase", "top_up"]);
+
+export async function sumExplicitActionGrants(
+  admin: ReturnType<typeof createSupabaseAdmin>,
+  userId: string,
+  creditsResetAt?: string | null,
+): Promise<number> {
+  const periodStart = creditPeriodStart(creditsResetAt);
+  const { data } = await admin
+    .from("action_credit_events" as never)
+    .select("action_credits_charged, action_type, created_at")
+    .eq("owner_user_id" as never, userId)
+    .is("project_id" as never, null);
+
+  if (!data?.length) return 0;
+
+  const total = (
+    data as Array<{ action_credits_charged?: number; action_type?: string; created_at?: string }>
+  ).reduce((sum, row) => {
+    if (!isGrantInCreditPeriod(row.created_at, periodStart)) return sum;
+    const type = String(row.action_type ?? "");
+    if (!ACTION_GRANT_TYPES.has(type)) return sum;
+    const charged = Number(row.action_credits_charged) || 0;
+    if (charged >= 0) return sum;
+    return sum + Math.abs(charged);
+  }, 0);
+
+  return capExplicitBonus(total);
 }
 
 export function computeUsedThisPeriod(input: {
@@ -189,7 +208,7 @@ export async function loadCanonicalCredits(
   let buildLedgerUsed = 0;
   let buildReserved = 0;
   let actionLedgerUsed = 0;
-  const explicitBuildBonus = await sumExplicitBuildGrants(admin, input.userId);
+  const explicitBuildBonus = await sumExplicitBuildGrants(admin, input.userId, resetDate);
 
   const buildCap = creditCap(buildPlanAllowance, explicitBuildBonus);
   const rawBuildAvailable = buildAvailable ?? buildPlanAllowance;
@@ -197,9 +216,7 @@ export async function loadCanonicalCredits(
   const shouldLoadLedger = !skipLedger || buildLooksInflated;
 
   if (shouldLoadLedger) {
-    const periodStart = resetDate
-      ? new Date(resetDate)
-      : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const periodStart = creditPeriodStart(resetDate);
 
     const [buildUsageRes, buildReservedRes, actionUsageRes] = await Promise.all([
       admin
@@ -267,10 +284,14 @@ export async function loadCanonicalCredits(
       ? input.actionAvailable
       : await readActionBalance(admin, input.userId, actionPlanAllowance);
 
+  const actionGrantBonus = await sumExplicitActionGrants(admin, input.userId, resetDate);
+  const actionImpliedBonus = Math.max(0, actionAvailableRaw - actionPlanAllowance);
+  const explicitActionBonus = capExplicitBonus(Math.max(actionGrantBonus, actionImpliedBonus));
+
   const actionNorm = normalizeAvailableCredits({
     rawAvailable: actionAvailableRaw,
     planAllowance: actionPlanAllowance,
-    explicitBonus: 0,
+    explicitBonus: explicitActionBonus,
     ledgerUsed: actionLedgerUsed,
   });
 
@@ -288,7 +309,7 @@ export async function loadCanonicalCredits(
   const action = buildCanonicalBucket({
     available: actionAvailable,
     planAllowance: actionPlanAllowance,
-    explicitBonus: 0,
+    explicitBonus: explicitActionBonus,
     ledgerUsed: actionLedgerUsed,
     resetDate,
   });

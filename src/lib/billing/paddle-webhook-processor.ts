@@ -13,6 +13,7 @@ import {
 import { storagePlanIdFromCustomData, readPaddleCheckoutCustomData } from "@/lib/billing/paddle-checkout-custom-data";
 import { planFromPaddlePriceId } from "@/lib/billing/plan-billing-catalog";
 import { paddleEnvironment } from "@/lib/billing/paddle-billing";
+import { logPaddleWebhook } from "@/lib/billing/paddle-webhook-log";
 
 const ENTITLEMENT_EVENTS = new Set([
   "transaction.completed",
@@ -76,6 +77,20 @@ export async function processPaddleWebhookPayload(input: {
   const mapped = ids.priceId ? planFromPaddlePriceId(ids.priceId) : null;
   const hasCustomData = parseWebhookCustomData(data) != null;
   const planResolvable = canResolvePlanFromWebhook(data, ids.priceId);
+  const targetPlan =
+    mapped?.plan ?? readPaddleCheckoutCustomData(data).planId ?? null;
+
+  logPaddleWebhook({
+    event_type: eventType,
+    event_id: eventId,
+    user_id: userId,
+    transaction_id: ids.transactionId,
+    price_id: ids.priceId,
+    target_plan: targetPlan,
+    action_type: "webhook_received",
+    environment: environment,
+    processing_status: "received",
+  });
 
   let processingStatus: PaddleWebhookProcessingStatus = "received";
   let error: string | null = null;
@@ -126,6 +141,14 @@ export async function processPaddleWebhookPayload(input: {
       processingStatus,
       error,
     });
+    logPaddleWebhook({
+      event_type: eventType,
+      event_id: eventId,
+      user_id: userId,
+      processing_status: processingStatus,
+      error,
+      duplicate,
+    });
     return { received: true, eventId, eventType, processingStatus, duplicate };
   }
 
@@ -163,6 +186,18 @@ export async function processPaddleWebhookPayload(input: {
       ...storeBase,
       processingStatus,
       error,
+    });
+    logPaddleWebhook({
+      event_type: eventType,
+      event_id: eventId,
+      user_id: userId,
+      transaction_id: ids.transactionId,
+      price_id: ids.priceId,
+      target_plan: targetPlan,
+      processing_status: processingStatus,
+      entitlement_applied: processingStatus === "processed",
+      error,
+      duplicate,
     });
     return { received: true, eventId, eventType, processingStatus, duplicate };
   }

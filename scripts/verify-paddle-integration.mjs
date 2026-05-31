@@ -48,6 +48,11 @@ const paddleEntitlementAudit = read("src/lib/billing/paddle-entitlement-audit.ts
 const applyUpgrade = read("src/lib/billing/apply-immediate-plan-upgrade.ts");
 const paddleLocalTesting = read("src/lib/billing/paddle-local-testing.ts");
 const planChangeRouter = read("src/lib/billing/plan-change-router.ts");
+const unifiedBillingAction = read("src/lib/billing/unified-billing-action.ts");
+const executeBillingAction = read("src/lib/billing/execute-paddle-billing-action.ts");
+const paddleActionRoute = read("src/app/api/billing/paddle/action/route.ts");
+const paddleRuntimeWarnings = read("src/lib/billing/paddle-runtime-warnings.ts");
+const paddleWebhookLog = read("src/lib/billing/paddle-webhook-log.ts");
 const planChangeAudit = read("src/lib/billing/plan-change-audit.ts");
 const paddleCustomerPortal = read("src/lib/billing/paddle-customer-portal.ts");
 const customerPortalRoute = read("src/app/api/billing/paddle/customer-portal-session/route.ts");
@@ -423,8 +428,9 @@ const suites = {
     if (!paddleApi.includes("buildPaddleCheckoutCustomData")) throw new Error("api uses builder");
   },
   "paddle-checkout-server-resolved-price": () => {
-    if (!checkout.includes("resolvePaddlePriceId")) throw new Error("server price resolve");
-    if (!checkout.includes("buildPaddleCheckoutCustomData")) throw new Error("custom data builder");
+    if (!checkout.includes("executePaddleBillingAction")) throw new Error("unified executor");
+    if (!executeBillingAction.includes("buildPaddleCheckoutCustomData")) throw new Error("custom data builder");
+    if (!executeBillingAction.includes("resolvePaddlePriceId")) throw new Error("server price resolve");
   },
   "paddle-owner-test-checkout-custom-data-preview": () => {
     if (!testCheckoutComponent.includes("buildPaddleCheckoutCustomData")) throw new Error("preview builder");
@@ -505,7 +511,7 @@ const suites = {
   "paddle-owner-test-shows-custom-data": () => {
     if (!testCheckoutComponent.includes("custom_data preview")) throw new Error("custom_data preview");
     if (!testCheckoutComponent.includes("billingIntent")) throw new Error("billing intent in preview flow");
-    if (!testCheckoutComponent.includes("resolvePlanChange")) throw new Error("plan change router in test");
+    if (!testCheckoutComponent.includes("resolveUnifiedBillingAction")) throw new Error("unified router in test");
   },
   "paddle-owner-test-polls-webhook-status": () => {
     if (!testCheckoutComponent.includes("Waiting for webhook")) throw new Error("waiting label");
@@ -514,11 +520,42 @@ const suites = {
   },
   "paddle-no-checkout-for-same-plan": () => {
     if (!checkout.includes('code: "same_plan"')) throw new Error("same_plan response");
-    if (!checkout.includes("resolvePlanChange")) throw new Error("router in checkout");
+    if (!checkout.includes("executePaddleBillingAction")) throw new Error("unified executor in checkout");
     if (!testCheckoutComponent.includes("You are already on this plan")) throw new Error("owner test block");
   },
+  "paddle-unified-billing-action": () => {
+    if (!unifiedBillingAction.includes("resolveUnifiedBillingAction")) throw new Error("resolver");
+    if (!unifiedBillingAction.includes('"upgrade"')) throw new Error("upgrade action");
+    if (!unifiedBillingAction.includes("switch_interval")) throw new Error("interval action");
+    if (!executeBillingAction.includes("updatePaddleSubscriptionPlan")) throw new Error("sub update");
+    if (!executeBillingAction.includes("createPaddleCheckoutSession")) throw new Error("checkout");
+  },
+  "paddle-action-route": () => {
+    if (!paddleActionRoute.includes("executePaddleBillingAction")) throw new Error("executor");
+    if (!paddleCheckoutHook.includes("/api/billing/paddle/action")) throw new Error("hook uses action");
+    if (!testCheckoutComponent.includes("/api/billing/paddle/action")) throw new Error("owner test action");
+  },
+  "paddle-subscriber-upgrade-not-new-checkout": () => {
+    if (!unifiedBillingAction.includes("hasActiveSubscription")) throw new Error("subscription flag");
+    if (!unifiedBillingAction.includes('return "upgrade"')) throw new Error("maps to upgrade");
+    if (!executeBillingAction.includes('resolution.unifiedAction === "upgrade"')) throw new Error("upgrade branch");
+  },
+  "paddle-runtime-warnings": () => {
+    if (!paddleRuntimeWarnings.includes("PRODUCTION PADDLE + LOCALHOST")) throw new Error("localhost warn");
+    if (!read("src/instrumentation.ts").includes("logPaddleRuntimeWarnings")) throw new Error("boot hook");
+  },
+  "paddle-webhook-structured-log": () => {
+    if (!paddleWebhookLog.includes("logPaddleWebhook")) throw new Error("logger");
+    if (!webhookProcessor.includes("logPaddleWebhook")) throw new Error("processor logs");
+    if (!handlers.includes("credits_before")) throw new Error("credits in handler log");
+  },
+  "paddle-billing-status-canonical": () => {
+    if (!billingStatus.includes("processingState")) throw new Error("processingState");
+    if (!billingStatus.includes("activeSubscriptionId")) throw new Error("subscription id");
+    if (!billingStatus.includes("pendingPlan")) throw new Error("pending plan");
+  },
   "paddle-plan-change-target-deterministic": () => {
-    if (!planChangeRouter.includes("resolvePlanChange")) throw new Error("router");
+    if (!planChangeRouter.includes("resolveUnifiedBillingAction")) throw new Error("unified router export");
     if (!checkout.includes("planChange.billingIntent")) throw new Error("intent from router");
     if (!paddleCheckoutCustomData.includes("billing_intent")) throw new Error("custom_data intent");
   },
@@ -536,7 +573,7 @@ const suites = {
   },
   "paddle-plan-change-audit-log": () => {
     if (!planChangeAudit.includes("paddle.plan_change.attempt")) throw new Error("audit event");
-    if (!checkout.includes("logPlanChangeAttempt")) throw new Error("checkout audit");
+    if (!executeBillingAction.includes("logPlanChangeAttempt")) throw new Error("executor audit");
   },
   "billing-ui-no-button-soup": () => {
     if (billingSettings.includes("Confirm Downgrade to Starter")) {

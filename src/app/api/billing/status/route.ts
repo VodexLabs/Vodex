@@ -4,9 +4,17 @@ import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { getPaddleBillingStatus } from "@/lib/billing/paddle-billing";
 import { paddlePublicCheckoutEnabled } from "@/lib/billing/paddle-public-checkout";
 import { monthlyTokensForPlan, normalizePlanId } from "@/lib/billing/plans";
-import { monthlyActionCreditsForPlan } from "@/lib/action-credits/action-credit-allowances";
 import { loadCanonicalCredits } from "@/lib/credits/canonical-credits";
 import { buildPlanChangeDiagnostics } from "@/lib/billing/plan-change-diagnostics";
+import { loadPaddleBillingContextForUser } from "@/lib/billing/paddle-billing-context";
+import { paddleEnvironment } from "@/lib/billing/paddle-billing";
+
+export type BillingProcessingState =
+  | "idle"
+  | "awaiting_webhook"
+  | "entitled"
+  | "failed"
+  | "past_due";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -17,6 +25,11 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const txn = url.searchParams.get("transactionId");
+
+  const email = user.email?.trim() ?? "";
+  const billingCtx = email
+    ? await loadPaddleBillingContextForUser(user.id, email)
+    : null;
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -33,7 +46,9 @@ export async function GET(request: Request) {
   let webhookPending = false;
   let lastWebhookStatus: string | null = null;
   let lastWebhookEventType: string | null = null;
+  let lastWebhookAt: string | null = null;
   let entitlementApplied = false;
+  let lastBillingError: string | null = null;
   let latestDiagnostics: Record<string, unknown> | null = null;
 
   const { data: recentEvents } = await admin
@@ -49,6 +64,10 @@ export async function GET(request: Request) {
   if (entitlementRow) entitlementApplied = true;
 
   const paddleWebhookRows = rows.filter((e) => String(e.event_type ?? "").startsWith("paddle."));
+
+  if (paddleWebhookRows[0]) {
+    lastWebhookAt = paddleWebhookRows[0].created_at ?? null;
+  }
 
   if (txn) {
     const related = paddleWebhookRows.filter((e) => {
@@ -69,6 +88,7 @@ export async function GET(request: Request) {
       const meta = latest.metadata as Record<string, unknown>;
       lastWebhookStatus = String(meta.processing_status ?? "");
       lastWebhookEventType = String(latest.event_type ?? "").replace(/^paddle\./, "");
+      lastBillingError = meta.error != null ? String(meta.error) : null;
       latestDiagnostics = {
         event_id: latest.stripe_event_id,
         event_type: latest.event_type,
@@ -84,6 +104,7 @@ export async function GET(request: Request) {
       const meta = latest.metadata as Record<string, unknown>;
       lastWebhookStatus = String(meta.processing_status ?? "");
       lastWebhookEventType = String(latest.event_type ?? "").replace(/^paddle\./, "");
+      lastBillingError = meta.error != null ? String(meta.error) : null;
       latestDiagnostics = {
         event_id: latest.stripe_event_id,
         event_type: latest.event_type,
@@ -112,6 +133,17 @@ export async function GET(request: Request) {
     profile?.subscription_status !== "past_due" &&
     (entitlementApplied || !webhookPending);
 
+  let processingState: BillingProcessingState = "idle";
+  if (profile?.subscription_status === "past_due") {
+    processingState = "past_due";
+  } else if (lastWebhookStatus === "failed" || lastWebhookStatus === "payment_failed_no_upgrade") {
+    processingState = "failed";
+  } else if (webhookPending) {
+    processingState = "awaiting_webhook";
+  } else if (entitlementApplied || (isPaid && !webhookPending)) {
+    processingState = "entitled";
+  }
+
   const failureReasons = buildPlanChangeDiagnostics({
     profilePlanId: planId,
     subscriptionStatus: profile?.subscription_status,
@@ -121,23 +153,29 @@ export async function GET(request: Request) {
     entitlementApplied,
     lastWebhookStatus,
     lastWebhookEventType,
-    lastWebhookError:
-      latestDiagnostics?.error != null ? String(latestDiagnostics.error) : null,
+    lastWebhookError: lastBillingError,
     transactionId: txn,
     recentEventTypes: rows.map((e) => String(e.event_type ?? "")),
   });
 
   return NextResponse.json({
     planId,
+    currentPlan: planId,
+    pendingPlan: billingCtx?.pendingDowngradePlan ?? null,
     subscriptionStatus: profile?.subscription_status ?? (isPaid ? "active" : "free"),
     active,
     webhookPending,
     entitlementApplied,
+    processingState,
     lastWebhookStatus,
     lastWebhookEventType,
+    lastWebhookAt,
+    lastBillingError,
+    activeSubscriptionId: profile?.paddle_subscription_id ?? billingCtx?.paddleSubscriptionId ?? null,
+    environmentMode: paddleEnvironment(),
     latestWebhook: latestDiagnostics,
     message: webhookPending
-      ? "Payment completed — waiting for Paddle webhook. Refresh in a moment."
+      ? "Payment completed — waiting for Paddle webhook. Plan and credits update only after verified processing."
       : active
         ? "Your plan is active."
         : entitlementApplied
@@ -149,11 +187,13 @@ export async function GET(request: Request) {
       remaining: canonical.build.available,
       allowance: canonical.build.planAllowance,
       bonus: canonical.build.bonusActive,
+      cap: canonical.build.planAllowance + canonical.build.bonusActive,
     },
     actionCredits: {
       remaining: canonical.action.available,
       allowance: canonical.action.planAllowance,
       bonus: canonical.action.bonusActive,
+      cap: canonical.action.planAllowance + canonical.action.bonusActive,
     },
     paddle: {
       configured: paddle.configured,

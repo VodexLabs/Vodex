@@ -1,25 +1,18 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
-import {
-  createPaddleCheckoutSession,
-  updatePaddleSubscriptionPlan,
-} from "@/lib/billing/paddle-api";
-import { fromUpgradePolicyInterval } from "@/lib/billing/plan-billing-catalog";
-import { getPaddleBillingStatus, validateCheckoutPlanInterval } from "@/lib/billing/paddle-billing";
-import { billablePlanDefinition, billablePlanToPlanId } from "@/lib/billing/plan-billing-catalog";
+import { getPaddleBillingStatus } from "@/lib/billing/paddle-billing";
+import { loadPaddleBillingContextFromSession } from "@/lib/billing/paddle-billing-context";
+import { executePaddleBillingAction } from "@/lib/billing/execute-paddle-billing-action";
+import { normalizeBillablePlanId } from "@/lib/billing/plan-billing-catalog";
 import {
   billingPeriodEndFromNow,
   fullPlanPriceUsd,
   isPlanUpgrade,
   UPGRADE_POLICY_COPY,
 } from "@/lib/billing/upgrade-policy";
+import { billablePlanDefinition, billablePlanToPlanId } from "@/lib/billing/plan-billing-catalog";
 import { monthlyTokensForPlan, normalizePlanId, PLAN_DISPLAY } from "@/lib/billing/plans";
 import { monthlyActionCreditsForPlan } from "@/lib/action-credits/action-credit-allowances";
-import {
-  PROFILE_PADDLE_BILLING_SELECT,
-  readProfilePaddleSubscriptionId,
-} from "@/lib/billing/paddle-profile-fields";
 
 const schema = z.object({
   planId: z.string(),
@@ -40,11 +33,13 @@ export async function POST(request: Request) {
     );
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const session = await loadPaddleBillingContextFromSession();
+  if (!session.ok) {
+    if (session.error === "unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    return NextResponse.json({ error: "Account email required" }, { status: 400 });
+  }
 
   const parsed = schema.safeParse(await request.json());
   if (!parsed.success) {
@@ -52,100 +47,76 @@ export async function POST(request: Request) {
   }
 
   const catalogInterval = parsed.data.interval === "yearly" ? "annual" : "monthly";
-  const validated = validateCheckoutPlanInterval(parsed.data.planId, catalogInterval);
-  if (!validated.ok) {
-    return NextResponse.json({ error: validated.error, code: "invalid_price" }, { status: 400 });
+  const billable = normalizeBillablePlanId(parsed.data.planId);
+  if (!billable) {
+    return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
   }
-  const targetPlan = validated.plan;
-  const targetStoragePlan = billablePlanToPlanId(targetPlan);
-  const interval = parsed.data.interval;
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select(`plan_id, ${PROFILE_PADDLE_BILLING_SELECT}`)
-    .eq("id", user.id)
-    .single();
-
-  const currentPlan = normalizePlanId(profile?.plan_id ?? "free");
-  if (!isPlanUpgrade(currentPlan, targetStoragePlan)) {
+  const targetStoragePlan = billablePlanToPlanId(billable);
+  if (!isPlanUpgrade(session.ctx.currentPlanId, targetStoragePlan)) {
     return NextResponse.json({ error: "Target plan must be higher than your current plan." }, { status: 400 });
   }
 
-  const amountDueTodayUsd = fullPlanPriceUsd(targetPlan, interval);
-  const newRenewalDate = billingPeriodEndFromNow(interval);
-  const preview = {
-    currentPlan: { id: currentPlan, name: PLAN_DISPLAY[currentPlan].name },
+  const result = await executePaddleBillingAction({
+    ctx: session.ctx,
+    targetPlan: billable,
+    targetInterval: catalogInterval,
+    source: "billing_page",
+  });
+
+  const fallbackPreview = {
+    currentPlan: {
+      id: session.ctx.currentPlanId,
+      name: PLAN_DISPLAY[session.ctx.currentPlanId]?.name ?? session.ctx.currentPlanId,
+    },
     newPlan: {
       id: targetStoragePlan,
-      billableSlug: targetPlan,
-      name: billablePlanDefinition(targetPlan).label,
+      name: billablePlanDefinition(billable).label,
       buildCredits: monthlyTokensForPlan(targetStoragePlan),
       actionCredits: monthlyActionCreditsForPlan(targetStoragePlan),
     },
-    amountDueTodayUsd,
-    proratedAmountUsd: null,
-    newRenewalDate,
+    amountDueTodayUsd: fullPlanPriceUsd(billable, parsed.data.interval),
+    newRenewalDate: billingPeriodEndFromNow(parsed.data.interval),
     policyMessage: UPGRADE_POLICY_COPY.upgradeSummary,
   };
+  const preview =
+    result.ok && result.mode !== "scheduled_downgrade" && "preview" in result
+      ? result.preview
+      : fallbackPreview;
 
-  const { getAppUrl } = await import("@/lib/app-url");
-  const appUrl = getAppUrl();
-  const email = user.email ?? "";
-  if (!email) {
-    return NextResponse.json({ error: "Account email required for checkout" }, { status: 400 });
+  if (!result.ok) {
+    return NextResponse.json(
+      { error: result.error, code: result.code, preview },
+      { status: result.httpStatus },
+    );
   }
 
-  const existingSubId = readProfilePaddleSubscriptionId(profile ?? undefined);
-
-  if (existingSubId) {
-    const updated = await updatePaddleSubscriptionPlan({
-      subscriptionId: existingSubId,
-      planId: targetPlan,
-      interval: validated.interval,
-      userId: user.id,
-      billingIntent: interval === "yearly" ? "interval_change" : "upgrade",
-    });
-
-    if (!updated.ok) {
-      return NextResponse.json(
-        { error: updated.error, code: updated.code, preview },
-        { status: updated.code === "setup_required" ? 503 : 502 },
-      );
-    }
-
+  if (result.mode === "paddle_checkout") {
     return NextResponse.json({
-      mode: "paddle_subscription_update",
-      prorationBillingMode: "full_immediately",
-      subscriptionId: updated.subscriptionId,
+      mode: "paddle_checkout",
+      url: result.url,
+      transactionId: result.transactionId,
       preview,
-      message:
-        "Paddle will charge the full new plan price. Credits refresh after payment succeeds (webhook).",
+      message: "Complete checkout — plan updates after verified webhook only.",
       billingProvider: "paddle",
     });
   }
 
-  const checkout = await createPaddleCheckoutSession({
-    planId: targetPlan,
-    interval: validated.interval,
-    userId: user.id,
-    email,
-    successUrl: `${appUrl}/settings/billing?paddle=success`,
-    cancelUrl: `${appUrl}/settings/billing?paddle=canceled`,
-    billingIntent: "new_subscription",
-  });
-
-  if (!checkout.ok) {
-    return NextResponse.json(
-      { error: checkout.error, code: checkout.code, preview },
-      { status: checkout.code === "setup_required" ? 503 : 502 },
-    );
+  if (result.mode === "paddle_subscription_update") {
+    return NextResponse.json({
+      mode: result.mode,
+      subscriptionId: result.subscriptionId,
+      preview: result.preview,
+      message: result.message,
+      billingProvider: "paddle",
+      webhookRequired: true,
+    });
   }
 
   return NextResponse.json({
-    mode: "paddle_checkout",
-    url: checkout.checkoutUrl,
-    transactionId: checkout.transactionId,
+    mode: result.mode,
     preview,
     billingProvider: "paddle",
+    webhookRequired: true,
   });
 }

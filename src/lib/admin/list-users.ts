@@ -1,8 +1,12 @@
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { monthlyTokensForPlan, normalizePlanId } from "@/lib/billing/plans";
 import { monthlyActionCreditsForPlan } from "@/lib/action-credits/action-credit-allowances";
-import { normalizeAvailableCredits } from "@/lib/credits/normalize-credit-balance";
+import { creditCap, normalizeAvailableCredits } from "@/lib/credits/normalize-credit-balance";
 import { adminFieldsFromCanonical, buildCanonicalBucket } from "@/lib/credits/canonical-credits";
+import {
+  batchExplicitCreditBonuses,
+  impliedActionBonus,
+} from "@/lib/admin/batch-user-credit-bonuses";
 import type { PlanId } from "@/lib/supabase/types";
 
 export type AdminUserListRow = {
@@ -16,9 +20,12 @@ export type AdminUserListRow = {
   tokens_remaining: number;
   monthly_token_limit: number;
   bonus_credits: number;
+  /** Plan allowance + active bonus (max spendable this period). */
+  build_credits_cap: number;
   action_credits_remaining: number;
   action_credits_plan_allowance: number;
   action_credits_bonus: number;
+  action_credits_cap: number;
   used_this_period: number;
   reserved_credits: number;
   is_test_or_grant_account: boolean;
@@ -151,11 +158,10 @@ export async function listAdminUsers(options: {
     page += 1;
   }
 
-  for (const u of authUsers.slice(0, limit)) {
-    await ensureProfileForAuthUser(admin, u);
-  }
+  const slice = authUsers.slice(0, limit);
+  await Promise.all(slice.map((u) => ensureProfileForAuthUser(admin, u)));
 
-  const ids = authUsers.slice(0, limit).map((u) => u.id);
+  const ids = slice.map((u) => u.id);
   if (ids.length === 0) {
     return { users: [] };
   }
@@ -222,9 +228,18 @@ export async function listAdminUsers(options: {
     "user_id",
   );
 
+  const profileCreditsInputs = slice.map((au) => ({
+    id: au.id,
+    credits_reset_at: str(profileMap.get(au.id)?.credits_reset_at),
+  }));
+  const { buildBonus, actionGrantBonus } = await batchExplicitCreditBonuses(
+    admin,
+    profileCreditsInputs,
+  );
+
   const rows: AdminUserListRow[] = [];
 
-  for (const au of authUsers.slice(0, limit)) {
+  for (const au of slice) {
     const p = profileMap.get(au.id);
     const email = (str(p?.email) || au.email || "").trim();
     if (!email) continue;
@@ -239,10 +254,24 @@ export async function listAdminUsers(options: {
       ? actionBalanceByUser.get(au.id)!
       : actionPlanAllowance;
 
+    const explicitBuildBonus = buildBonus.get(au.id) ?? 0;
+    const explicitActionBonus = impliedActionBonus(
+      actionAvailable,
+      actionPlanAllowance,
+      actionGrantBonus.get(au.id) ?? 0,
+    );
+
     const buildNorm = normalizeAvailableCredits({
       rawAvailable: buildAvailable,
       planAllowance: buildPlanAllowance,
-      explicitBonus: 0,
+      explicitBonus: explicitBuildBonus,
+      ledgerUsed: 0,
+    });
+
+    const actionNorm = normalizeAvailableCredits({
+      rawAvailable: actionAvailable,
+      planAllowance: actionPlanAllowance,
+      explicitBonus: explicitActionBonus,
       ledgerUsed: 0,
     });
 
@@ -250,11 +279,13 @@ export async function listAdminUsers(options: {
       build: buildCanonicalBucket({
         available: buildNorm.available,
         planAllowance: buildPlanAllowance,
+        explicitBonus: explicitBuildBonus,
         resetDate,
       }),
       action: buildCanonicalBucket({
-        available: actionAvailable,
+        available: actionNorm.available,
         planAllowance: actionPlanAllowance,
+        explicitBonus: explicitActionBonus,
         resetDate,
       }),
       planId,
@@ -272,9 +303,11 @@ export async function listAdminUsers(options: {
       tokens_remaining: canonicalFields.tokens_remaining,
       monthly_token_limit: canonicalFields.monthly_token_limit,
       bonus_credits: canonicalFields.bonus_credits,
+      build_credits_cap: creditCap(buildPlanAllowance, explicitBuildBonus),
       action_credits_remaining: canonicalFields.action_credits_remaining,
       action_credits_plan_allowance: canonicalFields.action_credits_plan_allowance,
       action_credits_bonus: canonicalFields.action_credits_bonus,
+      action_credits_cap: creditCap(actionPlanAllowance, explicitActionBonus),
       used_this_period: canonicalFields.used_this_period,
       reserved_credits: canonicalFields.reserved_credits,
       is_test_or_grant_account: canonicalFields.is_test_or_grant_account,

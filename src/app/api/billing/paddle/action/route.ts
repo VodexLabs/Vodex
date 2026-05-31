@@ -1,18 +1,17 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isDreamosOwnerEmail } from "@/lib/admin-owner";
-import { getPaddleBillingStatus } from "@/lib/billing/paddle-billing";
+import { assertPaddleCheckoutSupabaseConsistency } from "@/lib/billing/paddle-local-testing";
 import {
   paddleOwnerTestCheckoutEnabled,
   paddlePublicCheckoutEnabled,
   publicCheckoutBlockedMessage,
 } from "@/lib/billing/paddle-public-checkout";
-import { assertPaddleCheckoutSupabaseConsistency } from "@/lib/billing/paddle-local-testing";
 import { loadPaddleBillingContextFromSession } from "@/lib/billing/paddle-billing-context";
 import { executePaddleBillingAction } from "@/lib/billing/execute-paddle-billing-action";
 import { buildPlanChangeDiagnostics } from "@/lib/billing/plan-change-diagnostics";
+import { getPaddleBillingStatus } from "@/lib/billing/paddle-billing";
 import {
-  billablePlanDefinition,
   billablePlanToPlanId,
   normalizeBillablePlanId,
   resolveCatalogTier,
@@ -26,7 +25,6 @@ const schema = z
   .object({
     plan: z.string().optional(),
     planId: z.string().optional(),
-    priceId: z.string().optional(),
     interval: z.enum(["monthly", "annual"]).default("monthly"),
     confirmed: z.literal(true),
     testMode: z.boolean().optional(),
@@ -34,46 +32,23 @@ const schema = z
   })
   .refine((d) => d.plan ?? d.planId, { message: "plan is required" });
 
-/**
- * Legacy checkout entry — delegates to unified billing executor.
- * Prefer POST /api/billing/paddle/action for new clients.
- */
 export async function POST(request: Request) {
-  const status = getPaddleBillingStatus();
-  if (!status.configured) {
-    return NextResponse.json(
-      {
-        error: status.userMessage,
-        code: "setup_required",
-        missingEnv: status.missing,
-        paddle: status,
-      },
-      { status: 503 },
-    );
-  }
-
   const session = await loadPaddleBillingContextFromSession();
   if (!session.ok) {
     if (session.error === "unauthorized") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    return NextResponse.json({ error: "Account email required for checkout" }, { status: 400 });
-  }
-
-  const body = await request.json();
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Confirm checkout details before continuing." }, { status: 400 });
-  }
-
-  if (parsed.data.priceId) {
-    return NextResponse.json(
-      { error: "Client-supplied price IDs are not accepted. Use plan and interval only." },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "Account email required for billing" }, { status: 400 });
   }
 
   const { ctx } = session;
+  const status = getPaddleBillingStatus();
+  const body = await request.json();
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Confirm billing action before continuing." }, { status: 400 });
+  }
+
   const isOwner = isDreamosOwnerEmail(ctx.email);
   const testMode = parsed.data.testMode ?? parsed.data.source === "admin_test_checkout";
   const source: PlanChangeSource =
@@ -91,7 +66,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Owner test checkout is disabled. Set PADDLE_OWNER_TEST_CHECKOUT_ENABLED=true and restart or redeploy.",
+            "Owner test checkout is disabled. Set PADDLE_OWNER_TEST_CHECKOUT_ENABLED=true and restart.",
         },
         { status: 403 },
       );
@@ -125,14 +100,16 @@ export async function POST(request: Request) {
     testMode,
   });
 
-  const planChange = {
-    action: result.resolution.unifiedAction,
-    legacyAction: result.resolution.action,
-    label: result.resolution.label,
-    description: result.resolution.description,
-    billingIntent: result.resolution.billingIntent,
-    apiRoute: result.resolution.apiRoute,
-    hasActiveSubscription: result.resolution.hasActiveSubscription,
+  const resolutionPayload = {
+    planChange: {
+      action: result.resolution.unifiedAction,
+      legacyAction: result.resolution.action,
+      label: result.resolution.label,
+      description: result.resolution.description,
+      billingIntent: result.resolution.billingIntent,
+      apiRoute: result.resolution.apiRoute,
+      hasActiveSubscription: result.resolution.hasActiveSubscription,
+    },
   };
 
   if (!result.ok) {
@@ -146,13 +123,42 @@ export async function POST(request: Request) {
       {
         error: result.error,
         code: result.code,
-        message: result.resolution.description,
-        planChange,
-        failureReasons: [result.error, ...failureReasons.slice(0, 4)],
+        ...resolutionPayload,
         usePortal: result.usePortal,
+        requiresConfirmation: result.requiresConfirmation,
+        failureReasons: [result.error, ...failureReasons.slice(0, 3)],
       },
       { status: result.httpStatus },
     );
+  }
+
+  if (result.mode === "paddle_checkout") {
+    const validatedPlan = result.resolution.targetPlan;
+    const interval = result.resolution.targetInterval;
+    const storagePlan = billablePlanToPlanId(validatedPlan);
+    const tier = resolveCatalogTier(validatedPlan, interval);
+    const priceId = resolvePaddlePriceId(validatedPlan, interval)!;
+
+    return NextResponse.json({
+      mode: result.mode,
+      url: result.url,
+      transactionId: result.transactionId,
+      ...resolutionPayload,
+      customDataPreview: result.customDataPreview,
+      priceId,
+      expectedAmountUsd: tier?.amountUsd,
+      plan: {
+        id: validatedPlan,
+        storagePlanId: storagePlan,
+        name: result.resolution.label,
+        interval,
+        buildCredits: monthlyTokensForPlan(storagePlan),
+        actionCredits: monthlyActionCreditsForPlan(storagePlan),
+      },
+      billingProvider: "paddle",
+      liveMode: status.environment === "production",
+      testMode,
+    });
   }
 
   if (result.mode === "paddle_subscription_update") {
@@ -161,52 +167,18 @@ export async function POST(request: Request) {
       subscriptionId: result.subscriptionId,
       message: result.message,
       preview: result.preview,
-      planChange,
+      ...resolutionPayload,
       billingProvider: "paddle",
       webhookRequired: true,
     });
   }
 
-  if (result.mode === "scheduled_downgrade") {
-    return NextResponse.json(
-      {
-        error: result.resolution.description,
-        code: "schedule_downgrade",
-        planChange,
-        mode: result.mode,
-        pendingDowngradePlan: result.pendingDowngradePlan,
-        currentPeriodEnd: result.currentPeriodEnd,
-      },
-      { status: 409 },
-    );
-  }
-
-  const validatedPlan = result.resolution.targetPlan;
-  const interval = result.resolution.targetInterval;
-  const storagePlan = billablePlanToPlanId(validatedPlan);
-  const tier = resolveCatalogTier(validatedPlan, interval);
-  const priceId = resolvePaddlePriceId(validatedPlan, interval)!;
-  const def = billablePlanDefinition(validatedPlan);
-
   return NextResponse.json({
-    url: result.url,
-    transactionId: result.transactionId,
-    mode: "paddle_checkout",
-    customDataPreview: result.customDataPreview,
-    planChange,
-    priceId,
-    priceIdMasked: priceId.length > 8 ? `…${priceId.slice(-4)}` : priceId,
-    expectedAmountUsd: tier.amountUsd,
-    plan: {
-      id: validatedPlan,
-      storagePlanId: storagePlan,
-      name: def.label,
-      interval,
-      buildCredits: monthlyTokensForPlan(storagePlan),
-      actionCredits: monthlyActionCreditsForPlan(storagePlan),
-    },
+    mode: result.mode,
+    pendingDowngradePlan: result.pendingDowngradePlan,
+    currentPeriodEnd: result.currentPeriodEnd,
+    policyMessage: result.resolution.description,
+    ...resolutionPayload,
     billingProvider: "paddle",
-    liveMode: status.environment === "production",
-    testMode,
   });
 }

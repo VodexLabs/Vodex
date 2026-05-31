@@ -26,7 +26,8 @@ import {
 import { billablePlanToPlanId } from "@/lib/billing/plan-billing-catalog";
 import {
   recommendedUpgradeTarget,
-  resolvePlanChange,
+  resolveUnifiedBillingAction,
+  unifiedActionAllowsExecution,
 } from "@/lib/billing/plan-change-router";
 import { PlanUpgradeModal } from "@/components/billing/plan-upgrade-modal";
 import { BillingDowngradeModal } from "@/components/billing/billing-downgrade-modal";
@@ -64,6 +65,17 @@ export function BillingSubscriptionPanel({
   openCancelOnMount = false,
 }: Props) {
   const [upgradePlan, setUpgradePlan] = React.useState<BillablePlanId | null>(null);
+  const [paddleSubscriptionId, setPaddleSubscriptionId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    void fetch("/api/billing/status", { credentials: "include" })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const json = (await res.json()) as { activeSubscriptionId?: string | null };
+        setPaddleSubscriptionId(json.activeSubscriptionId ?? null);
+      })
+      .catch(() => undefined);
+  }, [planId]);
   const [upgradeInterval, setUpgradeInterval] = React.useState<"monthly" | "yearly">("monthly");
   const [showCompare, setShowCompare] = React.useState(false);
   const [showDowngrade, setShowDowngrade] = React.useState(false);
@@ -161,21 +173,27 @@ export function BillingSubscriptionPanel({
   }
 
   function startUpgrade(target: BillablePlanId, interval: CatalogBillingInterval = "monthly") {
-    const resolved = resolvePlanChange({
+    const resolved = resolveUnifiedBillingAction({
       currentPlanId: planId,
       currentInterval,
       targetPlan: target,
       targetInterval: interval,
+      paddleSubscriptionId,
     });
-    if (resolved.action === "same_plan") {
+    if (resolved.unifiedAction === "same_plan" || resolved.unifiedAction === "blocked") {
       toast.info(resolved.description);
       return;
     }
-    if (resolved.action === "portal" || resolved.action === "schedule_downgrade") {
+    if (resolved.unifiedAction === "downgrade") {
+      setModalDowngrade(target);
+      setShowDowngrade(true);
+      return;
+    }
+    if (resolved.unifiedAction === "switch_interval") {
       void openCustomerPortal();
       return;
     }
-    if (resolved.action === "highest_plan") {
+    if (!unifiedActionAllowsExecution(resolved.unifiedAction)) {
       toast.info(resolved.description);
       return;
     }
@@ -429,29 +447,30 @@ export function BillingSubscriptionPanel({
                       </tr>
                     );
                   }
-                  const resolved = resolvePlanChange({
+                  const resolved = resolveUnifiedBillingAction({
                     currentPlanId: planId,
                     currentInterval,
                     targetPlan: row.id,
                     targetInterval: currentInterval ?? "monthly",
+                    paddleSubscriptionId,
                   });
                   let actionLabel = "Upgrade";
-                  if (resolved.action === "same_plan") actionLabel = "Current plan";
-                  else if (resolved.action === "schedule_downgrade") actionLabel = "Downgrade";
-                  else if (resolved.action === "highest_plan") actionLabel = "Highest";
+                  if (resolved.unifiedAction === "same_plan") actionLabel = "Current plan";
+                  else if (resolved.unifiedAction === "downgrade") actionLabel = "Downgrade";
+                  else if (resolved.unifiedAction === "blocked") actionLabel = "Highest";
                   return (
                     <tr key={row.id} className="border-t border-border">
                       <td className="py-2">{row.label}</td>
                       <td className="py-2 text-right">
-                        {resolved.action === "same_plan" ? (
+                        {resolved.unifiedAction === "same_plan" ? (
                           <span className="text-muted-foreground">Current plan</span>
                         ) : (
                           <button
                             type="button"
                             className="text-accent hover:underline disabled:opacity-50"
-                            disabled={!paddleReady || resolved.action === "highest_plan"}
+                            disabled={!paddleReady || resolved.unifiedAction === "blocked"}
                             onClick={() => {
-                              if (resolved.action === "schedule_downgrade") {
+                              if (resolved.unifiedAction === "downgrade") {
                                 setShowCompare(false);
                                 setModalDowngrade(row.id);
                               } else if (row.id !== "free") {

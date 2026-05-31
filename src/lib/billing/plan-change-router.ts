@@ -175,3 +175,12 @@ export function recommendedUpgradeTarget(currentPlanId: string): BillablePlanId 
 export function comparePlanRank(a: string, b: string): number {
   return planRank(a) - planRank(b);
 }
+
+/** Subscription-aware billing actions — use instead of resolvePlanChange alone. */
+export {
+  resolveUnifiedBillingAction,
+  unifiedActionAllowsExecution,
+  paddleBillingIntentForUnified,
+  type UnifiedBillingAction,
+  type UnifiedBillingResolution,
+} from "@/lib/billing/unified-billing-action";

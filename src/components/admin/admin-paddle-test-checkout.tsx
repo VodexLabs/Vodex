@@ -17,7 +17,8 @@ import { buildPaddleCheckoutCustomData } from "@/lib/billing/paddle-checkout-cus
 import type { PaddleCheckoutTestingContext } from "@/lib/billing/paddle-local-testing";
 import { resolveBillablePlanAction } from "@/lib/billing/plan-action-resolver";
 import { normalizePlanId } from "@/lib/billing/plans";
-import { resolvePlanChange } from "@/lib/billing/plan-change-router";
+import { resolveUnifiedBillingAction } from "@/lib/billing/unified-billing-action";
+import { unifiedActionAllowsExecution } from "@/lib/billing/unified-billing-action";
 import type { CatalogBillingInterval } from "@/lib/billing/plan-billing-catalog";
 
 const EXPECTED_PRODUCTION_WEBHOOK_URL = "https://dreamos86.com/api/webhooks/paddle";
@@ -49,6 +50,7 @@ export function AdminPaddleTestCheckout({ userId, userEmail, config, testingCont
   const [billingStatus, setBillingStatus] = React.useState<Record<string, unknown> | null>(null);
   const [currentPlanId, setCurrentPlanId] = React.useState<string>("free");
   const [currentInterval, setCurrentInterval] = React.useState<CatalogBillingInterval | null>(null);
+  const [paddleSubscriptionId, setPaddleSubscriptionId] = React.useState<string | null>(null);
   const [pendingTransactionId, setPendingTransactionId] = React.useState<string | null>(null);
   const [planChangeBlocked, setPlanChangeBlocked] = React.useState<string | null>(null);
 
@@ -57,11 +59,12 @@ export function AdminPaddleTestCheckout({ userId, userEmail, config, testingCont
   const amountUsd = catalogAmountUsd(plan, interval);
   const planAction = resolveBillablePlanAction(currentPlanId, plan);
 
-  const planChange = resolvePlanChange({
+  const planChange = resolveUnifiedBillingAction({
     currentPlanId,
     currentInterval,
     targetPlan: plan,
     targetInterval: interval,
+    paddleSubscriptionId,
   });
 
   const customDataPreview = priceId
@@ -73,27 +76,35 @@ export function AdminPaddleTestCheckout({ userId, userEmail, config, testingCont
         priceId,
         source: "admin_test_checkout",
         billingIntent:
-          planChange.billingIntent === "upgrade"
-            ? "upgrade"
-            : planChange.billingIntent === "interval_change"
+          planChange.unifiedAction === "upgrade" || planChange.unifiedAction === "switch_interval"
+            ? planChange.unifiedAction === "switch_interval"
               ? "interval_change"
-              : "new_subscription",
+              : "upgrade"
+            : "new_subscription",
         testMode: true,
       })
     : null;
 
   React.useEffect(() => {
-    void fetch("/api/billing/subscription", { credentials: "include" })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const json = (await res.json()) as {
-          planId?: string;
-          subscription?: { planInterval?: string };
-        };
-        if (json.planId) setCurrentPlanId(json.planId);
-        const pi = json.subscription?.planInterval;
-        if (pi === "yearly") setCurrentInterval("annual");
-        else if (pi === "monthly") setCurrentInterval("monthly");
+    void Promise.all([
+      fetch("/api/billing/subscription", { credentials: "include" }),
+      fetch("/api/billing/status", { credentials: "include" }),
+    ])
+      .then(async ([subRes, statusRes]) => {
+        if (subRes.ok) {
+          const json = (await subRes.json()) as {
+            planId?: string;
+            subscription?: { planInterval?: string };
+          };
+          if (json.planId) setCurrentPlanId(json.planId);
+          const pi = json.subscription?.planInterval;
+          if (pi === "yearly") setCurrentInterval("annual");
+          else if (pi === "monthly") setCurrentInterval("monthly");
+        }
+        if (statusRes.ok) {
+          const status = (await statusRes.json()) as { activeSubscriptionId?: string | null };
+          setPaddleSubscriptionId(status.activeSubscriptionId ?? null);
+        }
       })
       .catch(() => undefined);
   }, []);
@@ -154,9 +165,9 @@ export function AdminPaddleTestCheckout({ userId, userEmail, config, testingCont
       toast.error("Paddle is not fully configured — fix missing env vars first.");
       return;
     }
-    if (planChange.action !== "checkout") {
+    if (!unifiedActionAllowsExecution(planChange.unifiedAction)) {
       const msg =
-        planChange.action === "same_plan"
+        planChange.unifiedAction === "same_plan"
           ? "You are already on this plan."
           : planChange.description;
       setPlanChangeBlocked(msg);
@@ -170,7 +181,7 @@ export function AdminPaddleTestCheckout({ userId, userEmail, config, testingCont
     setCheckoutState("opening");
     setLastResponse(null);
     try {
-      const res = await fetch("/api/billing/paddle/checkout", {
+      const res = await fetch("/api/billing/paddle/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -186,19 +197,41 @@ export function AdminPaddleTestCheckout({ userId, userEmail, config, testingCont
         url?: string;
         error?: string;
         transactionId?: string;
+        mode?: string;
+        message?: string;
+        webhookRequired?: boolean;
         failureReasons?: string[];
-        planChange?: { description?: string };
+        planChange?: { description?: string; action?: string };
       };
       setLastResponse(json);
       if (!res.ok) {
         const reasons = json.failureReasons?.length
-          ? `\n${json.failureReasons.join("\n")}`
+          ? `\n${(json.failureReasons as string[]).join("\n")}`
           : "";
         throw new Error(
           [json.error, json.planChange?.description].filter(Boolean).join(" — ") +
-            reasons || "Checkout failed",
+            reasons || "Billing action failed",
         );
       }
+
+      if (json.mode === "paddle_subscription_update") {
+        setPendingTransactionId(null);
+        setCheckoutState("waiting_webhook");
+        toast.success(
+          String(
+            json.message ??
+              "Subscription updated — waiting for Paddle webhook to apply entitlements.",
+          ),
+        );
+        return;
+      }
+
+      if (json.mode === "scheduled_downgrade") {
+        toast.success(String(json.message ?? "Downgrade scheduled."));
+        setCheckoutState("idle");
+        return;
+      }
+
       setPendingTransactionId(json.transactionId ? String(json.transactionId) : null);
       setCheckoutState("waiting_webhook");
       if (json.url) window.location.href = String(json.url);
@@ -431,7 +464,19 @@ export function AdminPaddleTestCheckout({ userId, userEmail, config, testingCont
           </div>
           <div className="flex justify-between gap-2">
             <dt className="text-muted-foreground">Plan change action</dt>
+            <dd>{planChange.unifiedAction}</dd>
+          </div>
+          <div className="flex justify-between gap-2">
+            <dt className="text-muted-foreground">Legacy router action</dt>
             <dd>{planChange.action}</dd>
+          </div>
+          <div className="flex justify-between gap-2">
+            <dt className="text-muted-foreground">API route</dt>
+            <dd className="font-mono text-[11px]">{planChange.apiRoute ?? "—"}</dd>
+          </div>
+          <div className="flex justify-between gap-2">
+            <dt className="text-muted-foreground">Has subscription</dt>
+            <dd>{paddleSubscriptionId ? "yes" : "no"}</dd>
           </div>
           <div className="flex justify-between gap-2">
             <dt className="text-muted-foreground">Billing intent</dt>

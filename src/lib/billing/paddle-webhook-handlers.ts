@@ -22,6 +22,7 @@ import {
 import { readWebhookIds } from "@/lib/billing/paddle-event-store";
 import type { BillingInterval } from "@/lib/billing/upgrade-policy";
 import type { PlanId } from "@/lib/supabase/types";
+import { logPaddleWebhook } from "@/lib/billing/paddle-webhook-log";
 
 function planFromPaddlePrice(priceId: string | undefined): PlanId | null {
   const mapped = planFromPaddlePriceId(priceId);
@@ -133,9 +134,24 @@ export async function handlePaddleTransactionCompleted(input: {
     .maybeSingle();
 
   const oldPlan = normalizePlanId(profile?.plan_id ?? "free");
+  const creditsBefore =
+    typeof profile?.credits_remaining === "number" ? profile.credits_remaining : null;
+
+  logPaddleWebhook({
+    event_type: eventType || "transaction.completed",
+    event_id: input.paddleEventId,
+    user_id: userId,
+    transaction_id: transactionId,
+    price_id: priceId ?? null,
+    current_plan: oldPlan,
+    target_plan: newPlan,
+    action_type: intent,
+    processing_status: "entitlement_start",
+    credits_before: creditsBefore,
+  });
 
   if (intent === "upgrade" || intent === "interval_change" || intent === "new_subscription") {
-    await applyImmediatePlanUpgrade({
+    const applied = await applyImmediatePlanUpgrade({
       userId,
       oldPlan,
       newPlan,
@@ -147,6 +163,19 @@ export async function handlePaddleTransactionCompleted(input: {
       paddleEventId: input.paddleEventId,
       idempotencyKey: `paddle:txn:${transactionId}`,
       source: `paddle:${eventType || "transaction.completed"}:${intent}`,
+    });
+    logPaddleWebhook({
+      event_type: eventType || "transaction.completed",
+      event_id: input.paddleEventId,
+      user_id: userId,
+      transaction_id: transactionId,
+      current_plan: oldPlan,
+      target_plan: newPlan,
+      action_type: intent,
+      processing_status: "processed",
+      entitlement_applied: applied.applied,
+      credits_before: creditsBefore,
+      credits_after: applied.buildCredits,
     });
     return;
   }
