@@ -11,8 +11,9 @@ import {
 import { getChargeTokensProbeCached } from "@/lib/db/charge-probe-cache";
 import { maybeNotifyActionCreditWarning } from "@/lib/action-credits/action-credit-warnings";
 
-export async function GET() {
+export async function GET(req: Request) {
   const t0 = performance.now();
+  const lite = new URL(req.url).searchParams.get("lite") === "1";
   const supabase = await createClient();
   const {
     data: { user },
@@ -76,14 +77,16 @@ export async function GET() {
 
   const tCanonical = performance.now();
 
-  const actionWarning = await maybeNotifyActionCreditWarning({
-    userId: user.id,
-    email: profile.email ?? user.email ?? null,
-    planId,
-    balance: typeof actionBalance === "number" ? actionBalance : actionAvailable,
-  });
+  const actionWarning = lite
+    ? null
+    : await maybeNotifyActionCreditWarning({
+        userId: user.id,
+        email: profile.email ?? user.email ?? null,
+        planId,
+        balance: typeof actionBalance === "number" ? actionBalance : actionAvailable,
+      });
 
-  const chargeProbe = await getChargeTokensProbeCached();
+  const chargeProbe = lite ? { ok: true, lastError: null } : await getChargeTokensProbeCached();
   const tDone = performance.now();
 
   return NextResponse.json(

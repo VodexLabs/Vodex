@@ -56,6 +56,16 @@ export default async function HomePage({
     return <PublicLanding />;
   }
 
+  const supabase = await createClient();
+  const { data: onboardingRow } = await supabase
+    .from("profiles")
+    .select("onboarding_completed")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (onboardingRow?.onboarding_completed !== true) {
+    redirect("/onboarding");
+  }
+
   type RecentProject = {
     id: string;
     name: string;
@@ -76,8 +86,6 @@ export default async function HomePage({
   let recentProjects: RecentProject[] = [];
 
   try {
-    const { createClient } = await import("@/lib/supabase/server");
-    const supabase = await createClient();
     const { data } = await supabase
       .from("projects")
       .select(

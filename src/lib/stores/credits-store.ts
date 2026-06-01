@@ -196,7 +196,8 @@ export const useCreditsStore = create<CreditsState>()((set, get) => ({
 
     inFlightRequest = (async () => {
       try {
-        const res = await fetch("/api/credits", {
+        const lite = reason === "bootstrap" ? "?lite=1" : "";
+        const res = await fetch(`/api/credits${lite}`, {
           credentials: "include",
           cache: "no-store",
           headers: { "X-Credit-Sync-Reason": reason ?? "sync" },

@@ -124,15 +124,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setNotifications(cached.notifications);
       }
 
-      const profilePromise = loadUserProfileCoreDeduped(supabase, userId);
-      const notificationsPromise = supabase
-        .from("notifications")
-        .select("*")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(50);
-
-      let { profile: coreProfile } = await profilePromise;
+      let { profile: coreProfile } = await loadUserProfileCoreDeduped(supabase, userId);
 
       if (!coreProfile && typeof fetch !== "undefined") {
         try {
@@ -157,43 +149,56 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const profile = coreProfile as Profile;
         setProfile(profile);
         seedCreditsFromProfile(profile);
-      }
-
-      let notificationRows = (await notificationsPromise).data ?? [];
-
-      if (coreProfile) {
-        try {
-          const welcomeRes = await fetch("/api/notifications/welcome", {
-            method: "POST",
-            credentials: "include",
-          });
-          if (welcomeRes.ok) {
-            const payload = (await welcomeRes.json()) as { created?: boolean };
-            if (payload.created) {
-              const { data: refreshed } = await supabase
-                .from("notifications")
-                .select("*")
-                .eq("user_id", userId)
-                .order("created_at", { ascending: false })
-                .limit(50);
-              if (refreshed) notificationRows = refreshed;
-            }
-          }
-        } catch {
-          /* welcome is best-effort */
-        }
-      }
-
-      if (notificationRows.length >= 0) {
-        setNotifications(notificationRows as Notification[]);
-      }
-
-      if (coreProfile) {
         setCachedBootstrap(userId, {
-          profile: coreProfile as Profile,
-          notifications: notificationRows as Notification[],
+          profile,
+          notifications: cached?.notifications ?? [],
         });
       }
+
+      void (async () => {
+        const { data: notificationRows } = await supabase
+          .from("notifications")
+          .select("*")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(50);
+
+        let rows = notificationRows ?? [];
+
+        if (coreProfile) {
+          try {
+            const welcomeRes = await fetch("/api/notifications/welcome", {
+              method: "POST",
+              credentials: "include",
+            });
+            if (welcomeRes.ok) {
+              const payload = (await welcomeRes.json()) as { created?: boolean };
+              if (payload.created) {
+                const { data: refreshed } = await supabase
+                  .from("notifications")
+                  .select("*")
+                  .eq("user_id", userId)
+                  .order("created_at", { ascending: false })
+                  .limit(50);
+                if (refreshed) rows = refreshed;
+              }
+            }
+          } catch {
+            /* welcome is best-effort */
+          }
+        }
+
+        if (rows.length >= 0) {
+          setNotifications(rows as Notification[]);
+        }
+
+        if (coreProfile) {
+          setCachedBootstrap(userId, {
+            profile: coreProfile as Profile,
+            notifications: rows as Notification[],
+          });
+        }
+      })();
 
       const notificationsChannel = supabase
         .channel(`notifications:${userId}`)
@@ -246,7 +251,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     let disposed = false;
     const authTimeout = window.setTimeout(() => {
       if (!disposed) setLoading(false);
-    }, 10_000);
+    }, 4_000);
 
     void supabase.auth.getUser().then(async ({ data: { user: liveUser } }) => {
       const { data: { session } } = await supabase.auth.getSession();

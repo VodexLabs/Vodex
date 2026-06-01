@@ -234,13 +234,15 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL(dest, request.url));
   }
 
-  if (
+  const needsOnboardingGate =
     user &&
     pathname !== "/onboarding" &&
     !pathname.startsWith("/onboarding/") &&
     !isOnboardingExemptPath(pathname) &&
-    PROTECTED_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))
-  ) {
+    (pathname === "/" ||
+      PROTECTED_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/")));
+
+  if (needsOnboardingGate && user) {
     try {
       const { data: profile } = await supabase
         .from("profiles")

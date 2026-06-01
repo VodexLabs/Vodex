@@ -8,8 +8,7 @@ import { isOnboardingExemptPath } from "@/lib/onboarding/exempt-paths";
 import { isE2eCreditTestAccount } from "@/lib/credits/e2e-credit-account";
 
 /**
- * Blocks (app) shell children until onboarding status is known.
- * Prevents dashboard flash and fake workspace labels before redirect.
+ * Fast redirect for incomplete onboarding — avoids rendering dashboard behind a spinner.
  */
 export function OnboardingAppGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -23,28 +22,37 @@ export function OnboardingAppGate({ children }: { children: React.ReactNode }) {
   const exempt = isOnboardingExemptPath(pathname);
   const e2e = isE2eCreditTestAccount(profile?.email ?? user?.email);
 
+  const target =
+    pathname && needsGate && incomplete && !exempt && !e2e
+      ? `/onboarding?next=${encodeURIComponent(pathname)}`
+      : null;
+
   React.useEffect(() => {
-    if (loading || !needsGate || !profile?.id || e2e) return;
-    if (!incomplete || exempt) return;
-    router.replace(`/onboarding?next=${encodeURIComponent(pathname ?? "/projects")}`);
-  }, [loading, needsGate, profile?.id, incomplete, exempt, e2e, pathname, router]);
+    if (!target || loading) return;
+    router.replace(target);
+    const hard = window.setTimeout(() => {
+      if (window.location.pathname.startsWith("/onboarding")) return;
+      window.location.replace(target);
+    }, 800);
+    return () => window.clearTimeout(hard);
+  }, [target, loading, router]);
 
   if (!needsGate) return <>{children}</>;
 
-  if (loading || (user && !profile?.id)) {
+  if (loading && !profile?.id) {
     return (
-      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 text-muted-foreground">
-        <Loader2 className="size-6 animate-spin text-accent" strokeWidth={1.6} />
-        <p className="text-[13px]">Loading your workspace…</p>
+      <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-muted-foreground">
+        <Loader2 className="size-5 animate-spin text-accent" strokeWidth={1.6} />
+        <p className="text-[12px]">Signing you in…</p>
       </div>
     );
   }
 
-  if (incomplete && !exempt && !e2e) {
+  if (target) {
     return (
-      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 text-muted-foreground">
-        <Loader2 className="size-6 animate-spin text-accent" strokeWidth={1.6} />
-        <p className="text-[13px]">Continuing to onboarding…</p>
+      <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-muted-foreground">
+        <Loader2 className="size-5 animate-spin text-accent" strokeWidth={1.6} />
+        <p className="text-[12px]">Opening onboarding…</p>
       </div>
     );
   }

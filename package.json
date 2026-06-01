@@ -28,6 +28,7 @@
     "verify:project-icon-generation": "node scripts/verify-project-icon-generation.mjs",
     "verify:app-naming": "node scripts/verify-app-naming.mjs",
     "verify:docs-plans": "node scripts/verify-docs-plans.mjs",
+    "smoke:cheapest-build": "npx tsx scripts/smoke-cheapest-build.ts",
     "verify:oauth-branding": "node scripts/verify-oauth-branding.mjs",
     "verify:team-invitations": "node scripts/verify-team-invitations.mjs",
     "verify:admin-owner-email": "node scripts/verify-admin-owner-email.mjs",

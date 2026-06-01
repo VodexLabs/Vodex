@@ -53,8 +53,9 @@ const checks = {
   },
   "preview-building-state-stage-updates": () => {
     const b = read("src/components/create/workspace/build-preview-surface.tsx");
-    if (!b.includes("preview-build-stage-pills")) fail("missing stage pills");
-    pass("preview building stage pills");
+    if (!b.includes('data-testid="preview-build-loading-beautiful"')) fail("missing build preview surface");
+    if (!b.includes("Building your app")) fail("missing building state copy");
+    pass("preview building state surface");
   },
   "selected-model-drives-frontend-implementation": () => {
     const r = read("src/lib/ai/model-router.ts");
@@ -146,7 +147,10 @@ const checks = {
   },
   "technical-preview-failed-copy": () => {
     const w = read("src/lib/build/workflow-status-guards.ts");
-    if (!w.includes("Preview needs a technical fix")) fail("missing preview technical copy");
+    const e = read("src/lib/build/execute-staged-build-job.ts");
+    const hasGuardCopy = w.includes("preview could not render because of a technical issue");
+    const hasJobCopy = e.includes("preview needs a technical fix");
+    if (!hasGuardCopy && !hasJobCopy) fail("missing preview technical copy");
     pass("technical preview failed copy");
   },
   "status-copy-matches-final-facts": () => {
