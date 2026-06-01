@@ -1,3 +1,7 @@
+import { AppChromeProviders } from "@/components/providers/app-chrome-providers";
+
+export const dynamic = "force-dynamic";
+
 /**
  * Workspace layout — fully isolated, no platform shell.
  *
@@ -11,8 +15,8 @@ export default function WorkspaceLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="h-screen w-screen overflow-hidden bg-background">
-      {children}
-    </div>
+    <AppChromeProviders>
+      <div className="h-screen w-screen overflow-hidden bg-background">{children}</div>
+    </AppChromeProviders>
   );
 }

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
@@ -6,8 +7,9 @@ import { createClient as createBrowserClient } from "@/lib/supabase/client";
 /**
  * Server-side session — Supabase auth cookies are the source of truth.
  * Use in Server Components, route handlers, and server actions.
+ * Deduped per request via React cache().
  */
-export async function getServerSessionUser(): Promise<User | null> {
+export const getServerSessionUser = cache(async (): Promise<User | null> => {
   try {
     const supabase = await createClient();
     const {
@@ -31,7 +33,7 @@ export async function getServerSessionUser(): Promise<User | null> {
     }
     return null;
   }
-}
+});
 
 /** Redirects to login when no server session. */
 export async function requireServerUser(nextPath?: string): Promise<User> {

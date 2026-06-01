@@ -477,3 +477,33 @@ body {
   );
   box-shadow: 0 8px 32px -12px color-mix(in oklab, var(--accent) 35%, transparent);
 }
+
+@keyframes shell-orb-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(28px, -20px, 0) scale(1.06);
+  }
+}
+
+.shell-ambient-orb {
+  animation: shell-orb-drift 26s ease-in-out infinite;
+}
+
+.shell-ambient-orb-blue {
+  animation-duration: 22s;
+  animation-delay: 4s;
+}
+
+.shell-ambient-orb-accent {
+  animation-duration: 18s;
+  animation-delay: 8s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell-ambient-orb {
+    animation: none;
+  }
+}

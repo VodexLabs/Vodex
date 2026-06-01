@@ -18,11 +18,6 @@ import { useCreditsSync } from "@/hooks/use-credits-sync";
 import { useNotificationsStore } from "@/lib/stores/notifications-store";
 import type { Notification } from "@/lib/supabase/types";
 import { ReferralCapture } from "@/components/referrals/referral-capture";
-import { ReferralGuard } from "@/components/referrals/referral-guard";
-import { ReferralNoticeHandler } from "@/components/referrals/referral-notice-handler";
-import { CommandCenter } from "@/components/command/command-center";
-import { RecentPagesTracker } from "@/components/navigation/recent-pages-tracker";
-import { NavigationProgress } from "@/components/layout/navigation-progress";
 import { AuthStateDebug } from "@/components/dev/auth-state-debug";
 import { hasActiveSession, isStalePersistedProfile } from "@/lib/auth/client-identity";
 import { isE2eCreditTestAccount } from "@/lib/credits/e2e-credit-account";
@@ -38,6 +33,12 @@ import {
 import type { Profile } from "@/lib/supabase/types";
 import { installChunkLoadRecovery } from "@/lib/navigation/chunk-load-recovery";
 import { isOnboardingExemptPath } from "@/lib/onboarding/exempt-paths";
+import {
+  fetchOnboardingCompleteFromApi,
+  hasSessionOnboardingComplete,
+  isProfileOnboardingComplete,
+  mergeProfileOnboardingStatus,
+} from "@/lib/onboarding/onboarding-status";
 import { isLightweightPublicPath } from "@/lib/routing/lightweight-public-paths";
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -83,25 +84,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (profile.onboarding_completed !== true) {
-      if (isOnboardingExemptPath(pathname)) {
-        void (async () => {
-          const { data } = await createClient()
-            .from("profiles")
-            .select("onboarding_completed")
-            .eq("id", profile.id)
-            .maybeSingle();
-          if (data?.onboarding_completed === true) {
-            setProfile({ ...profile, onboarding_completed: true });
-          }
-        })();
+    if (
+      isProfileOnboardingComplete(profile) ||
+      hasSessionOnboardingComplete(profile.id)
+    ) {
+      return;
+    }
+
+    if (isOnboardingExemptPath(pathname)) {
+      void (async () => {
+        const done = await fetchOnboardingCompleteFromApi();
+        if (done) {
+          setProfile(mergeProfileOnboardingStatus(profile, { onboarding_completed: true }) as Profile);
+        }
+      })();
+      return;
+    }
+
+    void (async () => {
+      const done = await fetchOnboardingCompleteFromApi();
+      if (done) {
+        setProfile(mergeProfileOnboardingStatus(profile, { onboarding_completed: true }) as Profile);
         return;
       }
       if (!isE2eCreditTestAccount(profile.email ?? user?.email)) {
         router.replace(`/onboarding?next=${encodeURIComponent(pathname)}`);
       }
-    }
-  }, [loading, session, user, profile?.id, profile?.onboarding_completed, pathname, router]);
+    })();
+  }, [loading, session, user, profile, pathname, router]);
 
   React.useEffect(() => {
     if (lightweightPublic) {
@@ -116,8 +126,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       const cached = getCachedBootstrap(userId);
       if (cached?.profile) {
-        setProfile(cached.profile);
-        seedCreditsFromProfile(cached.profile);
+        const current = useAuthStore.getState().profile;
+        const merged = mergeProfileOnboardingStatus(current, cached.profile) as Profile;
+        setProfile(merged);
+        seedCreditsFromProfile(merged);
+        if (isProfileOnboardingComplete(merged) || hasSessionOnboardingComplete(userId)) {
+          setLoading(false);
+        }
         void useCreditsStore.getState().syncFromDB({ reason: "bootstrap" });
       }
       if (cached?.notifications.length) {
@@ -146,7 +161,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (coreProfile) {
-        const profile = coreProfile as Profile;
+        const current = useAuthStore.getState().profile;
+        const profile = mergeProfileOnboardingStatus(current, coreProfile) as Profile;
         setProfile(profile);
         seedCreditsFromProfile(profile);
         setCachedBootstrap(userId, {
@@ -351,14 +367,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      {!lightweightPublic && <NavigationProgress />}
-      {!lightweightPublic && <RecentPagesTracker />}
-      <React.Suspense fallback={null}>
-        <ReferralGuard />
-        <ReferralNoticeHandler />
-      </React.Suspense>
       <ReferralCapture />
-      {!lightweightPublic && <CommandCenter />}
       <AuthStateDebug />
       {children}
     </>

@@ -16,7 +16,13 @@ import { Input } from "@/components/ui/input";
 import { transition } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import {
+  applyOnboardingCompleteToClient,
+  fetchOnboardingCompleteFromApi,
+  isProfileOnboardingComplete,
+} from "@/lib/onboarding/onboarding-status";
 import { resolveDisplayName } from "@/lib/profile-display";
+import type { Profile } from "@/lib/supabase/types";
 import {
   persistReferralCodeForBrowser,
   readReferralCodeFromBrowserCookie,
@@ -89,9 +95,19 @@ export function OnboardingView() {
   }, [profile?.referred_by, searchParams]);
 
   React.useEffect(() => {
-    if (!profile?.onboarding_completed || replay) return;
-    router.replace("/");
-  }, [profile?.onboarding_completed, replay, router]);
+    if (replay) return;
+    const dest = nextUrl.startsWith("/") ? nextUrl : "/";
+    if (isProfileOnboardingComplete(profile)) {
+      router.replace(dest);
+      return;
+    }
+    void (async () => {
+      const done = await fetchOnboardingCompleteFromApi();
+      if (!done || !profile) return;
+      applyOnboardingCompleteToClient(profile.id, profile as Profile, setProfile);
+      router.replace(dest);
+    })();
+  }, [profile, replay, router, nextUrl, setProfile]);
 
   const displayName = resolveDisplayName(profile, user);
   const email = profile?.email ?? user?.email ?? "";
@@ -172,13 +188,13 @@ export function OnboardingView() {
       }
 
       if (profile) {
-        setProfile({
-          ...profile,
-          onboarding_completed: true,
-          onboarding_completed_at: new Date().toISOString(),
-          use_case: "Getting started",
-          signup_wizard_completed: true,
-        });
+        applyOnboardingCompleteToClient(profile.id, profile as Profile, setProfile);
+      } else if (user?.id) {
+        try {
+          sessionStorage.setItem(`vodex:onboarding-complete:${user.id}`, "1");
+        } catch {
+          /* ignore */
+        }
       }
 
       try {
@@ -188,7 +204,7 @@ export function OnboardingView() {
       }
 
       const dest = nextUrl.startsWith("/") ? nextUrl : "/";
-      router.push(dest);
+      router.replace(dest);
       router.refresh();
     } catch {
       setSaveError("Something went wrong.");

@@ -1,22 +1,12 @@
 import type { Metadata, Viewport } from "next";
-
 import { Geist, Geist_Mono } from "next/font/google";
-
+import { DeferredSpeedInsights } from "@/components/analytics/deferred-speed-insights";
 import {
   DREAMOS_THEME_STORAGE_KEY,
   ThemeProvider,
 } from "@/components/providers/theme-provider";
-
-import { AppProvider } from "@/components/providers/app-provider";
-
-import { AppearanceProvider } from "@/components/providers/appearance-provider";
-
-import { Toaster } from "@/components/ui/toaster";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import { OAuthCodeLandingRedirect } from "@/components/auth/oauth-code-landing-redirect";
-
 import "./globals.css";
-
 import { getMetadataBaseUrl, getSiteUrl } from "@/lib/app-url";
 import { LEGAL_COMPANY_NAME } from "@/lib/brand/brand-config";
 import {
@@ -28,34 +18,22 @@ import {
   VODEX_ICON_192,
 } from "@/lib/branding/brand-assets";
 
-
-
-/** App routes use client search params; keep dynamic until auth/help pages use Suspense boundaries. */
-export const dynamic = "force-dynamic";
-
 const geistSans = Geist({
-
   variable: "--font-geist-sans",
-
   subsets: ["latin"],
-
+  display: "swap",
+  preload: true,
 });
-
-
 
 const geistMono = Geist_Mono({
-
   variable: "--font-geist-mono",
-
   subsets: ["latin"],
-
+  display: "swap",
+  preload: false,
 });
-
-
 
 const SITE_URL = getMetadataBaseUrl();
 const CANONICAL_SITE_URL = getSiteUrl();
-
 const ICON_V = BRAND_ICON_VERSION;
 
 export const metadata: Metadata = {
@@ -101,77 +79,41 @@ export const metadata: Metadata = {
     description: `Describe the app you want. ${BRAND_NAME} uses frontier AI to architect, build, and deploy it in minutes.`,
     images: [VODEX_ICON_192],
   },
-
   robots: {
-
     index: true,
-
     follow: true,
-
     googleBot: {
-
       index: true,
-
       follow: true,
-
       "max-image-preview": "large",
-
       "max-snippet": -1,
-
     },
-
   },
-
   alternates: { canonical: CANONICAL_SITE_URL },
-
 };
-
-
 
 export const viewport: Viewport = {
-
   themeColor: [
-
     { media: "(prefers-color-scheme: light)", color: "#f4f7fd" },
-
     { media: "(prefers-color-scheme: dark)", color: "#0a0c10" },
-
   ],
-
   colorScheme: "light dark",
-
   width: "device-width",
-
   initialScale: 1,
-
   maximumScale: 5,
-
 };
 
-
-
 export default function RootLayout({
-
   children,
-
 }: Readonly<{
-
   children: React.ReactNode;
-
 }>) {
-
   return (
-
     <html
-
       lang="en"
-
       className={`${geistSans.variable} ${geistMono.variable} h-full`}
-
       suppressHydrationWarning
-
     >
-
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -179,32 +121,13 @@ export default function RootLayout({
           }}
         />
       </head>
-
       <body className="min-h-full" suppressHydrationWarning>
-
         <ThemeProvider>
-
-          <AppProvider>
-
-            <AppearanceProvider>
-
-              {children}
-
-              <OAuthCodeLandingRedirect />
-              <Toaster />
-              <SpeedInsights />
-
-            </AppearanceProvider>
-
-          </AppProvider>
-
+          {children}
+          <OAuthCodeLandingRedirect />
+          <DeferredSpeedInsights />
         </ThemeProvider>
-
       </body>
-
     </html>
-
   );
-
 }
-

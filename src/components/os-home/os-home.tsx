@@ -17,8 +17,8 @@ import {
   Globe,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { IntegrationShowcaseSection } from "@/components/marketing/integrations-showcase";
 import { YourAppsSection, type YourAppsProject } from "@/components/os-home/your-apps-section";
+import { useHomeRecentProjects } from "@/components/os-home/use-home-recent-projects";
 import { ModelUsageDonut } from "@/components/dashboard/model-usage-donut";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { storeAutostartHandoff } from "@/lib/create/autostart-handoff";
@@ -49,6 +49,14 @@ const DreamOsStatsSection = dynamic(
 
 const WhyDreamOsSection = dynamic(
   () => import("@/components/os-home/why-dreamos-section").then((m) => m.WhyDreamOsSection),
+  { loading: () => <div className="mx-auto h-40 max-w-5xl animate-pulse rounded-2xl bg-muted/15" /> },
+);
+
+const IntegrationShowcaseSection = dynamic(
+  () =>
+    import("@/components/marketing/integrations-showcase").then(
+      (m) => m.IntegrationShowcaseSection,
+    ),
   { loading: () => <div className="mx-auto h-40 max-w-5xl animate-pulse rounded-2xl bg-muted/15" /> },
 );
 
@@ -474,12 +482,9 @@ const heroItem = {
   },
 };
 
-export interface OsHomeProps {
-  recentProjects: RecentProject[];
-}
-
-export function OsHome({ recentProjects }: OsHomeProps) {
+export function OsHome() {
   const searchParams = useSearchParams();
+  const { projects: recentProjects } = useHomeRecentProjects();
   const { profile, user } = useAuthStore();
   const display = resolveDisplayName(profile, user);
   const firstName = display !== "User" ? display.split(/\s+/)[0] : null;
@@ -514,7 +519,7 @@ export function OsHome({ recentProjects }: OsHomeProps) {
 
         <motion.div
           variants={heroContainer}
-          initial="hidden"
+          initial={false}
           animate="show"
           className="flex w-full max-w-5xl flex-col items-center text-center xl:max-w-6xl"
         >
@@ -560,68 +565,33 @@ export function OsHome({ recentProjects }: OsHomeProps) {
           <QuickCreateBar value={quickPrompt} onChange={setQuickPrompt} inputRef={quickInputRef} />
         </div>
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.1 }}
-          className="mx-auto w-full max-w-5xl"
-        >
+        <div className="mx-auto w-full max-w-5xl">
           <YourAppsSection projects={recentProjects} />
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.12 }}
-          className="mx-auto w-full max-w-5xl"
-        >
+        <div className="mx-auto w-full max-w-5xl">
           <ModelUsageDonut />
-        </motion.div>
+        </div>
 
         {/* App inspiration feed */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
-          className="mx-auto w-full max-w-5xl"
-        >
+        <div className="mx-auto w-full max-w-5xl">
           <AppInspirationFeed onPickPrompt={prefillCreateBar} />
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.22 }}
-          className="mx-auto w-full max-w-5xl"
-        >
+        <div className="mx-auto w-full max-w-5xl">
           <IntegrationShowcaseSection variant="default" />
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.24 }}
-          className="mx-auto w-full max-w-5xl px-4 sm:px-0"
-        >
+        <div className="mx-auto w-full max-w-5xl px-4 sm:px-0">
           <WhyDreamOsSection />
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.26 }}
-          className="mx-auto w-full max-w-5xl px-4 sm:px-0"
-        >
+        <div className="mx-auto w-full max-w-5xl px-4 sm:px-0">
           <DreamOsStatsSection />
-        </motion.div>
+        </div>
 
         {/* Platform quick links */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.25 }}
-          className="flex w-full max-w-4xl flex-wrap items-center justify-center gap-2"
-        >
+        <div className="flex w-full max-w-4xl flex-wrap items-center justify-center gap-2">
           {[
             { href: "/projects", icon: LayoutGrid, label: "All apps" },
             { href: "/community", icon: Users, label: "Community" },
@@ -639,7 +609,7 @@ export function OsHome({ recentProjects }: OsHomeProps) {
               {label}
             </Link>
           ))}
-        </motion.div>
+        </div>
       </div>
     </div>
   );

@@ -136,13 +136,23 @@ export async function loadUserProfileCore(
     /* optional loader already logged */
   }
 
+  let onboardingCompleted = data.onboarding_completed === true;
+  if (!onboardingCompleted) {
+    const { data: onboardingRow } = await supabase
+      .from("onboarding")
+      .select("completed_at")
+      .eq("user_id", userId)
+      .maybeSingle();
+    onboardingCompleted = Boolean(onboardingRow?.completed_at);
+  }
+
   const merged: Partial<Profile> = {
     id: userId,
     email: typeof data.email === "string" ? data.email : "",
     plan_id: (typeof data.plan_id === "string" ? data.plan_id : "free") as Profile["plan_id"],
     credits_remaining:
       typeof data.credits_remaining === "number" ? data.credits_remaining : FREE_CREDITS_FALLBACK,
-    onboarding_completed: Boolean(data.onboarding_completed),
+    onboarding_completed: onboardingCompleted,
     workspace_name: isGenericWorkspaceName(
       typeof data.workspace_name === "string" ? data.workspace_name : null,
     )

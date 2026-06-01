@@ -69,6 +69,16 @@ async function main() {
     errors.push("app-provider.tsx: missing lightweight public path guard");
   }
 
+  const rootLayout = await read("src/app/layout.tsx");
+  if (rootLayout?.includes('export const dynamic = "force-dynamic"')) {
+    errors.push("root layout must not force-dynamic (hurts TTFB globally)");
+  }
+
+  const appChrome = await read("src/components/providers/app-chrome-providers.tsx");
+  if (!appChrome?.includes("AppProvider")) {
+    errors.push("app-chrome-providers.tsx: missing scoped app providers");
+  }
+
   const dreamosAssets = await fs.readdir(path.join(ROOT, "public/brand")).catch(() => []);
   const usedDreamosPng = [];
   for (const name of dreamosAssets) {

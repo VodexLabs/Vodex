@@ -3,7 +3,6 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
 import { Home, Compass, MessageSquare, Users, LayoutGrid } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/top-bar";
@@ -167,39 +166,13 @@ function MobileBottomNav() {
   );
 }
 
-// Ambient background orbs — ultra subtle, alive but not distracting
+/** CSS-only ambient orbs — avoids framer-motion on critical shell path. */
 function AmbientOrbs() {
   return (
     <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden>
-      {/* Primary violet orb — top right */}
-      <motion.div
-        className="absolute -right-64 -top-64 size-[700px] rounded-full bg-violet-600/[0.04] blur-[120px]"
-        animate={{
-          x: [0, 40, -20, 0],
-          y: [0, -30, 20, 0],
-          scale: [1, 1.08, 0.97, 1],
-        }}
-        transition={{ duration: 28, repeat: Infinity, ease: "easeInOut" }}
-      />
-      {/* Blue orb — bottom left */}
-      <motion.div
-        className="absolute -bottom-48 -left-48 size-[600px] rounded-full bg-blue-500/[0.04] blur-[100px]"
-        animate={{
-          x: [0, -25, 35, 0],
-          y: [0, 20, -15, 0],
-          scale: [1, 0.95, 1.05, 1],
-        }}
-        transition={{ duration: 22, repeat: Infinity, ease: "easeInOut", delay: 4 }}
-      />
-      {/* Accent orb — center */}
-      <motion.div
-        className="absolute left-1/2 top-1/3 size-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent/[0.025] blur-[90px]"
-        animate={{
-          scale: [1, 1.12, 0.94, 1],
-          opacity: [0.6, 1, 0.5, 0.6],
-        }}
-        transition={{ duration: 18, repeat: Infinity, ease: "easeInOut", delay: 8 }}
-      />
+      <div className="shell-ambient-orb shell-ambient-orb-violet absolute -right-64 -top-64 size-[700px] rounded-full bg-violet-600/[0.04] blur-[120px]" />
+      <div className="shell-ambient-orb shell-ambient-orb-blue absolute -bottom-48 -left-48 size-[600px] rounded-full bg-blue-500/[0.04] blur-[100px]" />
+      <div className="shell-ambient-orb shell-ambient-orb-accent absolute left-1/2 top-1/3 size-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent/[0.025] blur-[90px]" />
     </div>
   );
 }
@@ -247,18 +220,7 @@ export function PlatformShell({
       <div className="relative flex h-[100dvh] overflow-hidden bg-background">
         <AmbientOrbs />
         <main className="relative z-[1] flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable]">
-          <AnimatePresence mode="popLayout" initial={false}>
-            <motion.div
-              key={pathname}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-              className="flex w-full min-w-0 flex-1 flex-col"
-            >
-              {children}
-            </motion.div>
-          </AnimatePresence>
+          <div className="flex w-full min-w-0 flex-1 flex-col">{children}</div>
         </main>
       </div>
     );
@@ -304,24 +266,17 @@ export function PlatformShell({
             `popLayout` lets the next page mount immediately on top while
             the previous page fades out — never a blank frame.
           */}
-          <AnimatePresence mode="popLayout" initial={false}>
-            <motion.div
-              key={pathname}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.08, ease: "linear" }}
-              className={
-                isHomeShellScroll
-                  ? "flex w-full min-w-0 flex-col"
-                  : isFullBleed
-                    ? "flex h-full min-h-0 min-w-0 flex-col"
-                    : "min-h-full"
-              }
-            >
-              {children}
-            </motion.div>
-          </AnimatePresence>
+          <div
+            className={
+              isHomeShellScroll
+                ? "flex w-full min-w-0 flex-col"
+                : isFullBleed
+                  ? "flex h-full min-h-0 min-w-0 flex-col"
+                  : "min-h-full"
+            }
+          >
+            {children}
+          </div>
         </main>
       </div>
 

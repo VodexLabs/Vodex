@@ -244,12 +244,21 @@ export async function proxy(request: NextRequest) {
 
   if (needsOnboardingGate && user) {
     try {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("onboarding_completed")
-        .eq("id", user.id)
-        .maybeSingle();
-      if (profile?.onboarding_completed !== true) {
+      const [{ data: profile }, { data: onboarding }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("onboarding_completed")
+          .eq("id", user.id)
+          .maybeSingle(),
+        supabase
+          .from("onboarding")
+          .select("completed_at")
+          .eq("user_id", user.id)
+          .maybeSingle(),
+      ]);
+      const onboardingComplete =
+        profile?.onboarding_completed === true || Boolean(onboarding?.completed_at);
+      if (!onboardingComplete) {
         const onboardingUrl = new URL("/onboarding", request.url);
         onboardingUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
         return NextResponse.redirect(onboardingUrl);
