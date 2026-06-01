@@ -44,6 +44,7 @@
     "verify:missing-root-page-repair": "node scripts/verify-p06-production.mjs missing-root-page-repair",
     "verify:icon-generation-billing-and-quality": "node scripts/verify-p06-production.mjs icon-generation-billing-and-quality",
     "verify:premium-app-naming": "node scripts/verify-p06-production.mjs premium-app-naming",
+    "verify:auth-bootstrap-nonblocking": "node scripts/verify-p06-production.mjs auth-bootstrap-nonblocking",
     "verify:build-resume-after-refresh": "node scripts/verify-build-resume-after-refresh.mjs",
     "verify:builder-performance-guard": "node scripts/verify-builder-performance-guard.mjs",
     "verify:owner-diagnostics-modal": "node scripts/verify-owner-diagnostics-modal.mjs",

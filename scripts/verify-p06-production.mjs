@@ -112,6 +112,18 @@ const suites = {
     must(read("src/components/projects/project-icon.tsx"), "object-cover", "circle crop display", errors);
     return errors;
   },
+  "auth-bootstrap-nonblocking": () => {
+    const errors = [];
+    const provider = read("src/components/providers/app-provider.tsx");
+    const gate = read("src/components/onboarding/onboarding-app-gate.tsx");
+    if (provider.includes("await bootstrapUser(liveUser.id)")) {
+      errors.push("auth bootstrap must not await bootstrapUser before setLoading(false)");
+    }
+    must(provider, "void bootstrapUser(liveUser.id)", "background bootstrap", errors);
+    must(gate, "gateTimedOut", "gate max wait fallback", errors);
+    must(gate, "hasActiveSession", "session-aware gate", errors);
+    return errors;
+  },
   "premium-app-naming": () => {
     const errors = [];
     const engine = read("src/lib/projects/app-identity-naming-engine.ts");

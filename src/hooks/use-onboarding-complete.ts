@@ -37,6 +37,9 @@ export function useOnboardingComplete() {
 
     let cancelled = false;
     setChecking(true);
+    const checkTimer = window.setTimeout(() => {
+      if (!cancelled) setChecking(false);
+    }, 4_500);
     void (async () => {
       const apiComplete = await fetchOnboardingCompleteFromApi();
       if (cancelled) return;
@@ -45,10 +48,12 @@ export function useOnboardingComplete() {
       }
       setVerified(apiComplete);
       setChecking(false);
+      window.clearTimeout(checkTimer);
     })();
 
     return () => {
       cancelled = true;
+      window.clearTimeout(checkTimer);
     };
   }, [userId, profileComplete, sessionComplete, profile, setProfile]);
 

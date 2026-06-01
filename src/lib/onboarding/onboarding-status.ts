@@ -121,12 +121,20 @@ export async function resolveOnboardingCompleteForUser(
 
 /** Authoritative client check (GET /api/onboarding). */
 export async function fetchOnboardingCompleteFromApi(): Promise<boolean> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4_000);
   try {
-    const res = await fetch("/api/onboarding", { credentials: "include", cache: "no-store" });
+    const res = await fetch("/api/onboarding", {
+      credentials: "include",
+      cache: "no-store",
+      signal: controller.signal,
+    });
     if (!res.ok) return false;
     const data = (await res.json()) as { completed?: boolean };
     return data.completed === true;
   } catch {
     return false;
+  } finally {
+    clearTimeout(timer);
   }
 }

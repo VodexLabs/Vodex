@@ -69,7 +69,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [lightweightPublic, profileId, profilePlanId, profileCreditsRemaining]);
 
   React.useEffect(() => {
-    void useAuthStore.persist.rehydrate();
+    void Promise.resolve(useAuthStore.persist.rehydrate()).then(() => {
+      const state = useAuthStore.getState();
+      if (state.profile?.id) {
+        state.setLoading(false);
+        runCreditsBootstrap(state.profile.id, state.profile);
+      }
+    });
     return installChunkLoadRecovery();
   }, []);
 
@@ -130,9 +136,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const merged = mergeProfileOnboardingStatus(current, cached.profile) as Profile;
         setProfile(merged);
         runCreditsBootstrap(userId, merged);
-        if (isProfileOnboardingComplete(merged) || hasSessionOnboardingComplete(userId)) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
       if (cached?.notifications.length) {
         setNotifications(cached.notifications);
@@ -266,7 +270,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     let disposed = false;
     const authTimeout = window.setTimeout(() => {
       if (!disposed) setLoading(false);
-    }, 4_000);
+    }, 2_500);
 
     void supabase.auth.getUser().then(async ({ data: { user: liveUser } }) => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -282,8 +286,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (persisted && persisted.id !== liveUser.id) {
           setProfile(null);
         }
-        const dispose = await bootstrapUser(liveUser.id);
-        disposeRealtime = dispose;
+        setLoading(false);
+        void bootstrapUser(liveUser.id).then((dispose) => {
+          disposeRealtime = dispose;
+        });
       } else {
         setProfile(null);
         try {
@@ -291,9 +297,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         } catch {
           /* ignore */
         }
+        setLoading(false);
       }
 
-      setLoading(false);
       window.clearTimeout(authTimeout);
     }).catch(() => {
       setLoading(false);
@@ -308,7 +314,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       if (event === "SIGNED_IN" && session?.user) {
         disposeRealtime?.();
-        disposeRealtime = await bootstrapUser(session.user.id);
+        setLoading(false);
+        void bootstrapUser(session.user.id).then((dispose) => {
+          disposeRealtime = dispose;
+        });
         router.refresh();
       }
 
