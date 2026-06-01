@@ -1,6 +1,6 @@
 import { isLocalhostOrigin } from "@/lib/url/app-origin";
 
-const PRODUCTION_PUBLIC_HOSTS = new Set(["dreamos86.com", "www.dreamos86.com"]);
+const PRODUCTION_PUBLIC_HOSTS = new Set(["vodex.dev", "www.vodex.dev"]);
 
 export function isProductionPublicHost(hostname: string): boolean {
   return PRODUCTION_PUBLIC_HOSTS.has(hostname.toLowerCase());
@@ -56,7 +56,7 @@ export function validateOAuthRedirectForBrowser(
       ok: false,
       code: "oauth_redirect_localhost_on_production",
       message:
-        "Sign-in is misconfigured: this page is on dreamos86.com but OAuth would return to localhost. Redeploy with NEXT_PUBLIC_APP_URL=https://dreamos86.com and retry.",
+        "Sign-in is misconfigured: this page is on vodex.dev but OAuth would return to localhost. Redeploy with NEXT_PUBLIC_APP_URL=https://vodex.dev and retry.",
     };
   }
 
@@ -64,7 +64,7 @@ export function validateOAuthRedirectForBrowser(
     ok: false,
     code: "oauth_redirect_host_mismatch",
     message:
-      "Sign-in redirect does not match this site. Use https://dreamos86.com to sign up, or fix Supabase Auth URL configuration.",
+      "Sign-in redirect does not match this site. Use https://vodex.dev to sign up, or fix Supabase Auth URL configuration.",
   };
 }
 

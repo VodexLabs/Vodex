@@ -29,7 +29,7 @@ export function createRouteHandlerClient(
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!supabaseUrl || !supabaseKey) {
-    throw new Error("[DreamOS86] Missing Supabase environment variables.");
+    throw new Error("[Vodex] Missing Supabase environment variables.");
   }
 
   return createServerClient<Database>(supabaseUrl, supabaseKey, {

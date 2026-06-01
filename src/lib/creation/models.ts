@@ -1,5 +1,5 @@
 /**
- * DreamOS86 — Creation model registry.
+ * Vodex — Creation model registry.
  *
  * Top 8 flagship models + additional roster.
  * IDs must match what /api/chat understands (MODEL_CREDITS keys).
@@ -376,7 +376,7 @@ export const MODE_META: Record<
     label: "Build",
     description:
       "Generate entire systems. Routes, backend, schemas, UI, animations, and runtime flows — all at once.",
-    hint: "Describe the app you want. DreamOS86 builds the entire thing.",
+    hint: "Describe the app you want. Vodex builds the entire thing.",
     icon: "Zap",
   },
 };

@@ -20,6 +20,7 @@ import {
 import { monthlyTokensForPlan } from "@/lib/billing/plans";
 import { monthlyActionCreditsForPlan } from "@/lib/action-credits/action-credit-allowances";
 import type { PlanChangeSource } from "@/lib/billing/plan-change-router";
+import { loadBillingTruthForUser } from "@/lib/billing/billing-truth";
 
 const schema = z
   .object({
@@ -29,6 +30,7 @@ const schema = z
     confirmed: z.literal(true),
     testMode: z.boolean().optional(),
     source: z.enum(["pricing", "admin_test_checkout", "settings"]).optional(),
+    billingAttemptId: z.string().uuid().optional(),
   })
   .refine((d) => d.plan ?? d.planId, { message: "plan is required" });
 
@@ -92,12 +94,15 @@ export async function POST(request: Request) {
     );
   }
 
+  const billingTruth = await loadBillingTruthForUser(ctx.userId);
+
   const result = await executePaddleBillingAction({
     ctx,
     targetPlan: billable,
     targetInterval: parsed.data.interval,
     source,
     testMode,
+    billingAttemptId: parsed.data.billingAttemptId,
   });
 
   const resolutionPayload = {
@@ -124,9 +129,12 @@ export async function POST(request: Request) {
         error: result.error,
         code: result.code,
         ...resolutionPayload,
+        billingTruth,
         usePortal: result.usePortal,
         requiresConfirmation: result.requiresConfirmation,
-        failureReasons: [result.error, ...failureReasons.slice(0, 3)],
+        failureReasons: [result.error, billingTruth.visibleWarningMessage, ...failureReasons].filter(
+          Boolean,
+        ),
       },
       { status: result.httpStatus },
     );
@@ -159,6 +167,7 @@ export async function POST(request: Request) {
       billingProvider: "paddle",
       liveMode: status.environment === "production",
       testMode,
+      billingTruth,
     });
   }
 
@@ -172,6 +181,7 @@ export async function POST(request: Request) {
       ...resolutionPayload,
       billingProvider: "paddle",
       webhookRequired: true,
+      billingTruth,
     });
   }
 

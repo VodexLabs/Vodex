@@ -80,7 +80,7 @@ const GUIDES: Record<string, { title: string; href: string; hint: string }> = {
   GOOGLE_OAUTH_CLIENT_SECRET: {
     title: "Google OAuth client secret",
     href: "https://console.cloud.google.com/apis/credentials",
-    hint: "Same OAuth client — copy the secret once; DreamOS86 will not show it again.",
+    hint: "Same OAuth client — copy the secret once; Vodex will not show it again.",
   },
 };
 

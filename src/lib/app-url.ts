@@ -1,5 +1,5 @@
 /**
- * DreamOS86 — App & site URLs
+ * Vodex — App & site URLs
  *
  * Prefer relative paths (`/create`, `/auth/login`) for in-app navigation.
  * Use these helpers only when an absolute URL is required (OAuth, Stripe, OG, email).

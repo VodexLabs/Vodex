@@ -53,7 +53,7 @@ export function wrapPreviewDocument(bodyInner: string, options?: PreviewHtmlOpti
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <title>DreamOS86 Preview</title>
+  <title>Vodex Preview</title>
   <meta name="dreamos-preview" content="static-snapshot" />
   <style>body{margin:0;font-family:Inter,system-ui,sans-serif}</style>
 </head>

@@ -163,7 +163,7 @@ export async function GET(request: Request) {
       usesDefaultSupabaseHost: usesDefaultHost,
       supabaseUrlHost,
       hint: usesDefaultHost
-        ? "OAuth branding still uses the Supabase project URL. Configure a Supabase custom domain (e.g. auth.dreamos86.com) and set NEXT_PUBLIC_SUPABASE_URL — see docs/supabase-custom-auth-domain.md."
+        ? "OAuth branding still uses the Supabase project URL. Configure a Supabase custom domain (e.g. auth.vodex.dev) and set NEXT_PUBLIC_SUPABASE_URL — see docs/supabase-custom-auth-domain.md."
         : null,
     },
     githubOAuthLogoNote:

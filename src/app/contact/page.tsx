@@ -6,7 +6,7 @@ import { getServerSessionUser } from "@/lib/auth/session";
 
 export const metadata: Metadata = {
   title: "Contact",
-  description: "Contact DreamOS86 — sales, support, billing, and product feedback.",
+  description: "Contact Vodex — sales, support, billing, and product feedback.",
 };
 
 /**

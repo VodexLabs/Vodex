@@ -1,6 +1,6 @@
 import { isPaidPlan } from "@/lib/billing/plan-features";
 
-/** Connecting live payment providers requires a paid DreamOS86 plan. */
+/** Connecting live payment providers requires a paid Vodex plan. */
 export function canConnectAppPayments(planId: string | null | undefined): boolean {
   if (process.env.NODE_ENV === "development") return true;
   return isPaidPlan(planId);

@@ -4,7 +4,7 @@ import * as React from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { IntegrationIconWell } from "@/components/brand/integration-icons";
-import { DreamOS86BrandIcon } from "@/components/brand/dreamos86-brand-icon";
+import { VodexBrandIcon } from "@/components/brand/vodex-brand-icon";
 import {
   ArrowRight,
   Clock,
@@ -97,7 +97,7 @@ function IntegrationsVisual() {
             {item.slug ? (
               <IntegrationIconWell provider={item.slug} size="sm" title={item.label} />
             ) : (
-              <DreamOS86BrandIcon size={28} alt="" />
+              <VodexBrandIcon size={28} alt="" />
             )}
           </div>
           <span className="text-[10.5px] font-semibold text-muted-foreground">{item.label}</span>
@@ -110,7 +110,7 @@ function IntegrationsVisual() {
 const FEATURES = [
   {
     title: "Build apps in minutes",
-    body: "Describe what you want once. DreamOS86 architects routes, UI, data, and deploy surfaces — not a static mockup.",
+    body: "Describe what you want once. Vodex architects routes, UI, data, and deploy surfaces — not a static mockup.",
     icon: Clock,
     visual: (
       <motion.div
@@ -154,7 +154,7 @@ const FEATURES = [
   },
   {
     title: "Production-ready by default",
-    body: "Supabase, Stripe, and DreamOS86 publish — wire secrets per app, not per prompt.",
+    body: "Supabase, Stripe, and Vodex publish — wire secrets per app, not per prompt.",
     icon: Shield,
     visual: <IntegrationsVisual />,
     tint: "from-emerald-500/8 to-cyan-500/8",
@@ -170,7 +170,7 @@ export function WhyDreamOsHeadline() {
         viewport={{ once: true }}
         className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent/80"
       >
-        Why DreamOS86
+        Why Vodex
       </motion.p>
       <motion.h2
         initial={{ opacity: 0, y: 8 }}
@@ -188,7 +188,7 @@ export function WhyDreamOsHeadline() {
         transition={{ delay: 0.1 }}
         className="mx-auto mt-2 max-w-xl text-pretty text-[14px] leading-relaxed text-muted-foreground"
       >
-        DreamOS86 is an AI-native OS for builders: one prompt, real code, hosted previews, and honest billing per token.
+        Vodex is an AI-native OS for builders: one prompt, real code, hosted previews, and honest billing per token.
       </motion.p>
     </section>
   );

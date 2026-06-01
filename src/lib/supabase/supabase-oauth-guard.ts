@@ -48,7 +48,7 @@ export function getSupabaseOAuthBlockReason(): SupabaseOAuthBlockReason | null {
         code: "supabase_project_mismatch",
         message:
           configuredRef !== canonicalRef
-            ? `Sign-in is misconfigured: this deployment uses Supabase project "${configuredRef}", but DreamOS86 production requires "${canonicalRef}". Update Vercel Production environment variables (NEXT_PUBLIC_SUPABASE_URL, anon key, and service role from the same project), then redeploy. Google OAuth must register: ${googleRedirectUriForCanonical}`
+            ? `Sign-in is misconfigured: this deployment uses Supabase project "${configuredRef}", but Vodex production requires "${canonicalRef}". Update Vercel Production environment variables (NEXT_PUBLIC_SUPABASE_URL, anon key, and service role from the same project), then redeploy. Google OAuth must register: ${googleRedirectUriForCanonical}`
             : `Sign-in is misconfigured: Supabase URL and API keys are from different projects. Use keys from ${configuredRef} for ${url} and redeploy.`,
         configuredRef,
         canonicalRef,

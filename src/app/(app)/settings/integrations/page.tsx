@@ -24,7 +24,7 @@ export default function IntegrationsSettingsPage() {
               Integrations are app-scoped
             </p>
             <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">
-              DreamOS86 is a multi-app platform. Each app has its own integrations and secrets.
+              Vodex is a multi-app platform. Each app has its own integrations and secrets.
               Connect services from that app&apos;s dashboard — this page is an overview of what you can plug in.
             </p>
           </div>

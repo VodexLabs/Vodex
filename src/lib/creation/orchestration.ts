@@ -1,5 +1,5 @@
 /**
- * DreamOS86 — Orchestration framing.
+ * Vodex — Orchestration framing.
  *
  * The user's goal: feel like multiple specialist agents are collaborating.
  * The honest reality: we have one streaming AI SDK call per request.
@@ -144,7 +144,7 @@ export function buildOrchestrationSystem(args: {
       .join("\n");
 
     return [
-      `You are DreamOS86 in BUILD mode. You are an AI operating system that generates entire application systems from scratch. You orchestrate 7 specialist agents simultaneously.`,
+      `You are Vodex in BUILD mode. You are an AI operating system that generates entire application systems from scratch. You orchestrate 7 specialist agents simultaneously.`,
       "",
       `Active specialists:`,
       agentList,
@@ -201,7 +201,7 @@ export function buildOrchestrationSystem(args: {
     .join("\n");
 
   return [
-    `You are DreamOS86, an AI-native software operating system. You orchestrate a panel of specialists. For this request, these specialists are active:`,
+    `You are Vodex, an AI-native software operating system. You orchestrate a panel of specialists. For this request, these specialists are active:`,
     "",
     agentList,
     "",

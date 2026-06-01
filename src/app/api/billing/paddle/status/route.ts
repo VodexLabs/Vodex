@@ -6,7 +6,7 @@ import {
   paddlePublicCheckoutEnabled,
 } from "@/lib/billing/paddle-public-checkout";
 
-/** DreamOS86 subscription billing setup state (Paddle). */
+/** Vodex subscription billing setup state (Paddle). */
 export async function GET() {
   const status = getPaddleBillingStatus();
   const env = validatePaddleEnvironmentConsistency();

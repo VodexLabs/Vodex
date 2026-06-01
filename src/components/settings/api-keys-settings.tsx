@@ -124,7 +124,7 @@ export function ApiKeysSettings() {
       >
         <Code2 className="mt-0.5 size-4 shrink-0 text-emerald-400" strokeWidth={2} />
         <div>
-          <p className="text-[13px] font-semibold text-foreground">DreamOS86 API v1</p>
+          <p className="text-[13px] font-semibold text-foreground">Vodex API v1</p>
           <p className="mt-0.5 text-[12px] text-muted-foreground">
             Programmatic access to projects, generations, deployments, and media. Keys are hashed
             and shown only once — save them immediately.

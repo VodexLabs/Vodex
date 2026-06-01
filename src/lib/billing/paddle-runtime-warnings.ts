@@ -25,7 +25,7 @@ export function logPaddleRuntimeWarnings(): void {
 
   if (paddleEnv === "production" && isLocalApp) {
     errors.push(
-      "PRODUCTION PADDLE + LOCALHOST: Production Paddle webhooks are delivered to https://dreamos86.com/api/webhooks/paddle — NOT localhost. " +
+      "PRODUCTION PADDLE + LOCALHOST: Production Paddle webhooks are delivered to https://vodex.dev/api/webhooks/paddle — NOT localhost. " +
         "Plan/credits will NOT update locally unless NEXT_PUBLIC_SUPABASE_URL points at the same project production webhooks write to, or you tunnel webhooks to localhost (ngrok).",
     );
   }
@@ -58,16 +58,16 @@ export function logPaddleRuntimeWarnings(): void {
   }
 
   const webhookUrl = `${appUrl.replace(/\/$/, "")}/api/webhooks/paddle`;
-  if (paddleEnv === "production" && !webhookUrl.includes("dreamos86.com") && !isLocalApp) {
+  if (paddleEnv === "production" && !webhookUrl.includes("vodex.dev") && !isLocalApp) {
     warnings.push(
-      `Webhook URL derived from app origin (${webhookUrl}) — Paddle Dashboard should use https://dreamos86.com/api/webhooks/paddle in production.`,
+      `Webhook URL derived from app origin (${webhookUrl}) — Paddle Dashboard should use https://vodex.dev/api/webhooks/paddle in production.`,
     );
   }
 
   for (const e of errors) {
-    console.error("[DreamOS86][paddle-billing] ⚠️", e);
+    console.error("[Vodex][paddle-billing] ⚠️", e);
   }
   for (const w of warnings) {
-    console.warn("[DreamOS86][paddle-billing]", w);
+    console.warn("[Vodex][paddle-billing]", w);
   }
 }

@@ -17,7 +17,7 @@ const providerColors: Record<string, string> = {
   DeepSeek:  "bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400",
 };
 
-const providerOrder = ["DreamOS86", "Anthropic", "OpenAI", "Google", "xAI", "DeepSeek"];
+const providerOrder = ["Vodex", "Anthropic", "OpenAI", "Google", "xAI", "DeepSeek"];
 
 // ─── Cost stars component ─────────────────────────────────────────────────────
 

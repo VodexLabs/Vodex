@@ -1,5 +1,5 @@
 /**
- * DreamOS86 — Supabase Browser Client
+ * Vodex — Supabase Browser Client
  *
  * Use this in Client Components. Creates a singleton to avoid re-instantiating
  * on every render. Reads env vars at build time via Next.js public env handling.
@@ -19,7 +19,7 @@ export function createClient() {
 
   if (!url || !key) {
     throw new Error(
-      "[DreamOS86] Missing Supabase environment variables.\n\n" +
+      "[Vodex] Missing Supabase environment variables.\n\n" +
         "Copy .env.local.example → .env.local and fill in your project URL and anon key.\n" +
         "Get them from: https://supabase.com/dashboard/project/_/settings/api",
     );

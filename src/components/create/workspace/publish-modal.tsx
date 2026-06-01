@@ -226,7 +226,7 @@ export function PublishModal({
       setPhase("finalizing");
       await refreshPublishAfterAllocate(next);
       setPhase("published", { url: next.publicWebUrl ?? undefined });
-      toast.success("Live web URL is ready on DreamOS86.");
+      toast.success("Live web URL is ready on Vodex.");
       onClose();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Publish failed";
@@ -355,7 +355,7 @@ export function PublishModal({
             Publish
           </h2>
           <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">
-            DreamOS86 hosts the web version for you at a dedicated subdomain. Mobile packaging uses the same project files
+            Vodex hosts the web version for you at a dedicated subdomain. Mobile packaging uses the same project files
             — availability depends on your plan and the platform builder.
           </p>
 
@@ -486,7 +486,7 @@ export function PublishModal({
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Live app URL</p>
                 <p className="mt-2 text-[13px] text-muted-foreground">
                   Every app gets a stable public hostname on{" "}
-                  <span className="font-medium text-foreground">{publishInfo?.platformBaseDomain ?? "dreamos86.app"}</span>.
+                  <span className="font-medium text-foreground">{publishInfo?.platformBaseDomain ?? "vodex.app"}</span>.
                   Updates to your generated UI roll forward here when you rebuild.
                 </p>
 
@@ -567,7 +567,7 @@ export function PublishModal({
                 </div>
                 <p className="mt-1 text-[12px] text-muted-foreground">
                   {customAllowed
-                    ? "Contact us to map your domain — TLS and routing are handled on DreamOS86 infrastructure."
+                    ? "Contact us to map your domain — TLS and routing are handled on Vodex infrastructure."
                     : "Custom domains are available on paid plans. Your app still ships on the free subdomain above."}
                 </p>
                 {!customAllowed && (

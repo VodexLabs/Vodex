@@ -34,7 +34,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   }
   return {
     title: data.title ?? slug,
-    description: data.description ?? "Published app on DreamOS86",
+    description: data.description ?? "Published app on Vodex",
   };
 }
 

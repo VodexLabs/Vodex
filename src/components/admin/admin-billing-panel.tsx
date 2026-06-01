@@ -65,9 +65,9 @@ export function AdminBillingPanel() {
   return (
     <div className="space-y-6">
       <section className="rounded-xl border border-border bg-surface/40 p-4">
-        <h3 className="text-[14px] font-semibold text-foreground">DreamOS86 platform billing (Paddle)</h3>
+        <h3 className="text-[14px] font-semibold text-foreground">Vodex platform billing (Paddle)</h3>
         <p className="mt-1 text-[12px] text-muted-foreground">
-          Subscriptions for the DreamOS86 product. Generated-app payment connectors (Stripe, etc.) are separate.
+          Subscriptions for the Vodex product. Generated-app payment connectors (Stripe, etc.) are separate.
         </p>
         {paddle ? (
           <dl className="mt-4 grid gap-2 text-[12px] sm:grid-cols-2">
@@ -194,7 +194,7 @@ export function AdminBillingPanel() {
 
       <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
         <CreditCard className="size-3.5" />
-        DreamOS86 platform billing is Paddle-only. Legacy column labels may still say Stripe from older schema.
+        Vodex platform billing is Paddle-only. Legacy column labels may still say Stripe from older schema.
       </p>
     </div>
   );

@@ -27,4 +27,4 @@ export const CONNECTION_SETUP_USER_MESSAGE =
   "Connection setup is temporarily unavailable. Please try again shortly.";
 
 export const SSL_SUGGESTED_FIX =
-  "Use the Supabase project URL (https://<ref>.supabase.co) locally, or finish custom domain SSL verification before using auth.dreamos86.com.";
+  "Use the Supabase project URL (https://<ref>.supabase.co) locally, or finish custom domain SSL verification before using auth.vodex.dev.";

@@ -47,9 +47,9 @@ export function buildContactNotificationEmail(input: {
 }): { subject: string; text: string; html: string } {
   const r = input.request;
   const subjectLine = r.subject?.trim() || r.reason?.trim() || "New contact request";
-  const subject = `[DreamOS86 Contact] ${subjectLine}`;
+  const subject = `[Vodex Contact] ${subjectLine}`;
   const lines = [
-    "New contact request on DreamOS86",
+    "New contact request on Vodex",
     "",
     `Source: ${r.source}`,
     r.project_id ? `Project ID: ${r.project_id}` : null,

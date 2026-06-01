@@ -80,7 +80,7 @@ export function LogoutConfirmModal({ open, onClose }: LogoutConfirmModalProps) {
                     <LogOut className="size-5 text-accent" strokeWidth={1.65} />
                   </div>
                   <div>
-                    <p className="text-[15px] font-semibold text-foreground">Log out of DreamOS86?</p>
+                    <p className="text-[15px] font-semibold text-foreground">Log out of Vodex?</p>
                     <p className="mt-0.5 text-[12px] text-muted-foreground leading-relaxed">
                       You&apos;ll be redirected to sign in.
                     </p>

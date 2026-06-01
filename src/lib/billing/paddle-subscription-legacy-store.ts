@@ -3,7 +3,7 @@ import type { PlanId } from "@/lib/supabase/types";
 import { buildProfilePaddleBillingUpdate } from "@/lib/billing/paddle-profile-fields";
 
 /**
- * DreamOS86 subscription mirror rows (public.subscriptions).
+ * Vodex subscription mirror rows (public.subscriptions).
  * Postgres column names predate Paddle-only billing; Paddle IDs are stored in those columns
  * until a future subscriptions-table rename migration.
  */

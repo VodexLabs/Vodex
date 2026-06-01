@@ -312,7 +312,7 @@ export function resolvePostAuthDestination(
 ): string {
   const origin =
     currentOrigin ??
-    (typeof window !== "undefined" ? window.location.origin : "https://dreamos86.com");
+    (typeof window !== "undefined" ? window.location.origin : "https://vodex.dev");
 
   const fromQuery = safeAuthReturnPath(nextFromQuery);
   if (fromQuery && isSafeReturnPathForOrigin(fromQuery, origin)) return fromQuery;

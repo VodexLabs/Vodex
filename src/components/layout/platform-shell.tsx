@@ -110,14 +110,14 @@ const pageMeta: Record<string, { title: string; subtitle?: string }> = {
   },
   "/changelog": {
     title: "Changelog",
-    subtitle: "What's new in DreamOS86.",
+    subtitle: "What's new in Vodex.",
   },
   "/admin": {
     title: "Admin Panel",
     subtitle: "Platform management — restricted access.",
   },
   "/onboarding": {
-    title: "Welcome to DreamOS86",
+    title: "Welcome to Vodex",
     subtitle: "Let's get you set up.",
   },
 };
@@ -221,7 +221,7 @@ export function PlatformShell({
     isOnboarding || (pathname === "/" && homeSessionFromServer) || pathname === "/chat";
   /** Home scrolls on `main` so the scrollbar sits at the right edge of the content column. */
   const isHomeShellScroll = pathname === "/" && homeSessionFromServer;
-  const meta = pageMeta[pathname] ?? { title: "DreamOS86" };
+  const meta = pageMeta[pathname] ?? { title: "Vodex" };
 
   /** Marketing landing: no app sidebar (session absent on server for this navigation). */
   const minimalHomeChrome = pathname === "/" && !homeSessionFromServer;

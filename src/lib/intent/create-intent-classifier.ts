@@ -30,7 +30,7 @@ export type CreateIntentResult = {
 };
 
 const QUESTION_START =
-  /^(what|why|how|when|where|who|which|can you explain|could you explain|tell me about|define|do i need|does dreamos|does dreamos86)\b/i;
+  /^(what|why|how|when|where|who|which|can you explain|could you explain|tell me about|define|do i need|does vodex)\b/i;
 
 const QUESTION_MARKERS = [
   /\?\s*$/,
@@ -48,7 +48,7 @@ const QUESTION_MARKERS = [
 ];
 
 const CAPABILITY_QUESTION =
-  /\b(can (you|dreamos86?|i)|is it possible|are you able|do you support|does dreamos86)\b/i;
+  /\b(can (you|vodex|i)|is it possible|are you able|do you support|does vodex)\b/i;
 
 const IDEA_REQUEST =
   /\b(give me|suggest|recommend|list|share|show me|brainstorm|ideas? for|what should i build|which app should|what app should|what kind of app|what type of app)\b/i;
@@ -155,7 +155,7 @@ export function classifyCreateIntent(prompt: string, hasProjectId: boolean): Cre
       needsClarification: true,
       shouldAnswerQuestion: true,
       clarificationPrompt:
-        "Yes — DreamOS86 can build apps like that. Want me to start a blueprint? Reply with a clear build request (e.g. “Build me an app like Airbnb for …”).",
+        "Yes — Vodex can build apps like that. Want me to start a blueprint? Reply with a clear build request (e.g. “Build me an app like Airbnb for …”).",
       userMessage:
         "This sounds like a feasibility question. I can answer briefly — say “Build me …” when you are ready to create the app.",
     };

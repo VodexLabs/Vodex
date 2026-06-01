@@ -384,7 +384,7 @@ export default function SettingsGeneralPage() {
                   {accountEmail || (sessionReady && !signedIn ? "Sign in to view email" : "—")}
                 </p>
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  This is your DreamOS86 login. Space name above is only a display label.
+                  This is your Vodex login. Space name above is only a display label.
                 </p>
               </div>
 
@@ -396,7 +396,7 @@ export default function SettingsGeneralPage() {
                   Account security
                 </Link>
                 {" · "}
-                email, password, and sign-in for your DreamOS86 user.
+                email, password, and sign-in for your Vodex user.
               </p>
             </div>
           </div>
@@ -431,7 +431,7 @@ export default function SettingsGeneralPage() {
       {signedIn ? <AccountIdentityCard /> : null}
 
       {/* Appearance */}
-      <SectionCard title="Appearance" description="Customize how DreamOS86 looks and feels.">
+      <SectionCard title="Appearance" description="Customize how Vodex looks and feels.">
         <div className="space-y-6">
           <div>
             <FieldLabel>Theme</FieldLabel>
@@ -497,14 +497,14 @@ export default function SettingsGeneralPage() {
       </SectionCard>
 
       {/* App Branding */}
-      <SectionCard title="App Branding" description="Control how DreamOS86 branding appears on your generated apps.">
+      <SectionCard title="App Branding" description="Control how Vodex branding appears on your generated apps.">
         <div className="space-y-1">
           <SettingRow
-            title='Show "Built with DreamOS86"'
+            title='Show "Built with Vodex"'
             description={
               isPaidPlan
-                ? "Display a small DreamOS86 badge on your published apps. Uncheck to remove."
-                : "Free plan includes the DreamOS86 watermark. Upgrade to Starter or higher to remove it."
+                ? "Display a small Vodex badge on your published apps. Uncheck to remove."
+                : "Free plan includes the Vodex watermark. Upgrade to Starter or higher to remove it."
             }
           >
             <Switch
@@ -519,7 +519,7 @@ export default function SettingsGeneralPage() {
                   : undefined
               }
               disabled={!isPaidPlan}
-              aria-label="Show DreamOS86 branding"
+              aria-label="Show Vodex branding"
             />
           </SettingRow>
           {!isPaidPlan && (

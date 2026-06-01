@@ -5,8 +5,8 @@ import { AuthPageGuard } from "@/components/auth/auth-page-guard";
 
 export const metadata: Metadata = {
   title: {
-    default: "DreamOS86",
-    template: "%s | DreamOS86",
+    default: "Vodex",
+    template: "%s | Vodex",
   },
 };
 

@@ -3,18 +3,18 @@
  */
 export function getSmokeProductSystemContext(): string {
   return [
-    "DreamOS86 product facts (authoritative for this test):",
-    "- DreamOS86 is an AI-native app builder platform.",
+    "Vodex product facts (authoritative for this test):",
+    "- Vodex is an AI-native app builder platform.",
     "- Users create apps from plain language.",
     "- Core surfaces: Create flow, Builder, Preview, Publish, ZIP Import, AI Chat.",
     "- Credits are the user-facing unit for completed AI work.",
     "- Do not claim fake deployments or unsupported actions.",
-    "- DreamOS86 is NOT a hobby x86 OS and NOT a fictional game OS.",
+    "- Vodex is NOT a hobby x86 OS and NOT a fictional game OS.",
     "Answer using only these facts.",
   ].join("\n");
 }
 
-/** Score whether a smoke response correctly describes DreamOS86 as the product. */
+/** Score whether a smoke response correctly describes Vodex as the product. */
 export function scoreProductAwareDreamOSAnswer(text: string | null): {
   correct: boolean;
   note: string;
@@ -42,7 +42,7 @@ export function scoreProductAwareDreamOSAnswer(text: string | null): {
   if (goodHits.length >= 2) {
     return { correct: true, note: `product-aware pass (${goodHits.join(", ")})` };
   }
-  if (/dreamos86/.test(lower) && /platform|apps|software|builder/.test(lower)) {
+  if (/vodex/.test(lower) && /platform|apps|software|builder/.test(lower)) {
     return { correct: true, note: "product-aware pass (platform context)" };
   }
 

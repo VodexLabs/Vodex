@@ -50,7 +50,7 @@ import {
   WorkspaceIntegrationsModal,
   type IntegrationPreset,
 } from "@/components/create/workspace/workspace-integrations-modal";
-import { DreamOS86BrandIcon } from "@/components/brand/dreamos86-brand-icon";
+import { VodexBrandIcon } from "@/components/brand/vodex-brand-icon";
 import { resolveWorkspaceDisplayName } from "@/lib/profile/default-workspace-name";
 import { toast } from "@/lib/toast";
 
@@ -97,7 +97,7 @@ function PlatformDropdown({ onClose, anchorRect }: PlatformDropdownProps) {
       className="overflow-hidden rounded-2xl bg-background p-1.5 shadow-[0_24px_64px_-12px_rgba(15,23,42,0.35)] ring-1 ring-border"
       onClick={(e) => e.stopPropagation()}
     >
-      <p className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">DreamOS86</p>
+      <p className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Vodex</p>
       {links.map(({ href, label, icon: Icon }) => (
         <Link
           key={href}
@@ -493,10 +493,10 @@ export function WorkspaceLauncher({
               setPlatformMenuOpen((v) => !v);
             }}
             className="group flex shrink-0 items-center justify-center transition hover:opacity-90"
-            aria-label="DreamOS86 platform menu"
+            aria-label="Vodex platform menu"
             aria-expanded={platformMenuOpen}
           >
-            <DreamOS86BrandIcon variant="create" className="opacity-95 transition group-hover:opacity-100" />
+            <VodexBrandIcon variant="create" className="opacity-95 transition group-hover:opacity-100" />
           </button>
 
           {showAppMenu && showAppIcon && project?.icon_url ? (

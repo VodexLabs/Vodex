@@ -83,7 +83,7 @@ export function CompetitiveScorePanel() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-4">
-        <Stat label="DreamOS86 (capped avg)" value={`${data.aggregate.dreamos}%`} />
+        <Stat label="Vodex (capped avg)" value={`${data.aggregate.dreamos}%`} />
         <Stat label="Lovable (estimated avg)" value={`${data.aggregate.lovable}%`} />
         <Stat label="Base44 (estimated avg)" value={`${data.aggregate.base44}%`} />
         <Stat label="DreamOS wins" value={`${data.aggregate.dreamosWins}/${data.aggregate.total}`} />

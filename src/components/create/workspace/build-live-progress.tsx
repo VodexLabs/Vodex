@@ -2,7 +2,7 @@
 
 import type { BuildJobPollState } from "@/hooks/use-build-job-progress";
 import { AgentWorkflowStream } from "@/components/create/workspace/agent-workflow-stream";
-import { DreamOS86BrandIcon } from "@/components/brand/dreamos86-brand-icon";
+import { VodexBrandIcon } from "@/components/brand/vodex-brand-icon";
 import { Loader2 } from "lucide-react";
 
 /** Live async build progress — agent workflow stream (replaces rigid checklist). */
@@ -31,8 +31,8 @@ export function BuildProgressHeader({ active }: { active: boolean }) {
   if (!active) return null;
   return (
     <div className="flex items-center gap-2 px-2 py-1">
-      <DreamOS86BrandIcon variant="assistant" alt="" />
-      <span className="text-[12px] font-semibold text-foreground">DreamOS86</span>
+      <VodexBrandIcon variant="assistant" alt="" />
+      <span className="text-[12px] font-semibold text-foreground">Vodex</span>
       <span className="rounded-md bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-violet-400">
         Build
       </span>

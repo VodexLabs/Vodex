@@ -1,5 +1,5 @@
 /**
- * Canonical DreamOS86 subscription catalog — Paddle price IDs, amounts, credit allowances.
+ * Canonical Vodex subscription catalog — Paddle price IDs, amounts, credit allowances.
  * Checkout uses PRICE IDs (pri_*). Product IDs are optional admin/debug only.
  */
 import {

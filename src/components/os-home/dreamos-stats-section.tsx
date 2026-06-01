@@ -79,7 +79,7 @@ function buildCards(stats: PublicStatsResponse) {
       numericValue: stats.projectsStarted ?? 0,
       format: (n: number) => n.toLocaleString(),
       suffix: "+",
-      label: "projects started on DreamOS86",
+      label: "projects started on Vodex",
     },
     {
       key: "daily",
@@ -203,10 +203,10 @@ export function DreamOsStatsSection() {
             Momentum
           </span>
           <h2 className="text-balance text-[clamp(1.5rem,3.5vw,2rem)] font-semibold tracking-[-0.03em] text-foreground">
-            DreamOS86 in numbers
+            Vodex in numbers
           </h2>
           <p className="max-w-lg text-pretty text-[14px] text-muted-foreground">
-            Track DreamOS86 momentum as apps are created, imported, and published.
+            Track Vodex momentum as apps are created, imported, and published.
           </p>
           {statsUnavailable ? (
             <p className="text-[12px] text-muted-foreground/80" data-testid="stats-unavailable">

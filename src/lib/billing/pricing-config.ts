@@ -1,5 +1,5 @@
 /**
- * DreamOS86 — canonical credit economics.
+ * Vodex — canonical credit economics.
  *
  * Internal credits and user credits use DIFFERENT dollar rates:
  * - 30 internal credits = $1.00 provider cost

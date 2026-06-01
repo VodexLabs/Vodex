@@ -36,7 +36,7 @@ export const ZIP_IMPORT_LIMITS = {
 };
 
 export function tooManyAcceptedFilesError(acceptedCount: number): string {
-  return `This ZIP has ${acceptedCount.toLocaleString()} source files. DreamOS86 currently supports up to ${ZIP_IMPORT_LIMITS.MAX_FILES.toLocaleString()} accepted source files. Remove generated folders like node_modules, .next, dist, build, or cache and try again.`;
+  return `This ZIP has ${acceptedCount.toLocaleString()} source files. Vodex currently supports up to ${ZIP_IMPORT_LIMITS.MAX_FILES.toLocaleString()} accepted source files. Remove generated folders like node_modules, .next, dist, build, or cache and try again.`;
 }
 
 export function shouldSkipZipPath(normalized: string): boolean {

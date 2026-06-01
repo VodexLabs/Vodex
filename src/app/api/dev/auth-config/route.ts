@@ -19,7 +19,7 @@ export async function GET(request: Request) {
       return NextResponse.json(
         {
           error: "Forbidden",
-          hint: "Sign in as a DreamOS86 owner, or set DREAMOS_DEV_DIAGNOSTICS=1 on Vercel for this route.",
+          hint: "Sign in as a Vodex owner, or set DREAMOS_DEV_DIAGNOSTICS=1 on Vercel for this route.",
         },
         { status: 403 },
       );

@@ -252,7 +252,7 @@ export function ComingSoon({
 
       <p className="mt-4 text-[12px] text-muted-foreground/50">
         We ship fast. Follow{" "}
-        <span className="text-muted-foreground">@DreamOS86</span> for updates.
+        <span className="text-muted-foreground">@Vodex</span> for updates.
       </p>
     </motion.div>
   );

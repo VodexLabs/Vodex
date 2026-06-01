@@ -2,7 +2,7 @@ import { isProviderSelectable } from "@/lib/ai/provider-availability";
 import type { ProviderName } from "@/lib/ai/provider-errors";
 import { resolveGoogleCatalogApiModel } from "@/lib/ai/google-model-config";
 
-/** Maps DreamOS86 catalog IDs to live provider API model IDs. */
+/** Maps Vodex catalog IDs to live provider API model IDs. */
 export const API_MODEL_MAP: Record<string, string> = {
   "gpt-5.4-mini": "gpt-4o-mini",
   "gpt-5-4-mini": "gpt-4o-mini",

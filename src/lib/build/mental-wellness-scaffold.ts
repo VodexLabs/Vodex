@@ -707,7 +707,7 @@ export const emptyCheckInCopy =
   "You have not logged a mood today. A quick 1–10 rating helps the insights page show meaningful patterns over time.";
 
 export const encryptionExplainer =
-  "DreamOS86 uses modern encryption for journals and messages. Keys are generated on your device; our servers store ciphertext only.";
+  "Vodex uses modern encryption for journals and messages. Keys are generated on your device; our servers store ciphertext only.";
 
 export const crisisDisclaimer =
   "If you are in immediate danger, contact local emergency services. This application is not a substitute for professional crisis intervention.";

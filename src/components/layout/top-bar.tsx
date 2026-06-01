@@ -1,7 +1,7 @@
 "use client";
 
 import { Menu, Search } from "lucide-react";
-import { DreamOS86BrandLockup } from "@/components/brand/dreamos86-brand-lockup";
+import { VodexBrandLockup } from "@/components/brand/vodex-brand-lockup";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { IconButton } from "@/components/ui/icon-button";
 import { UserMenu } from "@/components/layout/user-menu";
@@ -39,7 +39,7 @@ export function TopBar({ mode, title, subtitle, onMenuClick }: TopBarProps) {
         <Menu className="size-[18px]" strokeWidth={1.65} />
       </IconButton>
 
-      <DreamOS86BrandLockup
+      <VodexBrandLockup
         variant="header"
         className="min-w-0 shrink lg:hidden"
         priority

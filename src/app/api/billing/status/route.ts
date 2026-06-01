@@ -10,6 +10,8 @@ import { loadPaddleBillingContextForUser } from "@/lib/billing/paddle-billing-co
 import { paddleEnvironment } from "@/lib/billing/paddle-billing";
 import { diagnoseBillingAttempt } from "@/lib/billing/diagnose-billing-attempt";
 import { loadBillingAttemptTrace } from "@/lib/billing/billing-attempt-trace";
+import { loadBillingTruthForUser } from "@/lib/billing/billing-truth";
+import { buildBillingAttemptSteps } from "@/lib/billing/billing-attempt-steps";
 
 export type BillingProcessingState =
   | "idle"
@@ -161,11 +163,42 @@ export async function GET(request: Request) {
     recentEventTypes: rows.map((e) => String(e.event_type ?? "")),
   });
 
+  const billingTruth = await loadBillingTruthForUser(user.id);
   const attemptDiagnosis = attemptId ? await diagnoseBillingAttempt(attemptId) : null;
   const attemptTrace = attemptId ? await loadBillingAttemptTrace(attemptId) : null;
+  const attemptSteps =
+    attemptId || attemptTrace
+      ? buildBillingAttemptSteps({
+          trace: attemptTrace,
+          diagnosis: attemptDiagnosis,
+          truth: billingTruth,
+        })
+      : null;
+
+  const upgradeComplete = attemptDiagnosis?.success === true;
 
   return NextResponse.json({
     planId,
+    profilePlan: billingTruth.profilePlan,
+    effectivePlan: billingTruth.effectivePlan,
+    planSource: billingTruth.planSource,
+    isAdminGranted: billingTruth.isAdminGranted,
+    hasPaddleCustomer: billingTruth.hasPaddleCustomer,
+    hasPaddleSubscription: billingTruth.hasPaddleSubscription,
+    paddleSubscriptionId: billingTruth.paddleSubscriptionId,
+    paddleSubscriptionStatus: billingTruth.paddleSubscriptionStatus,
+    currentPeriodStart: billingTruth.currentPeriodStart,
+    currentPeriodEnd: billingTruth.currentPeriodEnd,
+    billingState: billingTruth.billingState,
+    recommendedAction: billingTruth.recommendedAction,
+    canUpgradeViaPaddleSubscription: billingTruth.canUpgradeViaPaddleSubscription,
+    canCreateNewCheckout: billingTruth.canCreateNewCheckout,
+    visibleWarningMessage: billingTruth.visibleWarningMessage,
+    billingTruthCase: billingTruth.billingTruthCase,
+    billingTruthSummary: billingTruth.billingTruthSummary,
+    lastEntitlementEventAt: billingTruth.lastEntitlementEventAt,
+    lastWebhookEventAt: billingTruth.lastWebhookEventAt,
+    lastBillingAttemptId: billingTruth.lastBillingAttemptId,
     currentPlan: planId,
     pendingPlan: billingCtx?.pendingDowngradePlan ?? null,
     subscriptionStatus: profile?.subscription_status ?? (isPaid ? "active" : "free"),
@@ -242,6 +275,8 @@ export async function GET(request: Request) {
           failure_message: attemptTrace.failure_message,
         }
       : null,
-    upgradeComplete: attemptDiagnosis?.success ?? false,
+    upgradeComplete,
+    attemptSteps,
+    billingTruth,
   });
 }

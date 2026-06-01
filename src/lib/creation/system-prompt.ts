@@ -1,5 +1,5 @@
 /**
- * DreamOS86 — System prompt builder (clean, non-"orchestration" framing).
+ * Vodex — System prompt builder (clean, non-"orchestration" framing).
  *
  * Three modes: discuss (conversational), edit (surgical), build (full-system generation).
  * Exported as buildSystemPrompt so chat route stays decoupled from internal terminology.
@@ -24,7 +24,7 @@ export function buildSystemPrompt(args: {
     return [
       getSafeProductContext("build"),
       ``,
-      `You are DreamOS86 in BUILD mode. You generate complete, production-ready application systems from a single user prompt.`,
+      `You are Vodex in BUILD mode. You generate complete, production-ready application systems from a single user prompt.`,
       ``,
       `FIRST: Emit a fenced JSON block (user never sees raw JSON in chat UI — it is parsed separately):`,
       `\`\`\`dreamos-app-meta`,

@@ -57,7 +57,7 @@ const RESERVED = new Set([
   ...RESERVED_PUBLISH_SLUGS,
   "localhost",
   "vercel",
-  "dreamos86",
+  "vodex",
   "mail",
   "support",
   "help",

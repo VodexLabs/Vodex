@@ -338,7 +338,7 @@ export default function ApiKeysPage() {
           <Key className="mb-3 size-8 text-muted-foreground/30" strokeWidth={1.25} />
           <p className="text-[14px] font-semibold text-foreground">No API keys yet</p>
           <p className="mt-1 max-w-md text-[12px] text-muted-foreground">
-            Connect external tools, scripts, or automations to your DreamOS86 account. Keys are tied to your
+            Connect external tools, scripts, or automations to your Vodex account. Keys are tied to your
             workspace — not individual apps. Each app still uses its own project data, GitHub, and Supabase
             connections inside the builder.
           </p>

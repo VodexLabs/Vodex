@@ -1,5 +1,5 @@
 /**
- * DreamOS86 — Canonical credit source of truth.
+ * Vodex — Canonical credit source of truth.
  * All UI and APIs must derive display from loadCanonicalCredits().
  */
 import { createSupabaseAdmin } from "@/lib/supabase/admin";

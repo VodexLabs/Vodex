@@ -99,7 +99,7 @@ export function YourAppsSection({ projects }: { projects: YourAppsProject[] }) {
                         <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
                           {typeof p.metadata?.short_description === "string"
                             ? p.metadata.short_description
-                            : "Your app on DreamOS86"}
+                            : "Your app on Vodex"}
                         </p>
                         {badges.some((b) => b.kind === "meta") && (
                           <div className="mt-1.5 flex flex-wrap gap-1">

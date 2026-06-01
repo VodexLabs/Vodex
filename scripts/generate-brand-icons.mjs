@@ -1,6 +1,6 @@
 /**
- * Generate DreamOS86 platform icons from a transparent PNG master.
- * Preserves alpha — no flatten(), no matte stripping, no backgrounds on the main icon.
+ * Generate Vodex platform icons from a transparent PNG master.
+ * Preserves alpha — no flatten(), no matte stripping.
  */
 
 import fs from "node:fs/promises";
@@ -21,22 +21,19 @@ const ASSETS_DIR = path.join(
 );
 
 const MASTER_CANDIDATES = [
-  path.join(BRAND_DIR, "dreamos86-master-source.png"),
-  path.join(BRAND_DIR, "dreamos86-icon-transparent.png"),
+  path.join(BRAND_DIR, "vodex-master-source.png"),
+  path.join(BRAND_DIR, "vodex-icon-transparent.png"),
   path.join(ROOT, "public/icon.png"),
 ];
 
-const CANONICAL_ICON = path.join(BRAND_DIR, "dreamos86-icon.png");
-const CANONICAL_TRANSPARENT = path.join(BRAND_DIR, "dreamos86-icon-transparent.png");
-const MASKABLE_OUT = path.join(BRAND_DIR, "dreamos86-icon-maskable.png");
+const CANONICAL_ICON = path.join(BRAND_DIR, "vodex-icon.png");
+const CANONICAL_TRANSPARENT = path.join(BRAND_DIR, "vodex-icon-transparent.png");
+const MASKABLE_OUT = path.join(BRAND_DIR, "vodex-icon-maskable.png");
 
 const PUBLIC_DIR = path.join(ROOT, "public");
 const APP_DIR = path.join(ROOT, "src/app");
 
-/** Browser tab + icon.png / apple-icon — maximize glyph fill on small canvases. */
-const FAVICON_FILL_RATIO = 0.96;
-
-/** PWA manifest + canonical brand PNG — slightly larger for home-screen tiles. */
+const FAVICON_FILL_RATIO = 0.92;
 const APP_ICON_FILL_RATIO = 0.86;
 
 const FAVICON_PNG_SIZES = [
@@ -55,11 +52,12 @@ const APP_PNG_SIZES = [
   { file: "favicon-512x512.png", size: 512 },
   { file: "icon-192.png", size: 192 },
   { file: "icon-512.png", size: 512 },
+  { file: "logo.png", size: 512 },
 ];
 
 const BRAND_SIZES = [
-  { file: "dreamos86-icon-192.png", size: 192 },
-  { file: "dreamos86-icon-512.png", size: 512 },
+  { file: "vodex-icon-192.png", size: 192 },
+  { file: "vodex-icon-512.png", size: 512 },
 ];
 
 const FAVICON_ICO_PATHS = [
@@ -76,7 +74,7 @@ async function exists(p) {
   }
 }
 
-async function findNewestAssetUpload() {
+async function findNewestVodexAsset() {
   if (!(await exists(ASSETS_DIR))) return null;
   const names = await fs.readdir(ASSETS_DIR);
   const ranked = names
@@ -84,13 +82,9 @@ async function findNewestAssetUpload() {
     .map((n) => {
       const lower = n.toLowerCase();
       let score = 0;
-      if (lower.includes("for_app_transperent") || lower.includes("for_app_transparent"))
-        score += 120;
-      if (lower.includes("for_gfx_transperent") || lower.includes("for_gfx_transparent"))
-        score += 115;
-      if (lower.includes("untitled_design")) score += 100;
-      if (lower.includes("dreamos86_trans")) score += 80;
-      if (lower.includes("2026-05-20")) score += 20;
+      if (lower.includes("vodex")) score += 200;
+      if (lower.includes("transperent") || lower.includes("transparent")) score += 80;
+      if (lower.includes("icon")) score += 40;
       return { name: n, score };
     })
     .sort((a, b) => b.score - a.score);
@@ -99,8 +93,8 @@ async function findNewestAssetUpload() {
 }
 
 async function syncMasterFromAssetsIfNewer() {
-  const asset = await findNewestAssetUpload();
-  const masterPath = path.join(BRAND_DIR, "dreamos86-master-source.png");
+  const asset = await findNewestVodexAsset();
+  const masterPath = path.join(BRAND_DIR, "vodex-master-source.png");
   if (!asset) return masterPath;
   try {
     const [aStat, mStat] = await Promise.all([
@@ -220,61 +214,51 @@ async function writeCanonicalBrandPngs(master) {
   const dim = Math.max(meta.width ?? 512, meta.height ?? 512, 512);
   await resizeTransparentPng(master, dim, CANONICAL_ICON, APP_ICON_FILL_RATIO);
   await resizeTransparentPng(master, dim, CANONICAL_TRANSPARENT, APP_ICON_FILL_RATIO);
-  console.log(`  wrote brand/dreamos86-icon.png (${dim}x${dim}, alpha, fill=${APP_ICON_FILL_RATIO})`);
+  console.log(`  wrote brand/vodex-icon.png (${dim}x${dim}, alpha)`);
 }
 
 async function main() {
   const master = await resolveMasterSource();
   if (!master) {
     console.error(
-      "[generate-brand-icons] Missing master — place transparent PNG at public/brand/dreamos86-master-source.png",
+      "[generate-brand-icons] Missing master — place transparent PNG at public/brand/vodex-master-source.png",
     );
     process.exit(1);
   }
 
   await fs.mkdir(BRAND_DIR, { recursive: true });
   console.log("[generate-brand-icons] Master:", path.basename(master));
-  console.log(
-    `[generate-brand-icons] FAVICON_FILL_RATIO=${FAVICON_FILL_RATIO} APP_ICON_FILL_RATIO=${APP_ICON_FILL_RATIO}`,
-  );
 
-  await fs.copyFile(master, path.join(BRAND_DIR, "dreamos86-master-source.png"));
+  await fs.copyFile(master, path.join(BRAND_DIR, "vodex-master-source.png"));
   await writeCanonicalBrandPngs(master);
 
   for (const { file, size } of BRAND_SIZES) {
     await resizeTransparentPng(master, size, path.join(BRAND_DIR, file), APP_ICON_FILL_RATIO);
-    console.log("  wrote brand/", file, `(${size}x${size}, alpha)`);
+    console.log("  wrote brand/", file, `(${size}x${size})`);
   }
 
   for (const { file, size } of FAVICON_PNG_SIZES) {
     await resizeTransparentPng(master, size, path.join(PUBLIC_DIR, file), FAVICON_FILL_RATIO);
-    console.log("  wrote", file, `(${size}x${size}, favicon fill)`);
+    console.log("  wrote", file);
   }
 
   for (const { file, size } of APP_PNG_SIZES) {
     await resizeTransparentPng(master, size, path.join(PUBLIC_DIR, file), APP_ICON_FILL_RATIO);
-    console.log("  wrote", file, `(${size}x${size}, app fill)`);
+    console.log("  wrote", file);
   }
 
   await writeMaskableIcon(master, 512, MASKABLE_OUT);
-  console.log("  wrote brand/dreamos86-icon-maskable.png (maskable only)");
+  await resizeTransparentPng(master, 512, path.join(PUBLIC_DIR, "maskable-icon.png"), APP_ICON_FILL_RATIO);
 
-  await resizeTransparentPng(master, 32, path.join(PUBLIC_DIR, "icon.png"), FAVICON_FILL_RATIO);
   await resizeTransparentPng(master, 32, path.join(APP_DIR, "icon.png"), FAVICON_FILL_RATIO);
   await resizeTransparentPng(master, 180, path.join(APP_DIR, "apple-icon.png"), FAVICON_FILL_RATIO);
-  await resizeTransparentPng(
-    master,
-    180,
-    path.join(PUBLIC_DIR, "apple-touch-icon.png"),
-    FAVICON_FILL_RATIO,
-  );
-  const publicAppleIcon = path.join(PUBLIC_DIR, "apple-icon.png");
-  await resizeTransparentPng(master, 180, publicAppleIcon, FAVICON_FILL_RATIO);
+  await resizeTransparentPng(master, 180, path.join(PUBLIC_DIR, "apple-touch-icon.png"), FAVICON_FILL_RATIO);
+  await resizeTransparentPng(master, 180, path.join(PUBLIC_DIR, "apple-icon.png"), FAVICON_FILL_RATIO);
 
-  console.log("  generating favicon.ico from master (favicon fill) …");
+  console.log("  generating favicon.ico …");
   await writeFaviconIco(master);
 
-  console.log("[generate-brand-icons] Done — alpha preserved; favicon.ico uses favicon fill only");
+  console.log("[generate-brand-icons] Vodex assets done");
 }
 
 main().catch((err) => {

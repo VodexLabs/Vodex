@@ -68,7 +68,7 @@ export type RuntimeDiagnosticEntry = {
   detail?: Record<string, unknown>;
 };
 
-const STORAGE_KEY = "dreamos86.runtimeDiagnostics";
+const STORAGE_KEY = "vodex.runtimeDiagnostics";
 const MAX = 100;
 
 const EVENT_CATEGORY: Partial<Record<RuntimeDiagnosticEvent, import("@/lib/diagnostics/dreamos-logger").DreamosLogCategory>> = {

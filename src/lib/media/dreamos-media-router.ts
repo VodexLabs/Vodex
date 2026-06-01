@@ -1,5 +1,5 @@
 /**
- * DreamOS86 media router — user-facing labels only; provider/model in admin logs.
+ * Vodex media router — user-facing labels only; provider/model in admin logs.
  */
 
 import { routeImageProvider, type ImageProviderRoute } from "@/lib/ai/image-provider-routing";
@@ -44,7 +44,7 @@ export function routeDreamOSMedia(kind: DreamOSMediaKind): DreamOSMediaRoute {
     const quote = quoteLogoGenerationCredits(internal.estimatedCostUsd);
     return {
       kind,
-      userLabel: "DreamOS86 Logo",
+      userLabel: "Vodex Logo",
       internal,
       estimatedProviderCostUsd: internal.estimatedCostUsd,
       quotedActionCredits: quote.finalActionCredits,
@@ -57,7 +57,7 @@ export function routeDreamOSMedia(kind: DreamOSMediaKind): DreamOSMediaRoute {
     const quote = quoteLogoGenerationCredits(internal.estimatedCostUsd);
     return {
       kind,
-      userLabel: kind === "image_small" ? "DreamOS86 Image Small" : "DreamOS86 Image Medium",
+      userLabel: kind === "image_small" ? "Vodex Image Small" : "Vodex Image Medium",
       internal,
       estimatedProviderCostUsd: internal.estimatedCostUsd,
       quotedActionCredits: quote.finalActionCredits,
@@ -67,7 +67,7 @@ export function routeDreamOSMedia(kind: DreamOSMediaKind): DreamOSMediaRoute {
   const videoQuote = quoteDraftVideoCredits({ durationSeconds: 5 });
   return {
     kind: "video_draft",
-    userLabel: "DreamOS86 Video Draft",
+    userLabel: "Vodex Video Draft",
     internal: {
       ...routeImageProvider("image_simple"),
       videoProvider: "draft_video",

@@ -19,7 +19,7 @@ export type BuildIntentResult = {
 const GREETING = /^(hi|hello|hey|yo|sup|thanks|thank you|ok|okay)[\s!.?]*$/i;
 const TEST_ONLY = /^(test|testing|asdf|foo|bar|demo)[\s!.?]*$/i;
 const PRODUCT_PLATFORM =
-  /\b(how much does dreamos|dreamos86 pricing|dreamos86 credits|my plan credits|platform billing)\b/i;
+  /\b(how much does vodex|vodex pricing|vodex credits|my plan credits|platform billing)\b/i;
 const DEBUG =
   /\b(bug|broken|not working|error|slow|crash|blank screen|preview stuck|why is my app|debug|fix preview|compile)\b/i;
 const PUBLISH =

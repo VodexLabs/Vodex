@@ -1,5 +1,5 @@
 /**
- * "Built with DreamOS86" inside generated apps (preview, scaffold, publish).
+ * "Built with Vodex" inside generated apps (preview, scaffold, publish).
  * Not the platform shell — this is end-user app branding.
  */
 
@@ -10,7 +10,7 @@ export type GeneratedAppBrandingOptions = {
   appName?: string;
 };
 
-const BADGE_HTML = `<a href="https://dreamos86.com" target="_blank" rel="noopener noreferrer" data-dreamos-branding="badge" style="position:fixed;bottom:12px;right:12px;z-index:9999;display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(15,23,42,0.88);color:#f8fafc;font-size:11px;font-weight:600;text-decoration:none;box-shadow:0 4px 14px rgba(0,0,0,0.18);backdrop-filter:blur(8px);">Built with DreamOS86</a>`;
+const BADGE_HTML = `<a href="https://vodex.dev" target="_blank" rel="noopener noreferrer" data-dreamos-branding="badge" style="position:fixed;bottom:12px;right:12px;z-index:9999;display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(15,23,42,0.88);color:#f8fafc;font-size:11px;font-weight:600;text-decoration:none;box-shadow:0 4px 14px rgba(0,0,0,0.18);backdrop-filter:blur(8px);">Built with Vodex</a>`;
 
 export function shouldShowDreamOSAppBranding(opts: GeneratedAppBrandingOptions): boolean {
   return !opts.hideBadge;
@@ -37,13 +37,13 @@ export function injectDreamOSBrandingIntoPreviewHtml(
 export function dreamOSBrandingLayoutFooterJsx(): string {
   return `
         <footer data-dreamos-branding="footer" className="border-t border-slate-200 bg-white/80 py-3 text-center text-[11px] text-slate-500">
-          <a href="https://dreamos86.com" target="_blank" rel="noopener noreferrer" className="font-medium text-violet-600 hover:text-violet-700">
-            Built with DreamOS86
+          <a href="https://vodex.dev" target="_blank" rel="noopener noreferrer" className="font-medium text-violet-600 hover:text-violet-700">
+            Built with Vodex
           </a>
         </footer>`;
 }
 
-/** Minimal login page scaffold with DreamOS86 co-branding. */
+/** Minimal login page scaffold with Vodex co-branding. */
 export function dreamOSLoginPageScaffold(appName: string): string {
   const name = appName.replace(/"/g, '\\"');
   return `"use client";
@@ -63,8 +63,8 @@ export default function LoginPage() {
         </form>
         <p className="mt-4 text-center text-[10px] text-slate-400">
           Powered by{" "}
-          <a href="https://dreamos86.com" className="font-medium text-violet-600" target="_blank" rel="noopener noreferrer">
-            DreamOS86
+          <a href="https://vodex.dev" className="font-medium text-violet-600" target="_blank" rel="noopener noreferrer">
+            Vodex
           </a>
         </p>
       </div>

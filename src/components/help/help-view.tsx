@@ -429,8 +429,8 @@ export function HelpView() {
             <div>
               <p className="text-[13px] font-semibold text-foreground">Contact support</p>
               <p className="text-[11px] text-muted-foreground">
-                <a href="mailto:support@dreamos86.com" className="text-accent hover:underline">
-                  support@dreamos86.com
+                <a href="mailto:support@vodex.dev" className="text-accent hover:underline">
+                  support@vodex.dev
                 </a>
                 {" · "}
                 ~24h response

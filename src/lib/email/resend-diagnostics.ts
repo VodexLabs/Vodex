@@ -26,7 +26,7 @@ export function getResendDiagnostics(): ResendDiagnostics {
   } else if (!emailFromPresent) {
     message = "RESEND_API_KEY is set but EMAIL_FROM is missing.";
   } else if (!emailFromValid) {
-    message = 'EMAIL_FROM must look like: DreamOS86 <hello@yourdomain.com>';
+    message = 'EMAIL_FROM must look like: Vodex <support@vodex.dev>';
   }
 
   return {

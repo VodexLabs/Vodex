@@ -83,7 +83,7 @@ export function resolvePlanChange(input: {
       ...base,
       action: "highest_plan",
       label: "Highest plan",
-      description: "You are on Infinity VII — the highest DreamOS86 plan.",
+      description: "You are on Infinity VII — the highest Vodex plan.",
       requiresConfirmation: false,
       billingIntent: "same_plan",
     };

@@ -287,7 +287,7 @@ function UserDetailDrawer({
     });
 
     if (json.deliveredToInbox) {
-      toast.success(json.message ?? "Confirmation code sent to dreamos86app@gmail.com");
+      toast.success(json.message ?? "Confirmation code sent to the platform owner email");
     } else if (json.deliveryChannel === "dev_console" && json.devOtpHint) {
       toast.info(json.message ?? "Use the dev confirmation code shown below.");
     } else {
@@ -439,8 +439,7 @@ function UserDetailDrawer({
                 </>
               ) : (
                 <>
-                  Each action sends a one-time code to{" "}
-                  <strong className="text-foreground">dreamos86app@gmail.com</strong>. Enter the
+                  Each action sends a one-time code to the platform owner inbox. Enter the
                   code below to execute. Codes expire in 10 minutes.
                 </>
               )}

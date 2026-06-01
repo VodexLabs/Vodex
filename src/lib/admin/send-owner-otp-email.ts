@@ -16,9 +16,9 @@ export async function sendOwnerOtpEmail(input: {
   expiresMinutes: number;
 }): Promise<OwnerOtpEmailResult> {
   const to = DREAMOS_OWNER_EMAIL;
-  const subject = `DreamOS86 admin confirmation — ${input.actionSummary}`;
+  const subject = `Vodex admin confirmation — ${input.actionSummary}`;
   const text = [
-    `DreamOS86 admin action confirmation`,
+    `Vodex admin action confirmation`,
     ``,
     `Action: ${input.actionSummary}`,
     `Confirmation code: ${input.otp}`,

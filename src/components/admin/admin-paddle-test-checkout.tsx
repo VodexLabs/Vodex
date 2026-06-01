@@ -21,9 +21,17 @@ import { resolveUnifiedBillingAction } from "@/lib/billing/unified-billing-actio
 import { unifiedActionAllowsExecution } from "@/lib/billing/unified-billing-action";
 import type { CatalogBillingInterval } from "@/lib/billing/plan-billing-catalog";
 
-const EXPECTED_PRODUCTION_WEBHOOK_URL = "https://dreamos86.com/api/webhooks/paddle";
+const EXPECTED_PRODUCTION_WEBHOOK_URL = "https://vodex.dev/api/webhooks/paddle";
 import { refreshCredits } from "@/lib/stores/credits-store";
 import { BillingUpgradeStatusPanel } from "@/components/billing/billing-upgrade-status-panel";
+import { BillingTruthPanel } from "@/components/billing/billing-truth-panel";
+import { BillingAttemptStepsPanel } from "@/components/billing/billing-attempt-steps-panel";
+import {
+  checkoutButtonLabel,
+  checkoutButtonWarning,
+  type BillingTruth,
+} from "@/lib/billing/billing-truth";
+import type { BillingAttemptStep } from "@/lib/billing/billing-attempt-steps";
 
 const TEST_PRESETS: { plan: BillablePlanId; interval: "monthly" | "annual"; label: string }[] = [
   { plan: "starter", interval: "monthly", label: "Starter monthly" },
@@ -54,6 +62,8 @@ export function AdminPaddleTestCheckout({ userId, userEmail, config, testingCont
   const [paddleSubscriptionId, setPaddleSubscriptionId] = React.useState<string | null>(null);
   const [pendingTransactionId, setPendingTransactionId] = React.useState<string | null>(null);
   const [billingAttemptId, setBillingAttemptId] = React.useState<string | null>(null);
+  const [billingTruth, setBillingTruth] = React.useState<BillingTruth | null>(null);
+  const [attemptSteps, setAttemptSteps] = React.useState<BillingAttemptStep[] | null>(null);
   const [planChangeBlocked, setPlanChangeBlocked] = React.useState<string | null>(null);
 
   const tier = resolveCatalogTier(plan, interval);
@@ -104,8 +114,16 @@ export function AdminPaddleTestCheckout({ userId, userEmail, config, testingCont
           else if (pi === "monthly") setCurrentInterval("monthly");
         }
         if (statusRes.ok) {
-          const status = (await statusRes.json()) as { activeSubscriptionId?: string | null };
-          setPaddleSubscriptionId(status.activeSubscriptionId ?? null);
+          const status = (await statusRes.json()) as {
+            activeSubscriptionId?: string | null;
+            paddleSubscriptionId?: string | null;
+            billingTruth?: BillingTruth;
+            planId?: string;
+          };
+          const subId = status.paddleSubscriptionId ?? status.activeSubscriptionId ?? null;
+          setPaddleSubscriptionId(subId);
+          if (status.billingTruth) setBillingTruth(status.billingTruth);
+          if (status.planId) setCurrentPlanId(status.planId);
         }
       })
       .catch(() => undefined);
@@ -137,6 +155,8 @@ export function AdminPaddleTestCheckout({ userId, userEmail, config, testingCont
       if (cancelled) return;
       setBillingStatus(json);
       if (json.planId) setCurrentPlanId(String(json.planId));
+      if (json.billingTruth) setBillingTruth(json.billingTruth as BillingTruth);
+      if (Array.isArray(json.attemptSteps)) setAttemptSteps(json.attemptSteps as BillingAttemptStep[]);
       const webhookReceived = Boolean(
         json.lastWebhookEventType || json.lastWebhookStatus || json.webhookPending === false,
       );
@@ -184,7 +204,27 @@ export function AdminPaddleTestCheckout({ userId, userEmail, config, testingCont
     setLastError(null);
     setCheckoutState("opening");
     setLastResponse(null);
+    setAttemptSteps(null);
+    let attemptId: string | null = null;
     try {
+      const startRes = await fetch("/api/billing/paddle/attempt/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ plan, interval }),
+      });
+      const startJson = (await startRes.json()) as {
+        billingAttemptId?: string;
+        billingTruth?: BillingTruth;
+        error?: string;
+      };
+      if (!startRes.ok) {
+        throw new Error(startJson.error ?? "Could not start billing attempt");
+      }
+      attemptId = startJson.billingAttemptId ?? null;
+      if (attemptId) setBillingAttemptId(attemptId);
+      if (startJson.billingTruth) setBillingTruth(startJson.billingTruth);
+
       const res = await fetch("/api/billing/paddle/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -195,6 +235,7 @@ export function AdminPaddleTestCheckout({ userId, userEmail, config, testingCont
           confirmed: true,
           testMode: true,
           source: "admin_test_checkout",
+          billingAttemptId: attemptId ?? undefined,
         }),
       });
       const json = (await res.json()) as Record<string, unknown> & {
@@ -207,7 +248,8 @@ export function AdminPaddleTestCheckout({ userId, userEmail, config, testingCont
         failureReasons?: string[];
         planChange?: { description?: string; action?: string };
       };
-      setLastResponse(json);
+      setLastResponse({ ...json, ok: res.ok });
+      if (json.billingTruth) setBillingTruth(json.billingTruth as BillingTruth);
       if (!res.ok) {
         const reasons = json.failureReasons?.length
           ? `\n${(json.failureReasons as string[]).join("\n")}`
@@ -301,11 +343,17 @@ export function AdminPaddleTestCheckout({ userId, userEmail, config, testingCont
           </p>
         ) : null}
         {testingContext.localDevWithProductionPaddle ? (
-          <p className="mt-2 text-[12px] text-muted-foreground">
-            You are testing from <span className="font-mono">{testingContext.appOrigin}</span>, but Paddle
-            checkout/webhook use production domain{" "}
-            <span className="font-mono">{config.checkoutUrl.displayLabel}</span>.
-          </p>
+          <div className="mt-3 rounded-lg border border-amber-600/50 bg-amber-950/40 px-3 py-2 text-[12px] text-amber-100">
+            <p className="font-semibold">Production Paddle from localhost</p>
+            <p className="mt-1">
+              You are testing production Paddle from{" "}
+              <span className="font-mono">{testingContext.appOrigin}</span>. Paddle webhooks go to{" "}
+              <span className="font-mono">{EXPECTED_PRODUCTION_WEBHOOK_URL}</span>, not localhost. Local UI
+              may not update unless local and production share the same Supabase project. Use{" "}
+              <span className="font-mono">https://vodex.dev/admin/billing/paddle/test-checkout</span>{" "}
+              for authoritative tests.
+            </p>
+          </div>
         ) : null}
         {testingContext.sharedSupabaseMessage ? (
           <p className="mt-1 text-[12px] text-positive">{testingContext.sharedSupabaseMessage}</p>
@@ -315,8 +363,10 @@ export function AdminPaddleTestCheckout({ userId, userEmail, config, testingCont
         ) : null}
       </div>
 
+      <BillingTruthPanel truth={billingTruth} userId={userId} />
+
       <section className="rounded-xl border border-border p-4">
-        <h2 className="text-[14px] font-semibold">Diagnostics</h2>
+        <h2 className="text-[14px] font-semibold">Environment diagnostics</h2>
         <dl className="mt-3 grid gap-2 text-[12px] sm:grid-cols-2">
           <div>
             <dt className="text-muted-foreground">Paddle environment</dt>
@@ -483,8 +533,16 @@ export function AdminPaddleTestCheckout({ userId, userEmail, config, testingCont
             <dd className="font-mono text-[11px]">{planChange.apiRoute ?? "—"}</dd>
           </div>
           <div className="flex justify-between gap-2">
-            <dt className="text-muted-foreground">Has subscription</dt>
-            <dd>{paddleSubscriptionId ? "yes" : "no"}</dd>
+            <dt className="text-muted-foreground">Has Paddle subscription</dt>
+            <dd>{billingTruth?.hasPaddleSubscription ? "yes (real)" : "no"}</dd>
+          </div>
+          <div className="flex justify-between gap-2">
+            <dt className="text-muted-foreground">Plan source</dt>
+            <dd className="font-mono">{billingTruth?.planSource ?? "—"}</dd>
+          </div>
+          <div className="flex justify-between gap-2">
+            <dt className="text-muted-foreground">Billing state</dt>
+            <dd className="font-mono">{billingTruth?.billingState ?? "—"}</dd>
           </div>
           <div className="flex justify-between gap-2">
             <dt className="text-muted-foreground">Billing intent</dt>
@@ -509,10 +567,26 @@ export function AdminPaddleTestCheckout({ userId, userEmail, config, testingCont
           </pre>
         </div>
 
+        {billingTruth && checkoutButtonWarning(billingTruth) ? (
+          <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-100">
+            {checkoutButtonWarning(billingTruth)}
+          </p>
+        ) : null}
+
         <Button type="button" disabled={busy} onClick={() => void startCheckout()}>
           {busy ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
-          Open live Paddle checkout
+          {billingTruth ? checkoutButtonLabel(billingTruth) : "Open live Paddle checkout"}
         </Button>
+
+        {(billingAttemptId || attemptSteps) && (
+          <BillingAttemptStepsPanel
+            attemptId={billingAttemptId}
+            steps={attemptSteps}
+            apiError={lastError}
+            lastResponse={lastResponse}
+            pollAttemptId={billingAttemptId}
+          />
+        )}
 
         {pendingTransactionId ? (
           <p className="text-[11px] text-muted-foreground">

@@ -1,5 +1,5 @@
 /**
- * Permanent 40-category competitive scoreboard (DreamOS86 vs Lovable vs Base44).
+ * Permanent 40-category competitive scoreboard (Vodex vs Lovable vs Base44).
  * Scores are capped by evidence rules in dreamos-readiness-score.ts — never inflate to 100.
  */
 

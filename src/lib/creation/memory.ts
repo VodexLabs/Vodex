@@ -1,5 +1,5 @@
 /**
- * DreamOS86 — Project memory engine.
+ * Vodex — Project memory engine.
  *
  * The AI must remember a project's architecture, design system, stack
  * choices, and prior decisions across sessions. We persist these in

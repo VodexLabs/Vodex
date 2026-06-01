@@ -2,7 +2,7 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* DreamOS86 — atmospheric white × blue (calm, cinematic, OS-grade) */
+/* Vodex — atmospheric white × blue (calm, cinematic, OS-grade) */
 :root {
   --background: #f4f7fd;
   --foreground: #071018;

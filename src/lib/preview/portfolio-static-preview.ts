@@ -31,7 +31,7 @@ export function buildPortfolioPreviewBody(appName = "Portfolio"): string {
         <p class="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-300">Developer portfolio</p>
         <h1 class="mt-4 text-4xl font-bold tracking-tight text-white sm:text-6xl">${name}</h1>
         <p class="mx-auto mt-4 max-w-2xl text-lg text-slate-300">
-          Animated hero, project showcase, skills, testimonials, and contact — built with DreamOS86.
+          Animated hero, project showcase, skills, testimonials, and contact — built with Vodex.
         </p>
         <div class="mt-8 flex flex-wrap justify-center gap-3">
           <span class="inline-flex rounded-xl bg-indigo-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30">View projects</span>

@@ -748,7 +748,7 @@ function DomainsTab({ project }: { project: ProjectRow }) {
             </div>
             <div>
               <p className="text-[13px] font-semibold text-foreground">No custom domain</p>
-              <p className="text-[12px] text-muted-foreground">Your app is live on a DreamOS86 subdomain</p>
+              <p className="text-[12px] text-muted-foreground">Your app is live on a Vodex subdomain</p>
             </div>
           </div>
           {(publicUrl || project.preview_url) && (
@@ -778,7 +778,7 @@ function DomainsTab({ project }: { project: ProjectRow }) {
             </button>
           </div>
           <p className="mt-2 text-[11px] text-muted-foreground/60">
-            Add a CNAME record pointing to <code className="text-accent">cname.dreamos86.com</code>
+            Add a CNAME record pointing to <code className="text-accent">cname.vodex.dev</code>
           </p>
         </div>
       )}
@@ -1021,7 +1021,7 @@ function AnalyticsTab({ project }: { project: ProjectRow }) {
           </div>
           <h3 className="mt-4 text-[14px] font-semibold text-foreground">Deploy to unlock analytics</h3>
           <p className="mx-auto mt-2 max-w-sm text-[12.5px] leading-relaxed text-muted-foreground">
-            Once your app is live, DreamOS86 tracks page views, API latency, error rates, and active users in real time.
+            Once your app is live, Vodex tracks page views, API latency, error rates, and active users in real time.
           </p>
           {!loading && (
             <p className="mt-3 text-[11.5px] text-muted-foreground">

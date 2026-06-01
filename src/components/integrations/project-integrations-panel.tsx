@@ -26,7 +26,7 @@ const PROVIDERS = [
   {
     id: "supabase",
     label: "Supabase",
-    description: "Your generated app’s Supabase project (not DreamOS86 platform DB).",
+    description: "Your generated app’s Supabase project (not Vodex platform DB).",
     envVars: [] as string[],
   },
   {
@@ -247,8 +247,8 @@ function SupabaseConnectForm({
   return (
     <div className="mt-3 space-y-3 rounded-lg border border-border bg-surface/50 p-3">
       <p className="text-[11px] leading-relaxed text-muted-foreground">
-        Connect <strong>your app&apos;s</strong> Supabase project (separate from DreamOS86 login). Manual connection —
-        paste keys below. DreamOS86 stores them encrypted for this app only.
+        Connect <strong>your app&apos;s</strong> Supabase project (separate from Vodex login). Manual connection —
+        paste keys below. Vodex stores them encrypted for this app only.
       </p>
       <ol className="list-decimal space-y-1.5 pl-4 text-[11px] text-foreground">
         <li>
@@ -263,7 +263,7 @@ function SupabaseConnectForm({
           (free tier is fine).
         </li>
         <li>Open Project Settings → API and copy the project URL and anon key.</li>
-        <li>Paste them below — DreamOS86 links this app only.</li>
+        <li>Paste them below — Vodex links this app only.</li>
       </ol>
       <button
         type="button"

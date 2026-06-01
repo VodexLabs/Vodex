@@ -48,7 +48,7 @@ export function clearStaleSupabaseAuthCookies(activeRef?: string | null): number
   }
 
   if (cleared > 0 && process.env.NODE_ENV !== "production") {
-    console.info("[DreamOS86][auth] cleared stale Supabase cookies", {
+    console.info("[Vodex][auth] cleared stale Supabase cookies", {
       activeRef: ref,
       cleared,
     });

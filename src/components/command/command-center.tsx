@@ -380,7 +380,7 @@ export function CommandCenter() {
                 </div>
                 <div className="ml-auto flex items-center gap-1 text-[10.5px] text-muted-foreground/40">
                   <Zap className="size-3 text-accent/50" strokeWidth={1.75} />
-                  DreamOS86
+                  Vodex
                 </div>
               </div>
             </motion.div>

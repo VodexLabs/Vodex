@@ -1,5 +1,11 @@
 import { LegalParagraph, LegalProse, LegalSection } from "@/components/marketing/legal-document";
 import Link from "next/link";
+import {
+  APP_URL,
+  LEGAL_COMPANY_NAME,
+  SUPPORT_EMAIL,
+  SUPPORT_MAILTO,
+} from "@/lib/brand/brand-config";
 
 export function PrivacyContent() {
   return (
@@ -11,9 +17,9 @@ export function PrivacyContent() {
         Privacy Policy
       </h1>
       <p className="mt-4 text-muted-foreground">
-        This Privacy Policy explains how DreamOS86 (&quot;we,&quot; &quot;us,&quot; or &quot;our&quot;) collects, uses,
-        and shares information when you use our website, platform, and related services (the &quot;Service&quot;). By using
-        the Service, you agree to this policy.
+        This Privacy Policy explains how {LEGAL_COMPANY_NAME} (&quot;Vodex,&quot; &quot;we,&quot; &quot;us,&quot; or
+        &quot;our&quot;) collects, uses, and shares information when you use our website, platform, and related services
+        (the &quot;Service&quot;) at {APP_URL}. By using the Service, you agree to this policy.
       </p>
 
       <LegalSection title="1. Information we collect">
@@ -40,8 +46,8 @@ export function PrivacyContent() {
           session management.
         </LegalParagraph>
         <LegalParagraph>
-          <strong className="text-foreground">Payment data.</strong> If you purchase a DreamOS86 paid plan, payment
-          details are processed by our platform billing provider (for example, Paddle or Stripe). We receive subscription
+          <strong className="text-foreground">Payment data.</strong> If you purchase a Vodex paid plan, payment
+          details are processed by our platform billing provider (for example, Paddle). We receive subscription
           status and billing identifiers, not full card numbers. If you connect payment providers for a generated app, we
           may store connection metadata, encrypted API keys, product mappings, and webhook events needed for billing health,
           entitlements, and fraud prevention. We do not intentionally expose raw payment secrets to clients.
@@ -60,10 +66,14 @@ export function PrivacyContent() {
         </LegalParagraph>
         <LegalParagraph>
           <strong className="text-foreground">Marketing emails (optional).</strong> If you opt in during checkout or in
-          account settings, DreamOS86 may send product updates, onboarding tips, offers, and other marketing emails. Marketing
+          account settings, Vodex may send product updates, onboarding tips, offers, and other marketing emails. Marketing
           consent is optional. We do not send marketing emails unless you opted in. You may unsubscribe or opt out at any time
-          using the link in our emails or by contacting support. We may still send transactional and service emails for your
-          account, billing, security, product operation, and support even if you opt out of marketing.
+          using the link in our emails or by contacting{" "}
+          <a href={SUPPORT_MAILTO} className="text-accent hover:underline underline-offset-4">
+            {SUPPORT_EMAIL}
+          </a>
+          . We may still send transactional and service emails for your account, billing, security, product operation, and
+          support even if you opt out of marketing.
         </LegalParagraph>
       </LegalSection>
 
@@ -93,7 +103,7 @@ export function PrivacyContent() {
             <strong className="text-foreground">AI providers</strong> — model inference as described above.
           </li>
           <li>
-            <strong className="text-foreground">Paddle</strong> — DreamOS86 subscription checkout and billing (when enabled).
+            <strong className="text-foreground">Paddle</strong> — Vodex subscription checkout and billing (when enabled).
             Paddle may collect optional marketing consent at checkout; we store your preference when provided.
           </li>
           <li>
@@ -120,7 +130,7 @@ export function PrivacyContent() {
 
       <LegalSection title="6. Secrets and API keys">
         <LegalParagraph>
-          Project secrets you store in DreamOS86 are kept server-side and used only for operations you authorize (for
+          Project secrets you store in Vodex are kept server-side and used only for operations you authorize (for
           example, deployments and integrations). We do not intentionally expose secrets in public previews or client-side
           bundles. You are responsible for the secrets you add and for revoking keys that are no longer needed.
         </LegalParagraph>
@@ -145,7 +155,11 @@ export function PrivacyContent() {
       <LegalSection title="9. Security">
         <LegalParagraph>
           We use encryption in transit (HTTPS), access controls, and service-role isolation for server operations.
-          No method of transmission or storage is 100% secure; report suspected issues via our{" "}
+          No method of transmission or storage is 100% secure; report suspected issues to{" "}
+          <a href={SUPPORT_MAILTO} className="text-accent hover:underline underline-offset-4">
+            {SUPPORT_EMAIL}
+          </a>{" "}
+          or our{" "}
           <Link href="/contact" className="text-accent hover:underline underline-offset-4">
             contact form
           </Link>
@@ -156,22 +170,29 @@ export function PrivacyContent() {
       <LegalSection title="10. Your rights">
         <LegalParagraph>
           Depending on your location, you may have rights to access, correct, delete, or export personal data, and to
-          object to or restrict certain processing. Contact us to exercise these rights. If you are in the EEA/UK, you
-          may lodge a complaint with your supervisory authority.
+          object to or restrict certain processing. Contact us at{" "}
+          <a href={SUPPORT_MAILTO} className="text-accent hover:underline underline-offset-4">
+            {SUPPORT_EMAIL}
+          </a>{" "}
+          to exercise these rights. If you are in the EEA/UK, you may lodge a complaint with your supervisory authority.
         </LegalParagraph>
       </LegalSection>
 
       <LegalSection title="11. Children">
         <LegalParagraph>
           The Service is not directed to children under 13. We do not knowingly collect personal information from
-          children. If you believe a child has provided data, contact us and we will delete it.
+          children. If you believe a child has provided data, contact us at{" "}
+          <a href={SUPPORT_MAILTO} className="text-accent hover:underline underline-offset-4">
+            {SUPPORT_EMAIL}
+          </a>{" "}
+          and we will delete it.
         </LegalParagraph>
       </LegalSection>
 
       <LegalSection title="12. International users">
         <LegalParagraph>
-          DreamOS86 is operated from the United States. If you access the Service from other regions, your information may
-          be transferred to and processed in the U.S. and other countries where our providers operate.
+          {LEGAL_COMPANY_NAME} is operated from the United States. If you access the Service from other regions, your
+          information may be transferred to and processed in the U.S. and other countries where our providers operate.
         </LegalParagraph>
       </LegalSection>
 
@@ -184,11 +205,15 @@ export function PrivacyContent() {
 
       <LegalSection title="14. Contact">
         <LegalParagraph>
-          Privacy questions: use our{" "}
+          Privacy questions:{" "}
+          <a href={SUPPORT_MAILTO} className="text-accent hover:underline underline-offset-4">
+            {SUPPORT_EMAIL}
+          </a>
+          , our{" "}
           <Link href="/contact" className="text-accent hover:underline underline-offset-4">
             contact form
           </Link>
-          .
+          , or {APP_URL}.
         </LegalParagraph>
       </LegalSection>
     </LegalProse>

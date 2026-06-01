@@ -205,8 +205,8 @@ export function ReferralsDashboard() {
     if (typeof navigator.share === "function") {
       try {
         await navigator.share({
-          title: "DreamOS86",
-          text: "Build apps with DreamOS86 — we both get 5 Build Credits when you join.",
+          title: "Vodex",
+          text: "Build apps with Vodex — we both get 5 Build Credits when you join.",
           url: data.inviteUrl,
         });
       } catch {

@@ -1,5 +1,5 @@
 /**
- * DreamOS86 — Cost-first deterministic model router.
+ * Vodex — Cost-first deterministic model router.
  * All provider calls must use routeOperation() — never pick Sonnet/Opus ad-hoc.
  */
 import { isDreamosOwnerEmail } from "@/lib/admin-owner";

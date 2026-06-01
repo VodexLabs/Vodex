@@ -138,7 +138,7 @@ function RevenueAnalyticsSection() {
             App revenue (all your apps)
           </h3>
           <p className="text-[12px] text-muted-foreground">
-            From connected payment providers via webhooks — not DreamOS86 platform billing.
+            From connected payment providers via webhooks — not Vodex platform billing.
           </p>
         </div>
         <select

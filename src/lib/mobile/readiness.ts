@@ -230,7 +230,7 @@ export function scanIosReadiness(
     label: "Apple Developer account",
     status: "warning",
     detail:
-      "You need an Apple Developer account and App Store Connect app record. DreamOS86 guides setup once credentials are connected.",
+      "You need an Apple Developer account and App Store Connect app record. Vodex guides setup once credentials are connected.",
     platform: "ios",
   });
 
@@ -269,7 +269,7 @@ export function scanIosReadiness(
     label: "iOS build environment",
     status: "warning",
     detail:
-      "iOS archives require macOS/Xcode or a connected cloud builder. DreamOS86 prepares projects and export instructions honestly.",
+      "iOS archives require macOS/Xcode or a connected cloud builder. Vodex prepares projects and export instructions honestly.",
     platform: "ios",
   });
 

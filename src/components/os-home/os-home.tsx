@@ -539,7 +539,7 @@ export function OsHome({ recentProjects }: OsHomeProps) {
               className="pointer-events-none absolute inset-0 opacity-40 [background:radial-gradient(ellipse_70%_45%_at_50%_0%,color-mix(in_oklab,var(--accent)_12%,transparent),transparent_60%)]"
             />
             <motion.p variants={heroItem} className="relative text-[11px] font-semibold uppercase tracking-[0.2em] text-accent/90">
-              DreamOS86
+              Vodex
             </motion.p>
             <motion.h1
               variants={heroItem}

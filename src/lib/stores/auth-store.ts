@@ -1,5 +1,5 @@
 /**
- * DreamOS86 — Auth Store
+ * Vodex — Auth Store
  * Global auth state synced with Supabase session.
  *
  * IMPORTANT: persist runs with `skipHydration: true` so the first client

@@ -13,7 +13,7 @@ import { variants } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 // ─── Official Templates ───────────────────────────────────────────────────────
-// These are real, installable templates that DreamOS86 can scaffold via AI.
+// These are real, installable templates that Vodex can scaffold via AI.
 
 interface Template {
   id: string;
@@ -157,7 +157,7 @@ function CommunityEmptyState() {
       </div>
       <p className="text-[15px] font-semibold tracking-tight text-foreground">No community apps yet</p>
       <p className="mt-2 max-w-sm text-[13px] text-muted-foreground">
-        When builders publish their apps, they&apos;ll appear here. Build something with DreamOS86 and be the first.
+        When builders publish their apps, they&apos;ll appear here. Build something with Vodex and be the first.
       </p>
       <Button variant="accent" size="sm" className="mt-6 gap-1.5" asChild>
         <Link href="/create">
@@ -289,10 +289,10 @@ export function MarketplaceView() {
           <motion.div variants={variants.fadeUp} initial="hidden" animate="show" transition={{ delay: 0.2 }} className="mt-8 flex items-center gap-2.5 rounded-[var(--radius-lg)] bg-surface px-4 py-3 ring-1 ring-border">
             <Star className="size-4 fill-amber-400 text-amber-400" strokeWidth={0} />
             <p className="text-[12px] text-muted-foreground">
-              All templates are maintained by the DreamOS86 team. Each one generates a complete, production-ready codebase.
+              All templates are maintained by the Vodex team. Each one generates a complete, production-ready codebase.
             </p>
             <a
-              href="https://github.com/dreamos86"
+              href="https://github.com/vodex-labs"
               target="_blank"
               rel="noopener noreferrer"
               className="ml-auto flex items-center gap-1 text-[12px] text-accent hover:underline shrink-0"

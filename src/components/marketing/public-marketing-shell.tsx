@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
-import { DreamOS86BrandLockup } from "@/components/brand/dreamos86-brand-lockup";
+import { VodexBrandLockup } from "@/components/brand/vodex-brand-lockup";
 import { PublicThemeToggle } from "@/components/marketing/public-theme-toggle";
 import { cn } from "@/lib/utils";
 
@@ -27,12 +27,12 @@ export function PublicMarketingHeader({ className }: { className?: string }) {
     >
       <div className="mx-auto w-full max-w-6xl px-3 py-2.5 sm:px-6 sm:py-3">
         <div className="flex items-center justify-between gap-2">
-          <DreamOS86BrandLockup
+          <VodexBrandLockup
             variant="landingDesktop"
             className="min-w-0 shrink hidden md:flex"
             priority
           />
-          <DreamOS86BrandLockup
+          <VodexBrandLockup
             variant="landingMobile"
             className="min-w-0 shrink md:hidden"
             priority
@@ -110,9 +110,9 @@ export function PublicMarketingFooter({ className }: { className?: string }) {
     <footer className={cn("border-t border-border/60 bg-background/90", className)}>
       <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 sm:flex-row sm:px-6">
         <div className="flex flex-col items-center gap-2 sm:items-start">
-          <DreamOS86BrandLockup variant="marketingFooter" gapClassName="gap-1" />
+          <VodexBrandLockup variant="marketingFooter" />
           <p className="text-center text-[11px] text-muted-foreground sm:text-left">
-            © {new Date().getFullYear()} DreamOS86. All rights reserved.
+            © {new Date().getFullYear()} Vodex. All rights reserved.
           </p>
         </div>
         <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[12px]" aria-label="Legal">

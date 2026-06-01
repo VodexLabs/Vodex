@@ -1,4 +1,4 @@
-/** DreamOS86 — comprehensive mock data and static records */
+/** Vodex — comprehensive mock data and static records */
 
 // ─── Plan types/data — re-exported from pricing architecture ─────────────────
 export type {
@@ -270,7 +270,7 @@ export const aiModels: AIModel[] = [
   {
     id: "automatic",
     name: "Automatic",
-    provider: "DreamOS86",
+    provider: "Vodex",
     providerSlug: "dreamos",
     description:
       "Automatically adjusts the model depending on your request to provide the best quality.",
@@ -385,7 +385,7 @@ export const aiModels: AIModel[] = [
     provider: "OpenAI",
     providerSlug: "openai",
     description:
-      "DreamOS86 Standard — routes to OpenAI GPT-4o Mini for fast, reliable builds and everyday tasks.",
+      "Vodex Standard — routes to OpenAI GPT-4o Mini for fast, reliable builds and everyday tasks.",
     contextWindow: "128K",
     speed: "fast",
     quality: "standard",
@@ -456,7 +456,7 @@ export const aiModels: AIModel[] = [
     name: "Composer",
     provider: "Cursor",
     providerSlug: "cursor",
-    description: "Internal — no live provider endpoint in DreamOS86 yet.",
+    description: "Internal — no live provider endpoint in Vodex yet.",
     contextWindow: "128K",
     speed: "fast",
     quality: "premium",
@@ -573,9 +573,9 @@ export const changelog: ChangelogEntry[] = [
       "Credit tracking is more reliable and easier to understand in your account menu",
       "Billing diagnostics and credit processing are more dependable for paid AI actions",
       "First create prompt is Build-only; Discuss and Edit unlock after an app exists",
-      "AI Chat knows DreamOS86 product flows and answers in plain language",
+      "AI Chat knows Vodex product flows and answers in plain language",
       "Public homepage redesign with animated Build → Preview → Publish workflow",
-      "DreamOS86 in numbers section restored on the marketing site",
+      "Vodex in numbers section restored on the marketing site",
       "ZIP import for existing projects with framework detection (up to 1,500 source files)",
       "Create App dashboard and blueprint/template improvements",
       "Faster navigation with clearer loading states",

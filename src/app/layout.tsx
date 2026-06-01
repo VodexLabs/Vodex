@@ -18,6 +18,15 @@ import { OAuthCodeLandingRedirect } from "@/components/auth/oauth-code-landing-r
 import "./globals.css";
 
 import { getMetadataBaseUrl, getSiteUrl } from "@/lib/app-url";
+import { LEGAL_COMPANY_NAME } from "@/lib/brand/brand-config";
+import {
+  BRAND_ICON_VERSION,
+  BRAND_KEYWORDS,
+  BRAND_NAME,
+  BRAND_TAGLINE,
+  VODEX_BRAND_ICON_SRC,
+  VODEX_ICON_192,
+} from "@/lib/branding/brand-assets";
 
 
 
@@ -48,58 +57,25 @@ const geistMono = Geist_Mono({
 const SITE_URL = getMetadataBaseUrl();
 const CANONICAL_SITE_URL = getSiteUrl();
 
-const ICON_V = "16";
-
-
+const ICON_V = BRAND_ICON_VERSION;
 
 export const metadata: Metadata = {
-
   metadataBase: new URL(SITE_URL),
-
   title: {
-
-    default: "DreamOS86",
-
-    template: "%s | DreamOS86",
-
+    default: BRAND_NAME,
+    template: `%s | ${BRAND_NAME}`,
   },
-
-  description:
-
-    "DreamOS86 is the AI-native platform for building software. Describe what you want — frontier AI architects, builds, and deploys it in minutes.",
-
-  applicationName: "DreamOS86",
-
-  keywords: [
-
-    "AI",
-
-    "app builder",
-
-    "AI operating system",
-
-    "code generation",
-
-    "Next.js",
-
-    "Supabase",
-
-    "Vercel",
-
-  ],
-
-  authors: [{ name: "DreamOS86" }],
-
-  creator: "DreamOS86",
-
-  publisher: "DreamOS86",
-
+  description: BRAND_TAGLINE,
+  applicationName: BRAND_NAME,
+  keywords: [...BRAND_KEYWORDS],
+  authors: [{ name: BRAND_NAME }],
+  creator: BRAND_NAME,
+  publisher: LEGAL_COMPANY_NAME,
   manifest: `/manifest.webmanifest?v=${ICON_V}`,
-
   icons: {
     icon: [
       { url: `/favicon.ico?v=${ICON_V}` },
-      { url: `/brand/dreamos86-icon.png?v=${ICON_V}`, sizes: "512x512", type: "image/png" },
+      { url: VODEX_BRAND_ICON_SRC, sizes: "512x512", type: "image/png" },
       { url: `/favicon-48x48.png?v=${ICON_V}`, sizes: "48x48", type: "image/png" },
       { url: `/favicon-64x64.png?v=${ICON_V}`, sizes: "64x64", type: "image/png" },
       { url: `/favicon-96x96.png?v=${ICON_V}`, sizes: "96x96", type: "image/png" },
@@ -107,42 +83,24 @@ export const metadata: Metadata = {
       { url: `/favicon-192x192.png?v=${ICON_V}`, sizes: "192x192", type: "image/png" },
       { url: `/icon.png?v=${ICON_V}`, sizes: "48x48", type: "image/png" },
     ],
-    apple: [
-      { url: `/apple-touch-icon.png?v=${ICON_V}`, sizes: "180x180", type: "image/png" },
-    ],
+    apple: [{ url: `/apple-touch-icon.png?v=${ICON_V}`, sizes: "180x180", type: "image/png" }],
     shortcut: [`/favicon.ico?v=${ICON_V}`],
   },
-
   formatDetection: { telephone: false, email: false, address: false },
-
   openGraph: {
-
     type: "website",
-
     url: SITE_URL,
-
-    siteName: "DreamOS86",
-
-    title: "DreamOS86",
-
-    description:
-
-      "Describe the app you want. DreamOS86 uses frontier AI to architect, build, and deploy it in minutes.",
-
+    siteName: BRAND_NAME,
+    title: BRAND_NAME,
+    description: `Describe the app you want. ${BRAND_NAME} uses frontier AI to architect, build, and deploy it in minutes.`,
+    images: [{ url: VODEX_ICON_192, width: 192, height: 192, alt: BRAND_NAME }],
     locale: "en_US",
-
   },
-
   twitter: {
-
     card: "summary_large_image",
-
-    title: "DreamOS86",
-
-    description:
-
-      "Describe the app you want. DreamOS86 uses frontier AI to architect, build, and deploy it in minutes.",
-
+    title: BRAND_NAME,
+    description: `Describe the app you want. ${BRAND_NAME} uses frontier AI to architect, build, and deploy it in minutes.`,
+    images: [VODEX_ICON_192],
   },
 
   robots: {

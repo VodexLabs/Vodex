@@ -73,7 +73,7 @@ export async function createPaddleCheckoutSession(input: {
     return {
       ok: false,
       code: "invalid_price",
-      error: "Price ID is not in the DreamOS86 catalog",
+      error: "Price ID is not in the Vodex catalog",
     };
   }
 
@@ -196,7 +196,7 @@ export async function updatePaddleSubscriptionPlan(input: {
 
   const priceId = resolvePaddlePriceId(validated.plan, validated.interval);
   if (!priceId || !isKnownPaddlePriceId(priceId)) {
-    return { ok: false, code: "invalid_price", error: "Price ID is not in the DreamOS86 catalog" };
+    return { ok: false, code: "invalid_price", error: "Price ID is not in the Vodex catalog" };
   }
 
   const apiKey = process.env.PADDLE_API_KEY!.trim();

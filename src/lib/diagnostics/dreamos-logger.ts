@@ -39,7 +39,7 @@ export type DreamosLogRow = DreamosLogInput & {
   metadata: Record<string, unknown>;
 };
 
-const CLIENT_KEY = "dreamos86.diagnosticLogs";
+const CLIENT_KEY = "vodex.diagnosticLogs";
 const CLIENT_MAX = 200;
 const INGEST_BATCH_MS = 1200;
 let ingestQueue: DreamosLogRow[] = [];

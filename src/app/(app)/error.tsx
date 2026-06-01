@@ -16,7 +16,7 @@ export default function AppError({
   const chunkError = isChunkLoadError(error);
 
   useEffect(() => {
-    console.error("[DreamOS86] App error:", error);
+    console.error("[Vodex] App error:", error);
   }, [error]);
 
   const isDev = process.env.NODE_ENV === "development";

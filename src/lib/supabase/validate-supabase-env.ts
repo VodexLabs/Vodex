@@ -41,13 +41,13 @@ export function validateSupabaseEnv(): SupabaseEnvValidation {
 
   const hostBucket = classifyUrlHostname(hostname ?? "");
 
-  if (hostBucket === "dreamos86.com") {
+  if (hostBucket === "vodex.dev") {
     errors.push(
-      "NEXT_PUBLIC_SUPABASE_URL must not be the app domain (dreamos86.com). Use your Supabase project URL.",
+      "NEXT_PUBLIC_SUPABASE_URL must not be the app domain (vodex.dev). Use your Supabase project URL.",
     );
   }
 
-  if (hostname === "auth.dreamos86.com") {
+  if (hostname === "auth.vodex.dev") {
     if (process.env.NODE_ENV !== "production") {
       warnings.push(
         `Custom auth domain is configured for local dev. If SSL is not active, use ${DEFAULT_PROJECT_URL} instead.`,
@@ -65,7 +65,7 @@ export function validateSupabaseEnv(): SupabaseEnvValidation {
   }
 
   const customAuthEnabled = process.env.DREAMOS_USE_CUSTOM_AUTH_DOMAIN === "1";
-  if (hostname !== "auth.dreamos86.com" && !hostname?.endsWith(".supabase.co") && !customAuthEnabled) {
+  if (hostname !== "auth.vodex.dev" && !hostname?.endsWith(".supabase.co") && !customAuthEnabled) {
     warnings.push("Use the default Supabase project URL unless DREAMOS_USE_CUSTOM_AUTH_DOMAIN=1 and SSL is verified.");
   }
 
@@ -86,7 +86,7 @@ export function logSupabaseEnvBoot(): void {
 
   const v = validateSupabaseEnv();
   const anonPresent = Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim());
-  console.info("[DreamOS86][supabase-env]", {
+  console.info("[Vodex][supabase-env]", {
     ok: v.ok,
     hostname: v.hostname,
     hostBucket: v.hostBucket,

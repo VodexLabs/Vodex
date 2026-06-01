@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import type { BuildPlanCard } from "@/lib/creation/parse-build-plan";
 import type { BuilderOutputContract } from "@/lib/creation/parse-builder-metadata";
 import { stripMarkdownNoise } from "@/lib/projects/project-context";
-import { DreamOS86BrandIcon } from "@/components/brand/dreamos86-brand-icon";
+import { VodexBrandIcon } from "@/components/brand/vodex-brand-icon";
 
 export function QueuedPromptCard({
   text,
@@ -323,7 +323,7 @@ export function BuilderResultSummary({
           animate={{ scale: [1, 1.04, 1] }}
           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         >
-          <DreamOS86BrandIcon variant="assistant" alt="" />
+          <VodexBrandIcon variant="assistant" alt="" />
         </motion.div>
         <div className="min-w-0 flex-1">
           <p className="text-[13px] font-semibold text-foreground">

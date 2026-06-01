@@ -11,14 +11,14 @@ export function register() {
   const consistency = validateSupabaseProjectConsistency();
 
   if (!consistency.ok) {
-    console.error("[DreamOS86][supabase-project] consistency check failed:", {
+    console.error("[Vodex][supabase-project] consistency check failed:", {
       errors: consistency.errors,
       warnings: consistency.warnings,
       urlProjectRef: consistency.urlProjectRef,
       expectedGoogleRedirectUri: consistency.expectedGoogleRedirectUri,
     });
   } else if (consistency.warnings.length > 0) {
-    console.warn("[DreamOS86][supabase-project]", consistency.warnings);
+    console.warn("[Vodex][supabase-project]", consistency.warnings);
   }
 
   if (process.env.NODE_ENV === "development") {

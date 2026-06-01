@@ -53,7 +53,7 @@ export function PublicDreamOsNumbers({ stats }: { stats: PublicTrustStat[] }) {
       <div className="text-center">
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-accent">Trust & quality</p>
         <h2 className="mt-2 text-[26px] font-semibold tracking-tight text-foreground sm:text-[30px]">
-          DreamOS86 in numbers
+          Vodex in numbers
         </h2>
         <p className="mx-auto mt-2 max-w-lg text-[14px] text-muted-foreground">
           Real benchmarks and verification — no inflated marketing stats.

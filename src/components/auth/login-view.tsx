@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { DreamOS86BrandLockup } from "@/components/brand/dreamos86-brand-lockup";
+import { VodexBrandLockup } from "@/components/brand/vodex-brand-lockup";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, AlertCircle, Loader2, WifiOff } from "lucide-react";
@@ -196,7 +196,7 @@ export function LoginView() {
       >
         {/* Logo */}
         <div className="mb-8 flex flex-col items-center">
-          <DreamOS86BrandLockup variant="auth" href="/" priority />
+          <VodexBrandLockup variant="auth" href="/" priority />
         </div>
 
         <div className="overflow-hidden rounded-[var(--radius-xl)] bg-glass backdrop-blur-xl shadow-[var(--shadow-glass)] ring-1 ring-white/60 dark:ring-white/[0.08] p-8">
@@ -391,7 +391,7 @@ export function LoginView() {
         </div>
 
         <p className="mt-5 text-center text-[13px] text-muted-foreground">
-          New to DreamOS86?{" "}
+          New to Vodex?{" "}
           <Link
             href="/auth/signup"
             className="font-medium text-accent hover:underline underline-offset-4"

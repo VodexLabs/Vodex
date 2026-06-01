@@ -463,7 +463,7 @@ export async function getAdminRuntimeHealth(opts?: {
     chargePg || (chargeSr.executable && !isNotFoundFunction(chargeSr.lastError));
 
   const ensurePayload = probeUserId
-    ? { p_user_id: probeUserId, p_email: "health-probe@dreamos86.local" }
+    ? { p_user_id: probeUserId, p_email: "health-probe@vodex.local" }
     : { p_user_id: null, p_email: null };
   const ensurePg = postgresExistsForRpc(catalog, "ensure_user_profile", catalog.ensureSignatures);
   const ensurePostgrest = await probePostgrestRpc("ensure_user_profile", ensurePayload);

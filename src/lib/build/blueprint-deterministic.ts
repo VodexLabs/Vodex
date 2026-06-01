@@ -100,7 +100,7 @@ export function buildDeterministicBlueprint(input: DeterministicBlueprintInput):
     monetizationAssumptions: /\b(stripe|payment|subscription)\b/i.test(input.prompt)
       ? ["Checkout flow when payments are connected"]
       : [],
-    deploymentAssumptions: ["Preview hosted on DreamOS86"],
+    deploymentAssumptions: ["Preview hosted on Vodex"],
     estimatedComplexity: coreTemplate?.complexity === "advanced" ? 8 : plan.complexity,
     estimatedUserCredits: plan.creditQuote.userCreditsRequired,
     qualityLevel: quality,

@@ -95,7 +95,7 @@ export function PublicAppRenderer({
           />
         )}
         <p className="mt-4 text-center text-[10px] text-muted-foreground">
-          {showBadge ? "Built with DreamOS86 · " : ""}
+          {showBadge ? "Built with Vodex · " : ""}
           {version != null ? `v${version} · ` : ""}
           Shareable public app
         </p>

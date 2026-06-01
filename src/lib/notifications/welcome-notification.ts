@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-const WELCOME_TITLE_PREFIX = "Welcome to DreamOS86";
+const WELCOME_TITLE_PREFIX = "Welcome to Vodex";
 
 export async function ensureWelcomeNotification(
   admin: SupabaseClient,

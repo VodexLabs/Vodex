@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { DreamOS86BrandLockup } from "@/components/brand/dreamos86-brand-lockup";
+import { VodexBrandLockup } from "@/components/brand/vodex-brand-lockup";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, Check, AlertCircle, Loader2, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -211,7 +211,7 @@ export function SignupView() {
       >
         {/* Logo */}
         <div className="mb-8 flex flex-col items-center">
-          <DreamOS86BrandLockup variant="auth" href="/" priority />
+          <VodexBrandLockup variant="auth" href="/" priority />
         </div>
 
         <div className="overflow-hidden rounded-[var(--radius-xl)] bg-glass backdrop-blur-xl shadow-[var(--shadow-glass)] ring-1 ring-white/60 dark:ring-white/[0.08] p-8">

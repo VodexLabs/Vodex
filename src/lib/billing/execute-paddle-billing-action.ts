@@ -46,6 +46,8 @@ export type ExecutePaddleBillingInput = {
   testMode?: boolean;
   successUrl?: string;
   cancelUrl?: string;
+  /** Pre-created from POST /api/billing/paddle/attempt/start */
+  billingAttemptId?: string;
 };
 
 export type ExecutePaddleBillingResult =
@@ -212,12 +214,20 @@ export async function executePaddleBillingAction(
   }
 
   const before = await captureBillingSnapshot(input.ctx.userId);
-  const billingAttemptId = await createBillingAttempt({
-    userId: input.ctx.userId,
-    targetPlan: validated.plan,
-    endpointCalled: `/api/billing/paddle/action:${resolution.unifiedAction}`,
-    resolvedAction: resolution.unifiedAction,
-    before,
+  const billingAttemptId =
+    input.billingAttemptId ??
+    (await createBillingAttempt({
+      userId: input.ctx.userId,
+      targetPlan: validated.plan,
+      endpointCalled: `/api/billing/paddle/action:${resolution.unifiedAction}`,
+      resolvedAction: resolution.unifiedAction,
+      before,
+    }));
+
+  await patchBillingAttempt(billingAttemptId, {
+    endpoint_called: `/api/billing/paddle/action:${resolution.unifiedAction}`,
+    resolved_action: resolution.unifiedAction,
+    api_called: true,
   });
 
   const { getAppUrl } = await import("@/lib/app-url");
@@ -275,6 +285,8 @@ export async function executePaddleBillingAction(
       const catalogInterval = fromUpgradePolicyInterval(
         validated.interval === "annual" ? "yearly" : "monthly",
       );
+      await patchBillingAttempt(billingAttemptId, { paddle_request_started: true });
+
       const updated = await updatePaddleSubscriptionPlan({
         subscriptionId: subId,
         planId: validated.plan,
@@ -283,6 +295,16 @@ export async function executePaddleBillingAction(
         billingIntent:
           resolution.unifiedAction === "switch_interval" ? "interval_change" : "upgrade",
         billingAttemptId,
+      });
+
+      await patchBillingAttempt(billingAttemptId, {
+        paddle_response_received: updated.ok,
+        ...(updated.ok
+          ? {}
+          : {
+              failure_code: "paddle_action_failed",
+              failure_message: updated.error,
+            }),
       });
 
       if (!updated.ok) {
@@ -325,6 +347,8 @@ export async function executePaddleBillingAction(
     testMode: input.testMode,
   });
 
+  await patchBillingAttempt(billingAttemptId, { paddle_request_started: true });
+
   const checkout = await createPaddleCheckoutSession({
     planId: validated.plan,
     interval: validated.interval,
@@ -341,6 +365,18 @@ export async function executePaddleBillingAction(
           ? "settings"
           : "pricing",
     testMode: input.testMode,
+  });
+
+  await patchBillingAttempt(billingAttemptId, {
+    paddle_response_received: checkout.ok,
+    checkout_url_created: checkout.ok,
+    ...(checkout.ok
+      ? {}
+      : {
+          failure_code:
+            checkout.code === "api_error" ? "paddle_checkout_not_created" : checkout.code,
+          failure_message: checkout.error,
+        }),
   });
 
   if (!checkout.ok) {

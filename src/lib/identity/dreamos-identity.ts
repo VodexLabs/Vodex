@@ -10,7 +10,7 @@ import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { ensurePersonalWorkspace } from "@/lib/identity/ensure-personal-workspace";
 
 const FREE_CREDITS_FALLBACK = monthlyTokensForPlan("free");
-const CANONICAL_PUBLIC_API = "https://dreamos86.com/api";
+const CANONICAL_PUBLIC_API = "https://vodex.dev/api";
 
 export type DreamosIdentity = {
   accountId: string;

@@ -137,19 +137,19 @@ function hashSeed(input: string): number {
 }
 
 /** Stable seed for SSR + first client paint (avoids hydration mismatch). */
-export const SSR_HOME_IDEAS_SEED = "dreamos86-home-ideas-v1";
+export const SSR_HOME_IDEAS_SEED = "vodex-home-ideas-v1";
 
 /** Pick `count` unique ideas — stable per page load via session seed, different each refresh. */
 export function pickRandomAppIdeas(count: number, seed?: string): AppIdeaPrompt[] {
   const sessionSeed =
     seed ??
     (typeof sessionStorage !== "undefined"
-      ? sessionStorage.getItem("dreamos86.ideaSeed")
+      ? sessionStorage.getItem("vodex.ideaSeed")
       : null) ??
     SSR_HOME_IDEAS_SEED;
 
   if (typeof sessionStorage !== "undefined" && !seed) {
-    sessionStorage.setItem("dreamos86.ideaSeed", sessionSeed);
+    sessionStorage.setItem("vodex.ideaSeed", sessionSeed);
   }
 
   const pool = [...APP_IDEA_POOL];

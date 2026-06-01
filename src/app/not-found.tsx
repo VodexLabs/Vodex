@@ -9,7 +9,7 @@ export default function NotFound() {
       </div>
       <div className="max-w-md space-y-2">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent/90">
-          DreamOS86
+          Vodex
         </p>
         <h1 className="text-[22px] font-semibold tracking-tight text-foreground">
           Page not found

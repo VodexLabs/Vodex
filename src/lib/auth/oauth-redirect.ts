@@ -3,6 +3,12 @@ import {
   isLocalhostOrigin,
   resolveRequestOrigin,
 } from "@/lib/url/app-origin";
+import { APP_URL } from "@/lib/brand/brand-config";
+import {
+  canonicalizePlatformOrigin,
+  isLegacyPlatformHostname,
+  isProductionPlatformHostname,
+} from "@/lib/brand/legacy-brand-allowlist";
 
 /** Params allowed when forwarding OAuth landings to /auth/callback. */
 export const OAUTH_CALLBACK_ALLOW_PARAMS = new Set([
@@ -27,7 +33,7 @@ const OAUTH_CALLBACK_DENY_PARAMS = new Set([
 ]);
 
 /**
- * Canonical OAuth callback host — localhost keeps live port; production uses dreamos86.com.
+ * Canonical OAuth callback host — localhost keeps live port; production uses vodex.dev.
  */
 export function resolveCanonicalOAuthOrigin(
   requestOrigin?: string | Request,
@@ -42,7 +48,7 @@ export function resolveCanonicalOAuthOrigin(
     try {
       origin = new URL(requestOrigin).origin.replace(/\/$/, "");
       if (process.env.NODE_ENV === "production" && isLocalhostOrigin(origin)) {
-        origin = "https://dreamos86.com";
+        origin = APP_URL;
       }
     } catch {
       origin = resolveAppOrigin(requestOrigin);
@@ -51,13 +57,19 @@ export function resolveCanonicalOAuthOrigin(
     origin = resolveAppOrigin();
   }
 
+  origin = canonicalizePlatformOrigin(origin);
+
   try {
     const host = new URL(origin).hostname;
-    if (host === "dreamos86.com" || host === "www.dreamos86.com") {
-      return "https://dreamos86.com";
-    }
     if (host === "localhost" || host === "127.0.0.1") {
       return origin;
+    }
+    if (isProductionPlatformHostname(host) && !isLocalhostOrigin(origin)) {
+      const app = process.env.NEXT_PUBLIC_APP_URL?.trim();
+      if (app && !isLocalhostOrigin(app)) {
+        return canonicalizePlatformOrigin(trimOrigin(app));
+      }
+      return APP_URL;
     }
   } catch {
     /* fall through */
@@ -70,17 +82,21 @@ export function resolveCanonicalOAuthOrigin(
     if (app) {
       try {
         const host = new URL(app).hostname;
-        if (host === "dreamos86.com" || host === "www.dreamos86.com") {
-          return "https://dreamos86.com";
+        if (isProductionPlatformHostname(host) || isLegacyPlatformHostname(host)) {
+          return canonicalizePlatformOrigin(trimOrigin(app));
         }
       } catch {
         /* ignore */
       }
     }
-    return "https://dreamos86.com";
+    return APP_URL;
   }
 
   return origin;
+}
+
+function trimOrigin(url: string): string {
+  return url.replace(/\/$/, "");
 }
 
 /**

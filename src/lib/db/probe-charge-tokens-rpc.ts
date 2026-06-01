@@ -308,7 +308,7 @@ function classifyIssue(input: {
     return {
       ok: false,
       issue: "service_role_missing",
-      diagnosis: "SUPABASE_SERVICE_ROLE_KEY is not set on the DreamOS86 server.",
+      diagnosis: "SUPABASE_SERVICE_ROLE_KEY is not set on the Vodex server.",
       nextAction: "Add SUPABASE_SERVICE_ROLE_KEY to .env.local and restart the dev server or redeploy.",
       userMessage: "Service role key missing — cannot probe or charge credits.",
       actionHint: "Configure SUPABASE_SERVICE_ROLE_KEY (server-only), then Refresh check.",

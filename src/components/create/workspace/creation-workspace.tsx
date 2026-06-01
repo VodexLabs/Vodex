@@ -52,7 +52,7 @@ import { PreviewPanel } from "@/components/create/workspace/preview-panel";
 import { WorkspaceLauncher, type WorkspaceRightTab } from "@/components/create/workspace/workspace-launcher";
 import { AgentPhases } from "@/components/create/workspace/agent-phases";
 import { AppDashboardPanel } from "@/components/create/workspace/app-dashboard-panel";
-import { DreamOS86BrandIcon } from "@/components/brand/dreamos86-brand-icon";
+import { VodexBrandIcon } from "@/components/brand/vodex-brand-icon";
 import { extractFencedCode } from "@/lib/creation/extract-fenced-code";
 import { toast } from "@/lib/toast";
 import { pushRuntimeDiagnostic } from "@/lib/dev/runtime-diagnostics";
@@ -839,7 +839,7 @@ export function CreationWorkspace({
                   mode === "discuss"
                     ? "Describe what you're thinking. Plan, explore, or diagnose…"
                     : mode === "build"
-                      ? "Describe the app you want. DreamOS86 builds routes, backend, UI, and runtime…"
+                      ? "Describe the app you want. Vodex builds routes, backend, UI, and runtime…"
                       : scope
                         ? `Describe the change to the ${scope}…`
                         : "Pick a scope, then describe the change…"
@@ -1080,7 +1080,7 @@ function EmptyHero({
       className="mx-auto max-w-2xl py-10 text-center"
     >
       <div className="mx-auto mb-5 flex size-14 items-center justify-center">
-        <DreamOS86BrandIcon variant="previewHero" priority />
+        <VodexBrandIcon variant="previewHero" priority />
       </div>
       <h1 className="text-[26px] font-semibold tracking-[-0.04em] text-foreground">
         {mode === "discuss"

@@ -1,5 +1,5 @@
 /**
- * DreamOS86 platform billing via Paddle (Merchant of Record).
+ * Vodex platform billing via Paddle (Merchant of Record).
  * Generated apps use separate payment connectors — not this module.
  */
 

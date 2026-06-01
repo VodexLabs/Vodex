@@ -1,5 +1,5 @@
 /**
- * DreamOS86 — safe app/site origin resolution.
+ * Vodex — safe app/site origin resolution.
  *
  * Development must never force production URLs for navigation or auth callbacks.
  * Production uses NEXT_PUBLIC_APP_URL / VERCEL_URL when set.
@@ -29,7 +29,8 @@ function vercelPreviewOrigin(): string | null {
   return `https://${host}`;
 }
 
-const PRODUCTION_CANONICAL_ORIGIN = "https://dreamos86.com";
+/** Primary production app origin (Vodex). Legacy vodex.dev may redirect here. */
+const PRODUCTION_CANONICAL_ORIGIN = "https://vodex.dev";
 
 function productionFallbackOrigin(): string {
   const app = process.env.NEXT_PUBLIC_APP_URL?.trim();
@@ -44,7 +45,7 @@ function productionFallbackOrigin(): string {
 
 /**
  * Resolve origin from an incoming Request (proxy-aware).
- * Production must never fall back to localhost when the request is on dreamos86.com.
+ * Production must never fall back to localhost when the request is on vodex.dev.
  */
 export function resolveRequestOrigin(request: Request): string {
   try {
@@ -185,7 +186,7 @@ export function logAppOriginBoot(): void {
 
   const mode = getOriginMode();
   const resolved = resolveAppOrigin();
-  console.info("[DreamOS86][url] resolved origin:", {
+  console.info("[Vodex][url] resolved origin:", {
     NODE_ENV: process.env.NODE_ENV ?? "(unset)",
     mode,
     resolvedOrigin: resolved,

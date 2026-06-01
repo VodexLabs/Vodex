@@ -87,12 +87,12 @@ export async function maybeNotifyActionCreditWarning(input: {
 
   const subject =
     emailLevel === "depleted"
-      ? "DreamOS86 — Action Credits depleted"
-      : "DreamOS86 — Action Credits running low";
+      ? "Vodex — Action Credits depleted"
+      : "Vodex — Action Credits running low";
   const body =
     emailLevel === "depleted"
-      ? `${state.dashboardMessage}\n\nNormal app pages and database features keep working. Add credits or wait for your monthly reset.\n\nManage billing: ${process.env.NEXT_PUBLIC_APP_URL ?? "https://dreamos86.com"}/settings/billing`
-      : `${state.dashboardMessage}\n\nManage billing: ${process.env.NEXT_PUBLIC_APP_URL ?? "https://dreamos86.com"}/settings/billing`;
+      ? `${state.dashboardMessage}\n\nNormal app pages and database features keep working. Add credits or wait for your monthly reset.\n\nManage billing: ${process.env.NEXT_PUBLIC_APP_URL ?? "https://vodex.dev"}/settings/billing`
+      : `${state.dashboardMessage}\n\nManage billing: ${process.env.NEXT_PUBLIC_APP_URL ?? "https://vodex.dev"}/settings/billing`;
 
   await sendResendEmail({
     to: input.email,

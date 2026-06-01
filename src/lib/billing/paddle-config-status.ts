@@ -139,7 +139,7 @@ export function buildPaddleAdminConfigStatus(
     "PADDLE_API_KEY=",
     "PADDLE_WEBHOOK_SECRET=",
     "NEXT_PUBLIC_PADDLE_CLIENT_TOKEN=",
-    "PADDLE_CHECKOUT_URL=https://dreamos86.com",
+    "PADDLE_CHECKOUT_URL=https://vodex.dev",
     "PADDLE_PUBLIC_CHECKOUT_ENABLED=false",
     ...PADDLE_CATALOG_ENV_KEYS.filter(
       (k) =>
@@ -201,7 +201,7 @@ export function buildPaddleAdminConfigStatus(
     priceRows,
     vercelEnvChecklist,
     paddleCheckoutRecommendations: [
-      "Webhook destination URL: https://dreamos86.com/api/webhooks/paddle (Usage type: Both)",
+      "Webhook destination URL: https://vodex.dev/api/webhooks/paddle (Usage type: Both)",
       "Saving payment methods: ON",
       "Marketing consent: ON (optional opt-in; see Privacy Policy)",
       "Run Notification Simulations before enabling public checkout",

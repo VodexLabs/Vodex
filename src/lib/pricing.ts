@@ -1,5 +1,5 @@
 /**
- * DreamOS86 — Pricing Architecture
+ * Vodex — Pricing Architecture
  *
  * User-facing: 10 credits = $1 revenue (see @/lib/billing/pricing-config.ts).
  * Provider cost uses a separate internal ledger (30 internal credits = $1 cost).

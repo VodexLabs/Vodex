@@ -1,6 +1,6 @@
 /**
- * DreamOS86 plan credit economics — single source for allowances and provider pools.
- * Paddle fee model for DreamOS86 subscription billing (not generated-app payments).
+ * Vodex plan credit economics — single source for allowances and provider pools.
+ * Paddle fee model for Vodex subscription billing (not generated-app payments).
  */
 
 import type { PlanId } from "@/lib/supabase/types";
@@ -15,7 +15,7 @@ export const BUILD_PROVIDER_USD_PER_CREDIT = 0.02;
 /** Max provider USD per Action Credit when plan allowance is fully utilized. */
 export const ACTION_PROVIDER_USD_PER_CREDIT = 0.005;
 
-/** Paddle checkout fee: 5% + $0.50 per transaction (DreamOS86 billing). */
+/** Paddle checkout fee: 5% + $0.50 per transaction (Vodex billing). */
 export const PADDLE_FEE_PERCENT = 0.05;
 export const PADDLE_FEE_FIXED_USD = 0.5;
 

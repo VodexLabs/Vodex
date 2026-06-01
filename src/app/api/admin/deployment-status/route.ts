@@ -67,12 +67,12 @@ export async function GET() {
   ]);
 
   const authCallbackOk =
-    appUrl.includes("dreamos86.com") || /localhost|127\.0\.0\.1/i.test(appUrl);
+    appUrl.includes("vodex.dev") || /localhost|127\.0\.0\.1/i.test(appUrl);
 
   return NextResponse.json({
     checkedAt: new Date().toISOString(),
     appUrl,
-    productionDomain: "https://dreamos86.com",
+    productionDomain: "https://vodex.dev",
     schema: {
       migration_file: RUNTIME_MIGRATION_FILE,
       sql_fallback: RUNTIME_SQL_FALLBACK,
@@ -80,7 +80,7 @@ export async function GET() {
       onboarding: onboardingSchema,
     },
     auth: {
-      expectedProductionCallback: "https://dreamos86.com/auth/callback",
+      expectedProductionCallback: "https://vodex.dev/auth/callback",
       appUrlLooksConfigured: authCallbackOk,
       googleOAuthNote:
         "Google may still show *.supabase.co until Supabase Custom Auth Domain is enabled and added to Google OAuth redirect URIs.",
@@ -95,7 +95,7 @@ export async function GET() {
       serviceRoleOk,
       llmOk,
       appUrlIsProduction:
-        appUrl.includes("dreamos86.com") && !/localhost|127\.0\.0\.1/i.test(appUrl),
+        appUrl.includes("vodex.dev") && !/localhost|127\.0\.0\.1/i.test(appUrl),
     },
     legal: {
       termsReachable,

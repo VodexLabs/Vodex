@@ -2,12 +2,12 @@
 
 import { pushRuntimeDiagnostic } from "@/lib/dev/runtime-diagnostics";
 
-export const PENDING_PROMPT_KEY = "dreamos86.pendingPrompt";
+export const PENDING_PROMPT_KEY = "vodex.pendingPrompt";
 const LEGACY_KEY = "dreamos:create-autostart";
-const DUPLICATE_PREFIX = "dreamos86.promptDup:";
-const SUBMITTED_OP_PREFIX = "dreamos86.submittedOp:";
-const AUTOSTART_DONE_PREFIX = "dreamos86.autostartDone:";
-const CONSUMED_PROMPT_PREFIX = "dreamos86.consumedPrompt:";
+const DUPLICATE_PREFIX = "vodex.promptDup:";
+const SUBMITTED_OP_PREFIX = "vodex.submittedOp:";
+const AUTOSTART_DONE_PREFIX = "vodex.autostartDone:";
+const CONSUMED_PROMPT_PREFIX = "vodex.consumedPrompt:";
 const DUPLICATE_WINDOW_MS = 2_000;
 const CONSUMED_PROMPT_TTL_MS = 10 * 60_000;
 

@@ -3,7 +3,7 @@ export function getPublicAppRootDomain(): string {
   return (
     process.env.NEXT_PUBLIC_APP_ROOT_DOMAIN?.trim() ||
     process.env.PUBLIC_APP_ROOT_DOMAIN?.trim() ||
-    "dreamos86.app"
+    "vodex.app"
   );
 }
 
@@ -16,7 +16,7 @@ export function wildcardSubdomainEnabled(): boolean {
   );
 }
 
-/** Show "Built with DreamOS86" badge on public apps (default on). */
+/** Show "Built with Vodex" badge on public apps (default on). */
 export function publicAppBadgeEnabled(): boolean {
   return process.env.DREAMOS_PUBLIC_BADGE !== "0";
 }

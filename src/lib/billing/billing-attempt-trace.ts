@@ -42,6 +42,15 @@ export type BillingAttemptTrace = {
   period_end_after: string | null;
   failure_code: string | null;
   failure_message: string | null;
+  plan_source_at_click: string | null;
+  profile_plan_at_click: string | null;
+  has_paddle_subscription_at_click: boolean;
+  frontend_started: boolean;
+  api_called: boolean;
+  paddle_request_started: boolean;
+  paddle_response_received: boolean;
+  checkout_url_created: boolean;
+  clicked_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -86,9 +95,13 @@ export async function captureBillingSnapshot(
 export async function createBillingAttempt(input: {
   userId: string;
   targetPlan: BillablePlanId;
-  endpointCalled: string;
-  resolvedAction: string;
+  endpointCalled?: string;
+  resolvedAction?: string;
   before: BillingAttemptSnapshot;
+  planSourceAtClick?: string;
+  profilePlanAtClick?: string;
+  hasPaddleSubscriptionAtClick?: boolean;
+  frontendStarted?: boolean;
 }): Promise<string> {
   const attemptId = randomUUID();
   const admin = createSupabaseAdmin();
@@ -106,8 +119,8 @@ export async function createBillingAttempt(input: {
     target_build_credits_expected: monthlyTokensForPlan(targetStorage),
     target_action_credits_expected: monthlyActionCreditsForPlan(targetStorage),
     current_period_end_before: input.before.period_end,
-    endpoint_called: input.endpointCalled,
-    resolved_action: input.resolvedAction,
+    endpoint_called: input.endpointCalled ?? null,
+    resolved_action: input.resolvedAction ?? null,
     paddle_transaction_id: null,
     paddle_subscription_id: input.before.paddle_subscription_id,
     paddle_price_id: null,
@@ -124,6 +137,17 @@ export async function createBillingAttempt(input: {
     period_end_after: null,
     failure_code: null,
     failure_message: null,
+    plan_source_at_click: input.planSourceAtClick ?? null,
+    profile_plan_at_click: input.profilePlanAtClick ?? input.before.plan_id,
+    has_paddle_subscription_at_click: input.hasPaddleSubscriptionAtClick ?? Boolean(
+      input.before.paddle_subscription_id,
+    ),
+    frontend_started: input.frontendStarted ?? false,
+    api_called: false,
+    paddle_request_started: false,
+    paddle_response_received: false,
+    checkout_url_created: false,
+    clicked_at: input.frontendStarted ? now : null,
     created_at: now,
     updated_at: now,
   };

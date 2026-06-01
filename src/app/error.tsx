@@ -12,7 +12,7 @@ export default function RootError({
   unstable_retry: () => void;
 }) {
   useEffect(() => {
-    console.error("[DreamOS86] Route error:", error);
+    console.error("[Vodex] Route error:", error);
   }, [error]);
 
   return (
@@ -29,7 +29,7 @@ export default function RootError({
           Something went wrong
         </h1>
         <p className="mt-2 text-[13.5px] leading-relaxed text-muted-foreground">
-          DreamOS86 encountered an unexpected error. Your work is safe —
+          Vodex encountered an unexpected error. Your work is safe —
           this is a rendering issue, not a data loss event.
         </p>
 

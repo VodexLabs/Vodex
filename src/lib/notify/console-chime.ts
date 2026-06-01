@@ -21,5 +21,5 @@ export function notifyUserActionComplete(label: string): void {
     /* autoplay blocked or unsupported */
   }
 
-  console.info(`[DreamOS86] ✓ ${label}`);
+  console.info(`[Vodex] ✓ ${label}`);
 }

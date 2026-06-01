@@ -157,7 +157,7 @@ export type StagedBuildResult = {
 
 type Writer = SupabaseClient<Database>;
 
-const BUILD_SYSTEM = `You are DreamOS86 build engine. Output strict JSON only when asked. Never exceed token limits.`;
+const BUILD_SYSTEM = `You are Vodex build engine. Output strict JSON only when asked. Never exceed token limits.`;
 
 function appendWorkflowEvent(
   events: WorkflowEvent[],

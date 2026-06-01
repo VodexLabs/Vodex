@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { DreamOS86BrandLockup } from "@/components/brand/dreamos86-brand-lockup";
+import { VodexBrandLockup } from "@/components/brand/vodex-brand-lockup";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, AlertCircle, Check, Loader2 } from "lucide-react";
@@ -79,7 +79,7 @@ export function ResetPasswordView() {
       >
         {/* Logo */}
         <div className="mb-8 flex flex-col items-center">
-          <DreamOS86BrandLockup variant="auth" href="/" />
+          <VodexBrandLockup variant="auth" href="/" />
         </div>
 
         <div className="overflow-hidden rounded-[var(--radius-xl)] bg-glass backdrop-blur-xl shadow-[var(--shadow-glass)] ring-1 ring-white/60 dark:ring-white/[0.08] p-8">

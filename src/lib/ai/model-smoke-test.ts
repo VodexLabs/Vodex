@@ -34,7 +34,7 @@ import {
 import { isDeprecatedGeminiApiModel, probeGoogleModelAvailable } from "@/lib/ai/google-model-config";
 import { googleGenerativeApiKey } from "@/lib/llm/env-keys";
 
-export const SMOKE_PROMPT = "What is DreamOS86 in one short sentence?";
+export const SMOKE_PROMPT = "What is Vodex in one short sentence?";
 export const SMOKE_MAX_OUTPUT = 40;
 export const SMOKE_TEMPERATURE = 0.2;
 export const SMOKE_TIMEOUT_MS = 20_000;

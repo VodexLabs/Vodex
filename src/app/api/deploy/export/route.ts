@@ -16,7 +16,7 @@ function isSecretPath(path: string): boolean {
   );
 }
 
-const README_DEPLOY = `# DreamOS86 export
+const README_DEPLOY = `# Vodex export
 
 ## Deploy checklist
 
@@ -33,7 +33,7 @@ Server-side only (never in browser):
 - \`VERCEL_ACCESS_TOKEN\`
 - Optional: \`VERCEL_TEAM_ID\`, \`VERCEL_PROJECT_ID\`
 
-Use DreamOS86 deploy center **Connect Vercel** when OAuth/token integration is enabled.
+Use Vodex deploy center **Connect Vercel** when OAuth/token integration is enabled.
 
 ## Security
 

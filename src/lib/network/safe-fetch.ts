@@ -43,9 +43,9 @@ function hostOnlyFromEnv(name: string): string | null {
 export function classifyUrlHostname(hostname: string): string {
   const h = hostname.toLowerCase();
   if (h === "localhost" || h === "127.0.0.1") return "localhost";
-  if (h === "dreamos86.com" || h.endsWith(".dreamos86.com")) return "dreamos86.com";
+  if (h === "vodex.dev" || h.endsWith(".vodex.dev")) return "vodex.dev";
   if (h.endsWith(".supabase.co")) return "supabase.co";
-  if (h === "auth.dreamos86.com") return "auth.dreamos86.com";
+  if (h === "auth.vodex.dev") return "auth.vodex.dev";
   if (h.endsWith(".vercel.app")) return "vercel.app";
   return "unknown";
 }
@@ -106,7 +106,7 @@ function logSanitizedDiagnostic(
   const hostBucket = classifyUrlHostname(hostname);
   const appUrlHost = hostOnlyFromEnv("NEXT_PUBLIC_APP_URL");
 
-  console.warn("[DreamOS86][safe-fetch]", {
+  console.warn("[Vodex][safe-fetch]", {
     context,
     hostname,
     pathname,

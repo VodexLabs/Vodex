@@ -506,7 +506,7 @@ export function ProjectsView() {
                 Build your first app
               </h2>
               <p className="text-[14px] leading-relaxed text-muted-foreground">
-                Describe what you want in plain English. DreamOS86 generates routes, UI, database schema, auth, and APIs.
+                Describe what you want in plain English. Vodex generates routes, UI, database schema, auth, and APIs.
               </p>
             </div>
             <div className="flex flex-col items-center gap-3 sm:flex-row">

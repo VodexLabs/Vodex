@@ -1,6 +1,6 @@
 import { isPaddleCustomerId } from "@/lib/billing/paddle-customer-portal";
 
-/** Paddle-only profile columns for DreamOS86 platform subscription billing. */
+/** Paddle-only profile columns for Vodex platform subscription billing. */
 export const PROFILE_PADDLE_BILLING_SELECT =
   "paddle_customer_id, paddle_subscription_id, paddle_price_id, billing_provider";
 

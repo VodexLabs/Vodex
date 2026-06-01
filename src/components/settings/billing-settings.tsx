@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { PLAN_DISPLAY } from "@/lib/billing/plans";
 import { BillingSubscriptionPanel } from "@/components/billing/billing-subscription-panel";
 import { BillingUpgradeStatusPanel } from "@/components/billing/billing-upgrade-status-panel";
+import { BillingTruthPanel } from "@/components/billing/billing-truth-panel";
+import type { BillingTruth } from "@/lib/billing/billing-truth";
 
 type BillingState = {
   planId: string;
@@ -48,6 +50,7 @@ export function BillingSettings() {
   } = useCreditsStore();
   const [billing, setBilling] = React.useState<BillingState | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [billingTruth, setBillingTruth] = React.useState<BillingTruth | null>(null);
 
   const loadBilling = React.useCallback(async () => {
     setLoading(true);
@@ -60,6 +63,12 @@ export function BillingSettings() {
 
   React.useEffect(() => {
     void loadBilling();
+    void fetch("/api/billing/status", { credentials: "include" })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.billingTruth) setBillingTruth(j.billingTruth as BillingTruth);
+      })
+      .catch(() => undefined);
   }, [loadBilling]);
 
   const searchParams = useSearchParams();
@@ -96,6 +105,12 @@ export function BillingSettings() {
       animate="show"
       className="dashboard-shell space-y-6 overflow-x-hidden"
     >
+      {billingTruth?.visibleWarningMessage && paddleReturn !== "success" ? (
+        <motion.div variants={variants.fadeUp}>
+          <BillingTruthPanel truth={billingTruth} />
+        </motion.div>
+      ) : null}
+
       {paddleReturn === "success" && attemptId ? (
         <motion.div variants={variants.fadeUp}>
           <BillingUpgradeStatusPanel
@@ -116,7 +131,7 @@ export function BillingSettings() {
           <p className="font-medium text-foreground">Paddle checkout — setup required</p>
           <p className="mt-1 text-muted-foreground">
             {billing?.paddle?.userMessage ??
-              "DreamOS86 subscriptions use Paddle. Checkout is not live until credentials are configured."}
+              "Vodex subscriptions use Paddle. Checkout is not live until credentials are configured."}
           </p>
         </motion.div>
       )}

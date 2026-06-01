@@ -1,5 +1,5 @@
 /**
- * Strict UI quality contract for DreamOS86 generated apps.
+ * Strict UI quality contract for Vodex generated apps.
  * Preview is not ready below PREVIEW_READY_MIN_SCORE.
  */
 

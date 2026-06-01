@@ -1,5 +1,5 @@
 /**
- * DreamOS86 — Profitability Cost Engine
+ * Vodex — Profitability Cost Engine
  */
 import { DISCUSS_FLAT_CREDITS } from "@/lib/billing/credit-pricing";
 

@@ -1,5 +1,5 @@
 /**
- * DreamOS86 — Supabase Database Types
+ * Vodex — Supabase Database Types
  *
  * Reflects the production schema in supabase/migrations/001_initial_schema.sql
  * Regenerate via: npx supabase gen types typescript --project-id YOUR_PROJECT_ID > src/lib/supabase/types.ts

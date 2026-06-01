@@ -1,5 +1,5 @@
 /**
- * DreamOS86 — Centralized Auth Service
+ * Vodex — Centralized Auth Service
  *
  * Single source of truth for every auth operation.
  * OAuth redirectTo is always canonical: `${origin}/auth/callback` (no query).
@@ -110,7 +110,7 @@ export async function authSignInWithOAuth(
   const supabaseProjectRef = extractSupabaseProjectRefFromUrl(supabaseUrl);
 
   if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") {
-    console.info("[DreamOS86][oauth-start]", {
+    console.info("[Vodex][oauth-start]", {
       appOrigin: window.location.origin,
       supabaseProjectRef,
       redirectTo,
@@ -344,15 +344,15 @@ export const CALLBACK_ERROR_MESSAGES: Record<string, string> = {
   auth_cookie_missing:
     "Sign-in session cookie was missing (often caused by blocked cookies or opening the link in a different browser). Try again in the same browser.",
   auth_cookie_project_mismatch:
-    "Stale sign-in cookies from an old DreamOS86 environment were detected. Clear site data for this host and try Google sign-in again.",
+    "Stale sign-in cookies from an old Vodex environment were detected. Clear site data for this host and try Google sign-in again.",
   supabase_site_url_localhost:
-    "Google sign-in returned to localhost instead of dreamos86.com. In Supabase → Authentication → URL configuration, set Site URL to https://dreamos86.com and add https://dreamos86.com/auth/callback under Redirect URLs, then sign in again from https://dreamos86.com.",
+    "Google sign-in returned to localhost instead of vodex.dev. In Supabase → Authentication → URL configuration, set Site URL to https://vodex.dev and add https://vodex.dev/auth/callback under Redirect URLs, then sign in again from https://vodex.dev.",
   oauth_authorize_redirect_mismatch:
-    "Supabase did not accept the app callback URL. Set Site URL to https://dreamos86.com and add https://dreamos86.com/auth/callback to Redirect URLs (exact match, no trailing slash).",
+    "Supabase did not accept the app callback URL. Set Site URL to https://vodex.dev and add https://vodex.dev/auth/callback to Redirect URLs (exact match, no trailing slash).",
   oauth_redirect_localhost_on_production:
-    "This build would send OAuth back to localhost while you are on dreamos86.com. Set NEXT_PUBLIC_APP_URL=https://dreamos86.com on Vercel Production and redeploy.",
+    "This build would send OAuth back to localhost while you are on vodex.dev. Set NEXT_PUBLIC_APP_URL=https://vodex.dev on Vercel Production and redeploy.",
   oauth_redirect_host_mismatch:
-    "Sign-in redirect does not match this site. Open https://dreamos86.com and try again.",
+    "Sign-in redirect does not match this site. Open https://vodex.dev and try again.",
 };
 
 /** Safe provider error_description for display (no tokens/codes). */

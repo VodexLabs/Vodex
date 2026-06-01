@@ -51,7 +51,7 @@ function originFromInput(input?: OriginInput): string {
 
 /**
  * Origin-safe cookie options for OAuth prep, referral, and returnTo cookies.
- * Never sets domain=dreamos86.com on localhost; never Secure on http://localhost.
+ * Never sets domain=vodex.dev on localhost; never Secure on http://localhost.
  */
 export function getAuthCookieOptions(originOrRequest?: OriginInput): AuthCookieOptions {
   const origin = originFromInput(originOrRequest);

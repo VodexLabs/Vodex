@@ -18,7 +18,7 @@ export type EnrichBlueprintInput = {
   operationId: string;
 };
 
-const BLUEPRINT_SYSTEM = `You are DreamOS86 blueprint architect. Output strict JSON only matching the requested schema.
+const BLUEPRINT_SYSTEM = `You are Vodex blueprint architect. Output strict JSON only matching the requested schema.
 Never include secrets, API keys, service role keys, or internal model names.
 Never claim the app is already deployed.
 Use canonical Supabase project wciioegiczwqlmlroley only in env examples if needed.

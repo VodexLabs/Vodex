@@ -10,13 +10,13 @@ export default function GlobalError({
   unstable_retry: () => void;
 }) {
   useEffect(() => {
-    console.error("[DreamOS86] Global error:", error);
+    console.error("[Vodex] Global error:", error);
   }, [error]);
 
   return (
     <html lang="en">
       <head>
-        <title>DreamOS86 — Something went wrong</title>
+        <title>Vodex — Something went wrong</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <style>{`
           *, *::before, *::after { box-sizing: border-box; }
@@ -112,7 +112,7 @@ export default function GlobalError({
         <div className="orb" />
         <div className="container">
           <div className="icon">⚠️</div>
-          <h1>DreamOS86 crashed</h1>
+          <h1>Vodex crashed</h1>
           <p>
             A critical runtime error prevented the platform from loading.
             This has been logged. Retry to recover, or return home.

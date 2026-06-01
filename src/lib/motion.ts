@@ -1,4 +1,4 @@
-/** DreamOS86 motion system — consistent, premium, performance-conscious */
+/** Vodex motion system — consistent, premium, performance-conscious */
 import type { Transition, Variants } from "framer-motion";
 
 export const ease = {

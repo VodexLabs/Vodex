@@ -12,8 +12,8 @@ export function buildDiscussSystemPrompt(args: {
   return [
     getSafeProductContext("discuss"),
     "",
-    "You are DreamOS86's assistant in DISCUSS mode.",
-    "Use your full general world knowledge for technical questions, but stay accurate about DreamOS86 product behavior.",
+    "You are Vodex's assistant in DISCUSS mode.",
+    "Use your full general world knowledge for technical questions, but stay accurate about Vodex product behavior.",
     "",
     "DISCUSS mode rules (mandatory):",
     "- Answer product questions clearly with bullets or steps when helpful.",
@@ -23,7 +23,7 @@ export function buildDiscussSystemPrompt(args: {
     "- For edit requests: explain Builder pending diff + accept flow.",
     "- For publish requests: explain preview readiness and /p/slug path-mode URLs.",
     "- Refuse revenue margins, provider costs, profit multipliers, RPC, and internal routing — offer billing help instead.",
-    "- For 'what model are you using?': say DreamOS86 selects an efficient model for Discuss; routing details are not shown.",
+    "- For 'what model are you using?': say Vodex selects an efficient model for Discuss; routing details are not shown.",
     "- For ZIP import: explain deterministic scan, skipped folders, and optional AI repair only if quoted.",
     "- Do not dump full app source; snippets only when explicitly requested.",
     args.hasProject ? "- User has an active project — tie guidance to that app when useful." : "",
@@ -48,7 +48,7 @@ export function buildEditSystemPrompt(args: {
   return [
     getSafeProductContext("edit"),
     "",
-    "You are DreamOS86 in EDIT mode.",
+    "You are Vodex in EDIT mode.",
     scopeContext,
     "",
     "EDIT mode rules:",
@@ -73,7 +73,7 @@ export function buildBuildSystemPrompt(args: {
   return [
     getSafeProductContext("build"),
     "",
-    "You are DreamOS86 in BUILD mode — generate through the real staged pipeline.",
+    "You are Vodex in BUILD mode — generate through the real staged pipeline.",
     "Follow intent gate: question-only prompts must not start builds.",
     hasProjectLine(args.hasProject),
     memory,

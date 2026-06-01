@@ -83,7 +83,7 @@ export async function diagnoseBillingAttempt(
     return {
       code: "paddle_webhook_not_received",
       message:
-        "Payment or subscription update may have completed in Paddle, but no webhook was linked to this attempt yet. Confirm https://dreamos86.com/api/webhooks/paddle is delivering events.",
+        "Payment or subscription update may have completed in Paddle, but no webhook was linked to this attempt yet. Confirm https://vodex.dev/api/webhooks/paddle is delivering events.",
       trace,
       live,
       success: false,
@@ -119,7 +119,7 @@ export async function diagnoseBillingAttempt(
   if (trace.webhook_processing_status === "unknown_price_id") {
     return {
       code: "unknown_price_id",
-      message: "Webhook price_id is not mapped in DreamOS86 catalog — check PADDLE_*_PRICE_ID env vars.",
+      message: "Webhook price_id is not mapped in Vodex catalog — check PADDLE_*_PRICE_ID env vars.",
       trace,
       live,
       success: false,

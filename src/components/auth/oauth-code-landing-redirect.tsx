@@ -5,7 +5,7 @@ import { buildAuthCallbackRedirectFromSearchParams } from "@/lib/auth/oauth-redi
 import { isOAuthCodeOnNonCallbackPath } from "@/lib/auth/oauth-origin-guard";
 import { isLocalhostOrigin } from "@/lib/url/app-origin";
 
-const PRODUCTION_APP_ORIGIN = "https://dreamos86.com";
+const PRODUCTION_APP_ORIGIN = "https://vodex.dev";
 
 /**
  * Safety net when Supabase lands PKCE on Site URL (e.g. /?code=) instead of /auth/callback.

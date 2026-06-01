@@ -3,7 +3,7 @@
 import * as React from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { DreamOS86BrandIcon } from "@/components/brand/dreamos86-brand-icon";
+import { VodexBrandIcon } from "@/components/brand/vodex-brand-icon";
 
 /**
  * Live orchestration animation shown in the right preview panel before
@@ -76,7 +76,7 @@ export function OrchestrationPreview({
           className="relative flex size-24 items-center justify-center rounded-3xl"
         >
           <div className="flex size-full items-center justify-center">
-            <DreamOS86BrandIcon variant="previewHero" alt="DreamOS86" />
+            <VodexBrandIcon variant="previewHero" alt="Vodex" />
           </div>
 
           {/* Sweeping highlight */}
@@ -95,7 +95,7 @@ export function OrchestrationPreview({
 
         <div className="text-center">
           <p className="text-[12px] font-semibold tracking-[0.18em] uppercase text-muted-foreground">
-            DreamOS86
+            Vodex
           </p>
           <p className="mt-2 text-[14px] tracking-[-0.01em] text-muted-foreground">
             {fast

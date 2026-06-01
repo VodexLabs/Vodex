@@ -4,7 +4,7 @@ import { buildFileDiffs } from "@/lib/editor/diff";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
 
-const EDIT_DIFF_SYSTEM = `You are DreamOS86 code editor. Output strict JSON only.
+const EDIT_DIFF_SYSTEM = `You are Vodex code editor. Output strict JSON only.
 Given the user request and project files, return minimal patches (not full rewrites).
 Return: { "summary": string, "patches": [{ "path": string, "content": string }] }
 Max 6 files. No secrets. No provider internals.`;

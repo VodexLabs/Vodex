@@ -1,5 +1,5 @@
 /**
- * DreamOS86 Paddle billable plans — Starter, Pro, Infinity I–VII.
+ * Vodex Paddle billable plans — Starter, Pro, Infinity I–VII.
  * Pricing/credits align with pricing page Infinity tiers.
  */
 import { ACTION_CREDITS_PER_DOLLAR } from "@/lib/billing/billing-constants";

@@ -281,7 +281,7 @@ export function AuthHealthPanel() {
           <p className="font-semibold">OAuth branding uses Supabase project URL</p>
           <p className="mt-1 text-[11px] opacity-90">
             Google may show <span className="font-mono">{data.oauthBranding.supabaseUrlHost}</span> until you
-            configure a Supabase custom domain (e.g. auth.dreamos86.com). See{" "}
+            configure a Supabase custom domain (e.g. auth.vodex.dev). See{" "}
             <code className="rounded bg-background/60 px-1 py-0.5 text-[10px]">
               docs/supabase-custom-auth-domain.md
             </code>

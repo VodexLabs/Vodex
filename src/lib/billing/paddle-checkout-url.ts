@@ -6,7 +6,7 @@ import { paddleEnvironment } from "@/lib/billing/paddle-billing";
 import { getAppUrl } from "@/lib/app-url";
 
 export const PADDLE_LIVE_CHECKOUT_DOMAIN_ERROR =
-  "Live Paddle checkout requires an approved checkout domain. Set PADDLE_CHECKOUT_URL=https://dreamos86.com or use the Paddle default payment link.";
+  "Live Paddle checkout requires an approved checkout domain. Set PADDLE_CHECKOUT_URL=https://vodex.dev or use the Paddle default payment link.";
 
 export type PaddleCheckoutUrlMode = "explicit" | "default";
 
@@ -64,7 +64,7 @@ export function validateProductionCheckoutUrl(url: string): { ok: true } | { ok:
     if (u.protocol !== "https:") {
       return {
         ok: false,
-        error: "PADDLE_CHECKOUT_URL must use https in production (e.g. https://dreamos86.com).",
+        error: "PADDLE_CHECKOUT_URL must use https in production (e.g. https://vodex.dev).",
       };
     }
   } catch {

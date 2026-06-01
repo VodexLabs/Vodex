@@ -126,7 +126,7 @@ function DiffPreview() {
 function PublishPreview() {
   const reduce = useReducedMotion();
   const [published, setPublished] = React.useState(reduce);
-  const publicUrl = "https://dreamos86.com/p/dentist-crm";
+  const publicUrl = "https://vodex.dev/p/dentist-crm";
 
   React.useEffect(() => {
     if (reduce) return;
@@ -171,7 +171,7 @@ const CARDS = [
   {
     icon: Layers,
     title: "Watch the app take shape",
-    body: "DreamOS86 builds in visible stages: structure, screens, logic, quality checks, and preview.",
+    body: "Vodex builds in visible stages: structure, screens, logic, quality checks, and preview.",
     accent: "from-violet-500/15 to-indigo-500/5",
     Preview: BuildStagesPreview,
   },
@@ -185,7 +185,7 @@ const CARDS = [
   {
     icon: Rocket,
     title: "Launch when it's ready",
-    body: "Preview, polish, publish, or export — DreamOS86 only shows real ready states, never fake deploys.",
+    body: "Preview, polish, publish, or export — Vodex only shows real ready states, never fake deploys.",
     accent: "from-amber-500/15 to-orange-500/5",
     Preview: () => <PublishPreview />,
   },

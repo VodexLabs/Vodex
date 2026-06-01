@@ -4,7 +4,7 @@ import { CreatePageBody } from "@/components/create/create-page-body";
 
 export const metadata: Metadata = {
   title: "Create",
-  description: "DreamOS86 create workspace — build with AI.",
+  description: "Vodex create workspace — build with AI.",
 };
 
 export default async function WorkspaceCreatePage({

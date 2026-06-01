@@ -226,7 +226,7 @@ export function DropZone({
                 Drop to attach
               </p>
               <p className="text-[11.5px] text-muted-foreground">
-                Images, files, ZIPs — DreamOS86 will parse them.
+                Images, files, ZIPs — Vodex will parse them.
               </p>
             </div>
           </motion.div>

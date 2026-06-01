@@ -24,7 +24,7 @@ export function ContactPageContent({ embedded = false }: { embedded?: boolean })
       ) : null}
       <div className="mx-auto max-w-2xl text-center">
         <h1 className="text-balance text-[28px] font-semibold tracking-tight text-foreground sm:text-[34px]">
-          Contact DreamOS86
+          Contact Vodex
         </h1>
         <p className="mt-3 text-pretty text-[15px] leading-relaxed text-muted-foreground">
           Tell us what you&apos;re building or what you need help with. We&apos;ll get back to you.

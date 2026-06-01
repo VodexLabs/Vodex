@@ -1,5 +1,5 @@
 /**
- * Live runtime objects DreamOS86 requires after full compatibility SQL.
+ * Live runtime objects Vodex requires after full compatibility SQL.
  * Used by schema-health and admin debug endpoints.
  */
 

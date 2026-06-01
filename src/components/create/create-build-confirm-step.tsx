@@ -35,7 +35,7 @@ export function CreateBuildConfirmStep({
       <div>
         <p className="text-[15px] font-semibold tracking-tight text-foreground">Choose build depth</p>
         <p className="mt-1 text-[12px] text-muted-foreground">
-          Pick how much detail DreamOS86 should generate for this version.
+          Pick how much detail Vodex should generate for this version.
         </p>
         {cheaperRecommended && (
           <p className="mt-2 text-[12px] text-amber-600 dark:text-amber-400">

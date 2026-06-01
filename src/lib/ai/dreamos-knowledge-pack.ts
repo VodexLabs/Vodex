@@ -1,11 +1,11 @@
 /**
- * DreamOS86 product knowledge for AI Chat — user-safe, no internal economics.
+ * Vodex product knowledge for AI Chat — user-safe, no internal economics.
  */
 export const DREAMOS_KNOWLEDGE_PACK = {
   product: [
-    "DreamOS86 is an AI-native platform for planning, building, previewing, and publishing web apps.",
+    "Vodex is an AI-native platform for planning, building, previewing, and publishing web apps.",
     "Core surfaces: Create workspace (/create), AI Chat (/chat), Projects, Builder, Preview, and path-mode public URLs (/p/app-slug).",
-    "Users describe apps in plain language; DreamOS86 shapes a blueprint, builds in visible stages, and lets users review before publish.",
+    "Users describe apps in plain language; Vodex shapes a blueprint, builds in visible stages, and lets users review before publish.",
   ].join("\n"),
   createFlow: [
     "Create flow: Describe → Shape (blueprint) → Build → Review → Preview → Publish.",
@@ -33,7 +33,7 @@ export const DREAMOS_KNOWLEDGE_PACK = {
     "Dashboard per app shows status, preview, publish, ZIP import, and quick actions.",
   ].join("\n"),
   zipImport: [
-    "ZIP import brings an existing codebase into DreamOS86 without running AI during the scan.",
+    "ZIP import brings an existing codebase into Vodex without running AI during the scan.",
     "Scan is deterministic: framework detection, route mapping, dependency hints — $0 AI cost for the scan itself.",
     "node_modules, .next, dist, build, cache, .git, and .env files are always skipped for safety.",
     "Up to 1,500 accepted source text files; if blocked, advise removing generated folders and retrying.",
@@ -42,7 +42,7 @@ export const DREAMOS_KNOWLEDGE_PACK = {
   billingUserSafe: [
     "When asked cost: explain credits as the user-facing unit; point to /pricing and Settings → Billing.",
     "Discuss uses efficient models automatically; do not expose internal model routing or provider names as policy.",
-    "If asked which model: say DreamOS86 picks an efficient model for the task; details are not shown in Discuss.",
+    "If asked which model: say Vodex picks an efficient model for the task; details are not shown in Discuss.",
   ].join("\n"),
   chatLimits: [
     "DISCUSS mode: explain, guide, troubleshoot — cannot directly create, edit, or publish apps.",
@@ -59,7 +59,7 @@ export const DREAMOS_KNOWLEDGE_PACK = {
 
 export function formatDreamOSKnowledgePack(): string {
   return [
-    "=== DreamOS86 Product Knowledge ===",
+    "=== Vodex Product Knowledge ===",
     DREAMOS_KNOWLEDGE_PACK.product,
     "",
     "CREATE & BUILD:",

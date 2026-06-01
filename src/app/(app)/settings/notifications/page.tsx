@@ -154,7 +154,7 @@ export default function NotificationsSettingsPage() {
     <div className="space-y-5">
       <SectionCard
         title="Notification Preferences"
-        description="In-web alerts appear in DreamOS86 while you are signed in. Email delivery is not available yet — preferences are stored in your browser on this device."
+        description="In-web alerts appear in Vodex while you are signed in. Email delivery is not available yet — preferences are stored in your browser on this device."
       >
         <div className="flex items-center justify-end gap-2 mb-2 pb-3 border-b border-border">
           <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">

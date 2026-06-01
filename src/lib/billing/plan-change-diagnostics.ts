@@ -39,7 +39,7 @@ export function buildPlanChangeDiagnostics(input: PlanChangeDiagnosticInput): st
 
   if (input.lastWebhookStatus === "unknown_price_id" || input.lastWebhookError === "unknown_price_id") {
     reasons.push(
-      "Webhook price_id is not mapped in the DreamOS86 catalog — verify PADDLE_*_PRICE_ID env vars match Paddle Dashboard.",
+      "Webhook price_id is not mapped in the Vodex catalog — verify PADDLE_*_PRICE_ID env vars match Paddle Dashboard.",
     );
   }
 

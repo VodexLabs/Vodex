@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
   const cookieDiag = diagnoseOAuthCallbackCookies(request.cookies.getAll());
 
   if (process.env.NODE_ENV !== "production") {
-    console.info("[DreamOS86][oauth-callback]", {
+    console.info("[Vodex][oauth-callback]", {
       origin,
       hasCode: Boolean(code),
       hasPkceVerifierCookie: cookieDiag.hasPkceVerifier,

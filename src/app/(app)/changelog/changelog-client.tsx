@@ -110,7 +110,7 @@ export function ChangelogClient({ entries }: { entries: ChangelogEntry[] }) {
       <motion.div variants={variants.fadeUp} className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Changelog</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Every update, improvement, and new feature in DreamOS86.</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Every update, improvement, and new feature in Vodex.</p>
         </div>
         <Button
           variant={subscribed ? "secondary" : "accent"}

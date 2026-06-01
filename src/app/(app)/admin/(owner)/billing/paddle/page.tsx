@@ -6,7 +6,7 @@ export default function AdminPaddleBillingPage() {
       <div>
         <h1 className="text-[22px] font-bold tracking-tight">Paddle billing</h1>
         <p className="mt-1 text-[13px] text-muted-foreground">
-          DreamOS86 subscription catalog — credentials and price ID mapping (no secrets shown).
+          Vodex subscription catalog — credentials and price ID mapping (no secrets shown).
         </p>
       </div>
       <AdminPaddleConfigPanel />

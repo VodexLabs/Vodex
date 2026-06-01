@@ -44,7 +44,7 @@ const FREE_CREDITS = 30;
 const ANNUAL_DISCOUNT = 0.20;
 const INFINITY_DISCOUNT = 0.05;
 
-const SUPPORT_EMAIL = "support@dreamos86.com";
+const SUPPORT_EMAIL = "support@vodex.dev";
 
 interface InfinityTier {
   id: string;
@@ -103,7 +103,7 @@ const COMPARISON_ROWS: { label: string; free: string | boolean; starter: string 
 const FAQS = [
   {
     q: "What are credits?",
-    a: `Credits pay for AI work in DreamOS86. You get ${USER_CREDITS_PER_USD} credits per $1 on paid packs (e.g. $5 → ${CREDIT_PACKAGE_EXAMPLES[0].credits} credits). Builds show an estimated cost and reserved credits before you run; unused reserved credits are returned after completion.`,
+    a: `Credits pay for AI work in Vodex. You get ${USER_CREDITS_PER_USD} credits per $1 on paid packs (e.g. $5 → ${CREDIT_PACKAGE_EXAMPLES[0].credits} credits). Builds show an estimated cost and reserved credits before you run; unused reserved credits are returned after completion.`,
   },
   {
     q: "How much does a typical build cost?",
@@ -142,32 +142,49 @@ const FAQS = [
     a: "Yes. If your team's needs exceed Infinity VII or you need special compliance, custom SLAs, or bespoke infrastructure, contact us and we'll design a plan around your requirements.",
   },
   {
-    q: "Do paid plans remove the DreamOS86 watermark?",
-    a: "Yes. All paid plans (Starter and above) remove the DreamOS86 branding from your deployed apps. The Free plan shows a subtle 'Built with DreamOS86' badge.",
+    q: "Do paid plans remove the Vodex watermark?",
+    a: "Yes. All paid plans (Starter and above) remove the Vodex branding from your deployed apps. The Free plan shows a subtle 'Built with Vodex' badge.",
   },
   {
     q: "Can I cancel anytime?",
     a: "Absolutely. You can cancel your subscription at any time. Your plan stays active until the end of the current billing period, then reverts to Free. No lock-ins, no cancellation fees.",
   },
   {
-    q: "Will DreamOS86 send marketing emails?",
+    q: "Will Vodex send marketing emails?",
     a: "Only if you opt in at checkout or in settings. Optional marketing may include product updates, onboarding tips, and offers. You can unsubscribe anytime. We still send transactional emails for billing, security, and account support.",
   },
   {
     q: "What is your refund policy?",
     a: "refund-policy-link",
   },
+  {
+    q: "Does Vodex include human development or consulting services?",
+    a: "human-services-disclosure",
+  },
+  {
+    q: "What are Build Credits and Action Credits?",
+    a: "Build Credits pay for AI generation, scaffolding, and build workflows. Action Credits pay for platform operations such as publishing, email, media, and other metered features. Each plan lists monthly allowances on the cards above. Plans renew monthly or annually; cancel anytime — access continues until the end of the paid period.",
+  },
 ];
 
 const FAQ_REFUND_ANSWER = (
   <>
-    DreamOS86 subscriptions may qualify for a refund within a limited window after purchase. Build Credits and Action
-    Credits are generally not refundable once consumed. Generated-app payments follow your connected processor&apos;s
-    rules.{" "}
+    Vodex platform subscriptions sold through Paddle may qualify for a refund within{" "}
+    <strong className="text-foreground">14 days</strong> of purchase, subject to our Refund Policy and Paddle&apos;s
+    buyer terms. Build Credits and Action Credits are generally not refundable once consumed.{" "}
     <Link href="/refunds" className="font-medium text-accent hover:underline underline-offset-2">
       Read the full Refund Policy
     </Link>
     .
+  </>
+);
+
+const FAQ_HUMAN_SERVICES_ANSWER = (
+  <>
+    Vodex is primarily a self-serve software platform. Standard subscriptions do not include done-for-you development,
+    consulting, agency services, or human-driven app-building services. Enterprise customers may receive onboarding,
+    technical support, or account assistance, but the core product remains software access and AI-powered generation
+    tools.
   </>
 );
 
@@ -1160,31 +1177,46 @@ export function PricingView({ publicMode = false }: { publicMode?: boolean }) {
         </PlanCard>
       </motion.div>
 
-      {/* Custom plan banner */}
+      {/* Enterprise / custom plans — Paddle domain review */}
       <motion.div
-        id="contact"
+        id="enterprise"
         variants={reduceMotion ? undefined : variants.fadeUp}
         className="scroll-mt-24 rounded-[var(--radius-xl)] bg-gradient-to-r from-accent/8 via-background to-violet-500/8 ring-1 ring-border px-8 py-8"
       >
-        <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex items-start gap-4">
             <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-accent/10 ring-1 ring-accent/20">
               <Building2 className="size-5 text-accent" strokeWidth={1.75} />
             </div>
-            <div>
-              <p className="text-[16px] font-semibold text-foreground">Need a custom plan?</p>
-              <p className="mt-1 text-[13.5px] text-muted-foreground max-w-lg">
-                Tell us your scale, team size, model usage, and infrastructure needs. We&apos;ll build a plan that fits.
+            <div className="max-w-2xl">
+              <p className="text-[18px] font-semibold text-foreground">Enterprise / Custom plans</p>
+              <p className="mt-2 text-[13.5px] leading-relaxed text-muted-foreground">
+                Custom enterprise plans are available for higher usage, team features, advanced limits, dedicated support,
+                and custom deployment needs.
+              </p>
+              <p className="mt-3 text-[14px] font-medium text-foreground">
+                Pricing range: starting from $499/month
+              </p>
+              <p className="mt-1 text-[13px] text-muted-foreground">
+                Typical range $499–$2,999+/month depending on usage, credits, support requirements, model usage, and
+                infrastructure needs. Final pricing is quoted per account.
+              </p>
+              <p className="mt-3 text-[13px] text-muted-foreground">
+                For enterprise pricing, contact{" "}
+                <a href={`mailto:${SUPPORT_EMAIL}`} className="font-medium text-accent hover:underline">
+                  {SUPPORT_EMAIL}
+                </a>
+                . Paid platform subscriptions are billed through Paddle where applicable.
               </p>
             </div>
           </div>
-          <div className="flex flex-col gap-2.5 sm:flex-row sm:shrink-0">
+          <div id="contact" className="flex flex-col gap-2.5 sm:flex-row lg:shrink-0 lg:flex-col">
             <Link
-              href="/contact?reason=Support"
+              href={`mailto:${SUPPORT_EMAIL}?subject=Enterprise%20pricing`}
               className="flex items-center justify-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-[13px] font-semibold text-white transition hover:bg-accent/90"
             >
               <MessageCircle className="size-4" strokeWidth={1.75} />
-              Contact us
+              Email {SUPPORT_EMAIL}
             </Link>
             <Link
               href="/contact?reason=Sales"
@@ -1234,11 +1266,26 @@ export function PricingView({ publicMode = false }: { publicMode?: boolean }) {
             <FaqItem
               key={faq.q}
               q={faq.q}
-              a={faq.a === "refund-policy-link" ? FAQ_REFUND_ANSWER : faq.a}
+              a={
+                faq.a === "refund-policy-link"
+                  ? FAQ_REFUND_ANSWER
+                  : faq.a === "human-services-disclosure"
+                    ? FAQ_HUMAN_SERVICES_ANSWER
+                    : faq.a
+              }
             />
           ))}
         </div>
       </motion.div>
+
+      <p className="mt-6 text-center text-[12px] text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+        Paid plans renew monthly or annually (annual plans billed once per year). Cancel anytime from billing settings.
+        Platform subscriptions are sold through Paddle where checkout is enabled. Questions:{" "}
+        <a href={`mailto:${SUPPORT_EMAIL}`} className="text-accent hover:underline">
+          {SUPPORT_EMAIL}
+        </a>
+        .
+      </p>
 
       <p className="mt-10 text-center text-[11px] text-muted-foreground">
         <Link href="/help/docs/policies" className="hover:underline underline-offset-4">

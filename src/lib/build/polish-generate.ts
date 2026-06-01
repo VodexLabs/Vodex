@@ -5,7 +5,7 @@ import { buildFileDiffs } from "@/lib/editor/diff";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
 
-const POLISH_SYSTEM = `You are DreamOS86 UI polish engine. Output strict JSON only.
+const POLISH_SYSTEM = `You are Vodex UI polish engine. Output strict JSON only.
 Improve spacing, responsive layout, empty states, loading states, error copy, and basic accessibility.
 Do NOT rewrite architecture. Touch at most 8 files. No secrets. No deployment claims.
 Return: { "summary": string, "patches": [{ "path": string, "content": string }] }`;

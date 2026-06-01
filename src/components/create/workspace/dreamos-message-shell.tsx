@@ -3,7 +3,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import type { CreationMode } from "@/lib/creation/models";
-import { DreamOS86BrandIcon } from "@/components/brand/dreamos86-brand-icon";
+import { VodexBrandIcon } from "@/components/brand/vodex-brand-icon";
 import {
   MessageActionsMenu,
   MessageCostBadge,
@@ -37,11 +37,11 @@ export function DreamOSMessageShell({
     <div className={cn("space-y-2", className)}>
       <div className="flex items-start gap-2">
         <div className="flex size-8 shrink-0 items-center justify-center">
-          <DreamOS86BrandIcon variant="assistant" alt="" />
+          <VodexBrandIcon variant="assistant" alt="" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[12px] font-semibold text-foreground">DreamOS86</span>
+            <span className="text-[12px] font-semibold text-foreground">Vodex</span>
             <span className="rounded-md bg-accent/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-accent">
               {MODE_LABEL[mode]}
             </span>

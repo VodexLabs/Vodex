@@ -1,5 +1,5 @@
 /**
- * DreamOS86 — Notifications Store
+ * Vodex — Notifications Store
  * Real-time notification state via Supabase Realtime.
  */
 import { create } from "zustand";

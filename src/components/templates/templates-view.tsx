@@ -238,7 +238,7 @@ function FeaturedCard({
                 <p className="mt-1 max-w-xs text-[13px] leading-relaxed text-foreground/70">
                   {template.description}
                 </p>
-                <p className="mt-2 text-[12px] text-foreground/55">Official template · DreamOS86</p>
+                <p className="mt-2 text-[12px] text-foreground/55">Official template · Vodex</p>
               </div>
             </div>
 
@@ -317,7 +317,7 @@ function CommunityTemplatesSection() {
             Community Templates
           </h3>
           <p className="text-[12.5px] text-muted-foreground">
-            Published by builders in the DreamOS86 community.
+            Published by builders in the Vodex community.
           </p>
         </div>
         <Link
@@ -341,7 +341,7 @@ function CommunityTemplatesSection() {
           <div>
             <p className="text-[14px] font-semibold text-foreground">No community templates yet</p>
             <p className="mt-1 text-[12.5px] text-muted-foreground">
-              Be the first to publish a template to the DreamOS86 community.
+              Be the first to publish a template to the Vodex community.
             </p>
           </div>
           <div className="flex items-center gap-2">

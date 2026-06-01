@@ -132,7 +132,7 @@ export async function POST(
   const webUrl =
     project.preview_url ??
     (project.published_subdomain ? `https://${project.published_subdomain}` : null) ??
-    "https://your-app.dreamos86.app";
+    "https://your-app.vodex.app";
 
   const rcPublic = await loadMobileRevenueCatPublicConfig(projectId);
   const billingConfigJson = buildDreamosBillingJson(rcPublic);

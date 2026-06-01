@@ -22,7 +22,7 @@ export function ChangelogView() {
         <div>
           <p className="text-[11px] font-semibold tracking-[0.2em] text-muted-foreground">CHANGELOG</p>
           <h1 className="mt-3 text-[clamp(1.7rem,3vw,2.4rem)] font-semibold tracking-[-0.055em] text-foreground">
-            What&apos;s new in DreamOS86
+            What&apos;s new in Vodex
           </h1>
           <p className="mt-2 text-[14px] text-muted-foreground">
             Notable releases and fixes from roughly the last five months of building. Product updates for your account

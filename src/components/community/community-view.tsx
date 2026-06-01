@@ -579,7 +579,7 @@ function EmptyDiscussions({ onStart }: { onStart: () => void }) {
           No discussions yet
         </h2>
         <p className="mt-2 max-w-md text-[13px] text-muted-foreground leading-relaxed">
-          DreamOS86 is early and this community is yours to shape. Ask questions, share builds, leave feedback, post tips — everything counts.
+          Vodex is early and this community is yours to shape. Ask questions, share builds, leave feedback, post tips — everything counts.
         </p>
         <Button variant="accent" size="sm" className="mt-6 gap-1.5" onClick={onStart}>
           <Plus className="size-3.5" strokeWidth={2} />
@@ -699,7 +699,7 @@ function GroupsTab({ onCreateGroup }: { onCreateGroup: () => void }) {
     return (
       <CommunityFetchFallback
         title="Get started"
-        description="Groups are taking longer than usual to load. You can still build apps on DreamOS86 or try loading again."
+        description="Groups are taking longer than usual to load. You can still build apps on Vodex or try loading again."
         onRetry={() => setRetryKey((k) => k + 1)}
       />
     );
@@ -1141,7 +1141,7 @@ function CommunityAppsTab() {
       </div>
       <p className="text-[15px] font-semibold text-foreground">Ship your first app to appear here</p>
       <p className="mt-2 max-w-md text-[13px] text-muted-foreground leading-relaxed">
-        Apps built on DreamOS86 that are marked public will surface in this feed. Create something incredible and let the community discover it.
+        Apps built on Vodex that are marked public will surface in this feed. Create something incredible and let the community discover it.
       </p>
       <Button
         variant="accent"
@@ -1211,7 +1211,7 @@ function BuildersTab() {
     <div className="space-y-4">
       <div className="flex items-center gap-2 mb-4">
         <Users className="size-4 text-accent" strokeWidth={1.75} />
-        <p className="text-[13px] font-semibold text-foreground">Builders on DreamOS86</p>
+        <p className="text-[13px] font-semibold text-foreground">Builders on Vodex</p>
         <span className="ml-auto text-[12px] text-muted-foreground">{builders.length} members</span>
       </div>
 

@@ -23,7 +23,7 @@ import {
   DREAMOS_REF_STORAGE_KEY,
 } from "@/lib/auth/ref-cookie";
 import { DreamOsSetupIcon } from "@/components/onboarding/dreamos-setup-icon";
-import { DreamOS86BrandLockup } from "@/components/brand/dreamos86-brand-lockup";
+import { VodexBrandLockup } from "@/components/brand/vodex-brand-lockup";
 import { Avatar } from "@/components/ui/avatar";
 
 const HEAR_ABOUT = [
@@ -199,7 +199,7 @@ export function OnboardingView() {
 
   const steps = [
     {
-      title: "Welcome to DreamOS86",
+      title: "Welcome to Vodex",
       subtitle: "A quick setup, then you can start building.",
       content: (
         <div className="space-y-6">
@@ -216,7 +216,7 @@ export function OnboardingView() {
             </div>
           </motion.div>
           <p className="text-[14px] leading-relaxed text-muted-foreground">
-            DreamOS86 is your workspace to plan, build, preview, and publish real apps with AI — without juggling a dozen tools.
+            Vodex is your workspace to plan, build, preview, and publish real apps with AI — without juggling a dozen tools.
           </p>
         </div>
       ),
@@ -314,7 +314,7 @@ export function OnboardingView() {
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center px-4 py-10 sm:px-6">
       <div className="mb-8">
-        <DreamOS86BrandLockup variant="auth" href="/" />
+        <VodexBrandLockup variant="auth" href="/" />
       </div>
 
       <div className="w-full max-w-lg sm:max-w-2xl">

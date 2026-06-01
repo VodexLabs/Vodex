@@ -76,7 +76,7 @@ export function PublicSignupSection() {
         />
         <motion.div className="relative">
           <h2 className="text-balance text-[22px] font-semibold tracking-tight text-foreground sm:text-[26px]">
-            Start building with DreamOS86
+            Start building with Vodex
           </h2>
           <p className="mx-auto mt-3 max-w-lg text-[14px] leading-relaxed text-muted-foreground">
             Create apps with AI, chat across models, and publish hosted previews — all in one workspace.

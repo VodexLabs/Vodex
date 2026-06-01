@@ -83,7 +83,7 @@ export function AdminView({ initialTab = "users" }: { initialTab?: AdminTab }) {
         <div>
           <h1 className="text-[18px] font-semibold text-foreground">Admin Panel</h1>
           <p className="text-[12px] text-muted-foreground">
-            Owner-only — server enforced for dreamos86app@gmail.com
+            Owner-only — server enforced for the platform owner account
           </p>
         </div>
       </div>

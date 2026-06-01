@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * DreamOS86 — App Provider
+ * Vodex — App Provider
  * Bootstraps Supabase auth listener, syncs to Zustand stores,
  * and wires up realtime subscriptions.
  *

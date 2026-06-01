@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { DreamOS86BrandLockup } from "@/components/brand/dreamos86-brand-lockup";
+import { VodexBrandLockup } from "@/components/brand/vodex-brand-lockup";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, ChevronRight } from "lucide-react";
@@ -192,7 +192,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             showBrandWordmark ? "justify-between gap-2 px-3" : "justify-center px-2 py-2",
           )}
         >
-          <DreamOS86BrandLockup
+          <VodexBrandLockup
             variant={
               !showBrandWordmark && !mobileOpen
                 ? "sidebarCollapsed"

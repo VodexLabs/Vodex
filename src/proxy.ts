@@ -1,5 +1,5 @@
 /**
- * DreamOS86 — Next.js Middleware
+ * Vodex — Next.js Middleware
  *
  * Refreshes Supabase auth tokens on every request so server components
  * always receive a fresh session.
@@ -251,6 +251,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|favicon-|apple-touch|maskable|brand/|dreamos86-platform-logo.png|logo.png|icon.png|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|favicon-|apple-touch|maskable|brand/|vodex-|logo.png|icon.png|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

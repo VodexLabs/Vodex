@@ -128,7 +128,7 @@ export function DeployWorkspacePanel({ projectId, checks, readinessScore, classN
 
       {!showAdvanced && (
         <div className="rounded-xl border border-border bg-surface/60 p-3 text-[12px] text-muted-foreground">
-          Advanced deploy provider not connected. Use Publish for DreamOS86 path mode (/p/your-slug).
+          Advanced deploy provider not connected. Use Publish for Vodex path mode (/p/your-slug).
         </div>
       )}
 

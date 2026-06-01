@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { motion } from "framer-motion";
-import { DreamOS86BrandIcon } from "@/components/brand/dreamos86-brand-icon";
+import { VodexBrandIcon } from "@/components/brand/vodex-brand-icon";
 import { cn } from "@/lib/utils";
 
 export type PreviewShellState = "idle" | "building" | "compiling";
@@ -63,11 +63,11 @@ export function BuildPreviewSurface({
           animate={state === "idle" ? {} : { scale: [1, 1.03, 1] }}
           transition={{ duration: 2.2, repeat: state === "idle" ? 0 : Infinity, ease: "easeInOut" }}
         >
-          <DreamOS86BrandIcon variant="previewHero" className="drop-shadow-md" alt="DreamOS86" />
+          <VodexBrandIcon variant="previewHero" className="drop-shadow-md" alt="Vodex" />
         </motion.div>
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-accent/90">
-            DreamOS86
+            Vodex
           </p>
           <p className="mt-3 text-lg font-semibold tracking-tight text-foreground">
             {state === "idle"

@@ -1,5 +1,5 @@
 /**
- * DreamOS86 — Supabase Server Client
+ * Vodex — Supabase Server Client
  *
  * Use this in Server Components, Server Actions, and Route Handlers.
  * Reads cookies from the Next.js request context to maintain user sessions.

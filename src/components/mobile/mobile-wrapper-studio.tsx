@@ -358,7 +358,7 @@ export function MobileWrapperStudio({
         {locked && (
           <div className="mb-4 rounded-2xl border border-accent/20 bg-gradient-to-br from-accent/5 to-teal-500/5 p-5 text-center">
             <Lock className="mx-auto size-8 text-accent" strokeWidth={1.5} />
-            <p className="mt-2 text-[14px] font-semibold text-foreground">Mobile apps on DreamOS86</p>
+            <p className="mt-2 text-[14px] font-semibold text-foreground">Mobile apps on Vodex</p>
             <p className="mx-auto mt-1 max-w-md text-[12px] text-muted-foreground">
               Preview the checklist and plan your Android or iPhone app. Upgrade to generate wrapper projects and store-ready builds.
             </p>
@@ -666,7 +666,7 @@ function HelpButton({ label, onHelp }: { label: string; onHelp: () => void }) {
       className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-accent hover:underline"
     >
       <Sparkles className="size-3" />
-      Ask DreamOS86 to help
+      Ask Vodex to help
     </button>
   );
 }

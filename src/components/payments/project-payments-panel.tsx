@@ -170,7 +170,7 @@ export function ProjectPaymentsPanel({
       <div>
         <h2 className="text-lg font-semibold text-foreground">Payments & Billing</h2>
         <p className="mt-1 text-[13px] text-muted-foreground">
-          Connect your own payment provider so your app can charge your customers. DreamOS86 is not
+          Connect your own payment provider so your app can charge your customers. Vodex is not
           your merchant.
         </p>
       </div>
@@ -227,7 +227,7 @@ export function ProjectPaymentsPanel({
               <p className="text-[13px] font-medium">Connect {selected}</p>
               {!providers.find((x) => x.provider === selected)?.can_connect ? (
                 <p className="text-[12px] text-amber-700 dark:text-amber-300">
-                  Upgrade to a paid DreamOS86 plan to connect live payment providers.
+                  Upgrade to a paid Vodex plan to connect live payment providers.
                 </p>
               ) : (
                 <>

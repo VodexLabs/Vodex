@@ -1,5 +1,5 @@
 /**
- * DreamOS86 Credit Engine
+ * Vodex Credit Engine
  *
  * Converts real provider API costs into user-facing credits.
  *

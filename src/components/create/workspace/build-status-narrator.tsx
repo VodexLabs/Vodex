@@ -4,7 +4,7 @@ import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, Loader2, FileCode2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { DreamOS86BrandIcon } from "@/components/brand/dreamos86-brand-icon";
+import { VodexBrandIcon } from "@/components/brand/vodex-brand-icon";
 import { PHASE_MARKER } from "@/lib/creation/orchestration";
 
 function extractPhases(text: string): string[] {
@@ -131,7 +131,7 @@ export function BuildStatusNarrator({
               ) : step.status === "active" ? (
                 <Loader2 className="size-3.5 shrink-0 animate-spin text-accent" strokeWidth={2} />
               ) : (
-                <DreamOS86BrandIcon variant="assistant" className="shrink-0 opacity-90" alt="" />
+                <VodexBrandIcon variant="assistant" className="shrink-0 opacity-90" alt="" />
               )}
               <div className="min-w-0">
                 <p className="text-[11.5px] font-semibold text-foreground">{step.label}</p>

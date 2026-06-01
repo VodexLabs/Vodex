@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { DreamOS86BrandLockup } from "@/components/brand/dreamos86-brand-lockup";
+import { VodexBrandLockup } from "@/components/brand/vodex-brand-lockup";
 import { motion } from "framer-motion";
 import { ArrowRight, Sparkles, Zap, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ export function WaitlistView() {
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
           className="mx-auto mb-8 flex justify-center"
         >
-          <DreamOS86BrandLockup variant="auth" href="/" />
+          <VodexBrandLockup variant="auth" href="/" />
         </motion.div>
 
         <span className="inline-flex items-center gap-1.5 rounded-full bg-accent/12 px-3 py-1 text-[12px] font-semibold text-accent ring-1 ring-accent/20">
@@ -44,7 +44,7 @@ export function WaitlistView() {
           The future of software creation
         </h1>
         <p className="mx-auto mt-4 max-w-md text-[15px] leading-relaxed text-muted-foreground">
-          DreamOS86 turns a description into a living, deployed app.
+          Vodex turns a description into a living, deployed app.
           Join the waitlist and be first to create something extraordinary.
         </p>
 

@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { variants, whileHover, whileTap, transition } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
-// ─── Official showcase: what DreamOS86 can build ─────────────────────────────
+// ─── Official showcase: what Vodex can build ─────────────────────────────
 // These are demonstrative capability examples, not fake community apps.
 
 interface ShowcaseItem {
@@ -173,7 +173,7 @@ function CommunityBuilds() {
         </div>
         <p className="text-[15px] font-semibold text-foreground">No public apps yet</p>
         <p className="mt-2 max-w-sm text-[13px] text-muted-foreground">
-          Apps published publicly by DreamOS86 builders will appear here. Build something and make it public.
+          Apps published publicly by Vodex builders will appear here. Build something and make it public.
         </p>
         <Button variant="accent" size="sm" className="mt-6 gap-1.5" asChild>
           <Link href="/create">

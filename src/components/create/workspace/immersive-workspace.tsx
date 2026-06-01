@@ -2534,7 +2534,7 @@ export function ImmersiveWorkspace({
                 !(mode === "build" && (buildJobActive || buildStarting)) && (
                 <MessageBubble
                   message={{ id: "pending", role: "assistant", parts: [{ type: "text", text: "" }] } satisfies UIMessage}
-                  userName="DreamOS86"
+                  userName="Vodex"
                   streaming
                   mode={mode}
                 />
@@ -3061,7 +3061,7 @@ export function ImmersiveWorkspace({
           className="pointer-events-none fixed bottom-3 right-3 z-[5000] select-none rounded-lg bg-foreground/80 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-background shadow-md backdrop-blur-sm"
           aria-hidden
         >
-          DreamOS86
+          Vodex
         </div>
       )}
     </DropZone>

@@ -1,5 +1,5 @@
 /**
- * DreamOS86 — Appearance Store
+ * Vodex — Appearance Store
  * Persists user preferences for density, motion, and font scale.
  * Theme (dark/light/system) is handled by next-themes.
  */

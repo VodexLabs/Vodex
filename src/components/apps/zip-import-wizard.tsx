@@ -65,14 +65,14 @@ function scanResultFromImportApi(j: {
   return {
     framework: fwLabel,
     packageManager: "npm",
-    estimatedRestore: j.qualityScore != null && j.qualityScore >= 90 ? "Production-grade import" : "Complete — source is in DreamOS86",
+    estimatedRestore: j.qualityScore != null && j.qualityScore >= 90 ? "Production-grade import" : "Complete — source is in Vodex",
     scanStats: stats,
     warnings: [
       ...(skipped != null && skipped > 0
         ? [`Imported safely. Skipped ${skipped} dependency, build, cache, or non-text files.`]
         : []),
       ...(j.warnings ?? []),
-      ".env secrets are never imported from ZIP — add keys in DreamOS86 settings.",
+      ".env secrets are never imported from ZIP — add keys in Vodex settings.",
       "Scan uses deterministic analysis only — estimated AI cost: $0.00. Optional AI repair is quoted separately.",
     ].filter((w, i, arr) => arr.indexOf(w) === i),
     detected: [
@@ -355,7 +355,7 @@ export function ZipImportWizard({ onClose, onComplete }: ZipImportWizardProps) {
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div>
             <p className="text-[15px] font-semibold text-foreground">Import ZIP</p>
-            <p className="text-[12px] text-muted-foreground">Restore an existing project into DreamOS86</p>
+            <p className="text-[12px] text-muted-foreground">Restore an existing project into Vodex</p>
           </div>
           <button
             onClick={onClose}

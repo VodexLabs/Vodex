@@ -35,7 +35,7 @@ export default async function AdminPaddleTestCheckoutPage() {
     return (
       <GateShell title="Access denied">
         <p className="text-[13px] text-muted-foreground">
-          Owner test checkout is restricted to the DreamOS86 platform owner account.
+          Owner test checkout is restricted to the Vodex platform owner account.
         </p>
         <Link href="/admin/billing/paddle" className="mt-4 text-[13px] text-accent hover:underline">
           ← Back to Paddle billing

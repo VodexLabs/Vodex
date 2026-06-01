@@ -1,4 +1,4 @@
-import { DreamOS86BrandIcon } from "@/components/brand/dreamos86-brand-icon";
+import { VodexBrandLockup } from "@/components/brand/vodex-brand-lockup";
 
 /**
  * Streamed auth loading UI — rendered by Next.js during any auth route
@@ -8,10 +8,9 @@ import { DreamOS86BrandIcon } from "@/components/brand/dreamos86-brand-icon";
 export default function AuthLoading() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-atmosphere px-4">
-      {/* Logo mark */}
       <div className="relative">
         <div className="absolute inset-0 -z-10 animate-ping rounded-full bg-accent/20" />
-        <DreamOS86BrandIcon variant="auth" />
+        <VodexBrandLockup variant="auth" href={null} />
       </div>
 
       {/* Animated progress bar */}

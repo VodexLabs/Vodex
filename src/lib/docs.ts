@@ -1,5 +1,5 @@
 /**
- * DreamOS86 Help Center — article registry
+ * Vodex Help Center — article registry
  *
  * Each article has:
  *  - slug: URL path segment
@@ -23,19 +23,19 @@ export const DOCS: DocArticle[] = [
   {
     slug: "getting-started",
     title: "Getting Started",
-    description: "Create your first app with DreamOS86 in under five minutes.",
+    description: "Create your first app with Vodex in under five minutes.",
     category: "Getting Started",
     readMinutes: 3,
-    content: `## What is DreamOS86?
+    content: `## What is Vodex?
 
-DreamOS86 is an AI-native app creation platform. Describe what you want to build, and the AI generates a complete, deployable codebase — frontend, backend, database, auth, and billing included.
+Vodex is an AI-native app creation platform. Describe what you want to build, and the AI generates a complete, deployable codebase — frontend, backend, database, auth, and billing included.
 
 ## Create your first app
 
 1. Open the **Create** page (the home screen).
 2. Type a description of your app in the prompt box. Be specific — the more detail you provide, the better the result.
 3. Click **Create** or press \`⌘ Enter\`.
-4. DreamOS86 generates your project and opens it in the workspace.
+4. Vodex generates your project and opens it in the workspace.
 
 ## Workspace overview
 
@@ -63,7 +63,7 @@ Your workspace contains:
     readMinutes: 5,
     content: `## AI modes
 
-DreamOS86 runs in four modes, each with different capabilities and costs:
+Vodex runs in four modes, each with different capabilities and costs:
 
 | Mode | What it does | Cost |
 |------|-------------|------|
@@ -139,7 +139,7 @@ The AI automatically includes relevant files in its context window. You can pin 
    - **Project URL** (looks like \`https://xyzabc.supabase.co\`)
    - **Anon key** (also called "publishable key")
 
-## Step 2: Add to DreamOS86
+## Step 2: Add to Vodex
 
 Open **Settings → Integrations** and paste both values. Or add them directly to your project's environment variables:
 
@@ -150,12 +150,12 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 
 ## Step 3: Configure redirect URLs (generated app)
 
-Use **your generated app’s public URL**, not the DreamOS86 platform login domain.
+Use **your generated app’s public URL**, not the Vodex platform login domain.
 
 | Context | Redirect URL |
 |---------|----------------|
 | Local dev | \`http://localhost:3000/auth/callback\` |
-| Published subdomain | \`https://APP_SLUG.dreamos86.app/auth/callback\` (when wildcard DNS is enabled) |
+| Published subdomain | \`https://APP_SLUG.vodex.app/auth/callback\` (when wildcard DNS is enabled) |
 | Path publish mode | \`https://YOUR_APP_DOMAIN/p/APP_SLUG\` — set \`NEXT_PUBLIC_APP_URL\` to \`YOUR_APP_DOMAIN\` and add \`https://YOUR_APP_DOMAIN/auth/callback\` |
 | Custom domain | \`https://YOUR_CUSTOM_DOMAIN/auth/callback\` |
 
@@ -165,7 +165,7 @@ In Supabase: **Auth → URL Configuration → Redirect URLs**, add every URL you
 \`https://YOUR_SUPABASE_PROJECT.supabase.co/auth/v1/callback\`  
 — never your app URL in the Google/GitHub “authorized redirect” field.
 
-**DreamOS86 platform login only:** if you are configuring sign-in to **dreamos86.com** itself, add \`https://dreamos86.com/auth/callback\`. That does **not** apply to apps you publish from DreamOS86.
+**Vodex platform login only:** if you are configuring sign-in to **vodex.dev** itself, add \`https://vodex.dev/auth/callback\`. That does **not** apply to apps you publish from Vodex.
 
 ## Row Level Security (RLS)
 
@@ -200,12 +200,12 @@ npx supabase gen types typescript --project-id your-project-id > src/lib/supabas
   {
     slug: "play-store-setup",
     title: "Play Store Setup",
-    description: "Publish your DreamOS86 app to the Google Play Store.",
+    description: "Publish your Vodex app to the Google Play Store.",
     category: "Mobile Publishing",
     readMinutes: 10,
     content: `## Overview
 
-DreamOS86 supports publishing web apps to the Play Store using **Trusted Web Activities (TWA)** via Capacitor. The flow is:
+Vodex supports publishing web apps to the Play Store using **Trusted Web Activities (TWA)** via Capacitor. The flow is:
 
 1. Build your web app
 2. Wrap it in a TWA shell
@@ -281,12 +281,12 @@ From the **Deploy** tab:
   {
     slug: "zip-import",
     title: "ZIP Import & Project Restoration",
-    description: "Import an existing project ZIP and restore it inside DreamOS86.",
+    description: "Import an existing project ZIP and restore it inside Vodex.",
     category: "ZIP Imports",
     readMinutes: 6,
     content: `## What ZIP import does
 
-ZIP import lets you bring an existing codebase into DreamOS86. The import pipeline:
+ZIP import lets you bring an existing codebase into Vodex. The import pipeline:
 
 1. **Uploads** your ZIP
 2. **Extracts** the archive
@@ -361,21 +361,21 @@ Once imported, you can use the AI to continue building:
     keywords: ["NEXT_PUBLIC_APP_URL", "YOUR_APP_DOMAIN", "webhook URL", "STRIPE_WEBHOOK_SECRET"],
     content: `## How environment variables work
 
-DreamOS86 projects use standard Next.js environment variables:
+Vodex projects use standard Next.js environment variables:
 
 - **\`NEXT_PUBLIC_\` prefix**: Exposed to the browser and server. Safe for non-secret config like Supabase URL.
 - **No prefix**: Server-only. Never sent to the browser. Use for API keys and secrets.
 
 ## Required variables
 
-Every DreamOS86 project needs these:
+Every Vodex project needs these:
 
 \`\`\`env
 # Supabase
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 
-# App URL — your generated app's public origin (not dreamos86.com unless you own that deployment)
+# App URL — your generated app's public origin (not vodex.dev unless you own that deployment)
 NEXT_PUBLIC_APP_URL=https://YOUR_APP_DOMAIN
 \`\`\`
 
@@ -410,12 +410,12 @@ This is required for correct OAuth redirects, Stripe webhooks, and email links i
 
 \`\`\`env
 # Published subdomain example
-NEXT_PUBLIC_APP_URL=https://APP_SLUG.dreamos86.app
+NEXT_PUBLIC_APP_URL=https://APP_SLUG.vodex.app
 # Or your custom domain
 NEXT_PUBLIC_APP_URL=https://YOUR_CUSTOM_DOMAIN
 \`\`\`
 
-Use **your generated app URL** unless you connected a custom domain — then use \`YOUR_CUSTOM_DOMAIN\`. Do not set this to \`https://dreamos86.com\` for a generated app.
+Use **your generated app URL** unless you connected a custom domain — then use \`YOUR_CUSTOM_DOMAIN\`. Do not set this to \`https://vodex.dev\` for a generated app.
 
 Without this, redirects fall back to \`window.location.origin\`, which can misbehave behind proxies or CDNs.
 `,
@@ -425,7 +425,7 @@ Without this, redirects fall back to \`window.location.origin\`, which can misbe
   {
     slug: "billing-credits",
     title: "Billing & Credits",
-    description: "How DreamOS86 credits work, plan limits, and how to manage your subscription.",
+    description: "How Vodex credits work, plan limits, and how to manage your subscription.",
     category: "Billing",
     readMinutes: 4,
     content: `## How credits work
@@ -489,13 +489,13 @@ For teams needing custom limits, SSO, or invoicing, contact sales.
 - Push generated code to a repository
 - Create pull requests for AI-generated changes
 - Trigger deployments on merge
-- Sync code between DreamOS86 and your local environment
+- Sync code between Vodex and your local environment
 
 ## Connecting GitHub
 
 1. Go to **Settings → Integrations → GitHub**
 2. Click **Connect**
-3. Authorise DreamOS86 on GitHub (OAuth flow)
+3. Authorise Vodex on GitHub (OAuth flow)
 4. Select which repositories to grant access to
 
 ## Pushing to a repository
@@ -531,7 +531,7 @@ npm run dev
 
 **Settings → Integrations → GitHub → Disconnect**
 
-This removes DreamOS86's access to your repositories. Existing code is unaffected.
+This removes Vodex's access to your repositories. Existing code is unaffected.
 `,
   },
 
@@ -539,24 +539,24 @@ This removes DreamOS86's access to your repositories. Existing code is unaffecte
   {
     slug: "how-credits-work",
     title: "How Credits Work",
-    description: "Understand how DreamOS86 credits are calculated, why different actions cost different amounts, and how to use them efficiently.",
+    description: "Understand how Vodex credits are calculated, why different actions cost different amounts, and how to use them efficiently.",
     category: "Billing",
     readMinutes: 5,
     keywords: ["Build Credits", "Action Credits", "why did a build use credits"],
     content: `## Two credit types
 
-DreamOS86 uses two separate credit pools so building and live app actions stay predictable:
+Vodex uses two separate credit pools so building and live app actions stay predictable:
 
 ### Build Credits
 
-Used for everything inside DreamOS86 while you design and ship apps:
+Used for everything inside Vodex while you design and ship apps:
 
 - **Discuss** mode — planning, Q&A, brainstorming
 - **Create** page AI help
 - **Build** generation and compilation
 - **Edit / fix / update** work on your app
 
-Build Credits = for building inside DreamOS86.
+Build Credits = for building inside Vodex.
 
 ### Action Credits
 
@@ -576,13 +576,13 @@ Each pool has its own **monthly allowance**, **bonus credits** (when granted), a
 
 ## What are credits?
 
-Credits are DreamOS86's unit of AI and platform usage. Your plan includes a monthly allowance for each pool. Bonus credits appear when your balance exceeds the plan allowance (for example after a top-up or admin grant).
+Credits are Vodex's unit of AI and platform usage. Your plan includes a monthly allowance for each pool. Bonus credits appear when your balance exceeds the plan allowance (for example after a top-up or admin grant).
 
 ## Why do different actions cost different amounts?
 
 Every AI action involves one or more underlying operations — sending your prompt to a model, receiving a response, running tools, accessing files, or executing builds. Each of these has a cost.
 
-DreamOS86 translates these internal costs into clean, predictable credit amounts so you always know roughly what an action will cost before you run it.
+Vodex translates these internal costs into clean, predictable credit amounts so you always know roughly what an action will cost before you run it.
 
 ### Models vary in capability and cost
 
@@ -598,7 +598,7 @@ You can always switch models in the chat input bar.
 
 ### Modes affect Build Credit cost
 
-DreamOS86 has four modes — **Discuss**, **Edit**, **Agent**, and **Build** — each with different capabilities and costs.
+Vodex has four modes — **Discuss**, **Edit**, **Agent**, and **Build** — each with different capabilities and costs.
 
 | Mode | What it does | Relative cost |
 |---|---|---|
@@ -613,7 +613,7 @@ DreamOS86 has four modes — **Discuss**, **Edit**, **Agent**, and **Build** —
 
 ## How credit costs are calculated
 
-When you take an action, DreamOS86 measures:
+When you take an action, Vodex measures:
 
 1. **Tokens processed** — how much text was sent to the model and returned
 2. **Tools used** — file reads, web searches, code execution
@@ -674,7 +674,7 @@ See also: [Policies & Legal](/help/docs/policies) · [Refund Policy](/refunds).
   {
     slug: "oauth-setup",
     title: "Google & GitHub OAuth Setup",
-    description: "Separate DreamOS86 platform login from OAuth for apps you build — correct callback URLs for each.",
+    description: "Separate Vodex platform login from OAuth for apps you build — correct callback URLs for each.",
     category: "Integrations",
     readMinutes: 8,
     keywords: [
@@ -694,10 +694,10 @@ Do **not** mix these up:
 
 | Purpose | Site URL / homepage | App redirect (Supabase → your app) | Provider callback (Google/GitHub → Supabase) |
 |---------|---------------------|-------------------------------------|-----------------------------------------------|
-| **DreamOS86 platform login** | \`https://dreamos86.com\` | \`https://dreamos86.com/auth/callback\` | \`https://YOUR_SUPABASE_PROJECT.supabase.co/auth/v1/callback\` |
-| **Generated app you built** | \`https://YOUR_APP_DOMAIN\` or \`https://APP_SLUG.dreamos86.app\` | \`https://YOUR_APP_DOMAIN/auth/callback\` (or custom domain) | Same Supabase \`/auth/v1/callback\` on **your** project |
+| **Vodex platform login** | \`https://vodex.dev\` | \`https://vodex.dev/auth/callback\` | \`https://YOUR_SUPABASE_PROJECT.supabase.co/auth/v1/callback\` |
+| **Generated app you built** | \`https://YOUR_APP_DOMAIN\` or \`https://APP_SLUG.vodex.app\` | \`https://YOUR_APP_DOMAIN/auth/callback\` (or custom domain) | Same Supabase \`/auth/v1/callback\` on **your** project |
 
-**Rule:** For apps created inside DreamOS86, use **your generated app URL** unless you connected a **custom domain** — then use that domain everywhere (OAuth, payments, webhooks).
+**Rule:** For apps created inside Vodex, use **your generated app URL** unless you connected a **custom domain** — then use that domain everywhere (OAuth, payments, webhooks).
 
 ---
 
@@ -710,14 +710,14 @@ Do **not** mix these up:
 3. **Authorized redirect URIs** — add **only** the Supabase callback:
    - \`https://YOUR_SUPABASE_PROJECT.supabase.co/auth/v1/callback\`
 
-Do **not** put \`dreamos86.com\` here unless you are configuring platform login, not your generated app.
+Do **not** put \`vodex.dev\` here unless you are configuring platform login, not your generated app.
 
 ### 2. Supabase (your project)
 
 1. **Auth → Providers → Google** — enable, paste Client ID + Secret
 2. **Auth → URL Configuration → Redirect URLs** — add every app URL users will land on after login:
    - Local: \`http://localhost:3000/auth/callback\`
-   - Published: \`https://APP_SLUG.dreamos86.app/auth/callback\` (subdomain mode) **or** \`https://YOUR_APP_DOMAIN/auth/callback\`
+   - Published: \`https://APP_SLUG.vodex.app/auth/callback\` (subdomain mode) **or** \`https://YOUR_APP_DOMAIN/auth/callback\`
    - Custom domain: \`https://YOUR_CUSTOM_DOMAIN/auth/callback\`
 
 Set \`NEXT_PUBLIC_APP_URL\` in the generated app to match production (see [Environment variables](/help/docs/environment-variables)).
@@ -733,11 +733,11 @@ Set \`NEXT_PUBLIC_APP_URL\` in the generated app to match production (see [Envir
 
 ---
 
-## DreamOS86 platform login only
+## Vodex platform login only
 
-If you are signing into **DreamOS86 itself** (the builder), add to Supabase redirect URLs:
+If you are signing into **Vodex itself** (the builder), add to Supabase redirect URLs:
 
-- \`https://dreamos86.com/auth/callback\`
+- \`https://vodex.dev/auth/callback\`
 
 Local platform development may also use \`http://localhost:3000/auth/callback\` when running the platform locally.
 
@@ -754,7 +754,7 @@ Local platform development may also use \`http://localhost:3000/auth/callback\` 
 ## Troubleshooting
 
 **redirect_uri_mismatch**
-→ Google/GitHub is comparing against the Supabase callback URL. Fix the **Authorization callback** in the provider dashboard, not \`dreamos86.com\`, unless you are configuring platform login.
+→ Google/GitHub is comparing against the Supabase callback URL. Fix the **Authorization callback** in the provider dashboard, not \`vodex.dev\`, unless you are configuring platform login.
 
 **Provider not enabled**
 → Enable the provider under Supabase **Auth → Providers**.
@@ -777,7 +777,7 @@ Local platform development may also use \`http://localhost:3000/auth/callback\` 
     keywords: ["publish", "YOUR_APP_DOMAIN", "custom domain", "webhook URL", "APP_SLUG"],
     content: `## Overview
 
-DreamOS86 generates production-ready Next.js apps. Deployment targets:
+Vodex generates production-ready Next.js apps. Deployment targets:
 
 | Platform | Notes |
 |----------|-------|
@@ -814,7 +814,7 @@ ANTHROPIC_API_KEY
 
 Critical for OAuth, webhooks, and email links on **your generated app**:
 \`\`\`
-NEXT_PUBLIC_APP_URL=https://APP_SLUG.dreamos86.app
+NEXT_PUBLIC_APP_URL=https://APP_SLUG.vodex.app
 # or
 NEXT_PUBLIC_APP_URL=https://YOUR_CUSTOM_DOMAIN
 \`\`\`
@@ -839,7 +839,7 @@ See [Custom domains for generated apps](/help/docs/custom-domains) for DNS, OAut
 
 ## Deployment environments
 
-DreamOS86 supports three environments:
+Vodex supports three environments:
 
 | Environment | Branch | Purpose |
 |-------------|--------|---------|
@@ -852,7 +852,7 @@ DreamOS86 supports three environments:
 ## Rollbacks
 
 To roll back to a previous deployment:
-1. **DreamOS86 → Deploy → Deployment History**
+1. **Vodex → Deploy → Deployment History**
 2. Find the deployment you want to restore
 3. Click **Rollback**
 
@@ -883,11 +883,11 @@ This triggers a re-deployment of the selected build.
     keywords: ["custom domain OAuth", "YOUR_CUSTOM_DOMAIN", "webhook URL", "DNS"],
     content: `## Overview
 
-When you connect a custom domain to a **generated app**, every external integration must use that domain — not \`dreamos86.com\` and not a placeholder.
+When you connect a custom domain to a **generated app**, every external integration must use that domain — not \`vodex.dev\` and not a placeholder.
 
 ## DNS
 
-1. Publish the app from DreamOS86 (you receive \`APP_SLUG\` / subdomain or path URL).
+1. Publish the app from Vodex (you receive \`APP_SLUG\` / subdomain or path URL).
 2. In your host (Vercel, etc.), add \`YOUR_CUSTOM_DOMAIN\`.
 3. Point DNS (CNAME or A record) per your host’s instructions.
 
@@ -923,12 +923,12 @@ https://YOUR_CUSTOM_DOMAIN/api/webhooks/stripe
 
 Update signing secrets in production env vars after changing domains.
 
-## What DreamOS86 does vs you
+## What Vodex does vs you
 
-| DreamOS86 | You |
+| Vodex | You |
 |-----------|-----|
 | Generates app code with \`/auth/callback\` routes | Own Supabase project & provider dashboards |
-| Publish + subdomain (\`APP_SLUG.dreamos86.app\`) when enabled | DNS for custom domain |
+| Publish + subdomain (\`APP_SLUG.vodex.app\`) when enabled | DNS for custom domain |
 | Connection UI in Settings | Provider approval, taxes, compliance |
 
 See [FAQ](/help/docs/help-faq) for redirect mismatch errors.
@@ -938,28 +938,28 @@ See [FAQ](/help/docs/help-faq) for redirect mismatch errors.
   {
     slug: "generated-app-authentication",
     title: "Generated App Authentication",
-    description: "How end-user login works in apps you build — separate from your DreamOS86 builder account.",
+    description: "How end-user login works in apps you build — separate from your Vodex builder account.",
     category: "Integrations",
     readMinutes: 5,
-    keywords: ["generated app login", "DreamOS86 login", "YOUR_SUPABASE_PROJECT"],
+    keywords: ["generated app login", "Vodex login", "YOUR_SUPABASE_PROJECT"],
     content: `## Two logins
 
 | Login | Who | Typical URL |
 |-------|-----|-------------|
-| **DreamOS86 platform** | You, the builder | \`https://dreamos86.com\` |
+| **Vodex platform** | You, the builder | \`https://vodex.dev\` |
 | **Your generated app** | Your app’s end users | \`https://YOUR_APP_DOMAIN\` or \`https://YOUR_CUSTOM_DOMAIN\` |
 
-Signing into DreamOS86 does **not** configure OAuth for an app you ship. Each generated app uses **your Supabase project** (recommended) and your chosen public URL.
+Signing into Vodex does **not** configure OAuth for an app you ship. Each generated app uses **your Supabase project** (recommended) and your chosen public URL.
 
 ## Do I need my own Supabase project?
 
-**Yes, for production apps you publish.** DreamOS86 generates code that expects \`NEXT_PUBLIC_SUPABASE_URL\` and keys from **your** project. You control Auth providers, RLS, and redirect URLs.
+**Yes, for production apps you publish.** Vodex generates code that expects \`NEXT_PUBLIC_SUPABASE_URL\` and keys from **your** project. You control Auth providers, RLS, and redirect URLs.
 
 ## Callback URLs summary
 
 - **App (after Supabase redirects back):** \`https://YOUR_APP_DOMAIN/auth/callback\`
 - **Supabase (provider → Supabase):** \`https://YOUR_SUPABASE_PROJECT.supabase.co/auth/v1/callback\`
-- **Platform only:** \`https://dreamos86.com/auth/callback\`
+- **Platform only:** \`https://vodex.dev/auth/callback\`
 
 Use [Google & GitHub OAuth setup](/help/docs/oauth-setup) for step-by-step provider configuration.
 `,
@@ -982,7 +982,7 @@ Use [Google & GitHub OAuth setup](/help/docs/oauth-setup) for step-by-step provi
     ],
     content: `## Overview
 
-DreamOS86 can generate checkout flows and webhook handlers in **your app**. You connect **your own** processor accounts — DreamOS86 does not become the merchant of record for your app’s sales.
+Vodex can generate checkout flows and webhook handlers in **your app**. You connect **your own** processor accounts — Vodex does not become the merchant of record for your app’s sales.
 
 ## Connect a provider
 
@@ -997,7 +997,7 @@ For Play Store or App Store builds, see [Play Store setup](/help/docs/play-store
 
 ## Your responsibilities
 
-DreamOS86 provides integration tools, generated code, and connection flows. **You** are responsible for:
+Vodex provides integration tools, generated code, and connection flows. **You** are responsible for:
 
 - Creating and maintaining processor accounts
 - Provider approval and KYC
@@ -1005,7 +1005,7 @@ DreamOS86 provides integration tools, generated code, and connection flows. **Yo
 - Disputes, chargebacks, and refunds under the processor’s terms
 - Compliance with card network and platform rules
 
-DreamOS86 is not a payment facilitator for apps you publish.
+Vodex is not a payment facilitator for apps you publish.
 
 ## Troubleshooting
 
@@ -1038,16 +1038,16 @@ DreamOS86 is not a payment facilitator for apps you publish.
 Use the URL **end users open for your app**:
 
 - Local: \`http://localhost:3000/auth/callback\`
-- Published: \`https://APP_SLUG.dreamos86.app/auth/callback\` or \`https://YOUR_APP_DOMAIN/auth/callback\`
+- Published: \`https://APP_SLUG.vodex.app/auth/callback\` or \`https://YOUR_APP_DOMAIN/auth/callback\`
 - Custom domain: \`https://YOUR_CUSTOM_DOMAIN/auth/callback\`
 
 In Google/GitHub, register **Supabase’s** callback: \`https://YOUR_SUPABASE_PROJECT.supabase.co/auth/v1/callback\`.
 
-Only use \`https://dreamos86.com/auth/callback\` when configuring **DreamOS86 platform login**, not your generated app.
+Only use \`https://vodex.dev/auth/callback\` when configuring **Vodex platform login**, not your generated app.
 
-### What is the difference between DreamOS86 login and my generated app login?
+### What is the difference between Vodex login and my generated app login?
 
-**DreamOS86 login** is for building apps on dreamos86.com. **Generated app login** is for *your* customers on *your* deployed URL, usually powered by *your* Supabase project.
+**Vodex login** is for building apps on vodex.dev. **Generated app login** is for *your* customers on *your* deployed URL, usually powered by *your* Supabase project.
 
 ### How do custom domains affect OAuth, payments, and webhooks?
 
@@ -1055,7 +1055,7 @@ Everything public-facing must switch to \`YOUR_CUSTOM_DOMAIN\`: Supabase redirec
 
 ### Why does Google say redirect URI mismatch?
 
-The URI sent to Google must exactly match what you registered — almost always \`https://YOUR_SUPABASE_PROJECT.supabase.co/auth/v1/callback\`. A common mistake is putting \`dreamos86.com\` or your app URL in Google instead of Supabase.
+The URI sent to Google must exactly match what you registered — almost always \`https://YOUR_SUPABASE_PROJECT.supabase.co/auth/v1/callback\`. A common mistake is putting \`vodex.dev\` or your app URL in Google instead of Supabase.
 
 ### Why does Supabase say provider not enabled?
 
@@ -1075,7 +1075,7 @@ See [Payments setup](/help/docs/payments-providers). Use **your** processor acco
 
 ### Who handles approvals, disputes, taxes, and compliance?
 
-You do, through your processor account. DreamOS86 supplies integration code and UI patterns, not merchant-of-record services for your app.
+You do, through your processor account. Vodex supplies integration code and UI patterns, not merchant-of-record services for your app.
 
 ---
 
@@ -1087,7 +1087,7 @@ Yes for real deployments. You own data, Auth, and RLS in your project.
 
 ### What are Build Credits vs Action Credits?
 
-- **Build Credits:** AI building inside DreamOS86 (Discuss, Create, Build, edits).
+- **Build Credits:** AI building inside Vodex (Discuss, Create, Build, edits).
 - **Action Credits:** Runtime actions in live apps (AI, email, images, automations).
 
 Details: [How credits work](/help/docs/how-credits-work).
@@ -1106,15 +1106,15 @@ Those run in **deployed apps** against your plan’s Action pool, separate from 
 
 ### How do I publish a generated app?
 
-Use **Publish** in the app dashboard after a successful build. DreamOS86 assigns \`APP_SLUG\` and a public URL (subdomain or \`/p/APP_SLUG\` depending on DNS settings). See [Deploying your app](/help/docs/deployment).
+Use **Publish** in the app dashboard after a successful build. Vodex assigns \`APP_SLUG\` and a public URL (subdomain or \`/p/APP_SLUG\` depending on DNS settings). See [Deploying your app](/help/docs/deployment).
 
 ### How do I prepare for Play Store / App Store wrapping?
 
 See [Play Store setup](/help/docs/play-store-setup). You need package ID, SHA256 fingerprints, and \`assetlinks.json\` on **your** domain.
 
-### What does DreamOS86 handle vs what I configure?
+### What does Vodex handle vs what I configure?
 
-| DreamOS86 | You |
+| Vodex | You |
 |-----------|-----|
 | AI generation, builder UI, publish flow | Supabase project, OAuth providers, DNS |
 | Code for auth/checkout routes | Payment accounts, webhooks, taxes |
@@ -1126,12 +1126,12 @@ See [Play Store setup](/help/docs/play-store-setup). You need package ID, SHA256
   {
     slug: "model-routing",
     title: "AI Model Routing",
-    description: "How DreamOS86 selects AI models, and how to customise model selection for your projects.",
+    description: "How Vodex selects AI models, and how to customise model selection for your projects.",
     category: "AI Modes",
     readMinutes: 5,
     content: `## Auto mode
 
-By default, DreamOS86 uses **Auto** mode to select the best model for each task. Auto routing considers:
+By default, Vodex uses **Auto** mode to select the best model for each task. Auto routing considers:
 
 - **Task type** — simple edit vs. complex architecture
 - **Context length** — how many tokens your request requires
@@ -1206,9 +1206,9 @@ Disable specific models to prevent them from being used, even by Auto routing. G
 - Automations that call external providers
 - File transformations with real infrastructure cost
 
-**Build Credits** are separate — they cover building inside DreamOS86 (Discuss, Edit, Build).
+**Build Credits** are separate — they cover building inside Vodex (Discuss, Edit, Build).
 
-Visitors to your published app do **not** pay DreamOS86 directly. **You** (the app owner) spend Action Credits when your app triggers paid provider work.
+Visitors to your published app do **not** pay Vodex directly. **You** (the app owner) spend Action Credits when your app triggers paid provider work.
 
 See also: [How credits work](/help/docs/how-credits-work).`,
   },
@@ -1216,13 +1216,13 @@ See also: [How credits work](/help/docs/how-credits-work).`,
   {
     slug: "generated-app-runtime-billing",
     title: "Generated App Owner Runtime Billing",
-    description: "How DreamOS86 meters Action Credits for live app features.",
+    description: "How Vodex meters Action Credits for live app features.",
     category: "Billing",
     readMinutes: 4,
     keywords: ["runtime billing", "app owner", "visitor"],
     content: `## Who pays?
 
-When someone uses your published app and triggers AI, email, or media, **your** DreamOS86 Action Credit balance is charged — not the visitor's.
+When someone uses your published app and triggers AI, email, or media, **your** Vodex Action Credit balance is charged — not the visitor's.
 
 Normal app features keep working without Action Credits:
 
@@ -1264,11 +1264,11 @@ Credits restore on your **monthly plan reset** or when you purchase a top-up.`,
     keywords: ["video", "draft video", "Action Credits"],
     content: `## Draft video only by default
 
-DreamOS86 routes published apps to **cheap draft video** providers — not premium cinematic models.
+Vodex routes published apps to **cheap draft video** providers — not premium cinematic models.
 
 A typical **5-second draft clip** uses roughly **55–60 Action Credits** because underlying video generation costs far more than a single email or small AI reply.
 
-Longer clips scale proportionally. If a provider quotes higher than expected, DreamOS86 asks for confirmation before running.
+Longer clips scale proportionally. If a provider quotes higher than expected, Vodex asks for confirmation before running.
 
 **Free** plans cannot use video. **Starter** may use limited draft video when you have enough Action Credits.`,
   },
@@ -1285,7 +1285,7 @@ Longer clips scale proportionally. If a provider quotes higher than expected, Dr
 When your live app sends:
 
 - Contact form notifications to you
-- Transactional or notification emails through DreamOS86 routing
+- Transactional or notification emails through Vodex routing
 
 …the **app owner's** Action Credits are charged **before** the email is sent.
 
@@ -1297,13 +1297,13 @@ Bulk or per-recipient automations charge **per recipient** — no partial sends.
   {
     slug: "image-logo-action-credits",
     title: "Image & Logo Generation and Action Credits",
-    description: "DreamOS86 Logo and image tiers use Action Credits with pre-checks before generation.",
+    description: "Vodex Logo and image tiers use Action Credits with pre-checks before generation.",
     category: "Billing",
     readMinutes: 3,
-    keywords: ["logo", "image", "DreamOS86 Logo"],
+    keywords: ["logo", "image", "Vodex Logo"],
     content: `## User-facing labels
 
-You see simple names like **DreamOS86 Logo**, **DreamOS86 Image Small**, and **DreamOS86 Image Medium** — not raw provider model names.
+You see simple names like **Vodex Logo**, **Vodex Image Small**, and **Vodex Image Medium** — not raw provider model names.
 
 Logos generated during a real **build** consume Action Credits. Casual Discuss questions do not auto-generate logos.
 
@@ -1329,17 +1329,17 @@ Premium ultra-HD or experimental image modes are not enabled by default.`,
   },
 
   {
-    slug: "dreamos86-paddle-billing",
-    title: "DreamOS86 Billing with Paddle",
-    description: "DreamOS86 subscriptions are billed through Paddle as Merchant of Record.",
+    slug: "vodex-paddle-billing",
+    title: "Vodex Billing with Paddle",
+    description: "Vodex subscriptions are billed through Paddle as Merchant of Record.",
     category: "Billing",
     readMinutes: 3,
-    keywords: ["Paddle", "subscription", "DreamOS86 billing"],
+    keywords: ["Paddle", "subscription", "Vodex billing"],
     content: `## Platform subscriptions
 
-DreamOS86 **plan** subscriptions (Free, Starter, Pro, Infinity) are processed by **Paddle**.
+Vodex **plan** subscriptions (Free, Starter, Pro, Infinity) are processed by **Paddle**.
 
-Paddle handles checkout, tax, and subscription management for your **DreamOS86 account**.
+Paddle handles checkout, tax, and subscription management for your **Vodex account**.
 
 ### Upgrades (no proration)
 
@@ -1356,21 +1356,21 @@ This is separate from payment processors you connect to **your generated apps** 
   },
 
   {
-    slug: "app-payments-vs-dreamos-billing",
-    title: "Generated App Payment Processors vs DreamOS86 Billing",
-    description: "Your app checkout is yours; DreamOS86 plans use Paddle.",
+    slug: "app-payments-vs-vodex-billing",
+    title: "Generated App Payment Processors vs Vodex Billing",
+    description: "Your app checkout is yours; Vodex plans use Paddle.",
     category: "Billing",
     readMinutes: 4,
     keywords: ["Stripe", "Paddle", "Lemon Squeezy", "generated app"],
     content: `## Two billing layers
 
-| | DreamOS86 plans | Your generated app |
+| | Vodex plans | Your generated app |
 |---|---|---|
-| **Processor** | Paddle (DreamOS86) | Stripe, Paddle, Lemon Squeezy, PayPal, RevenueCat, etc. |
+| **Processor** | Paddle (Vodex) | Stripe, Paddle, Lemon Squeezy, PayPal, RevenueCat, etc. |
 | **Who pays** | You, for builder + Action Credits | Your end customers |
-| **Compliance** | DreamOS86 + Paddle | **You** and your processor |
+| **Compliance** | Vodex + Paddle | **You** and your processor |
 
-DreamOS86 is **not** responsible for your app's chargebacks, taxes, disputes, refunds, or KYC — only for integration patterns and UI.
+Vodex is **not** responsible for your app's chargebacks, taxes, disputes, refunds, or KYC — only for integration patterns and UI.
 
 See [Payments setup](/help/docs/payments-providers) for connecting processors to apps.`,
   },
@@ -1379,13 +1379,13 @@ See [Payments setup](/help/docs/payments-providers) for connecting processors to
     slug: "policies",
     title: "Policies & Legal",
     description:
-      "One place for DreamOS86 terms, privacy, refunds, billing rules, and acceptable use.",
+      "One place for Vodex terms, privacy, refunds, billing rules, and acceptable use.",
     category: "Policies",
     readMinutes: 4,
     keywords: ["terms", "privacy", "refund", "legal", "policy", "billing policy"],
     content: `## Overview
 
-DreamOS86 policies explain how the platform works, what we are responsible for, and what you agree to when you use the product. Use this page as your index — each policy has a full version on its own page.
+Vodex policies explain how the platform works, what we are responsible for, and what you agree to when you use the product. Use this page as your index — each policy has a full version on its own page.
 
 ---
 
@@ -1409,21 +1409,21 @@ These rules are also summarized on [Pricing](/pricing) and in [How credits work]
 | **Plan downgrades** | Apply at **next renewal**; current plan stays active until then. |
 | **Monthly credits** | Reset each billing cycle; unused monthly allowance does not roll over. |
 | **Credit packs** | Purchased top-ups are separate from plan allowance and may persist separately. |
-| **DreamOS86 billing** | Platform subscriptions use **Paddle** as Merchant of Record. See [DreamOS86 Billing with Paddle](/help/docs/dreamos86-paddle-billing). |
+| **Vodex billing** | Platform subscriptions use **Paddle** as Merchant of Record. See [Vodex Billing with Paddle](/help/docs/vodex-paddle-billing). |
 
 ---
 
 ## Generated app payments
 
-Payment processors you connect to **apps you build** (Stripe, Paddle, PayPal, etc.) are governed by **your** agreements with those providers and your own policies — not DreamOS86's subscription terms.
+Payment processors you connect to **apps you build** (Stripe, Paddle, PayPal, etc.) are governed by **your** agreements with those providers and your own policies — not Vodex's subscription terms.
 
-See [Generated app payments vs DreamOS86 billing](/help/docs/app-payments-vs-dreamos-billing).
+See [Generated app payments vs Vodex billing](/help/docs/app-payments-vs-vodex-billing).
 
 ---
 
 ## Questions
 
-Contact [support@dreamos86.com](mailto:support@dreamos86.com) if you need clarification on any policy.`,
+Contact [support@vodex.dev](mailto:support@vodex.dev) if you need clarification on any policy.`,
   },
 ];
 
