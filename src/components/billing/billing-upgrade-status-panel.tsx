@@ -48,11 +48,15 @@ export function BillingUpgradeStatusPanel({ attemptId, onComplete }: Props) {
   const [status, setStatus] = React.useState<StatusPayload | null>(null);
   const [polling, setPolling] = React.useState(false);
   const [attempts, setAttempts] = React.useState(0);
+  const onCompleteRef = React.useRef(onComplete);
+  onCompleteRef.current = onComplete;
+  const completedRef = React.useRef(false);
 
   React.useEffect(() => {
     if (!attemptId) return;
     let cancelled = false;
     let tries = 0;
+    completedRef.current = false;
     setPolling(true);
 
     const poll = async () => {
@@ -66,9 +70,12 @@ export function BillingUpgradeStatusPanel({ attemptId, onComplete }: Props) {
       setStatus(json);
 
       if (json.upgradeComplete) {
-        await refreshCredits({ force: true, reason: "plan-change" });
         setPolling(false);
-        onComplete?.();
+        if (!completedRef.current) {
+          completedRef.current = true;
+          await refreshCredits({ force: true, reason: "plan-change" });
+          onCompleteRef.current?.();
+        }
         return;
       }
 
@@ -83,7 +90,7 @@ export function BillingUpgradeStatusPanel({ attemptId, onComplete }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [attemptId, onComplete]);
+  }, [attemptId]);
 
   if (!attemptId) return null;
 

@@ -42,7 +42,6 @@ const COLUMNS = [
     links: [
       { href: "/pricing", label: "Pricing" },
       { href: "/settings/billing", label: "Billing" },
-      { href: "/pricing", label: "Upgrade" },
     ],
   },
 ] as const;
@@ -51,21 +50,20 @@ export function VodexImportantLinksFooter({ className }: { className?: string })
   return (
     <footer
       className={cn(
-        "vodex-important-links-footer relative mt-auto shrink-0 overflow-hidden border-t border-sky-200/60",
-        "bg-gradient-to-br from-sky-50 via-white to-blue-50/90",
+        "vodex-important-links-footer relative mt-auto shrink-0 overflow-hidden border-t border-sky-200/50",
         className,
       )}
       data-testid="vodex-important-links-footer"
     >
+      <div className="vodex-footer-particles pointer-events-none absolute inset-0" aria-hidden />
       <div className="vodex-footer-ambient pointer-events-none absolute inset-0" aria-hidden />
       <FooterIcedBirds />
-      <div className="vodex-footer-bird-trail pointer-events-none absolute inset-0 overflow-hidden" aria-hidden />
-      <div className="relative mx-auto max-w-6xl px-[var(--page-padding-x)] py-10">
-        <div className="mb-8 grid gap-8 lg:grid-cols-[1fr_minmax(260px,320px)]">
+      <div className="vodex-footer-glass relative mx-auto max-w-6xl px-[var(--page-padding-x)] py-8">
+        <div className="mb-6 grid gap-6 lg:grid-cols-[1fr_minmax(240px,300px)] lg:items-center">
           <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
             {COLUMNS.map((col) => (
               <div key={col.title}>
-                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-sky-800/90 drop-shadow-sm">
+                <p className="vodex-footer-title-glow text-[11px] font-bold uppercase tracking-[0.16em] text-sky-700">
                   {col.title}
                 </p>
                 <ul className="mt-3 space-y-2.5">

@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils";
 
 export const VODEX_DISCORD_URL = "https://discord.gg/y8EbeMc9Mb";
+export const DISCORD_BRAND_BLUE = "#5865F2";
 
 export function DiscordGlyph({ className }: { className?: string }) {
   return (
@@ -12,21 +13,26 @@ export function DiscordGlyph({ className }: { className?: string }) {
   );
 }
 
-function SparkleField() {
-  const dots = [
-    { left: "8%", top: "18%", delay: "0s", size: 3 },
-    { left: "22%", top: "62%", delay: "0.4s", size: 2 },
-    { left: "44%", top: "28%", delay: "0.8s", size: 2 },
-    { left: "68%", top: "54%", delay: "1.1s", size: 3 },
-    { left: "84%", top: "22%", delay: "0.2s", size: 2 },
-    { left: "56%", top: "72%", delay: "1.4s", size: 2 },
-  ];
+function IcySparkles({ dense }: { dense?: boolean }) {
+  const dots = dense
+    ? [
+        { left: "10%", top: "22%", delay: "0s", size: 2 },
+        { left: "78%", top: "18%", delay: "0.6s", size: 2 },
+        { left: "62%", top: "68%", delay: "1.1s", size: 2 },
+      ]
+    : [
+        { left: "8%", top: "18%", delay: "0s", size: 3 },
+        { left: "22%", top: "62%", delay: "0.4s", size: 2 },
+        { left: "44%", top: "28%", delay: "0.8s", size: 2 },
+        { left: "68%", top: "54%", delay: "1.1s", size: 3 },
+        { left: "84%", top: "22%", delay: "0.2s", size: 2 },
+      ];
   return (
     <div className="vodex-sparkle-field pointer-events-none absolute inset-0" aria-hidden>
       {dots.map((d, i) => (
         <span
           key={i}
-          className="vodex-sparkle-dot absolute rounded-full bg-white"
+          className="vodex-sparkle-dot absolute rounded-full bg-sky-100"
           style={{
             left: d.left,
             top: d.top,
@@ -51,7 +57,7 @@ export function PremiumDiscordCard({
   variant = "hero",
   testId = "vodex-discord-community-card",
 }: PremiumDiscordCardProps) {
-  const compact = variant === "compact" || variant === "footer";
+  const isFooter = variant === "footer";
 
   return (
     <a
@@ -60,60 +66,53 @@ export function PremiumDiscordCard({
       rel="noopener noreferrer"
       data-testid={testId}
       className={cn(
-        "vodex-discord-card-premium group relative block overflow-hidden rounded-2xl border border-indigo-300/35 shadow-xl transition hover:shadow-2xl",
-        compact ? "rounded-xl px-4 py-3" : "p-6",
+        "vodex-discord-card-icy group relative block overflow-hidden rounded-xl border border-[#5865F2]/30 shadow-lg transition hover:shadow-xl hover:shadow-[#5865F2]/20",
+        isFooter ? "h-[72px] px-3 py-2.5" : "rounded-2xl p-5 sm:p-6",
         className,
       )}
     >
-      <div className="vodex-discord-card-shimmer pointer-events-none absolute inset-0 opacity-90" aria-hidden />
-      <SparkleField />
-      <div
-        className="pointer-events-none absolute -right-10 -top-10 size-44 rounded-full bg-white/12 blur-3xl"
-        aria-hidden
-      />
+      <div className="vodex-discord-icy-bg pointer-events-none absolute inset-0" aria-hidden />
+      <IcySparkles dense={isFooter} />
       <div
         className={cn(
-          "relative flex gap-4",
-          compact ? "flex-row items-center" : "flex-col sm:flex-row sm:items-center sm:justify-between",
+          "relative flex items-center gap-3",
+          isFooter ? "h-full" : "flex-col sm:flex-row sm:items-center sm:justify-between sm:gap-4",
         )}
       >
-        <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <div
             className={cn(
-              "flex shrink-0 items-center justify-center rounded-2xl bg-[#23272a] text-white shadow-lg ring-2 ring-white/25",
-              compact ? "size-11 rounded-xl" : "size-14",
+              "flex shrink-0 items-center justify-center rounded-lg bg-[#5865F2] text-white shadow-md ring-1 ring-white/40",
+              isFooter ? "size-9" : "size-12 rounded-xl",
             )}
           >
-            <DiscordGlyph className={compact ? "size-6" : "size-8"} />
+            <DiscordGlyph className={isFooter ? "size-5" : "size-7"} />
           </div>
           <div className="min-w-0">
             <p
               className={cn(
                 "font-semibold tracking-tight text-white drop-shadow-sm",
-                compact ? "text-[13px]" : "text-[18px]",
+                isFooter ? "text-[12px] leading-tight" : "text-[17px] sm:text-[18px]",
               )}
             >
-              {compact ? "Community" : "Join the Vodex Community"}
+              {isFooter ? "Community" : "Join the Vodex Community"}
             </p>
-            <p
-              className={cn(
-                "text-indigo-50/95",
-                compact ? "truncate text-[11px]" : "mt-1.5 max-w-xl text-[13px] leading-relaxed",
-              )}
-            >
-              {compact
-                ? "Join builders on Discord"
-                : "Meet builders, share launches, get updates, and follow product announcements."}
-            </p>
+            {!isFooter ? (
+              <p className="mt-1 max-w-xl text-[12px] leading-snug text-sky-100/95 sm:text-[13px]">
+                Meet builders, share launches, get updates, and follow product announcements.
+              </p>
+            ) : (
+              <p className="truncate text-[10px] text-sky-100/90">Join builders on Discord</p>
+            )}
           </div>
         </div>
         <span
           className={cn(
-            "inline-flex shrink-0 items-center justify-center rounded-xl bg-white font-bold text-[#5865F2] shadow-lg transition group-hover:scale-[1.02]",
-            compact ? "ml-auto px-3 py-1.5 text-[11px]" : "px-6 py-3 text-[13px]",
+            "inline-flex shrink-0 items-center justify-center rounded-lg bg-white/95 font-bold text-[#5865F2] shadow-sm transition group-hover:bg-white",
+            isFooter ? "ml-auto px-2.5 py-1 text-[10px]" : "px-5 py-2 text-[12px] sm:text-[13px]",
           )}
         >
-          {compact ? "Join →" : "Join Discord"}
+          {isFooter ? "Join →" : "Join Discord"}
         </span>
       </div>
     </a>
@@ -128,14 +127,14 @@ export function StatusDiscordSubscribeButton({ className }: { className?: string
       rel="noopener noreferrer"
       data-testid="status-discord-subscribe"
       className={cn(
-        "vodex-discord-card-premium group relative inline-flex items-center gap-2 overflow-hidden rounded-xl px-4 py-2 text-[12px] font-semibold text-white shadow-md transition hover:shadow-lg",
+        "vodex-discord-card-icy group relative inline-flex h-9 items-center gap-2 overflow-hidden rounded-lg px-3.5 text-[12px] font-semibold text-white shadow-md transition hover:shadow-lg",
         className,
       )}
     >
-      <div className="vodex-discord-card-shimmer pointer-events-none absolute inset-0 opacity-80" aria-hidden />
-      <SparkleField />
-      <span className="relative flex size-7 items-center justify-center rounded-lg bg-[#23272a] ring-1 ring-white/30">
-        <DiscordGlyph className="size-4 text-white" />
+      <div className="vodex-discord-icy-bg pointer-events-none absolute inset-0" aria-hidden />
+      <IcySparkles dense />
+      <span className="relative flex size-6 items-center justify-center rounded-md bg-[#5865F2] ring-1 ring-white/35">
+        <DiscordGlyph className="size-3.5 text-white" />
       </span>
       <span className="relative">Subscribe for updates</span>
     </a>

@@ -21,6 +21,7 @@ import {
 import type { BillingInterval } from "@/lib/billing/upgrade-policy";
 import { billingPeriodEndFromNow } from "@/lib/billing/upgrade-policy";
 import type { PlanId } from "@/lib/supabase/types";
+import { computeUpgradeCycleCredits } from "@/lib/billing/mid-cycle-upgrade-credits";
 
 export type ApplyImmediatePlanUpgradeInput = {
   userId: string;
@@ -50,8 +51,9 @@ export type ApplyImmediatePlanUpgradeResult = {
 };
 
 /**
- * Canonical upgrade grant — full new allowance, no monthly leftover stacking.
- * Preserves explicit bonus/top-up grants from the ledger only.
+ * Canonical upgrade grant — preserves in-cycle usage on paid→paid upgrades.
+ * new_remaining = new_plan_limit - used_this_period (+ explicit bonuses).
+ * Free→paid and new cycles receive the full allowance.
  */
 export async function applyImmediatePlanUpgrade(
   input: ApplyImmediatePlanUpgradeInput,
@@ -68,14 +70,36 @@ export async function applyImmediatePlanUpgrade(
   const actionAllowance = monthlyActionCreditsForPlan(newPlan);
   const { data: profileRow } = await admin
     .from("profiles")
-    .select("credits_reset_at")
+    .select("credits_reset_at, credits_remaining")
     .eq("id", input.userId)
     .maybeSingle();
   const resetAt = profileRow?.credits_reset_at ?? null;
   const explicitBuildBonus = await sumExplicitBuildGrants(admin, input.userId, resetAt);
   const explicitActionBonus = await sumExplicitActionGrants(admin, input.userId, resetAt);
-  const buildCredits = buildAllowance + explicitBuildBonus;
-  const actionCredits = actionAllowance + explicitActionBonus;
+
+  const { data: actionRow } = await admin
+    .from("action_credit_balances" as never)
+    .select("balance")
+    .eq("owner_user_id" as never, input.userId)
+    .is("project_id" as never, null)
+    .maybeSingle();
+  const actionBalance =
+    actionRow && typeof (actionRow as { balance?: number }).balance === "number"
+      ? (actionRow as { balance: number }).balance
+      : null;
+  const actionRemainingBefore =
+    actionBalance ?? monthlyActionCreditsForPlan(oldPlan) + explicitActionBonus;
+
+  const cycleCredits = computeUpgradeCycleCredits({
+    oldPlan,
+    newPlan,
+    buildRemainingBefore: profileRow?.credits_remaining ?? buildAllowance,
+    actionRemainingBefore,
+    explicitBuildBonus,
+    explicitActionBonus,
+  });
+  const buildCredits = cycleCredits.buildCredits;
+  const actionCredits = cycleCredits.actionCredits;
 
   if (input.billingAttemptId) {
     await touchBillingAttemptWebhook(input.billingAttemptId, {
@@ -90,13 +114,16 @@ export async function applyImmediatePlanUpgrade(
     metadata: {
       old_plan: oldPlan,
       new_plan: newPlan,
-      old_remaining_build: null,
+      old_remaining_build: profileRow?.credits_remaining ?? null,
       new_build_allowance: buildAllowance,
       new_action_allowance: actionAllowance,
       explicit_build_bonus_preserved: explicitBuildBonus,
+      build_used_this_period: cycleCredits.buildUsedThisPeriod,
+      action_used_this_period: cycleCredits.actionUsedThisPeriod,
+      mid_cycle_preserve_usage: cycleCredits.midCyclePreserveUsage,
       paddle_transaction_id: input.paddleTransactionId ?? null,
       paddle_subscription_id: input.paddleSubscriptionId ?? null,
-      full_cycle_restart: true,
+      full_cycle_restart: !cycleCredits.midCyclePreserveUsage,
       billing_interval: input.billingInterval,
       effective_at: effectiveAt,
       source: input.source,
@@ -112,11 +139,7 @@ export async function applyImmediatePlanUpgrade(
     return { applied: false, buildCredits, actionCredits, periodEndIso };
   }
 
-  const { data: profileBefore } = await admin
-    .from("profiles")
-    .select("credits_remaining, plan_id")
-    .eq("id", input.userId)
-    .maybeSingle();
+  const profileBefore = profileRow;
 
   await updateProfilePaddleBilling(admin, input.userId, {
     customerId: input.paddleCustomerId,
@@ -142,12 +165,15 @@ export async function applyImmediatePlanUpgrade(
     p_user_id: input.userId,
     p_amount: -buildAllowance,
     p_source: "purchase",
-    p_reason: `${input.source} — upgrade to ${newPlan} (full cycle restart)`,
+    p_reason: cycleCredits.midCyclePreserveUsage
+      ? `${input.source} — upgrade to ${newPlan} (usage preserved)`
+      : `${input.source} — upgrade to ${newPlan} (full allowance)`,
     p_metadata: {
       plan_id: newPlan,
       old_plan: oldPlan,
       action_credits: actionCredits,
-      full_cycle_restart: true,
+      build_used_this_period: cycleCredits.buildUsedThisPeriod,
+      full_cycle_restart: !cycleCredits.midCyclePreserveUsage,
       paddle_transaction_id: input.paddleTransactionId ?? null,
       explicit_build_bonus_preserved: explicitBuildBonus,
       explicit_action_bonus_preserved: explicitActionBonus,
@@ -196,7 +222,9 @@ export async function applyImmediatePlanUpgrade(
     user_id: input.userId,
     type: "credit",
     title: "Plan upgraded",
-    body: `Your ${newPlan} plan is active. Build and Action Credits have been refreshed for a new billing cycle.`,
+    body: cycleCredits.midCyclePreserveUsage
+      ? `Your ${newPlan} plan is active. Remaining credits reflect your current cycle usage (${cycleCredits.buildUsedThisPeriod} build credits used).`
+      : `Your ${newPlan} plan is active. You received the full monthly Build and Action Credit allowance.`,
     action_url: "/settings/billing",
   });
 

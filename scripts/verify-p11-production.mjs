@@ -371,9 +371,9 @@ const suites = {
   },
   "discord-community-card-premium": () => {
     const errors = [];
-    must(read("src/components/ui/premium-discord-card.tsx"), "vodex-discord-card-premium", "premium card", errors);
+    must(read("src/components/ui/premium-discord-card.tsx"), "vodex-discord-card-icy", "icy discord card", errors);
     must(read("src/components/ui/premium-discord-card.tsx"), "DiscordGlyph", "discord icon", errors);
-    must(read("src/app/globals.css"), "vodex-discord-shimmer", "shimmer css", errors);
+    must(read("src/app/globals.css"), "vodex-discord-icy-bg", "icy discord bg css", errors);
     return errors;
   },
   "footer-bottom-position": () => {

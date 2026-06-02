@@ -269,12 +269,11 @@ export function BillingSubscriptionPanel({
                 Upgrade to {billablePlanDefinition(recommended).label}
               </h3>
               <p className="mt-1 text-[12px] text-muted-foreground">
-                +{" "}
-                {(
-                  monthlyTokensForPlan(billablePlanDefinition(recommended).storagePlanId) -
-                  monthlyTokensForPlan(storagePlanId)
+                +
+                {monthlyTokensForPlan(
+                  billablePlanDefinition(recommended).storagePlanId,
                 ).toLocaleString()}{" "}
-                Build Credits · ${catalogAmountUsd(recommended, "monthly")}/mo
+                Build Credits / month · ${catalogAmountUsd(recommended, "monthly")}/mo
               </p>
               <Button
                 type="button"

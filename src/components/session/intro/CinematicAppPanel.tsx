@@ -28,7 +28,7 @@ export function CinematicAppPanel({
   const floatY = entered && !collapsing ? Math.sin(timeline * 1.35 + app.enterAt) * 5 : 0;
 
   const panel = (
-    <div className="vodex-intro-p13__image-panel relative h-full w-full overflow-hidden rounded-2xl bg-white/[0.04] ring-1 ring-sky-300/25">
+    <div className="vodex-intro-p13__image-panel vodex-intro-panel-clean relative h-full w-full overflow-hidden rounded-2xl bg-white/[0.04] ring-1 ring-sky-300/25">
       <IntroReferenceImage
         src={app.imageSrc}
         alt={app.imageAlt}

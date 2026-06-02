@@ -52,12 +52,12 @@ export function BillingSettings() {
   const [loading, setLoading] = React.useState(true);
   const [billingTruth, setBillingTruth] = React.useState<BillingTruth | null>(null);
 
-  const loadBilling = React.useCallback(async () => {
-    setLoading(true);
+  const loadBilling = React.useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     const res = await fetch("/api/billing/subscription");
     const json = (await res.json()) as BillingState & { error?: string };
     if (res.ok) setBilling(json);
-    else setBilling(null);
+    else if (!opts?.silent) setBilling(null);
     setLoading(false);
   }, []);
 
@@ -69,6 +69,12 @@ export function BillingSettings() {
         if (j.billingTruth) setBillingTruth(j.billingTruth as BillingTruth);
       })
       .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only bootstrap
+  }, []);
+
+  const onUpgradeComplete = React.useCallback(() => {
+    void loadBilling({ silent: true });
+    void refreshCredits({ force: true, reason: "plan-change" });
   }, [loadBilling]);
 
   const searchParams = useSearchParams();
@@ -77,14 +83,14 @@ export function BillingSettings() {
   const cancelIntent = searchParams.get("cancel") === "1";
 
   React.useEffect(() => {
+    if (paddleReturn === "success") return;
     let focusTimer: ReturnType<typeof setTimeout> | undefined;
     const onFocus = () => {
-      if (paddleReturn === "success") return;
       if (focusTimer) clearTimeout(focusTimer);
       focusTimer = setTimeout(() => {
-        void loadBilling();
+        void loadBilling({ silent: true });
         void refreshCredits({ reason: "manual" });
-      }, 800);
+      }, 1200);
     };
     window.addEventListener("focus", onFocus);
     return () => {
@@ -113,13 +119,7 @@ export function BillingSettings() {
 
       {paddleReturn === "success" && attemptId ? (
         <motion.div variants={variants.fadeUp}>
-          <BillingUpgradeStatusPanel
-            attemptId={attemptId}
-            onComplete={() => {
-              void loadBilling();
-              void refreshCredits({ force: true, reason: "plan-change" });
-            }}
-          />
+          <BillingUpgradeStatusPanel attemptId={attemptId} onComplete={onUpgradeComplete} />
         </motion.div>
       ) : null}
 
@@ -158,7 +158,7 @@ export function BillingSettings() {
                     size="sm"
                     className="h-8 text-[11px]"
                     onClick={() => {
-                      void loadBilling();
+                      void loadBilling({ silent: true });
                       void refreshCredits({ force: true, reason: "manual" });
                     }}
                   >
@@ -191,7 +191,7 @@ export function BillingSettings() {
                 monthlyActionCredits={monthlyAction}
                 openCancelOnMount={cancelIntent}
                 onRefresh={() => {
-                  void loadBilling();
+                  void loadBilling({ silent: true });
                   void refreshCredits({ force: true, reason: "plan-change" });
                 }}
               />

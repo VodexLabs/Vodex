@@ -1395,8 +1395,8 @@ body {
   }
 }
 
-/* P1.7 Discord community card shimmer */
-@keyframes vodex-discord-shimmer {
+/* P1.7.1 — Icy Discord blue (no rainbow) */
+@keyframes vodex-icy-shimmer {
   0% {
     background-position: 0% 50%;
   }
@@ -1405,20 +1405,21 @@ body {
   }
 }
 
-.vodex-discord-card-shimmer {
+.vodex-discord-icy-bg {
   background: linear-gradient(
-    110deg,
-    #5865f2 0%,
-    #7c3aed 35%,
-    #3b82f6 55%,
-    #5865f2 100%
+    118deg,
+    #1e3a8a 0%,
+    #2563eb 28%,
+    #5865f2 52%,
+    #3b82f6 78%,
+    #1d4ed8 100%
   );
-  background-size: 200% 100%;
-  animation: vodex-discord-shimmer 6s linear infinite;
+  background-size: 220% 100%;
+  animation: vodex-icy-shimmer 14s linear infinite;
 }
 
-.vodex-discord-card-premium {
-  background: linear-gradient(125deg, #5865f2 0%, #5b6eea 40%, #7c3aed 100%);
+.vodex-discord-card-icy {
+  background: linear-gradient(145deg, #1e40af 0%, #5865f2 45%, #2563eb 100%);
 }
 
 /* P1.7 footer crystal bird trail */
@@ -1468,68 +1469,193 @@ body {
   animation: vodex-sparkle-twinkle 2.4s ease-in-out infinite;
 }
 
-.vodex-footer-ambient {
+.vodex-important-links-footer {
   background: linear-gradient(
-    120deg,
-    rgb(224 242 254 / 0.5) 0%,
-    transparent 40%,
-    rgb(219 234 254 / 0.35) 70%,
-    transparent 100%
+    180deg,
+    #f8fcff 0%,
+    #eef6ff 42%,
+    #e3f0ff 72%,
+    #d9e9ff 100%
   );
-  background-size: 200% 100%;
-  animation: vodex-discord-shimmer 18s linear infinite;
 }
 
-@keyframes vodex-footer-bird-path-a {
+.vodex-footer-ambient {
+  background:
+    radial-gradient(ellipse 55% 45% at 18% 30%, rgb(186 230 253 / 0.55), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 82% 65%, rgb(147 197 253 / 0.35), transparent 72%),
+    linear-gradient(120deg, rgb(240 249 255 / 0.7) 0%, transparent 45%, rgb(219 234 254 / 0.4) 100%);
+  background-size: 200% 200%;
+  animation: vodex-icy-shimmer 22s linear infinite;
+}
+
+.vodex-footer-particles {
+  background-image:
+    radial-gradient(circle, rgb(255 255 255 / 0.9) 1px, transparent 1px),
+    radial-gradient(circle, rgb(186 230 253 / 0.8) 1px, transparent 1px);
+  background-size: 48px 48px, 72px 72px;
+  background-position: 0 0, 24px 36px;
+  animation: vodex-footer-particles-drift 28s linear infinite;
+  opacity: 0.35;
+}
+
+@keyframes vodex-footer-particles-drift {
   0% {
-    transform: translate(-8%, 72%) rotate(-8deg);
+    background-position: 0 0, 24px 36px;
+  }
+  100% {
+    background-position: 48px -24px, 72px 12px;
+  }
+}
+
+.vodex-footer-glass {
+  backdrop-filter: blur(8px);
+}
+
+.vodex-footer-title-glow {
+  text-shadow: 0 0 18px rgb(56 189 248 / 0.35);
+}
+
+@keyframes vodex-footer-bird-loop-a {
+  0% {
+    transform: translate3d(-12%, 58%, 0) rotate(-6deg) scale(0.85);
     opacity: 0;
   }
-  12% {
-    opacity: 0.7;
+  8% {
+    opacity: 0.75;
   }
-  88% {
+  50% {
+    transform: translate3d(48%, 38%, 0) rotate(2deg) scale(1);
+    opacity: 0.65;
+  }
+  92% {
+    opacity: 0.4;
+  }
+  100% {
+    transform: translate3d(108%, 52%, 0) rotate(8deg) scale(0.9);
+    opacity: 0;
+  }
+}
+
+@keyframes vodex-footer-bird-loop-b {
+  0% {
+    transform: translate3d(108%, 42%, 0) rotate(8deg) scale(0.85);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.6;
+  }
+  50% {
+    transform: translate3d(42%, 62%, 0) rotate(-4deg) scale(0.95);
+    opacity: 0.55;
+  }
+  90% {
     opacity: 0.35;
   }
   100% {
-    transform: translate(92%, 18%) rotate(6deg);
+    transform: translate3d(-12%, 48%, 0) rotate(-10deg) scale(0.85);
     opacity: 0;
   }
 }
 
-@keyframes vodex-footer-bird-path-b {
-  0% {
-    transform: translate(95%, 65%) rotate(10deg);
-    opacity: 0;
-  }
-  15% {
-    opacity: 0.55;
-  }
-  85% {
-    opacity: 0.25;
-  }
+@keyframes vodex-footer-bird-wing {
+  0%,
   100% {
-    transform: translate(5%, 28%) rotate(-12deg);
-    opacity: 0;
+    transform: rotate(0deg);
   }
+  50% {
+    transform: rotate(-4deg);
+  }
+}
+
+.vodex-footer-birds {
+  overflow: visible;
 }
 
 .vodex-footer-bird--a {
   position: absolute;
-  animation: vodex-footer-bird-path-a 11s ease-in-out infinite;
-  filter: drop-shadow(0 0 8px rgb(186 230 253 / 0.8));
+  top: 0;
+  left: 0;
+  animation: vodex-footer-bird-loop-a 16s linear infinite;
+  filter: drop-shadow(0 0 10px rgb(186 230 253 / 0.85));
+  will-change: transform, opacity;
+}
+
+.vodex-footer-bird--a path {
+  animation: vodex-footer-bird-wing 1.2s ease-in-out infinite;
+  transform-origin: 32px 16px;
 }
 
 .vodex-footer-bird--b {
   position: absolute;
-  animation: vodex-footer-bird-path-b 13s ease-in-out infinite 2.5s;
-  filter: drop-shadow(0 0 6px rgb(224 242 254 / 0.9));
+  top: 0;
+  left: 0;
+  animation: vodex-footer-bird-loop-b 18s linear infinite;
+  filter: drop-shadow(0 0 8px rgb(224 242 254 / 0.9));
+  will-change: transform, opacity;
+}
+
+.vodex-footer-bird-trail--a::after,
+.vodex-footer-bird-trail--b::after {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(186 230 253 / 0.9), transparent 70%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.vodex-footer-bird-trail--a::after {
+  animation: vodex-footer-bird-trail-a 16s linear infinite;
+}
+
+.vodex-footer-bird-trail--b::after {
+  animation: vodex-footer-bird-trail-b 18s linear infinite;
+}
+
+@keyframes vodex-footer-bird-trail-a {
+  0%,
+  100% {
+    opacity: 0;
+    transform: translate(-12%, 58%);
+  }
+  15%,
+  45% {
+    opacity: 0.55;
+  }
+  50% {
+    transform: translate(48%, 38%);
+  }
+}
+
+@keyframes vodex-footer-bird-trail-b {
+  0%,
+  100% {
+    opacity: 0;
+    transform: translate(108%, 42%);
+  }
+  20%,
+  50% {
+    opacity: 0.45;
+  }
+  55% {
+    transform: translate(42%, 62%);
+  }
+}
+
+.vodex-intro-panel-clean img {
+  transform: scale(1.12);
+  object-fit: contain !important;
+  object-position: center center !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .vodex-discord-card-shimmer,
-  .vodex-footer-bird-trail::after,
+  .vodex-discord-icy-bg,
+  .vodex-footer-bird-trail--a::after,
+  .vodex-footer-bird-trail--b::after,
   .vodex-footer-ambient,
+  .vodex-footer-particles,
   .vodex-footer-bird--a,
   .vodex-footer-bird--b,
   .vodex-sparkle-dot {
