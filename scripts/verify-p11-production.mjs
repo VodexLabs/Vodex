@@ -317,21 +317,171 @@ const suites = {
   "footer-important-links": () => {
     const errors = [];
     must(read("src/components/layout/vodex-important-links-footer.tsx"), "vodex-important-links-footer", "footer", errors);
-    must(read("src/components/layout/platform-shell.tsx"), "VodexImportantLinksFooter", "footer wired", errors);
+    must(read("src/components/layout/platform-shell.tsx"), "DeferredFooter", "footer wired", errors);
     must(read("src/components/layout/vodex-important-links-footer.tsx"), "discord.gg/y8EbeMc9Mb", "discord link", errors);
     return errors;
   },
   "discord-community-card": () => {
     const errors = [];
-    must(read("src/components/community/vodex-discord-community-card.tsx"), "Join the Vodex community", "discord card", errors);
+    must(read("src/components/community/vodex-discord-community-card.tsx"), "Join the Vodex Community", "discord card", errors);
     must(read("src/components/community/community-view.tsx"), "VodexDiscordCommunityCard", "community wired", errors);
     return errors;
   },
   "intro-mobile-image-sizing": () => {
     const errors = [];
     must(read("src/components/session/intro/CinematicAppPanel.tsx"), "aspect-square", "mobile square", errors);
-    must(read("src/components/session/intro/intro-apps.ts"), 'y: "-24%"', "2x2 cluster", errors);
+    must(read("src/components/session/intro/intro-apps.ts"), '"-34%"', "2x2 cluster", errors);
     must(read("src/components/session/intro/IntroReferenceImage.tsx"), "object-contain", "mobile contain", errors);
+    return errors;
+  },
+  "status-components-table": () => {
+    const errors = [];
+    must(read("supabase/migrations/20260722120000_p17_production_stability.sql"), "status_components", "status_components", errors);
+    return errors;
+  },
+  "status-schema-cache-safe": () => {
+    const errors = [];
+    must(read("src/lib/status/status-fallback.ts"), "buildFallbackStatusPayload", "fallback", errors);
+    must(read("src/lib/status/status-public.ts"), "buildFallbackStatusPayload", "fallback wired", errors);
+    return errors;
+  },
+  "status-page-no-crash-when-missing-table": () => {
+    const errors = [];
+    must(read("src/app/api/status/public/route.ts"), "fetchPublicStatusPayload", "status api", errors);
+    must(read("src/components/status/public-status-page.tsx"), "placeholder", "placeholder ui", errors);
+    return errors;
+  },
+  "community-discussions-rls": () => {
+    const errors = [];
+    must(read("supabase/migrations/20260722120000_p17_production_stability.sql"), "discussions: authenticated read", "discussions rls", errors);
+    return errors;
+  },
+  "community-page-no-permission-crash": () => {
+    const errors = [];
+    must(read("src/components/community/community-view.tsx"), "CommunityFetchFallback", "fallback", errors);
+    return errors;
+  },
+  "discord-community-card-premium": () => {
+    const errors = [];
+    must(read("src/components/community/vodex-discord-community-card.tsx"), "vodex-discord-card-premium", "premium card", errors);
+    must(read("src/app/globals.css"), "vodex-discord-shimmer", "shimmer css", errors);
+    return errors;
+  },
+  "footer-bottom-position": () => {
+    const errors = [];
+    must(read("src/components/layout/platform-shell.tsx"), "flex min-h-full flex-1 flex-col", "flex layout", errors);
+    must(read("src/components/layout/deferred-footer.tsx"), "DeferredFooter", "deferred footer", errors);
+    return errors;
+  },
+  "footer-no-early-render": () => {
+    const errors = [];
+    must(read("src/components/layout/deferred-footer.tsx"), "setReady(false)", "defer render", errors);
+    return errors;
+  },
+  "footer-light-blue-design": () => {
+    const errors = [];
+    must(read("src/components/layout/vodex-important-links-footer.tsx"), "from-sky-50", "light blue", errors);
+    return errors;
+  },
+  "footer-discord-social-section": () => {
+    const errors = [];
+    must(read("src/components/layout/vodex-important-links-footer.tsx"), "footer-discord-social", "discord section", errors);
+    return errors;
+  },
+  "route-scroll-to-top": () => {
+    const errors = [];
+    must(read("src/components/navigation/route-scroll-to-top.tsx"), "RouteScrollToTop", "scroll manager", errors);
+    must(read("src/components/layout/platform-shell.tsx"), "RouteScrollToTop", "wired", errors);
+    return errors;
+  },
+  "project-visibility-all-surfaces": () => {
+    const errors = [];
+    must(read("src/lib/projects/user-visible-projects.ts"), "isUserVisibleProject", "visibility", errors);
+    must(read("src/lib/projects/project-visibility-status.ts"), "computeProjectCardUiState", "ui state", errors);
+    return errors;
+  },
+  "drafts-show-all-unpublished-apps": () => {
+    const errors = [];
+    must(read("src/lib/projects/user-visible-projects.ts"), "fileCountForFailed", "failed with files visible", errors);
+    return errors;
+  },
+  "failed-apps-visible": () => {
+    const errors = [];
+    must(read("src/lib/projects/project-visibility-status.ts"), "failed_attempt", "failed attempt", errors);
+    return errors;
+  },
+  "app-card-logo-sync": () => {
+    const errors = [];
+    must(read("src/app/api/home/recent-projects/route.ts"), "icon_url", "icon in api", errors);
+    return errors;
+  },
+  "intro-mobile-corner-layout": () => {
+    const errors = [];
+    must(read("src/components/session/intro/intro-apps.ts"), '"-34%"', "corner x", errors);
+    return errors;
+  },
+  "intro-showcase-spacing": () => {
+    const errors = [];
+    must(read("src/components/session/intro/CinematicAppPanel.tsx"), "44vw", "mobile size", errors);
+    return errors;
+  },
+  "intro-fusion-center-path": () => {
+    const errors = [];
+    must(read("src/components/session/intro/CinematicAppPanel.tsx"), "collapsing", "fusion", errors);
+    return errors;
+  },
+  "notification-preferences-functional": () => {
+    const errors = [];
+    must(read("src/app/api/notification-preferences/route.ts"), "notification_preferences", "prefs api", errors);
+    must(read("src/lib/notifications/notification-preferences.ts"), "shouldDeliverInApp", "gating", errors);
+    return errors;
+  },
+  "notification-sounds-gated-by-preferences": () => {
+    const errors = [];
+    must(read("src/lib/notifications/notification-preferences.ts"), "shouldPlaySound", "sound gate", errors);
+    must(read("src/components/providers/app-provider.tsx"), "playNotificationChime", "runtime chime", errors);
+    must(read("src/lib/notifications/notification-sound.ts"), "playNotificationChime", "chime util", errors);
+    return errors;
+  },
+  "welcome-notification-new-users": () => {
+    const errors = [];
+    must(read("src/lib/notifications/welcome-notification.ts"), "free credits", "welcome body", errors);
+    must(read("src/lib/auth/profile-bootstrap.ts"), "ensureWelcomeNotification", "bootstrap", errors);
+    return errors;
+  },
+  "welcome-notification-existing-users-once": () => {
+    const errors = [];
+    must(read("src/app/api/notifications/welcome/route.ts"), "welcome", "welcome api", errors);
+    return errors;
+  },
+  "admin-control-center": () => {
+    const errors = [];
+    must(read("src/components/admin/admin-control-center-panel.tsx"), "admin-control-center", "control center", errors);
+    return errors;
+  },
+  "admin-platform-banner-preview": () => {
+    const errors = [];
+    must(read("src/components/admin/admin-system-status-panel.tsx"), "gradientFrom", "banner preview fields", errors);
+    return errors;
+  },
+  "admin-notification-broadcast": () => {
+    const errors = [];
+    must(read("src/app/api/admin/notifications/broadcast/route.ts"), "notifications", "broadcast api", errors);
+    return errors;
+  },
+  "admin-max-two-banners": () => {
+    const errors = [];
+    must(read("src/lib/status/status-public.ts"), ".limit(2)", "max two banners", errors);
+    return errors;
+  },
+  "admin-live-banner-update": () => {
+    const errors = [];
+    must(read("src/components/platform/platform-announcement-banners.tsx"), "30_000", "poll interval", errors);
+    return errors;
+  },
+  "platform-live-announcements": () => {
+    const errors = [];
+    must(read("src/components/platform/platform-announcement-banners.tsx"), "setInterval", "polling", errors);
     return errors;
   },
   "no-generic-credit-toast": () => {

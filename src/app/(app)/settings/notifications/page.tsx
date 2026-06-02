@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { SectionCard } from "@/components/settings/shared";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
+import { setCachedNotificationPrefs } from "@/lib/notifications/notification-prefs-cache";
+import { normalizeNotificationPrefs } from "@/lib/notifications/notification-preferences";
 import {
   Bell,
   Rocket,
@@ -133,10 +135,30 @@ export default function NotificationsSettingsPage() {
     null,
   );
 
+  const [soundEnabled, setSoundEnabled] = React.useState(true);
+
   React.useEffect(() => {
     const loaded = loadPrefs();
     setPrefs(loaded);
     setSavedSnapshot(loaded);
+    void fetch("/api/notification-preferences")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json: { prefs?: { soundEnabled?: boolean; categories?: Record<string, { inApp?: boolean }> } } | null) => {
+        if (!json?.prefs) return;
+        if (typeof json.prefs.soundEnabled === "boolean") setSoundEnabled(json.prefs.soundEnabled);
+        const cats = json.prefs.categories;
+        if (!cats) return;
+        setPrefs((p) => {
+          const next = { ...p };
+          for (const { key } of notifTypes) {
+            const row = cats[key];
+            if (row && typeof row.inApp === "boolean") next[key] = { inWeb: row.inApp };
+          }
+          return next;
+        });
+        setSavedSnapshot((s) => s ?? loaded);
+      })
+      .catch(() => {});
   }, []);
 
   const [notifs, setNotifs] = React.useState<Notification[]>(seedNotifs);
@@ -154,7 +176,7 @@ export default function NotificationsSettingsPage() {
     <div className="space-y-5">
       <SectionCard
         title="Notification Preferences"
-        description="In-web alerts appear in Vodex while you are signed in. Email delivery is not available yet — preferences are stored in your browser on this device."
+        description="In-web alerts appear in the notification bell. When a category is off, new notifications of that type are hidden from the bell and won't play a sound. Preferences sync to your account."
       >
         <div className="flex items-center justify-end gap-2 mb-2 pb-3 border-b border-border">
           <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
@@ -204,7 +226,21 @@ export default function NotificationsSettingsPage() {
             onClick={() => {
               savePrefs(prefs);
               setSavedSnapshot(prefs);
-              toast.success("Notification preferences saved on this device");
+              const payload = {
+                soundEnabled,
+                categories: Object.fromEntries(
+                  notifTypes.map(({ key }) => [
+                    key,
+                    { inApp: prefs[key].inWeb, sound: prefs[key].inWeb && soundEnabled },
+                  ]),
+                ),
+              };
+              setCachedNotificationPrefs(normalizeNotificationPrefs(payload));
+              void fetch("/api/notification-preferences", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ prefs: payload }),
+              }).then(() => toast.success("Notification preferences saved"));
             }}
           >
             Save preferences

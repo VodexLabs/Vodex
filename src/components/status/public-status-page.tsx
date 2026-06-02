@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 import type { StatusLevel } from "@/lib/status/status-types";
 
 type Payload = {
+  placeholder?: boolean;
+  schemaReady?: boolean;
   overallStatus: StatusLevel;
   components: Array<{
     id: string;
@@ -76,9 +78,11 @@ export function PublicStatusPage() {
   React.useEffect(() => {
     void fetch("/api/status/public")
       .then(async (r) => {
-        const json = await r.json();
-        if (!r.ok) throw new Error(json.error ?? "Failed to load status");
-        setData(json as Payload);
+        const json = (await r.json()) as Payload & { error?: string };
+        if (!r.ok && !json.components?.length) {
+          throw new Error(json.error ?? "Failed to load status");
+        }
+        setData(json);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"));
   }, []);
@@ -109,17 +113,21 @@ export function PublicStatusPage() {
   const historyLabels = data?.components[0]?.history;
 
   return (
-    <div className="min-h-screen bg-[#faf9f7] text-foreground">
-      <header className="border-b border-border/60 bg-white/80 px-6 py-4 backdrop-blur-md">
-        <div className="mx-auto flex max-w-4xl items-center justify-between">
-          <Link href="https://vodex.dev" className="text-[15px] font-bold tracking-tight">
-            Vodex <span className="font-normal text-muted-foreground">| Status</span>
+    <div className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-blue-50/40 text-foreground">
+      <header className="border-b border-sky-200/50 bg-white/70 px-6 py-4 backdrop-blur-md">
+        <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3">
+          <Link href="https://vodex.dev" className="text-[15px] font-bold tracking-tight text-sky-900">
+            Vodex <span className="font-normal text-sky-600/80">| Status</span>
           </Link>
           <a
-            href="mailto:support@vodex.dev"
-            className="rounded-lg border border-border px-3 py-1.5 text-[12px] font-medium hover:bg-surface"
+            href="https://discord.gg/y8EbeMc9Mb"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="status-discord-subscribe"
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#5865F2] to-[#7c3aed] px-4 py-2 text-[12px] font-semibold text-white shadow-md transition hover:shadow-lg"
           >
-            Subscribe to updates
+            <span className="font-bold">D</span>
+            Subscribe for updates
           </a>
         </div>
       </header>
@@ -130,9 +138,15 @@ export function PublicStatusPage() {
 
         {data && (
           <>
+            {data.placeholder ? (
+              <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] text-amber-900">
+                Live status data is syncing. Showing operational defaults until database tables
+                are installed.
+              </p>
+            ) : null}
             <div
               className={cn(
-                "rounded-2xl border px-6 py-8 text-center",
+                "rounded-2xl border px-6 py-8 text-center shadow-sm backdrop-blur-sm",
                 operational
                   ? "border-emerald-200 bg-emerald-50"
                   : data.overallStatus === "degraded" || data.overallStatus === "maintenance"
@@ -177,7 +191,7 @@ export function PublicStatusPage() {
                   {items.map((c) => (
                     <div
                       key={c.id}
-                      className="rounded-xl border border-border bg-white p-4 shadow-sm"
+                      className="rounded-xl border border-sky-100/80 bg-white/80 p-4 shadow-sm backdrop-blur-sm"
                     >
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0">

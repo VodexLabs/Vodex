@@ -27,10 +27,10 @@ export async function ensureWelcomeNotification(
     user_id: userId,
     type: "system",
     title,
-    body: "You're all set. Describe an app on Home or open Your Apps to continue a build. We're excited to see what you create.",
+    body: "Welcome to Vodex — we added free credits so you can start building your first app.",
     read: false,
     action_url: "/",
-    metadata: { kind: "welcome" },
+    metadata: { kind: "welcome", premium: true, free_credits: true },
   } as never);
 
   return !error;

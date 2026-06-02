@@ -32,7 +32,7 @@ import { AdminMobileBuildsPanel } from "@/components/admin/admin-mobile-builds-p
 import { AdminAppPaymentsPanel } from "@/components/admin/admin-app-payments-panel";
 import { AdminSchemaHealthBanner } from "@/components/admin/admin-schema-health-banner";
 import { AdminOnboardingInsightsPanel } from "@/components/admin/admin-onboarding-insights-panel";
-import { AdminSystemStatusPanel } from "@/components/admin/admin-system-status-panel";
+import { AdminControlCenterPanel } from "@/components/admin/admin-control-center-panel";
 
 export type AdminTab =
   | "onboarding"
@@ -67,7 +67,7 @@ export function AdminView({ initialTab = "users" }: { initialTab?: AdminTab }) {
     { id: "storage", label: "Uploads", icon: HardDriveUpload },
     { id: "audit", label: "Audit log", icon: Shield },
     { id: "billing", label: "Billing", icon: CreditCard },
-    { id: "status", label: "System Status", icon: ShieldCheck },
+    { id: "status", label: "Control Center", icon: ShieldCheck },
     { id: "auth", label: "System", icon: ShieldCheck },
     { id: "competitive", label: "Competitive", icon: Trophy },
   ];
@@ -128,7 +128,7 @@ export function AdminView({ initialTab = "users" }: { initialTab?: AdminTab }) {
       {activeTab === "storage" && <AdminStoragePanel />}
       {activeTab === "audit" && <AdminAuditPanel />}
 
-      {activeTab === "status" && <AdminSystemStatusPanel />}
+      {activeTab === "status" && <AdminControlCenterPanel />}
 
       {activeTab === "auth" && (
         <div className="max-w-2xl space-y-6">

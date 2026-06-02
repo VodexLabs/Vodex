@@ -1,4 +1,5 @@
 import { createServiceRoleClient } from "@/lib/supabase/admin";
+import { buildFallbackStatusPayload } from "@/lib/status/status-fallback";
 import { isStatusSchemaMissingError, uptimePercentForStatus } from "@/lib/status/status-db";
 import type {
   PlatformAnnouncementRow,
@@ -80,7 +81,7 @@ export async function fetchPublicStatusPayload() {
     .order("sort_order", { ascending: true });
 
   if (compErr && isStatusSchemaMissingError(compErr)) {
-    return { ok: false as const, error: compErr.message, schemaReady: false };
+    return buildFallbackStatusPayload();
   }
 
   const compRows = (components ?? []) as StatusComponentRow[];
@@ -94,7 +95,7 @@ export async function fetchPublicStatusPayload() {
     .gte("date", since);
 
   if (histErr && isStatusSchemaMissingError(histErr)) {
-    return { ok: false as const, error: histErr.message, schemaReady: false };
+    return buildFallbackStatusPayload();
   }
 
   const historyByComp = new Map<string, Map<string, StatusDayRow>>();
@@ -122,7 +123,7 @@ export async function fetchPublicStatusPayload() {
     .limit(40);
 
   if (incErr && isStatusSchemaMissingError(incErr)) {
-    return { ok: false as const, error: incErr.message, schemaReady: false };
+    return buildFallbackStatusPayload();
   }
 
   const incidentRows = (incidents ?? []) as StatusIncidentRow[];
@@ -137,13 +138,13 @@ export async function fetchPublicStatusPayload() {
     .or(`starts_at.is.null,starts_at.lte.${nowIso}`)
     .or(`ends_at.is.null,ends_at.gte.${nowIso}`)
     .order("priority", { ascending: true })
-    .limit(5);
+    .limit(2);
 
   if (annErr && isStatusSchemaMissingError(annErr)) {
-    return { ok: false as const, error: annErr.message, schemaReady: false };
+    return buildFallbackStatusPayload();
   }
 
-  const activeAnnouncements = (announcements ?? []) as PlatformAnnouncementRow[];
+  const activeAnnouncements = ((announcements ?? []) as PlatformAnnouncementRow[]).slice(0, 2);
 
   const componentsWithHistory = compRows.map((c) => {
     const map = historyByComp.get(c.id) ?? new Map();
@@ -193,6 +194,9 @@ export async function checkStatusSchemaReady(): Promise<boolean> {
   if (!admin) return false;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = admin as any;
-  const { error } = await db.from("platform_announcements").select("id").limit(1);
-  return !error || !isStatusSchemaMissingError(error);
+  const { error: cErr } = await db.from("status_components").select("id").limit(1);
+  if (!cErr) return true;
+  if (!isStatusSchemaMissingError(cErr)) return false;
+  const { error: aErr } = await db.from("platform_announcements").select("id").limit(1);
+  return !aErr || !isStatusSchemaMissingError(aErr);
 }

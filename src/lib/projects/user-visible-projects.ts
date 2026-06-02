@@ -77,7 +77,13 @@ export function isUserVisibleProject(row: UserVisibleProjectRow): boolean {
   if (meta.source === "question_only" || meta.intent === "question_only") return false;
 
   const { lifecycle_status, blueprint_approved } = readLifecycleFromMetadata(meta);
-  if (lifecycle_status === "failed" || row.build_status === "failed") return false;
+  const fileCountForFailed = readFileCount(meta);
+  if (
+    (lifecycle_status === "failed" || row.build_status === "failed") &&
+    fileCountForFailed === 0
+  ) {
+    return false;
+  }
 
   if (row.published_subdomain?.trim()) return true;
 

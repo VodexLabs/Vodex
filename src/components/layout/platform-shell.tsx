@@ -12,7 +12,8 @@ import {
 import { AdminDiagnosticsDrawer } from "@/components/dev/admin-diagnostics-drawer";
 import { DiagnosticsBootstrap } from "@/components/dev/diagnostics-bootstrap";
 import { PlatformAnnouncementBanners } from "@/components/platform/platform-announcement-banners";
-import { VodexImportantLinksFooter } from "@/components/layout/vodex-important-links-footer";
+import { DeferredFooter } from "@/components/layout/deferred-footer";
+import { RouteScrollToTop } from "@/components/navigation/route-scroll-to-top";
 import { cn } from "@/lib/utils";
 
 const pageMeta: Record<string, { title: string; subtitle?: string }> = {
@@ -243,6 +244,7 @@ export function PlatformShell({
 
       {/* Right column: topbar + scrollable content */}
       <div className="relative z-[1] flex min-w-0 flex-1 flex-col overflow-hidden">
+        <RouteScrollToTop />
         <PlatformAnnouncementBanners />
         <DeferredTopBar
           mode={isCreateHome ? "create" : "standard"}
@@ -258,7 +260,7 @@ export function PlatformShell({
               ? "relative flex min-h-0 flex-1 min-w-0 flex-col overflow-y-auto overflow-x-hidden"
               : isFullBleed
                 ? "relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-                : "relative flex-1 overflow-y-auto overflow-x-hidden bg-atmosphere px-[var(--page-padding-x)] py-[var(--page-padding-y)] pb-[calc(var(--page-padding-y)_+_4rem)] lg:pb-[var(--page-padding-y)]"
+                : "relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden bg-atmosphere px-[var(--page-padding-x)] py-[var(--page-padding-y)]"
           }
           style={
             isHomeShellScroll || !isFullBleed ? { scrollBehavior: "smooth" } : undefined
@@ -278,13 +280,11 @@ export function PlatformShell({
                 ? "flex w-full min-w-0 flex-col"
                 : isFullBleed
                   ? "flex h-full min-h-0 min-w-0 flex-col"
-                  : "min-h-full"
+                  : "flex min-h-full flex-1 flex-col"
             }
           >
-            {children}
-            {!isFullBleed && !isOnboarding && pathname !== "/admin" && (
-              <VodexImportantLinksFooter className="-mx-[var(--page-padding-x)] -mb-[var(--page-padding-y)] mt-10 w-[calc(100%+2*var(--page-padding-x))]" />
-            )}
+            <div className="flex-1">{children}</div>
+            {!isFullBleed && !isOnboarding && <DeferredFooter />}
           </div>
         </main>
       </div>

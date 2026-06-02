@@ -44,6 +44,16 @@ import {
   mergeProfileOnboardingStatus,
 } from "@/lib/onboarding/onboarding-status";
 import { isLightweightPublicPath } from "@/lib/routing/lightweight-public-paths";
+import {
+  getCachedNotificationPrefs,
+  refreshNotificationPrefsFromApi,
+} from "@/lib/notifications/notification-prefs-cache";
+import {
+  shouldDeliverInApp,
+  shouldPlaySound,
+  normalizeNotificationPrefs,
+} from "@/lib/notifications/notification-preferences";
+import { playNotificationChime } from "@/lib/notifications/notification-sound";
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -142,6 +152,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       teardownRealtime();
 
       let creditRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+      let lastChimeAt = 0;
+
+      void refreshNotificationPrefsFromApi();
 
       const notificationsChannel = supabase
         .channel(`notifications:${userId}`)
@@ -154,7 +167,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             filter: `user_id=eq.${userId}`,
           },
           (payload) => {
-            addNotification(payload.new as Notification);
+            const row = payload.new as Notification;
+            const prefs = getCachedNotificationPrefs();
+            if (!shouldDeliverInApp(prefs, row.type)) return;
+            addNotification(row);
+            if (
+              shouldPlaySound(prefs, row.type) &&
+              Date.now() - lastChimeAt > 2000
+            ) {
+              lastChimeAt = Date.now();
+              playNotificationChime();
+            }
           },
         )
         .subscribe();
@@ -272,14 +295,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        if (rows.length >= 0) {
-          setNotifications(rows as Notification[]);
-        }
+        const prefs = await refreshNotificationPrefsFromApi();
+        const visible = (rows as Notification[]).filter((n) =>
+          shouldDeliverInApp(prefs, n.type),
+        );
+        setNotifications(visible);
 
         if (coreProfile) {
           setCachedBootstrap(userId, {
             profile: coreProfile as Profile,
-            notifications: rows as Notification[],
+            notifications: visible,
           });
         }
       })();

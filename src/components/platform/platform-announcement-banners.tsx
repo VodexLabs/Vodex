@@ -69,20 +69,22 @@ export function PlatformAnnouncementBanners() {
   const [announcements, setAnnouncements] = React.useState<Announcement[]>([]);
   const [dismissed, setDismissed] = React.useState<Set<string>>(() => new Set());
 
-  React.useEffect(() => {
-    setDismissed(readDismissed());
-    let cancelled = false;
-    void fetch("/api/platform/active-announcements")
+  const load = React.useCallback(() => {
+    void fetch("/api/platform/active-announcements", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((json: { announcements?: Announcement[] } | null) => {
-        if (cancelled || !json?.announcements) return;
-        setAnnouncements(json.announcements);
+        if (!json?.announcements) return;
+        setAnnouncements(json.announcements.slice(0, 2));
       })
       .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
   }, []);
+
+  React.useEffect(() => {
+    setDismissed(readDismissed());
+    load();
+    const poll = window.setInterval(load, 30_000);
+    return () => window.clearInterval(poll);
+  }, [load]);
 
   const visible = announcements.filter((a) => !dismissed.has(a.id));
   if (visible.length === 0) return null;

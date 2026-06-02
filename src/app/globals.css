@@ -1394,3 +1394,67 @@ body {
     animation-duration: 0.2s;
   }
 }
+
+/* P1.7 Discord community card shimmer */
+@keyframes vodex-discord-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+.vodex-discord-card-shimmer {
+  background: linear-gradient(
+    110deg,
+    #5865f2 0%,
+    #7c3aed 35%,
+    #3b82f6 55%,
+    #5865f2 100%
+  );
+  background-size: 200% 100%;
+  animation: vodex-discord-shimmer 6s linear infinite;
+}
+
+.vodex-discord-card-premium {
+  background: linear-gradient(125deg, #5865f2 0%, #5b6eea 40%, #7c3aed 100%);
+}
+
+/* P1.7 footer crystal bird trail */
+@keyframes vodex-footer-bird-fly {
+  0% {
+    transform: translate(-10%, 60%) scale(0.6);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.85;
+  }
+  85% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translate(110%, 20%) scale(0.9);
+    opacity: 0;
+  }
+}
+
+.vodex-footer-bird-trail::after {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(125 211 252 / 0.9), transparent 70%);
+  box-shadow:
+    -24px 8px 12px -4px rgb(186 230 253 / 0.45),
+    -48px 16px 20px -8px rgb(186 230 253 / 0.25);
+  animation: vodex-footer-bird-fly 9s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vodex-discord-card-shimmer,
+  .vodex-footer-bird-trail::after {
+    animation: none !important;
+  }
+}
