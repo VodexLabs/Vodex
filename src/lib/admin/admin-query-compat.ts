@@ -58,10 +58,49 @@ function normalizeAiUsageRow(row: Record<string, unknown>): AiUsageLogRow {
   };
 }
 
+export type AiUsagePromptFilter = "all" | "success" | "failed";
+
+export type AiUsagePromptStats = {
+  total: number;
+  success: number;
+  failed: number;
+};
+
+export async function fetchAiUsagePromptStats(
+  admin: AdminClient,
+  sinceIso: string,
+): Promise<{ stats: AiUsagePromptStats; error?: string }> {
+  const res = await admin
+    .from("ai_usage_logs")
+    .select("status")
+    .gte("created_at", sinceIso);
+
+  if (res.error) {
+    return { stats: { total: 0, success: 0, failed: 0 }, error: res.error.message };
+  }
+
+  let success = 0;
+  let failed = 0;
+  for (const row of res.data ?? []) {
+    if (row.status === "success") success += 1;
+    else failed += 1;
+  }
+  return { stats: { total: success + failed, success, failed } };
+}
+
 export async function fetchAiUsageLogs(
   admin: AdminClient,
-  opts: { limit: number; offset: number; successOnly?: boolean; sinceIso?: string },
+  opts: {
+    limit: number;
+    offset: number;
+    successOnly?: boolean;
+    failedOnly?: boolean;
+    filter?: AiUsagePromptFilter;
+    sinceIso?: string;
+  },
 ): Promise<{ rows: AiUsageLogRow[]; error?: string; columnHint?: string }> {
+  const promptFilter = opts.filter ?? (opts.successOnly ? "success" : opts.failedOnly ? "failed" : "all");
+
   const build = (select: string) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let q = (admin as any)
@@ -69,7 +108,8 @@ export async function fetchAiUsageLogs(
       .select(select)
       .order("created_at", { ascending: false })
       .range(opts.offset, opts.offset + opts.limit - 1);
-    if (opts.successOnly) q = q.eq("status", "success");
+    if (promptFilter === "success") q = q.eq("status", "success");
+    else if (promptFilter === "failed") q = q.neq("status", "success");
     if (opts.sinceIso) q = q.gte("created_at", opts.sinceIso);
     return q;
   };

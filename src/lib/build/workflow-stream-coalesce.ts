@@ -107,14 +107,19 @@ function rowToStreamEvent(row: BuildJobEventRow, terminal: boolean): AgentWorkfl
   const title = mapped.title;
   const filePath = mapped.filePath ?? undefined;
   const counts = parseLineCounts(row.detail);
+  const metaAdded = typeof meta.added_lines === "number" ? meta.added_lines : counts.added;
+  const metaRemoved = typeof meta.removed_lines === "number" ? meta.removed_lines : counts.removed;
+  const newLineCount =
+    typeof meta.new_line_count === "number" ? meta.new_line_count : undefined;
+  const oldLineCount =
+    typeof meta.old_line_count === "number" ? meta.old_line_count : undefined;
   const added =
-    typeof meta.added_lines === "number"
-      ? meta.added_lines
-      : typeof meta.new_line_count === "number" && !meta.old_line_count
-        ? meta.new_line_count
-        : counts.added;
-  const removed =
-    typeof meta.removed_lines === "number" ? meta.removed_lines : counts.removed;
+    newLineCount != null && metaAdded != null
+      ? Math.max(metaAdded, newLineCount)
+      : newLineCount != null && (oldLineCount === 0 || oldLineCount == null)
+        ? newLineCount
+        : metaAdded;
+  const removed = metaRemoved;
 
   const stepStatus =
     typeof meta.step_status === "string" ? meta.step_status : undefined;

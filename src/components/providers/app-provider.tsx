@@ -130,9 +130,70 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     const supabase = createClient();
+    let bootstrapGeneration = 0;
+    let realtimeDispose: (() => void) | undefined;
 
-    async function bootstrapUser(userId: string): Promise<() => void> {
+    const teardownRealtime = () => {
+      realtimeDispose?.();
+      realtimeDispose = undefined;
+    };
+
+    const attachRealtime = (userId: string) => {
+      teardownRealtime();
+
       let creditRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+
+      const notificationsChannel = supabase
+        .channel(`notifications:${userId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${userId}`,
+          },
+          (payload) => {
+            addNotification(payload.new as Notification);
+          },
+        )
+        .subscribe();
+
+      const profileChannel = supabase
+        .channel(`profile:${userId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "profiles",
+            filter: `id=eq.${userId}`,
+          },
+          (payload) => {
+            const current = useAuthStore.getState().profile;
+            if (!current || current.id !== userId) return;
+            setProfile({
+              ...current,
+              ...(payload.new as Partial<Profile>),
+            });
+            if (creditRefreshTimer) clearTimeout(creditRefreshTimer);
+            creditRefreshTimer = setTimeout(
+              () => void refreshCredits({ reason: "profile-realtime" }),
+              1500,
+            );
+          },
+        )
+        .subscribe();
+
+      realtimeDispose = () => {
+        supabase.removeChannel(notificationsChannel);
+        supabase.removeChannel(profileChannel);
+      };
+    };
+
+    async function bootstrapUser(userId: string): Promise<void> {
+      const generation = ++bootstrapGeneration;
+      teardownRealtime();
 
       const cached = getCachedBootstrap(userId);
       if (cached?.profile) {
@@ -223,53 +284,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       })();
 
-      const notificationsChannel = supabase
-        .channel(`notifications:${userId}`)
-        .on(
-          "postgres_changes",
-          {
-            event: "INSERT",
-            schema: "public",
-            table: "notifications",
-            filter: `user_id=eq.${userId}`,
-          },
-          (payload) => {
-            addNotification(payload.new as Notification);
-          },
-        )
-        .subscribe();
-
-      const profileChannel = supabase
-        .channel(`profile:${userId}`)
-        .on(
-          "postgres_changes",
-          {
-            event: "UPDATE",
-            schema: "public",
-            table: "profiles",
-            filter: `id=eq.${userId}`,
-          },
-          (payload) => {
-            setProfile({
-              ...useAuthStore.getState().profile!,
-              ...payload.new,
-            });
-            if (creditRefreshTimer) clearTimeout(creditRefreshTimer);
-            creditRefreshTimer = setTimeout(
-              () => void refreshCredits({ reason: "profile-realtime" }),
-              1500,
-            );
-          },
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(notificationsChannel);
-        supabase.removeChannel(profileChannel);
-      };
+      if (generation !== bootstrapGeneration) return;
+      attachRealtime(userId);
     }
-
-    let disposeRealtime: (() => void) | undefined;
 
     let disposed = false;
     const authTimeout = window.setTimeout(() => {
@@ -292,9 +309,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
         beginSessionCreditsWarmup(liveUser.id, useAuthStore.getState().profile);
         setLoading(false);
-        void bootstrapUser(liveUser.id).then((dispose) => {
-          disposeRealtime = dispose;
-        });
+        void bootstrapUser(liveUser.id);
       } else {
         setProfile(null);
         try {
@@ -318,19 +333,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setUser(session?.user ?? null);
 
       if (event === "SIGNED_IN" && session?.user) {
-        disposeRealtime?.();
+        teardownRealtime();
         beginSessionCreditsWarmup(session.user.id, useAuthStore.getState().profile);
         setLoading(false);
-        void bootstrapUser(session.user.id).then((dispose) => {
-          disposeRealtime = dispose;
-        });
+        void bootstrapUser(session.user.id);
         router.refresh();
       }
 
       if (event === "SIGNED_OUT") {
         invalidateBootstrapCache();
-        disposeRealtime?.();
-        disposeRealtime = undefined;
+        bootstrapGeneration += 1;
+        teardownRealtime();
         try {
           void useAuthStore.persist.clearStorage();
         } catch { /* ignore */ }
@@ -374,8 +387,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       disposed = true;
+      bootstrapGeneration += 1;
       window.clearTimeout(authTimeout);
-      disposeRealtime?.();
+      teardownRealtime();
       subscription.unsubscribe();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

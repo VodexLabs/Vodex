@@ -7,7 +7,13 @@ export async function GET(req: Request) {
   const gate = await requireDreamosOwner();
   if (gate.error) return gate.error;
 
-  const { limit, offset } = parseAdminPagination(new URL(req.url).searchParams);
+  const url = new URL(req.url);
+  const { limit, offset } = parseAdminPagination(url.searchParams);
+  const filterParam = url.searchParams.get("filter");
+  const filter =
+    filterParam === "success" || filterParam === "failed" || filterParam === "all"
+      ? filterParam
+      : "all";
 
   let admin;
   try {
@@ -17,7 +23,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: msg, events: [] }, { status: 503 });
   }
 
-  const { rows, error, columnHint } = await fetchAiUsageLogs(admin, { limit, offset });
+  const { rows, error, columnHint } = await fetchAiUsageLogs(admin, { limit, offset, filter });
 
   if (error) {
     return NextResponse.json(

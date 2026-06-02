@@ -278,8 +278,11 @@ export function AgentWorkflowStream({
     (openerText?.toLowerCase().startsWith("analyzing") ?? false) &&
     serverSequential.length < 1;
 
+  const hasServerActivity = serverSequential.some(
+    (e) => e.status === "active" || e.category === "file_created" || e.category === "file_edited",
+  );
   const ephemeral =
-    working && serverSequential.length < 2
+    working && (!hasServerActivity || serverSequential.length < 2)
       ? buildEphemeralWorkflowEvents(startedAt, now, showAnalyzing ? undefined : openerText)
       : [];
   const merged = mergeEphemeralWithServerEvents(ephemeral, serverSequential);

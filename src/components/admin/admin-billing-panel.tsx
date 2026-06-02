@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { PaddleAdminConfigStatus } from "@/lib/billing/paddle-config-status";
+import { AdminPromptActivityPanel } from "@/components/admin/admin-prompt-activity-panel";
 
 type SubRow = {
   id: string;
@@ -124,6 +125,8 @@ export function AdminBillingPanel() {
           </Link>
         </div>
       </section>
+
+      <AdminPromptActivityPanel />
 
       <section className="rounded-xl border border-dashed border-border/80 bg-muted/20 p-4">
         <p className="text-[12px] text-muted-foreground">

@@ -44,16 +44,24 @@ export function buildEphemeralWorkflowEvents(
   }
 
   const last = events[events.length - 1];
-  if (last && last.status === "done" && elapsed < 2500) {
+  const tailLabel =
+    elapsed < 4000
+      ? "Connecting to build"
+      : elapsed < 12000
+        ? "Still working on your app"
+        : "Continuing — mapping files and preview";
+  if (!last || last.status === "done" || last.category === "assistant_message") {
     events.push({
-      id: `ephemeral-wait-${startedAtMs}`,
+      id: `ephemeral-wait-${startedAtMs}-${Math.floor(elapsed / 2000)}`,
       category: "task_started",
-      title: "Connecting to build",
+      title: tailLabel,
       status: "active",
       at,
       stableKey: "ephemeral:wait",
       metadata: { ephemeral: true },
     });
+  } else if (last.status === "active") {
+    events[events.length - 1] = { ...last, title: tailLabel };
   }
 
   return events;
@@ -69,7 +77,10 @@ export function mergeEphemeralWithServerEvents(
   const keptEphemeral = ephemeral.filter(
     (e) =>
       e.category === "assistant_message" ||
+      e.stableKey === "ephemeral:wait" ||
       !serverTitles.has(e.title.toLowerCase()),
   );
-  return [...keptEphemeral.filter((e) => e.category === "assistant_message"), ...server];
+  const messages = keptEphemeral.filter((e) => e.category === "assistant_message");
+  const waitTail = keptEphemeral.find((e) => e.stableKey === "ephemeral:wait" && e.status === "active");
+  return waitTail ? [...messages, ...server, waitTail] : [...messages, ...server];
 }

@@ -166,10 +166,10 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
 
   setTraceHeartbeatRunning(trace, true);
   const heartbeat = setInterval(() => {
-    if (Date.now() - lastActivityAt < 8000) return;
+    if (Date.now() - lastActivityAt < 5000) return;
     const snap = getBuildWorkerTrace(input.buildJobId);
     const stageLabel = snap?.lastStage ?? "working";
-    if (Date.now() - lastHeartbeatPersist < 8000) return;
+    if (Date.now() - lastHeartbeatPersist < 5000) return;
     lastHeartbeatPersist = Date.now();
     void persistBuildJobEvent(input.writer, {
       ...eventCtx,
