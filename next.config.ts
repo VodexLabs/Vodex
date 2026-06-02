@@ -6,6 +6,21 @@ const projectRoot = path.resolve(__dirname);
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: projectRoot,
+  /** Hide webpack PackFileCacheStrategy "Serializing big strings" noise in dev. */
+  webpack: (config, { dev }) => {
+    if (dev) {
+      config.infrastructureLogging = {
+        ...(config.infrastructureLogging as object),
+        level: "error",
+      };
+      config.ignoreWarnings = [
+        ...(config.ignoreWarnings ?? []),
+        /PackFileCacheStrategy/,
+        /Serializing big strings/,
+      ];
+    }
+    return config;
+  },
   outputFileTracingIncludes: {
     "/api/admin/credit-billing-sql-patch": [
       "./scripts/dreamos-runtime-repair.sql",

@@ -17,6 +17,7 @@ import {
   createRouteHandlerClient,
   type PendingAuthCookie,
 } from "@/lib/supabase/route-handler";
+import { SESSION_INTRO_PENDING_COOKIE } from "@/lib/session/session-intro-cookie";
 
 /**
  * Supabase PKCE auth callback — handles ALL auth redirect cases.
@@ -185,6 +186,12 @@ export async function GET(request: NextRequest) {
 
   const response = NextResponse.redirect(`${origin}${destination}`);
   applyPendingAuthCookies(response, pendingSessionCookies);
+
+  response.cookies.set(
+    SESSION_INTRO_PENDING_COOKIE,
+    "1",
+    applyAuthCookieOptions({ maxAge: 120, path: "/" }, request, 120),
+  );
 
   for (const name of OAUTH_EPHEMERAL_COOKIES) {
     response.cookies.set(name, "", applyAuthCookieOptions({ maxAge: 0 }, request, 0));

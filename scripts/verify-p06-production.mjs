@@ -35,6 +35,9 @@ const suites = {
     const provider = read("src/components/providers/app-provider.tsx");
     must(warmup, "beginSessionCreditsWarmup", "session credits warmup", errors);
     must(warmup, "SESSION_CREDITS_LITE_TIMEOUT_MS", "intro-length lite timeout", errors);
+    must(read("src/lib/credits/server-credits-snapshot.ts"), "loadServerCreditsSnapshot", "server credits snapshot");
+    must(read("src/components/providers/credits-server-hydrator.tsx"), "applyCanonical", "server hydrator");
+    must(read("src/lib/session/session-intro-cookie.ts"), "SESSION_INTRO_PENDING_COOKIE", "login intro cookie");
     must(bootstrap, "shouldSkipLiteCreditsFetch", "lite dedupe", errors);
     must(bootstrap, "shouldSkipLiteCreditsFetch", "lite dedupe", errors);
     must(bootstrap, "credits_duplicate_fetch_blocked", "duplicate fetch log", errors);
@@ -57,9 +60,11 @@ const suites = {
     const gate = read("src/components/session/vodex-session-intro-gate.tsx");
     must(gate, "VodexSessionIntroGate", "intro gate", errors);
     must(gate, "useLayoutEffect", "intro before paint", errors);
-    must(gate, 'phase === "intro"', "intro phase", errors);
+    must(gate, "pendingLoginIntro", "login intro flag", errors);
+    must(gate, "serverUserId", "server user id", errors);
     must(gate, "invisible fixed inset-0", "app preloads behind intro", errors);
     must(read("src/lib/bootstrap/session-preload.ts"), "beginSessionCreditsWarmup", "preload starts credits", errors);
+    must(read("src/components/providers/app-chrome-providers.tsx"), "CreditsServerHydrator", "credits hydrator wired", errors);
     must(read("src/components/providers/app-chrome-providers.tsx"), "VodexSessionIntroGate", "intro wired in chrome", errors);
     must(read("src/components/session/vodex-session-intro.tsx"), "2400", "max intro duration", errors);
     return errors;

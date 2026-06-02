@@ -82,7 +82,10 @@ export function beginSessionCreditsWarmup(
 
   stashUserId(userId);
 
-  hydrateCreditsFromLocalCache(userId);
+  const before = useCreditsStore.getState();
+  if (!before.isConfirmed) {
+    hydrateCreditsFromLocalCache(userId);
+  }
 
   const afterCache = useCreditsStore.getState();
   if (!afterCache.isConfirmed) {

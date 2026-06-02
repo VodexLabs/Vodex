@@ -148,6 +148,12 @@ export function LoginView() {
       logAuthEvent("auth_login_succeeded", { method: "password" });
       setLoginErrorKind(null);
       setError(null);
+      try {
+        sessionStorage.removeItem("vodex_intro_seen_session");
+        document.cookie = "vodex_session_intro_pending=1; path=/; max-age=120; SameSite=Lax";
+      } catch {
+        /* ignore */
+      }
       const nextDest = safeInternalPath(searchParams.get("next"));
       router.replace(nextDest);
       router.refresh();

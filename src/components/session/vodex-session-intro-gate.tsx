@@ -7,101 +7,104 @@ import {
   shouldShowSessionIntro,
 } from "@/components/session/vodex-session-intro";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { useOnboardingComplete } from "@/hooks/use-onboarding-complete";
 import { runSessionPreload } from "@/lib/bootstrap/session-preload";
 import { beginSessionCreditsWarmup } from "@/lib/credits/session-credits-warmup";
 import { isLightweightPublicPath } from "@/lib/routing/lightweight-public-paths";
 import { hasActiveSession } from "@/lib/auth/client-identity";
 import { usePathname } from "next/navigation";
 
-type EntryPhase = "boot" | "intro" | "ready";
+type EntryPhase = "intro" | "ready";
 
 /**
- * Session entry: VODEX intro on first visit per tab, app + credits preload behind overlay.
+ * Session entry: VODEX intro on first visit per tab (or after fresh login).
+ * App mounts behind overlay; credits warm from server snapshot + lite fetch.
  */
-export function VodexSessionIntroGate({ children }: { children: React.ReactNode }) {
+export function VodexSessionIntroGate({
+  children,
+  serverUserId,
+  pendingLoginIntro = false,
+}: {
+  children: React.ReactNode;
+  serverUserId?: string;
+  /** Set by auth callback cookie — forces intro once after login. */
+  pendingLoginIntro?: boolean;
+}) {
   const pathname = usePathname();
-  const loading = useAuthStore((s) => s.loading);
   const session = useAuthStore((s) => s.session);
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
-  const { complete, checking } = useOnboardingComplete();
 
-  const [phase, setPhase] = React.useState<EntryPhase>("boot");
+  const userId = serverUserId ?? user?.id ?? profile?.id ?? null;
+  const sessionActive = hasActiveSession(session, user) || Boolean(serverUserId);
+
+  const [phase, setPhase] = React.useState<EntryPhase>("ready");
   const [mounted, setMounted] = React.useState(false);
-  const [checkTimedOut, setCheckTimedOut] = React.useState(false);
-
-  const userId = user?.id ?? profile?.id ?? null;
-  const sessionActive = hasActiveSession(session, user);
 
   React.useEffect(() => {
     setMounted(true);
   }, []);
 
-  React.useEffect(() => {
-    const t = window.setTimeout(() => setCheckTimedOut(true), 2_000);
-    return () => window.clearTimeout(t);
-  }, []);
-
   React.useLayoutEffect(() => {
     if (!mounted) return;
-    if (isLightweightPublicPath(pathname)) {
+
+    if (isLightweightPublicPath(pathname) || !userId) {
       setPhase("ready");
       return;
     }
 
-    if (userId) {
-      beginSessionCreditsWarmup(userId, profile);
-    }
+    beginSessionCreditsWarmup(userId, profile);
+    runSessionPreload(userId, profile);
 
-    if (!sessionActive && !userId) {
-      setPhase("ready");
-      return;
-    }
+    const showIntro =
+      pendingLoginIntro || (sessionActive && shouldShowSessionIntro());
 
-    if (checking && !complete && !checkTimedOut) return;
-
-    if (!complete) {
-      setPhase("ready");
-      return;
-    }
-
-    if (shouldShowSessionIntro()) {
+    if (showIntro) {
+      if (pendingLoginIntro) {
+        try {
+          sessionStorage.removeItem("vodex_intro_seen_session");
+        } catch {
+          /* ignore */
+        }
+      }
       setPhase("intro");
     } else {
       setPhase("ready");
     }
-  }, [mounted, pathname, userId, profile, sessionActive, complete, checking, checkTimedOut]);
-
-  React.useEffect(() => {
-    if (phase !== "intro" || !userId) return;
-    runSessionPreload(userId, profile);
-  }, [phase, userId, profile]);
+  }, [
+    mounted,
+    pathname,
+    userId,
+    profile,
+    sessionActive,
+    pendingLoginIntro,
+  ]);
 
   const finishIntro = React.useCallback(() => {
     markSessionIntroSeen();
     setPhase("ready");
+    try {
+      document.cookie = "vodex_session_intro_pending=; Max-Age=0; path=/";
+    } catch {
+      /* ignore */
+    }
   }, []);
 
-  const showIntroOverlay = mounted && phase === "intro";
-  const hideApp = phase === "boot" || phase === "intro";
+  const showIntroOverlay = phase === "intro";
 
   return (
     <>
       <div
-        className={hideApp ? "pointer-events-none invisible fixed inset-0 overflow-hidden" : undefined}
-        aria-hidden={hideApp}
+        className={
+          showIntroOverlay
+            ? "pointer-events-none invisible fixed inset-0 z-0 overflow-hidden"
+            : undefined
+        }
+        aria-hidden={showIntroOverlay}
       >
         {children}
       </div>
-      {showIntroOverlay ? <VodexSessionIntro show onDone={finishIntro} /> : null}
-      {mounted && phase === "boot" && sessionActive ? (
-        <div
-          className="fixed inset-0 z-[199] flex items-center justify-center bg-background"
-          aria-hidden
-        >
-          <p className="sr-only">Loading Vodex</p>
-        </div>
+      {showIntroOverlay ? (
+        <VodexSessionIntro show onDone={finishIntro} />
       ) : null}
     </>
   );
