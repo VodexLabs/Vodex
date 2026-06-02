@@ -1,5 +1,5 @@
 /**
- * Expands short, general app prompts into a concrete MVP spec before planning/codegen.
+ * Expands short or domain-specific app prompts into a concrete MVP spec before planning/codegen.
  */
 import {
   classifyAppArchetype,
@@ -15,6 +15,7 @@ export type BuildFeatureExpansion = {
   executionPrompt: string;
   addedFeatures: string[];
   archetypeId: AppArchetypeId;
+  expansionReason: "shallow" | "domain" | "none";
 };
 
 const ARCHETYPE_MVP_FEATURES: Partial<Record<AppArchetypeId, string[]>> = {
@@ -31,6 +32,19 @@ const ARCHETYPE_MVP_FEATURES: Partial<Record<AppArchetypeId, string[]>> = {
     "Settings: units, default par levels, notification preferences",
     "Realistic sample data across all screens (no empty tables)",
     "Polished sidebar navigation and responsive dashboard layout",
+  ],
+  mediation_planner: [
+    "Dashboard with upcoming sessions, open disputes count, and agreement status KPIs",
+    "Party profiles: organizations/people, roles, contact info, conflict summary",
+    "Sessions calendar: schedule mediation, location/link, status, assigned mediator",
+    "Agenda templates library with reusable sections and time blocks",
+    "Private caucus notes per party with confidentiality badges",
+    "Agreement drafting workspace with clauses, version history, signature status",
+    "Tasks and follow-ups linked to sessions with due dates",
+    "Document status tracker (draft, shared, signed)",
+    "Settings for mediators, notification preferences, export",
+    "Realistic mock data for parties, sessions, and draft agreements",
+    "Polished sidebar navigation across all screens",
   ],
   finance_tracker: [
     "Dashboard with balance, spend trend, and category breakdown",
@@ -58,6 +72,22 @@ const ARCHETYPE_MVP_FEATURES: Partial<Record<AppArchetypeId, string[]>> = {
   ],
 };
 
+const DOMAIN_PROMPTS: Array<{
+  pattern: RegExp;
+  archetypeId: AppArchetypeId;
+}> = [
+  {
+    pattern: /mediation|mediator|caucus|party profiles|agreement drafting|agenda templates/i,
+    archetypeId: "mediation_planner",
+  },
+  {
+    pattern: /food inventory|ingredient stock|pantry|kitchen inventory/i,
+    archetypeId: "restaurant_inventory",
+  },
+  { pattern: /recipe app|meal planner|cookbook/i, archetypeId: "restaurant_inventory" },
+  { pattern: /pet (care|diary)|vet visit|pet health/i, archetypeId: "health_wellness" },
+];
+
 function countIntentClauses(prompt: string): number {
   return prompt
     .split(/\n|[;,]|(?:\band\b)/i)
@@ -74,6 +104,14 @@ function isShallowPrompt(prompt: string): boolean {
   return trimmed.length <= SHALLOW_MAX_CHARS || clauses < SHALLOW_MAX_CLAUSES;
 }
 
+function detectDomainArchetype(prompt: string): AppArchetypeId | null {
+  const lower = prompt.toLowerCase();
+  for (const entry of DOMAIN_PROMPTS) {
+    if (entry.pattern.test(lower)) return entry.archetypeId;
+  }
+  return null;
+}
+
 function featuresForArchetype(archetypeId: AppArchetypeId): string[] {
   return (
     ARCHETYPE_MVP_FEATURES[archetypeId] ??
@@ -82,41 +120,29 @@ function featuresForArchetype(archetypeId: AppArchetypeId): string[] {
   );
 }
 
-/** Expand vague prompts into an execution-ready MVP brief. */
-export function expandBuildPromptIfShallow(rawPrompt: string): BuildFeatureExpansion {
-  const originalPrompt = rawPrompt.trim();
+function buildExpandedPrompt(
+  originalPrompt: string,
+  archetypeId: AppArchetypeId,
+  features: string[],
+  reason: "shallow" | "domain",
+): BuildFeatureExpansion {
   const archetype = classifyAppArchetype(originalPrompt);
-  const archetypeId = archetype.id;
-
-  if (!isShallowPrompt(originalPrompt)) {
-    return {
-      expanded: false,
-      originalPrompt,
-      executionPrompt: originalPrompt,
-      addedFeatures: [],
-      archetypeId,
-    };
-  }
-
-  const features = featuresForArchetype(archetypeId);
-  if (!features.length) {
-    return {
-      expanded: false,
-      originalPrompt,
-      executionPrompt: originalPrompt,
-      addedFeatures: [],
-      archetypeId,
-    };
-  }
+  const label =
+    archetypeId === "mediation_planner"
+      ? "Mediation session planner"
+      : archetypeId === "restaurant_inventory"
+        ? "Inventory operations"
+        : archetype.label;
 
   const executionPrompt = [
     `User request: ${originalPrompt}`,
     "",
-    `Expanded MVP (${archetype.label}) — implement ALL of the following in the first build:`,
+    `Expanded MVP (${label}) — implement ALL of the following in the first build:`,
     ...features.map((f) => `- ${f}`),
     "",
-    "Quality bar: dedicated route/page per major screen, shared app shell, mock data, production-polished UI.",
+    "Quality bar: dedicated route/page per major screen (minimum 4), shared app shell, mock data, production-polished UI.",
     "Do not ship a welcome-only home or three plain cards.",
+    "All page.tsx files must be valid TSX with export default and no markdown fences.",
   ].join("\n");
 
   return {
@@ -125,5 +151,46 @@ export function expandBuildPromptIfShallow(rawPrompt: string): BuildFeatureExpan
     executionPrompt,
     addedFeatures: features,
     archetypeId,
+    expansionReason: reason,
   };
+}
+
+/** Expand vague or domain-specific prompts into an execution-ready MVP brief. */
+export function expandBuildPromptIfShallow(rawPrompt: string): BuildFeatureExpansion {
+  const originalPrompt = rawPrompt.trim();
+  const classified = classifyAppArchetype(originalPrompt);
+  const domainId = detectDomainArchetype(originalPrompt);
+
+  if (domainId) {
+    const features = featuresForArchetype(domainId);
+    if (features.length) {
+      return buildExpandedPrompt(originalPrompt, domainId, features, "domain");
+    }
+  }
+
+  if (!isShallowPrompt(originalPrompt)) {
+    return {
+      expanded: false,
+      originalPrompt,
+      executionPrompt: originalPrompt,
+      addedFeatures: [],
+      archetypeId: classified.id,
+      expansionReason: "none",
+    };
+  }
+
+  const archetypeId = domainId ?? classified.id;
+  const features = featuresForArchetype(archetypeId);
+  if (!features.length) {
+    return {
+      expanded: false,
+      originalPrompt,
+      executionPrompt: originalPrompt,
+      addedFeatures: [],
+      archetypeId,
+      expansionReason: "none",
+    };
+  }
+
+  return buildExpandedPrompt(originalPrompt, archetypeId, features, "shallow");
 }

@@ -192,6 +192,14 @@ const PALETTES: Record<AppArchetypeId, GeneratedDesignSystem["palette"]> = {
     muted: "text-slate-600",
     border: "border-teal-100",
   },
+  mediation_planner: {
+    primary: "#1d4ed8",
+    accent: "#7c3aed",
+    background: "bg-slate-50",
+    surface: "bg-white",
+    muted: "text-slate-600",
+    border: "border-slate-200",
+  },
   generic_app: {
     primary: "#4f46e5",
     accent: "#0ea5e9",

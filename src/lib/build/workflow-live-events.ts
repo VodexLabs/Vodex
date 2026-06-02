@@ -213,6 +213,9 @@ export async function emitFileWriteEvent(
       current_file: input.currentFile,
       total_files: input.totalFiles,
       file_path: input.filePath,
+      real_progress: true,
+      batch_persist: true,
+      files_persisted: input.currentFile,
     }),
   });
 }

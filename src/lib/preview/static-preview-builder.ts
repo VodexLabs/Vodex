@@ -18,6 +18,13 @@ import {
   type GeneratedAppBrandingOptions,
 } from "@/lib/branding/generated-app-branding";
 import { findPrimaryAppPage } from "@/lib/build/source-integrity-validator";
+import { jsxToStaticHtml } from "@/lib/preview/jsx-to-static-html";
+
+export type PreviewRendererSource =
+  | "compiled"
+  | "static_snapshot"
+  | "archetype_template"
+  | "fallback_error";
 
 export type PreviewHtmlOptions = {
   projectId?: string;
@@ -26,6 +33,12 @@ export type PreviewHtmlOptions = {
   snapshotHash?: string | null;
   archetypeId?: string | null;
   branding?: GeneratedAppBrandingOptions;
+};
+
+export type StaticPreviewBuildResult = {
+  html: string;
+  rendererSource: PreviewRendererSource;
+  primaryFile: string | null;
 };
 
 function escapeAttr(value: string): string {
@@ -70,28 +83,53 @@ export function buildStaticPreviewHtml(
   files: Array<{ path: string; content: string }>,
   options?: PreviewHtmlOptions,
 ): string {
+  return buildStaticPreviewHtmlDetailed(files, options).html;
+}
+
+export function buildStaticPreviewHtmlDetailed(
+  files: Array<{ path: string; content: string }>,
+  options?: PreviewHtmlOptions,
+): StaticPreviewBuildResult {
   if (files.length === 0 && options?.archetypeId === "restaurant_inventory") {
-    return wrapPreviewDocument(buildRestaurantInventoryPreviewBody(), options);
+    return {
+      html: wrapPreviewDocument(buildRestaurantInventoryPreviewBody(), options),
+      rendererSource: "archetype_template",
+      primaryFile: null,
+    };
   }
 
   const indexHtml = files.find((f) => f.path === "index.html" || f.path.endsWith("/index.html"));
   if (indexHtml?.content?.trim()) {
-    if (indexHtml.content.includes("generated-app-preview-root")) return indexHtml.content;
-    return wrapPreviewDocument(
-      indexHtml.content.replace(/<\/?html[^>]*>|<\/?head[^>]*>|<\/?body[^>]*>/gi, ""),
-      options,
-    );
+    if (indexHtml.content.includes("generated-app-preview-root")) {
+      return { html: indexHtml.content, rendererSource: "compiled", primaryFile: indexHtml.path };
+    }
+    return {
+      html: wrapPreviewDocument(
+        indexHtml.content.replace(/<\/?html[^>]*>|<\/?head[^>]*>|<\/?body[^>]*>/gi, ""),
+        options,
+      ),
+      rendererSource: "compiled",
+      primaryFile: indexHtml.path,
+    };
   }
 
   if (isRestaurantInventoryPreview(files, options?.archetypeId)) {
-    return wrapPreviewDocument(buildRestaurantInventoryPreviewBody(), options);
+    return {
+      html: wrapPreviewDocument(buildRestaurantInventoryPreviewBody(), options),
+      rendererSource: "archetype_template",
+      primaryFile: "app/dashboard/page.tsx",
+    };
   }
 
   if (isPortfolioPreview(files, options?.archetypeId)) {
     const appName =
       files.find((f) => f.path === "app/layout.tsx")?.content?.match(/title:\s*["']([^"']+)["']/)?.[1] ??
       "Portfolio";
-    return wrapPreviewDocument(buildPortfolioPreviewBody(appName), options);
+    return {
+      html: wrapPreviewDocument(buildPortfolioPreviewBody(appName), options),
+      rendererSource: "archetype_template",
+      primaryFile: "app/page.tsx",
+    };
   }
 
   if (isCrmLikeArchetype(options?.archetypeId)) {
@@ -104,7 +142,13 @@ export function buildStaticPreviewHtml(
           ? rendered
           : "<p class=\"p-6 text-slate-500\">Donor CRM preview</p>";
       const crmHtml = wrapPreviewDocument(inner, options);
-      if (!previewArchetypeMismatch(crmHtml, options?.archetypeId)) return crmHtml;
+      if (!previewArchetypeMismatch(crmHtml, options?.archetypeId)) {
+        return {
+          html: crmHtml,
+          rendererSource: "static_snapshot",
+          primaryFile: crmPage.path,
+        };
+      }
     }
   }
 
@@ -117,34 +161,23 @@ export function buildStaticPreviewHtml(
       : "<p class=\"p-6 text-slate-500\">No renderable content.</p>";
 
   let html = wrapPreviewDocument(inner, options);
+  let primaryFile = page?.path ?? null;
+  let rendererSource: PreviewRendererSource =
+    rendered && inner.includes("<") ? "static_snapshot" : "fallback_error";
+
   if (previewArchetypeMismatch(html, options?.archetypeId) && isCrmLikeArchetype(options?.archetypeId)) {
     const crmFiles = mergeNonprofitCrmScaffold(files, "Donor CRM");
     const crmPage = crmFiles.find((f) => f.path === "app/page.tsx");
-    const rendered = crmPage?.content ? jsxToStaticHtml(crmPage.content) : "";
+    const crmRendered = crmPage?.content ? jsxToStaticHtml(crmPage.content) : "";
     html = wrapPreviewDocument(
-      rendered && !/no renderable content/i.test(rendered)
-        ? rendered
+      crmRendered && !/no renderable content/i.test(crmRendered)
+        ? crmRendered
         : "<p class=\"p-6\">Donor CRM — campaign tracking and donation history</p>",
       options,
     );
+    primaryFile = crmPage?.path ?? primaryFile;
+    rendererSource = "static_snapshot";
   }
-  return html;
-}
 
-function jsxToStaticHtml(content: string): string {
-  if (!content.trim()) return "";
-  let body = content;
-  const returnMatch = body.match(/return\s*\(\s*([\s\S]*?)\s*\)\s*;?\s*}/);
-  if (returnMatch) body = returnMatch[1] ?? body;
-  else body = body.replace(/^[\s\S]*?return\s*/m, "").replace(/\);?\s*}$/m, "");
-
-  return body
-    .replace(/className=/g, "class=")
-    .replace(/data-testid=/g, "data-testid=")
-    .replace(/\{`([^`]+)`\}/g, "$1")
-    .replace(/\{["']([^"']+)["']\}/g, "$1")
-    .replace(/\{[^}]+\}/g, "")
-    .replace(/<\/>/g, "")
-    .replace(/<>/g, "")
-    .slice(0, 12000);
+  return { html, rendererSource, primaryFile };
 }

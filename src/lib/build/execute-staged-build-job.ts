@@ -18,7 +18,8 @@ import { assertBuildFilesPersisted } from "@/lib/build/assert-build-files-persis
 import { MIN_RENDERABLE_FILES } from "@/lib/build/build-success-contract";
 import { canCompleteWithSavedFiles } from "@/lib/build/post-build-contract";
 import { startPreviewSession } from "@/lib/preview/preview-build-service";
-import { buildProjectPreviewHtml } from "@/lib/preview/project-preview-html";
+import { buildProjectPreviewHtmlDetailed } from "@/lib/preview/project-preview-html";
+import { validateBuildTsxSources } from "@/lib/build/tsx-source-validator";
 import { lifecyclePatch } from "@/lib/projects/project-lifecycle";
 import {
   persistAssistantBuildMessage,
@@ -554,6 +555,10 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
       files: pr.files,
       operationId: input.operationId,
       executionInstanceId: workerCtx.executionInstanceId,
+      workflowEmit: {
+        writer: input.writer,
+        ctx: eventCtx,
+      },
     });
 
     await persistStage("persist_completed", `${persist.savedCount} files saved`);
@@ -590,10 +595,28 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
       ? (projMeta.blueprint_routes as string[])
       : null;
 
-    const prePreviewHtml = buildProjectPreviewHtml(pr.files, {
+    const tsxValidation = validateBuildTsxSources(pr.files);
+    if (!tsxValidation.ok) {
+      await input.writer
+        .from("projects")
+        .update({
+          build_status: "needs_repair",
+          metadata: {
+            ...projMeta,
+            tsx_validation_ok: false,
+            tsx_validation_issues: tsxValidation.issues,
+            parser_valid_primary_files: tsxValidation.validPaths,
+            primary_file_bytes: tsxValidation.primaryFileBytes,
+          } as never,
+        } as never)
+        .eq("id", input.projectId);
+    }
+
+    const prePreviewBuilt = buildProjectPreviewHtmlDetailed(pr.files, {
       projectId: input.projectId,
       archetypeId: pr.appArchetype,
     });
+    const prePreviewHtml = prePreviewBuilt.html;
 
     const postPersist = await reconcilePostPersistBuildStatus({
       writer: input.writer,
@@ -617,6 +640,13 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
       preview_renderable: postPersist.sourceIntegrity.previewRenderable,
       ready_reason: postPersist.sourceIntegrity.readyReason,
       blocked_reason: postPersist.sourceIntegrity.blockedReason,
+      preview_renderer_source: prePreviewBuilt.meta.preview_renderer_source,
+      preview_primary_file: prePreviewBuilt.meta.preview_primary_file,
+      preview_html_snippet: prePreviewHtml.slice(0, 2000),
+      tsx_validation_ok: tsxValidation.ok,
+      tsx_validation_issues: tsxValidation.issues,
+      parser_valid_primary_files: tsxValidation.validPaths,
+      primary_file_bytes: tsxValidation.primaryFileBytes,
     };
 
     if (postPersist.technicalGenerationIncomplete || !postPersist.sourceIntegrity.sourceIntegrityOk) {
@@ -817,10 +847,11 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
     });
 
     let workingFiles = postPersist.files;
-    let postPreviewHtml = buildProjectPreviewHtml(workingFiles, {
+    let postPreviewBuilt = buildProjectPreviewHtmlDetailed(workingFiles, {
       projectId: input.projectId,
       archetypeId: pr.appArchetype,
     });
+    let postPreviewHtml = postPreviewBuilt.html;
 
     let postPreview = await reconcilePostPersistBuildStatus({
       writer: input.writer,
@@ -888,10 +919,11 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
             executionInstanceId: workerCtx.executionInstanceId,
           });
           workingFiles = repair.files;
-          postPreviewHtml = buildProjectPreviewHtml(workingFiles, {
+          postPreviewBuilt = buildProjectPreviewHtmlDetailed(workingFiles, {
             projectId: input.projectId,
             archetypeId: pr.appArchetype,
           });
+          postPreviewHtml = postPreviewBuilt.html;
           previewResult = await startPreviewSession({
             writer: input.writer,
             userId: input.userId,

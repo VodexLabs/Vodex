@@ -24,6 +24,7 @@ export type AppArchetypeId =
   | "logistics_operations"
   | "marina_operations"
   | "event_ticketing"
+  | "mediation_planner"
   | "generic_app";
 
 export type AppArchetype = {
@@ -53,6 +54,14 @@ const ARCHETYPE_HINTS: Array<{ id: AppArchetypeId; patterns: RegExp[]; weight?: 
     ],
   },
   { id: "restaurant_inventory", patterns: [/restaurant|food inventory|kitchen|pantry|supplier|waste|stock|ingredient/i] },
+  {
+    id: "mediation_planner",
+    patterns: [
+      /mediation session|mediator|party profiles|caucus notes|agreement drafting|agenda templates/i,
+      /dispute resolution|settlement conference/i,
+    ],
+    weight: 2,
+  },
   {
     id: "event_ticketing",
     patterns: [/event ticketing|ticket(s)?\s+app|qr code ticket|organizer check-in|stripe payment|check-in dashboard/i],
@@ -267,6 +276,30 @@ const ARCHETYPE_DEFS: Record<AppArchetypeId, Omit<AppArchetype, "id" | "confiden
     primarySections: ["occupancy metrics", "slip assignment table", "maintenance queue", "owner notices", "weather card"],
     visualTone: "nautical, clean, operational premium",
     terminology: ["slips", "berths", "owners", "work orders", "occupancy"],
+  },
+  mediation_planner: {
+    label: "Mediation session planner",
+    navigationStyle: "sidebar",
+    coreRoutes: [
+      "/dashboard",
+      "/parties",
+      "/sessions",
+      "/agenda-templates",
+      "/caucus-notes",
+      "/agreements",
+      "/tasks",
+      "/settings",
+    ],
+    primarySections: [
+      "session KPI dashboard",
+      "party profile table",
+      "agenda template library",
+      "private caucus notes",
+      "agreement drafting editor",
+      "follow-up tasks",
+    ],
+    visualTone: "calm, professional, trustworthy legal-tech",
+    terminology: ["parties", "sessions", "caucus", "agreements", "mediator", "agenda"],
   },
   event_ticketing: {
     label: "Event ticketing",

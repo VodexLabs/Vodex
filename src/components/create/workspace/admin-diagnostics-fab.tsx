@@ -9,7 +9,7 @@ import type { BuildDiagnosticsPayload } from "@/lib/build/build-diagnostics";
 import { useDraggablePosition } from "@/lib/ui/use-draggable-position";
 import { cn } from "@/lib/utils";
 
-/** Owner-only build diagnostics — center-left draggable launcher + centered modal. */
+/** Owner-only diagnostics — single center-left draggable launcher + centered modal. */
 export function AdminDiagnosticsFab({
   projectId,
   buildJobId,
@@ -17,6 +17,8 @@ export function AdminDiagnosticsFab({
   diagnosticsOpen,
   onDiagnosticsOpenChange,
   diagnostics,
+  onDiagnosticsLoaded,
+  autoOpenOnFailure,
 }: {
   projectId?: string | null;
   buildJobId?: string | null;
@@ -24,12 +26,15 @@ export function AdminDiagnosticsFab({
   diagnosticsOpen?: boolean;
   onDiagnosticsOpenChange?: (open: boolean) => void;
   diagnostics?: BuildDiagnosticsPayload | null;
+  onDiagnosticsLoaded?: (payload: BuildDiagnosticsPayload | null) => void;
+  autoOpenOnFailure?: boolean;
 }) {
   const email = useAuthStore((s) => s.user?.email);
   const allowed = isDreamosOwnerEmail(email);
   const [internalOpen, setInternalOpen] = React.useState(false);
   const [internalDiag, setInternalDiag] = React.useState<BuildDiagnosticsPayload | null>(null);
-  const { pos, style, dragHandlers } = useDraggablePosition("vodex_build_diagnostics_pos", {
+  const [loading, setLoading] = React.useState(false);
+  const { pos, style, dragHandlers } = useDraggablePosition("vodex_owner_diagnostics_pos", {
     x: 16,
     y: typeof window !== "undefined" ? Math.round(window.innerHeight * 0.42) : 320,
   });
@@ -38,15 +43,37 @@ export function AdminDiagnosticsFab({
   const setOpen = onDiagnosticsOpenChange ?? setInternalOpen;
   const diag = diagnostics ?? internalDiag;
 
-  const load = React.useCallback(async () => {
-    if (!allowed || !projectId || !buildJobId) return;
-    const res = await fetch(
-      `/api/projects/${projectId}/build-jobs/${buildJobId}/diagnostics`,
-      { credentials: "include" },
-    );
-    const body = (await res.json()) as { ok?: boolean; diagnostics?: BuildDiagnosticsPayload };
-    if (body.ok && body.diagnostics) setInternalDiag(body.diagnostics);
-  }, [allowed, projectId, buildJobId]);
+  const fetchDiagnostics = React.useCallback(async (): Promise<BuildDiagnosticsPayload | null> => {
+    if (!allowed || !projectId || !buildJobId) return null;
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `/api/projects/${projectId}/build-jobs/${buildJobId}/diagnostics`,
+        { credentials: "include", cache: "no-store" },
+      );
+      const body = (await res.json()) as { ok?: boolean; diagnostics?: BuildDiagnosticsPayload };
+      if (body.ok && body.diagnostics) {
+        setInternalDiag(body.diagnostics);
+        onDiagnosticsLoaded?.(body.diagnostics);
+        return body.diagnostics;
+      }
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [allowed, projectId, buildJobId, onDiagnosticsLoaded]);
+
+  React.useEffect(() => {
+    if (!autoOpenOnFailure || !allowed) return;
+    setOpen(true);
+    void fetchDiagnostics();
+  }, [autoOpenOnFailure, allowed, fetchDiagnostics, setOpen]);
+
+  React.useEffect(() => {
+    if (!open || !allowed || !projectId || !buildJobId) return;
+    if (diag) return;
+    void fetchDiagnostics();
+  }, [open, allowed, projectId, buildJobId, diag, fetchDiagnostics]);
 
   if (!allowed) return null;
 
@@ -68,15 +95,15 @@ export function AdminDiagnosticsFab({
           type="button"
           onClick={() => {
             setOpen(true);
-            void load();
+            void fetchDiagnostics();
           }}
           className={cn(
             "fixed z-[85] cursor-grab touch-none rounded-full bg-amber-500 px-3 py-2 text-[11px] font-semibold text-amber-950 shadow-lg ring-2 ring-amber-300/50 active:cursor-grabbing",
           )}
           style={style}
-          title="Owner build diagnostics (drag to reposition)"
-          aria-label="Open build diagnostics"
-          data-testid="owner-build-diagnostics-launcher"
+          title="Owner diagnostics (drag to reposition)"
+          aria-label="Open diagnostics"
+          data-testid="owner-diagnostics-launcher"
           {...dragHandlers}
         >
           <span className="flex items-center gap-1.5 pointer-events-none">
@@ -91,6 +118,8 @@ export function AdminDiagnosticsFab({
         onClose={() => setOpen(false)}
         diagnostics={diag}
         launcherPos={pos}
+        loading={loading}
+        onFetchDiagnostics={fetchDiagnostics}
       />
     </>
   );

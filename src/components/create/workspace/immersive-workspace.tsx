@@ -592,6 +592,10 @@ export function ImmersiveWorkspace({
     eventsUrl: string;
     operationId: string;
   } | null>(null);
+  const [ownerDiagOpen, setOwnerDiagOpen] = React.useState(false);
+  const [ownerDiagPayload, setOwnerDiagPayload] = React.useState<
+    import("@/lib/build/build-diagnostics").BuildDiagnosticsPayload | null
+  >(null);
 
   React.useEffect(() => {
     const jobId = initialJobId ?? searchParams.get("jobId");
@@ -2749,6 +2753,10 @@ export function ImmersiveWorkspace({
                   buildStartedAtMs={buildStartedAtRef.current ?? undefined}
                   openerText="Analyzing your request"
                   projectId={effectiveProjectId ?? undefined}
+                  ownerDiagnostics={{
+                    open: ownerDiagOpen,
+                    onOpen: () => setOwnerDiagOpen(true),
+                  }}
                 />
               )}
               {buildRunSummary && !buildJobActive && (
@@ -3268,6 +3276,10 @@ export function ImmersiveWorkspace({
       <AdminDiagnosticsFab
         projectId={effectiveProjectId}
         buildJobId={activeBuildJob?.jobId ?? null}
+        diagnosticsOpen={ownerDiagOpen}
+        onDiagnosticsOpenChange={setOwnerDiagOpen}
+        diagnostics={ownerDiagPayload}
+        onDiagnosticsLoaded={setOwnerDiagPayload}
         slowBanner={
           buildJobActive && buildStartedAtRef.current
             ? Date.now() - buildStartedAtRef.current > 120_000

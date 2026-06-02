@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { usePathname } from "next/navigation";
 import { X, Copy, Trash2, Bug } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -89,9 +90,16 @@ function IdentitySummaryStrip() {
 }
 
 /** Owner-only runtime diagnostics — center-left launcher, centered modal (not a right drawer). */
+function isWorkspaceBuilderPath(pathname: string): boolean {
+  if (pathname === "/create") return true;
+  return /^\/apps\/[^/]+\/builder\/?$/.test(pathname);
+}
+
 export function RuntimeDiagnosticsDrawer() {
+  const pathname = usePathname() ?? "";
   const email = useAuthStore((s) => s.profile?.email);
   const isOwner = isDreamosOwnerEmail(email);
+  if (isWorkspaceBuilderPath(pathname)) return null;
   const [open, setOpen] = React.useState(false);
   const [entries, setEntries] = React.useState<RuntimeDiagnosticEntry[]>([]);
   const [fallbackText, setFallbackText] = React.useState<string | null>(null);

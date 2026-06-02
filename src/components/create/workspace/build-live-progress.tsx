@@ -12,12 +12,17 @@ export function BuildLiveProgress({
   buildStartedAtMs,
   openerText,
   projectId,
+  ownerDiagnostics,
 }: {
   progress: BuildJobPollState | null;
   className?: string;
   buildStartedAtMs?: number;
   openerText?: string;
   projectId?: string;
+  ownerDiagnostics?: {
+    open: boolean;
+    onOpen: () => void;
+  };
 }) {
   if (!progress) return null;
   return (
@@ -27,6 +32,7 @@ export function BuildLiveProgress({
       buildStartedAtMs={buildStartedAtMs}
       openerText={openerText}
       projectId={projectId}
+      ownerDiagnostics={ownerDiagnostics}
     />
   );
 }

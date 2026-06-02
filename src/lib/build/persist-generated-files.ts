@@ -13,8 +13,18 @@ import {
 import { normalizeAppRouterBuildFiles } from "@/lib/build/app-router-route-normalizer";
 import { MIN_RENDERABLE_FILES } from "@/lib/build/build-success-contract";
 import { evaluateSourceIntegrity } from "@/lib/build/source-integrity-validator";
+import { computeFileLineMeta } from "@/lib/build/file-line-counts";
+import {
+  emitFileWriteEvent,
+  type WorkflowStepCtx,
+} from "@/lib/build/workflow-live-events";
 
 type Writer = SupabaseClient<Database>;
+
+export type PersistWorkflowEmitOptions = {
+  writer: Writer;
+  ctx: WorkflowStepCtx;
+};
 
 function persistenceWriter(writer: Writer): Writer {
   return (createServiceRoleClient() ?? writer) as Writer;
@@ -40,6 +50,8 @@ export async function persistGeneratedBuildFiles(input: {
   source?: string;
   operationId?: string;
   executionInstanceId?: string;
+  /** Emit per-file workflow events after successful upsert. */
+  workflowEmit?: PersistWorkflowEmitOptions;
 }): Promise<PersistBuildFilesResult> {
   const writer = persistenceWriter(input.writer);
   const normalized = normalizeAppRouterBuildFiles(input.files, { appName: "Dream App" });
@@ -65,6 +77,19 @@ export async function persistGeneratedBuildFiles(input: {
       renderableCount: renderable.length,
       samplePaths: renderable.slice(0, 10).map((f) => f.path),
     });
+  }
+
+  const paths = renderable.map((f) => f.path);
+  const prevContent = new Map<string, string>();
+  if (paths.length > 0) {
+    const { data: existingRows } = await writer
+      .from("app_files")
+      .select("path, content")
+      .eq("project_id", input.projectId)
+      .in("path", paths);
+    for (const row of existingRows ?? []) {
+      if (row.path) prevContent.set(row.path, row.content ?? "");
+    }
   }
 
   const rows = renderable.map((f) => ({
@@ -107,14 +132,18 @@ export async function persistGeneratedBuildFiles(input: {
     .select("path", { count: "exact", head: true })
     .eq("project_id", input.projectId);
 
-  const { data: paths } = await writer
+  const { data: storedPaths } = await writer
     .from("app_files")
     .select("path")
     .eq("project_id", input.projectId)
     .limit(200);
 
   const visibleCount =
-    paths?.filter((p) => p.path && !isHiddenGeneratedPath(p.path)).length ?? count ?? renderable.length;
+    storedPaths?.filter((p) => p.path && !isHiddenGeneratedPath(p.path)).length ??
+    count ??
+    renderable.length;
+
+  const persistOk = visibleCount > 0;
 
   if (process.env.NODE_ENV !== "production") {
     console.info("[persist-generated-files] after upsert", {
@@ -124,8 +153,28 @@ export async function persistGeneratedBuildFiles(input: {
     });
   }
 
+  if (input.workflowEmit && persistOk) {
+    const sorted = [...renderable].sort((a, b) => a.path.localeCompare(b.path));
+    const total = sorted.length;
+    for (let i = 0; i < sorted.length; i++) {
+      const f = sorted[i]!;
+      const prev = prevContent.get(f.path);
+      const lineMeta = computeFileLineMeta(prev, f.content);
+      const isCreate = prev == null || prev.trim().length === 0;
+      const progressPercent = Math.min(88, 72 + Math.round(((i + 1) / total) * 14));
+      await emitFileWriteEvent(input.workflowEmit.writer, input.workflowEmit.ctx, {
+        action: isCreate ? "created" : "updated",
+        filePath: f.path,
+        linesAdded: lineMeta?.added_lines ?? 0,
+        linesRemoved: lineMeta?.removed_lines ?? 0,
+        currentFile: i + 1,
+        totalFiles: total,
+        progressPercent,
+      });
+    }
+  }
+
   const integrity = evaluateSourceIntegrity(renderable);
-  const persistOk = visibleCount > 0;
   const integrityOk = integrity.sourceIntegrityOk;
   return {
     ok: persistOk,

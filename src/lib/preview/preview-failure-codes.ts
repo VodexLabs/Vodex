@@ -9,6 +9,7 @@ export const PREVIEW_FAILURE_CODES = [
   "empty_preview_html",
   "route_not_found",
   "source_integrity_failed",
+  "preview_broken_static_snapshot",
   "unknown_preview_failure",
 ] as const;
 
@@ -34,6 +35,8 @@ const FRIENDLY: Record<PreviewFailureCode, string> = {
   empty_preview_html: "Preview returned empty or unusable HTML.",
   route_not_found: "The preview route could not be found.",
   source_integrity_failed: "Saved files did not pass source integrity checks.",
+  preview_broken_static_snapshot:
+    "Preview HTML was mangled during static rendering — source needs repair.",
   unknown_preview_failure: "Preview could not render for an unknown reason.",
 };
 

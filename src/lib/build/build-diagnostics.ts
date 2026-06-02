@@ -28,6 +28,10 @@ export type BuildDiagnosticsPayload = {
   thin_or_missing_files?: string[];
   package_json_excerpt?: string | null;
   root_page_excerpt?: string | null;
+  dashboard_page_excerpt?: string | null;
+  layout_excerpt?: string | null;
+  preview_diagnostics?: Record<string, unknown> | null;
+  credit_explanation?: string | null;
   repair_attempts?: unknown[];
   credit_events?: unknown[];
   ai_usage_rows?: unknown[];
@@ -85,8 +89,25 @@ export function buildCopyFixPrompt(diag: BuildDiagnosticsPayload): string {
     "```",
     "",
     "## Credit accounting",
+    diag.credit_explanation ?? "(see JSON below)",
+    "",
     "```json",
     JSON.stringify(diag.credit_accounting ?? {}, null, 2),
+    "```",
+    "",
+    "## Preview diagnostics",
+    "```json",
+    JSON.stringify(diag.preview_diagnostics ?? {}, null, 2),
+    "```",
+    "",
+    "## app/dashboard/page.tsx excerpt",
+    "```tsx",
+    diag.dashboard_page_excerpt ?? "(missing)",
+    "```",
+    "",
+    "## app/layout.tsx excerpt",
+    "```tsx",
+    diag.layout_excerpt ?? "(missing)",
     "```",
     "",
     "## AI usage rows",

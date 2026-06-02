@@ -207,18 +207,25 @@ export function AgentWorkflowStream({
   buildStartedAtMs,
   openerText,
   projectId,
+  ownerDiagnostics,
 }: {
   progress: BuildJobPollState | null;
   className?: string;
   buildStartedAtMs?: number;
   openerText?: string;
   projectId?: string;
+  /** When set, parent owns diagnostics modal (single launcher). */
+  ownerDiagnostics?: {
+    open: boolean;
+    onOpen: () => void;
+  };
 }) {
   const reducedMotion = useReducedMotion();
   const email = useAuthStore((s) => s.user?.email);
   const adminDiagnostics = isDreamosOwnerEmail(email);
   const [diagOpen, setDiagOpen] = React.useState(false);
   const [diagPayload, setDiagPayload] = React.useState<BuildDiagnosticsPayload | null>(null);
+  const controlledDiag = Boolean(ownerDiagnostics);
   const [now, setNow] = React.useState(() => Date.now());
 
   React.useEffect(() => {
@@ -234,7 +241,7 @@ export function AgentWorkflowStream({
   );
 
   React.useEffect(() => {
-    if (!failed || !adminDiagnostics || !projectId || !progress?.jobId) return;
+    if (controlledDiag || !failed || !adminDiagnostics || !projectId || !progress?.jobId) return;
     void fetch(
       `/api/projects/${projectId}/build-jobs/${progress.jobId}/diagnostics`,
       { credentials: "include" },
@@ -244,7 +251,7 @@ export function AgentWorkflowStream({
         if (body.ok && body.diagnostics) setDiagPayload(body.diagnostics);
       })
       .catch(() => undefined);
-  }, [failed, adminDiagnostics, projectId, progress?.jobId]);
+  }, [controlledDiag, failed, adminDiagnostics, projectId, progress?.jobId]);
 
   const autoOpenFailure = Boolean(
     failed &&
@@ -259,9 +266,15 @@ export function AgentWorkflowStream({
   );
 
   React.useEffect(() => {
+    if (controlledDiag) {
+      if (adminDiagnostics && autoOpenFailure && ownerDiagnostics) {
+        ownerDiagnostics.onOpen();
+      }
+      return;
+    }
     if (!adminDiagnostics || !autoOpenFailure) return;
     if (diagPayload) setDiagOpen(true);
-  }, [adminDiagnostics, autoOpenFailure, diagPayload]);
+  }, [controlledDiag, adminDiagnostics, autoOpenFailure, diagPayload, ownerDiagnostics]);
 
   if (!progress) return null;
 
@@ -290,7 +303,8 @@ export function AgentWorkflowStream({
   const merged = mergeEphemeralWithServerEvents(ephemeral, serverSequential);
   const grouped = groupFileEvents(merged);
   const timelineRaw = applySingleActiveWorkflowStep(grouped, working).slice(-24);
-  const timeline = useStaggeredWorkflowEvents(timelineRaw, false);
+  const batchPersistStagger = timelineRaw.some((e) => e.metadata?.batch_persist === true);
+  const timeline = useStaggeredWorkflowEvents(timelineRaw, batchPersistStagger);
 
   const active = [...timeline].reverse().find((e) => e.status === "active");
   const completedTimeline = active
@@ -336,7 +350,10 @@ export function AgentWorkflowStream({
           {adminDiagnostics ? (
             <button
               type="button"
-              onClick={() => setDiagOpen(true)}
+              onClick={() => {
+                if (controlledDiag && ownerDiagnostics) ownerDiagnostics.onOpen();
+                else setDiagOpen(true);
+              }}
               className="text-[10px] font-medium text-amber-500 underline"
               data-testid="open-build-diagnostics"
             >
@@ -346,11 +363,13 @@ export function AgentWorkflowStream({
         </div>
       ) : null}
 
-      <BuildDiagnosticsCenter
-        open={diagOpen}
-        onClose={() => setDiagOpen(false)}
-        diagnostics={diagPayload}
-      />
+      {!controlledDiag ? (
+        <BuildDiagnosticsCenter
+          open={diagOpen}
+          onClose={() => setDiagOpen(false)}
+          diagnostics={diagPayload}
+        />
+      ) : null}
     </div>
   );
 }

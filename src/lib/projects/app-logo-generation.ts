@@ -60,12 +60,93 @@ export function buildLogoPrompt(input: {
   }
   return [
     `Premium app icon symbol for ${input.appName} (${purpose}).`,
-    "1024x1024, bold abstract glyph or object — NO text, NO letters, NO words, NO initials.",
+    "1024x1024, bold abstract glyph or object — symbolic mark only, no logotype.",
+    "NO text, NO letters, NO words, NO initials.",
     "Symbol fills 92% of canvas edge-to-edge; full-bleed saturated gradient background.",
     "Circular mask safe: no white corners, no white border, no empty ring, no square matte.",
     "High contrast, app-store quality, minimal, professional, maskable center composition.",
     "Forbidden: typography, watermark, photo border, drop shadow outside circle, tiny centered logo.",
   ].join(" ");
+}
+
+const VISUAL_MASS_MIN_RATIO = 0.55;
+const WHITE_CORNER_LUMA = 235;
+
+/** Scale small glyphs so non-transparent content fills the circular mask. */
+export async function scaleIconVisualMass(buffer: Buffer): Promise<Buffer> {
+  const { data, info } = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { width, height, channels } = info;
+  if (!width || !height || channels < 4) return buffer;
+
+  let minX = width;
+  let minY = height;
+  let maxX = 0;
+  let maxY = 0;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * channels;
+      if ((data[i + 3] ?? 0) > 28) {
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+    }
+  }
+  if (maxX <= minX || maxY <= minY) return buffer;
+
+  const bw = maxX - minX + 1;
+  const bh = maxY - minY + 1;
+  const ratio = (bw * bh) / (width * height);
+  if (ratio >= VISUAL_MASS_MIN_RATIO) return buffer;
+
+  const pad = Math.round(Math.max(bw, bh) * 0.06);
+  const left = Math.max(0, minX - pad);
+  const top = Math.max(0, minY - pad);
+  const w = Math.min(width - left, bw + pad * 2);
+  const h = Math.min(height - top, bh + pad * 2);
+
+  return sharp(buffer)
+    .extract({ left, top, width: w, height: h })
+    .resize(1024, 1024, { fit: "cover", position: "centre" })
+    .flatten({ background: { r: 15, g: 23, b: 42 } })
+    .png()
+    .toBuffer()
+    .catch(() => buffer);
+}
+
+/** Re-flatten when corner pixels are mostly white (square matte artifact). */
+export async function flattenWhiteCornerArtifacts(buffer: Buffer): Promise<Buffer> {
+  const size = 1024;
+  const sample = await sharp(buffer)
+    .resize(size, size, { fit: "cover" })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const { data, info } = sample;
+  const w = info.width ?? size;
+  const h = info.height ?? size;
+  const ch = info.channels ?? 3;
+  const corners = [
+    [0, 0],
+    [w - 1, 0],
+    [0, h - 1],
+    [w - 1, h - 1],
+  ];
+  let whiteCorners = 0;
+  for (const [x, y] of corners) {
+    const i = (y * w + x) * ch;
+    const r = data[i] ?? 0;
+    const g = data[i + 1] ?? 0;
+    const b = data[i + 2] ?? 0;
+    if (r >= WHITE_CORNER_LUMA && g >= WHITE_CORNER_LUMA && b >= WHITE_CORNER_LUMA) whiteCorners += 1;
+  }
+  if (whiteCorners < 3) return buffer;
+  return sharp(buffer)
+    .resize(1024, 1024, { fit: "cover", position: "centre" })
+    .flatten({ background: { r: 15, g: 23, b: 42 } })
+    .png()
+    .toBuffer()
+    .catch(() => buffer);
 }
 
 /** Trim near-white edge pixels and flatten corners before circular mask. */
@@ -179,7 +260,9 @@ async function uploadLogoDerivatives(
 
   const basePath = `${projectId}/${operationId}`;
   const prepped = await normalizeIconBuffer(source);
-  const normalized = await applyCircularMask(prepped).catch(() => prepped);
+  const massed = await scaleIconVisualMass(prepped);
+  const cornerFixed = await flattenWhiteCornerArtifacts(massed);
+  const normalized = await applyCircularMask(cornerFixed).catch(() => cornerFixed);
 
   const png1024 = normalized;
   const png512 = await sharp(source).resize(512, 512, { fit: "cover" }).png().toBuffer();

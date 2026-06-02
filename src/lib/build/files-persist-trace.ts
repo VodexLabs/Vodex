@@ -55,6 +55,7 @@ export async function tracePersistGeneratedFiles(input: {
   files: BuildFile[];
   operationId?: string;
   executionInstanceId?: string;
+  workflowEmit?: import("@/lib/build/persist-generated-files").PersistWorkflowEmitOptions;
 }): Promise<{ trace: FilesPersistTrace; result: import("@/lib/build/persist-generated-files").PersistBuildFilesResult }> {
   const { persistGeneratedBuildFiles } = await import("@/lib/build/persist-generated-files");
 
@@ -84,6 +85,7 @@ export async function tracePersistGeneratedFiles(input: {
     files: input.files,
     operationId: input.operationId,
     executionInstanceId: input.executionInstanceId,
+    workflowEmit: input.workflowEmit,
   });
 
   trace.upsert = {

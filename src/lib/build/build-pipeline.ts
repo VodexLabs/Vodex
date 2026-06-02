@@ -746,6 +746,7 @@ export async function runStagedBuildPipeline(input: {
     rootPageContentOk(allFiles);
 
   if (!scaffoldSufficient) {
+    track(events, "writing", "Generating source files");
     track(events, "writing", "Generating frontend files");
     const fePrompt = smokeBuild
       ? minimalFrontendPrompt(executionPrompt, planJson!, contextSlices, designBrief)

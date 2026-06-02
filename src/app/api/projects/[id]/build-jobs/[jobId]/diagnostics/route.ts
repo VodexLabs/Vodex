@@ -144,6 +144,9 @@ export async function GET(
     ? evaluateSourceIntegrity(files.map((f) => ({ path: f.path, content: f.content ?? "" })))
     : null;
 
+  const jobCreatedAt = job.created_at ? new Date(job.created_at).getTime() : Date.now();
+  const windowStart = new Date(jobCreatedAt - 2 * 60 * 60 * 1000).toISOString();
+
   let aiUsageRows: unknown[] = [];
   if (operationId) {
     const { data: usage } = await reader
@@ -153,13 +156,24 @@ export async function GET(
       .order("created_at", { ascending: false })
       .limit(40);
     aiUsageRows = usage ?? [];
+    if (!aiUsageRows.length) {
+      const { data: prefixUsage } = await reader
+        .from("ai_usage_logs")
+        .select("*")
+        .eq("project_id", projectId)
+        .gte("created_at", windowStart)
+        .order("created_at", { ascending: false })
+        .limit(40);
+      aiUsageRows = prefixUsage ?? [];
+    }
   } else {
     const { data: usage } = await reader
       .from("ai_usage_logs")
       .select("*")
       .eq("project_id", projectId)
+      .gte("created_at", windowStart)
       .order("created_at", { ascending: false })
-      .limit(20);
+      .limit(40);
     aiUsageRows = usage ?? [];
     fieldNotes.operation_id = "operation_id missing on job meta — showing recent project usage rows";
   }
@@ -174,6 +188,57 @@ export async function GET(
       .limit(30);
     if (ce?.length) creditEvents = ce;
   }
+  if (!creditEvents.length) {
+    const { data: ceProj } = await reader
+      .from("credit_events")
+      .select("*")
+      .eq("user_id", job.user_id)
+      .gte("created_at", windowStart)
+      .order("created_at", { ascending: false })
+      .limit(30);
+    if (ceProj?.length) creditEvents = ceProj;
+  }
+
+  const creditReserved =
+    (failed?.metadata?.credits_reserved as number | undefined) ??
+    (meta.credit_reserved as number | undefined) ??
+    null;
+  const creditCharged =
+    (failed?.metadata?.credits_charged as number | undefined) ??
+    (meta.credit_charged as number | undefined) ??
+    null;
+  const creditRefunded =
+    (failed?.metadata?.credits_refunded as number | undefined) ??
+    (meta.credit_refunded as number | undefined) ??
+    null;
+  const iconSkipped = projMeta.icon_generation_mode === "skipped_no_action_credits";
+  const iconDepleted = projMeta.logo_generation_status === "insufficient_credits";
+
+  let creditExplanation = "";
+  if (creditReserved != null) {
+    creditExplanation += `Build credits reserved: ${creditReserved}. `;
+  }
+  if (creditCharged != null) {
+    creditExplanation += `Charged: ${creditCharged}. `;
+  }
+  if (creditRefunded != null && creditRefunded > 0) {
+    creditExplanation += `Refunded: ${creditRefunded}. `;
+  }
+  if (creditCharged === 0 && creditRefunded && creditRefunded > 0) {
+    creditExplanation +=
+      "Net charge is 0 because the build failed or was refunded after reserve — model calls may still appear in AI usage logs. ";
+  }
+  if (iconDepleted || iconSkipped) {
+    creditExplanation +=
+      "Icon generation skipped: Action Credits depleted — deterministic symbolic fallback was used. ";
+  }
+
+  const dashboardPage = files?.find(
+    (f) => f.path === "app/dashboard/page.tsx" || f.path === "src/app/dashboard/page.tsx",
+  );
+  const layoutFile = files?.find(
+    (f) => f.path === "app/layout.tsx" || f.path === "src/app/layout.tsx",
+  );
 
   const modelUsed =
     (typeof meta.primary_model_id === "string" ? meta.primary_model_id : null) ??
@@ -223,25 +288,30 @@ export async function GET(
     thin_or_missing_files: thinFiles,
     package_json_excerpt: pkg?.content?.slice(0, 4000) ?? null,
     root_page_excerpt: root?.content?.slice(0, 4000) ?? null,
+    dashboard_page_excerpt: dashboardPage?.content?.slice(0, 4000) ?? null,
+    layout_excerpt: layoutFile?.content?.slice(0, 2000) ?? null,
+    preview_diagnostics: {
+      preview_renderer_source: projMeta.preview_renderer_source ?? null,
+      preview_primary_file: projMeta.preview_primary_file ?? root?.path ?? null,
+      preview_html_snippet: projMeta.preview_html_snippet ?? null,
+    },
     repair_attempts: Array.isArray(projMeta.repair_attempts) ? projMeta.repair_attempts : [],
     credit_events: creditEvents,
     ai_usage_rows: aiUsageRows,
+    credit_explanation: creditExplanation.trim() || null,
     field_missing_notes: Object.keys(fieldNotes).length ? fieldNotes : undefined,
     credit_accounting: {
-      credit_reserved:
-        (failed?.metadata?.credits_reserved as number | undefined) ??
-        (meta.credit_reserved as number | undefined) ??
-        null,
-      credit_charged:
-        (failed?.metadata?.credits_charged as number | undefined) ??
-        (meta.credit_charged as number | undefined) ??
-        null,
-      credit_refunded:
-        (failed?.metadata?.credits_refunded as number | undefined) ??
-        (meta.credit_refunded as number | undefined) ??
-        null,
-      icon_credit_skipped: projMeta.icon_generation_mode === "skipped_no_action_credits",
-      icon_credit_depleted: projMeta.logo_generation_status === "insufficient_credits",
+      credit_reserved: creditReserved,
+      credit_charged: creditCharged,
+      credit_refunded: creditRefunded,
+      icon_credit_skipped: iconSkipped,
+      icon_credit_depleted: iconDepleted,
+      explain_zero_charge:
+        creditCharged === 0 && (creditRefunded ?? 0) > 0
+          ? "reserved_then_refunded"
+          : creditCharged === 0
+            ? "no_charge_recorded"
+            : null,
     },
     metadata: {
       job_status: job.status,

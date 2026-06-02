@@ -6,6 +6,10 @@ import {
   mapLegacyPreviewErrorCode,
   type PreviewFailureCode,
 } from "@/lib/preview/preview-failure-codes";
+import {
+  detectBrokenPreviewSnapshot,
+  isStaticPreviewHtmlHealthy,
+} from "@/lib/preview/broken-preview-snapshot";
 
 function truncatePreviewSnippet(html: string): string {
   return truncateLargeDiagnosticString(html, 2000);
@@ -15,13 +19,10 @@ export function isStaticPreviewSnapshotHealthy(
   html: string,
   sourceFileCount: number,
 ): boolean {
-  return (
-    html.includes("generated-app-preview-root") &&
-    html.length >= 800 &&
-    !/no renderable content/i.test(html) &&
-    sourceFileCount >= 4
-  );
+  return isStaticPreviewHtmlHealthy(html, sourceFileCount);
 }
+
+export { detectBrokenPreviewSnapshot };
 
 export type PreviewHtmlDiagnostics = {
   htmlLength: number;
@@ -47,15 +48,17 @@ export function analyzePreviewHtml(
     previewHtmlSnippet: truncatePreviewSnippet(html),
   });
 
+  const brokenSnapshot = detectBrokenPreviewSnapshot(html);
   const staticSnapshotHealthy = isStaticPreviewSnapshotHealthy(html, sourceFileCount);
 
   const hasFailure =
-    !staticSnapshotHealthy &&
-    (!integrity.previewRenderable ||
-      !integrity.sourceIntegrityOk ||
-      !hasRootElement ||
-      htmlLength < 400 ||
-      /no renderable content/i.test(html));
+    brokenSnapshot.broken ||
+    (!staticSnapshotHealthy &&
+      (!integrity.previewRenderable ||
+        !integrity.sourceIntegrityOk ||
+        !hasRootElement ||
+        htmlLength < 400 ||
+        /no renderable content/i.test(html)));
 
   let errorCode: PreviewFailureCode | undefined;
   let errorMessage: string | undefined;
@@ -68,18 +71,21 @@ export function analyzePreviewHtml(
       sourceIntegrityOk: integrity.sourceIntegrityOk,
       blockedReason: integrity.blockedReason,
     });
-    errorCode =
-      !hasRootElement || htmlLength < 400 || /no renderable content/i.test(html)
+    errorCode = brokenSnapshot.broken
+      ? "preview_broken_static_snapshot"
+      : !hasRootElement || htmlLength < 400 || /no renderable content/i.test(html)
         ? "empty_preview_html"
         : !integrity.sourceIntegrityOk
           ? mapLegacyPreviewErrorCode("source_integrity_incomplete")
           : classified.code;
-    errorMessage = classified.userMessage;
+    errorMessage = brokenSnapshot.broken
+      ? `Preview HTML contains mangled fragments (${brokenSnapshot.reasons.join(", ")})`
+      : classified.userMessage;
   }
 
   const previewRenderable =
-    (integrity.previewRenderable && !errorCode) ||
-    (staticSnapshotHealthy && !errorCode);
+    !brokenSnapshot.broken &&
+    ((integrity.previewRenderable && !errorCode) || (staticSnapshotHealthy && !errorCode));
 
   return {
     htmlLength,

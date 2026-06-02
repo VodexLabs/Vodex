@@ -2,7 +2,12 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isHiddenGeneratedPath } from "@/lib/build/generated-file-utils";
-import { buildStaticPreviewHtml, type PreviewHtmlOptions } from "@/lib/preview/static-preview-builder";
+import {
+  buildStaticPreviewHtml,
+  buildStaticPreviewHtmlDetailed,
+  type PreviewHtmlOptions,
+  type PreviewRendererSource,
+} from "@/lib/preview/static-preview-builder";
 import { analyzePreviewHtml, type PreviewHtmlDiagnostics } from "@/lib/preview/preview-html-diagnostics";
 import type { Database } from "@/lib/supabase/types";
 
@@ -34,15 +39,34 @@ export async function loadProjectFilesWithContent(
   return files;
 }
 
+export type ProjectPreviewBuildMeta = {
+  preview_renderer_source: PreviewRendererSource;
+  preview_primary_file: string | null;
+};
+
 export function buildProjectPreviewHtml(
   files: Array<{ path: string; content: string }>,
   options?: PreviewHtmlOptions & { archetypeId?: string | null },
 ): string {
-  return buildStaticPreviewHtml(files, {
+  return buildProjectPreviewHtmlDetailed(files, options).html;
+}
+
+export function buildProjectPreviewHtmlDetailed(
+  files: Array<{ path: string; content: string }>,
+  options?: PreviewHtmlOptions & { archetypeId?: string | null },
+): { html: string; meta: ProjectPreviewBuildMeta } {
+  const built = buildStaticPreviewHtmlDetailed(files, {
     projectId: options?.projectId,
     previewSessionId: options?.previewSessionId,
     archetypeId: options?.archetypeId,
   });
+  return {
+    html: built.html,
+    meta: {
+      preview_renderer_source: built.rendererSource,
+      preview_primary_file: built.primaryFile,
+    },
+  };
 }
 
 export async function resolveProjectPreviewHtml(

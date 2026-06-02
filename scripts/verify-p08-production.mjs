@@ -73,7 +73,7 @@ const suites = {
   "owner-diagnostics-center-left-modal": () => {
     const errors = [];
     const fab = read("src/components/create/workspace/admin-diagnostics-fab.tsx");
-    must(fab, "owner-build-diagnostics-launcher", "center-left launcher", errors);
+    must(fab, "owner-diagnostics-launcher", "center-left launcher", errors);
     must(fab, "useDraggablePosition", "draggable launcher", errors);
     if (fab.includes("bottom-4 right-4")) {
       errors.push("admin diagnostics must not use bottom-right FAB");
