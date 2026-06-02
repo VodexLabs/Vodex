@@ -6,8 +6,10 @@ import { isDreamosOwnerEmail } from "@/lib/admin-owner";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { BuildDiagnosticsCenter } from "@/components/create/workspace/build-diagnostics-center";
 import type { BuildDiagnosticsPayload } from "@/lib/build/build-diagnostics";
+import { useDraggablePosition } from "@/lib/ui/use-draggable-position";
+import { cn } from "@/lib/utils";
 
-/** Small reopen control only — primary UX is auto-centered BuildDiagnosticsCenter. */
+/** Owner-only build diagnostics — center-left draggable launcher + centered modal. */
 export function AdminDiagnosticsFab({
   projectId,
   buildJobId,
@@ -27,6 +29,10 @@ export function AdminDiagnosticsFab({
   const allowed = isDreamosOwnerEmail(email);
   const [internalOpen, setInternalOpen] = React.useState(false);
   const [internalDiag, setInternalDiag] = React.useState<BuildDiagnosticsPayload | null>(null);
+  const { pos, style, dragHandlers } = useDraggablePosition("vodex_build_diagnostics_pos", {
+    x: 16,
+    y: typeof window !== "undefined" ? Math.round(window.innerHeight * 0.42) : 320,
+  });
 
   const open = diagnosticsOpen ?? internalOpen;
   const setOpen = onDiagnosticsOpenChange ?? setInternalOpen;
@@ -44,38 +50,48 @@ export function AdminDiagnosticsFab({
 
   if (!allowed) return null;
 
-  if (!open) {
-    return (
-      <>
-        {slowBanner ? (
-          <div
-            className="fixed inset-x-0 top-20 z-[85] mx-auto flex max-w-md items-center justify-center px-4"
-            data-testid="admin-slow-build-banner"
-          >
-            <div className="w-full rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-center text-[11px] text-amber-900 shadow-lg backdrop-blur dark:text-amber-100">
-              {slowBanner}
-            </div>
+  return (
+    <>
+      {slowBanner ? (
+        <div
+          className="fixed inset-x-0 top-20 z-[85] mx-auto flex max-w-md items-center justify-center px-4"
+          data-testid="admin-slow-build-banner"
+        >
+          <div className="w-full rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-center text-[11px] text-amber-900 shadow-lg backdrop-blur dark:text-amber-100">
+            {slowBanner}
           </div>
-        ) : null}
+        </div>
+      ) : null}
+
+      {!open ? (
         <button
           type="button"
           onClick={() => {
             setOpen(true);
             void load();
           }}
-          className="fixed bottom-4 right-4 z-[75] inline-flex items-center gap-2 rounded-full border border-amber-500/40 bg-background/95 px-3 py-2 text-[11px] font-medium text-amber-600 shadow-lg backdrop-blur"
-          data-testid="admin-diagnostics-reopen"
+          className={cn(
+            "fixed z-[85] cursor-grab touch-none rounded-full bg-amber-500 px-3 py-2 text-[11px] font-semibold text-amber-950 shadow-lg ring-2 ring-amber-300/50 active:cursor-grabbing",
+          )}
+          style={style}
+          title="Owner build diagnostics (drag to reposition)"
+          aria-label="Open build diagnostics"
+          data-testid="owner-build-diagnostics-launcher"
+          {...dragHandlers}
         >
-          <Bug className="size-3.5" />
-          Reopen diagnostics
+          <span className="flex items-center gap-1.5 pointer-events-none">
+            <Bug className="size-3.5" strokeWidth={2} />
+            Diagnostics
+          </span>
         </button>
-      </>
-    );
-  }
+      ) : null}
 
-  return (
-    <>
-      <BuildDiagnosticsCenter open={open} onClose={() => setOpen(false)} diagnostics={diag} />
+      <BuildDiagnosticsCenter
+        open={open}
+        onClose={() => setOpen(false)}
+        diagnostics={diag}
+        launcherPos={pos}
+      />
     </>
   );
 }

@@ -29,6 +29,8 @@ export type OpsLogInput = {
   conversationId?: string | null;
   buildJobId?: string | null;
   operationId?: string | null;
+  creditsCharged?: number | null;
+  providerCostUsd?: number | null;
   metadata?: Record<string, unknown>;
 };
 
@@ -71,7 +73,7 @@ export async function logServerOperation(input: OpsLogInput): Promise<void> {
     provider: input.provider ?? null,
     route_reason: input.event,
     tokens_charged: 0,
-    credits_charged: 0,
+    credits_charged: input.creditsCharged ?? 0,
     status: input.status === "ok" ? "logged" : input.status,
     error_message: input.errorMessage ?? null,
     conversation_id: input.conversationId ?? null,
@@ -79,6 +81,7 @@ export async function logServerOperation(input: OpsLogInput): Promise<void> {
     operation_id: input.operationId ?? null,
     metadata: redactMeta({
       stage: input.stage,
+      provider_cost_usd: input.providerCostUsd ?? input.metadata?.provider_cost_usd,
       ...input.metadata,
     }),
   };

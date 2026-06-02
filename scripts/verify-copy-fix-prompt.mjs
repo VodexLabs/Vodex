@@ -16,6 +16,7 @@ function must(rel, needle, label) {
 must("src/lib/clipboard/copy-text.ts", "writeText", "clipboard API");
 must("src/lib/clipboard/copy-text.ts", "execCommand", "textarea fallback");
 must("src/components/create/workspace/build-diagnostics-center.tsx", "copyTextToClipboard", "uses copy helper");
+must("src/components/create/workspace/build-diagnostics-center.tsx", "Copied fix prompt —", "success toast with char count");
 must("src/components/create/workspace/build-diagnostics-center.tsx", "toast.success", "success toast");
 must("src/lib/build/build-diagnostics.ts", "buildCopyFixPrompt", "fix prompt builder");
 

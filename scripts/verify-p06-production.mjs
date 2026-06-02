@@ -67,7 +67,7 @@ const suites = {
     must(read("src/lib/bootstrap/session-preload.ts"), "beginSessionCreditsWarmup", "preload starts credits", errors);
     must(read("src/components/providers/app-chrome-providers.tsx"), "CreditsServerHydrator", "credits hydrator wired", errors);
     must(read("src/components/providers/app-chrome-providers.tsx"), "VodexSessionIntroGate", "intro wired in chrome", errors);
-    must(read("src/components/session/vodex-session-intro.tsx"), "2400", "max intro duration", errors);
+    must(read("src/components/session/vodex-session-intro.tsx"), "2800", "max intro duration", errors);
     return errors;
   },
   "app-idea-pool": () => {
@@ -108,7 +108,7 @@ const suites = {
     must(read("src/components/create/workspace/agent-workflow-stream.tsx"), "shouldAutoOpenOwnerDiagnostics", "stream auto-open", errors);
     must(read("src/components/create/workspace/agent-workflow-stream.tsx"), "setDiagOpen(true)", "opens modal on failure", errors);
     must(read("src/components/create/workspace/build-diagnostics-center.tsx"), "build-diagnostics-modal", "center modal", errors);
-    must(read("src/components/create/workspace/admin-diagnostics-fab.tsx"), "admin-diagnostics-reopen", "reopen FAB only", errors);
+    must(read("src/components/create/workspace/admin-diagnostics-fab.tsx"), "owner-build-diagnostics-launcher", "center-left launcher", errors);
     return errors;
   },
   "missing-root-page-repair": () => {

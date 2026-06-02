@@ -15,11 +15,13 @@ export function BuildDiagnosticsCenter({
   onClose,
   diagnostics,
   className,
+  launcherPos,
 }: {
   open: boolean;
   onClose: () => void;
   diagnostics: BuildDiagnosticsPayload | null;
   className?: string;
+  launcherPos?: { x: number; y: number };
 }) {
   const email = useAuthStore((s) => s.user?.email);
   const allowed = isDreamosOwnerEmail(email);
@@ -31,7 +33,7 @@ export function BuildDiagnosticsCenter({
     const text = buildCopyFixPrompt(diagnostics);
     const result = await copyTextToClipboard(text);
     if (result.ok) {
-      toast.success(`Copied fix prompt (${result.chars.toLocaleString()} chars)`);
+      toast.success(`Copied fix prompt — ${result.chars.toLocaleString()} characters`);
       setFallbackText(null);
       return;
     }
@@ -102,12 +104,29 @@ export function BuildDiagnosticsCenter({
           <Section title="IDs">
             build_job_id: {diagnostics.build_job_id}
             {"\n"}project_id: {diagnostics.project_id}
+            {"\n"}operation_id: {diagnostics.operation_id ?? "—"}
             {"\n"}failure_code: {diagnostics.failure_code ?? "—"}
+            {launcherPos
+              ? `\nlauncher_pos: ${launcherPos.x}, ${launcherPos.y}`
+              : ""}
           </Section>
-          <Section title="Prompt">{diagnostics.user_prompt ?? "—"}</Section>
+          <Section title="Prompt">
+            {diagnostics.user_prompt ??
+              diagnostics.field_missing_notes?.user_prompt ??
+              "—"}
+          </Section>
           <Section title="Mode / model">
-            mode_at_submit: {diagnostics.mode_at_submit ?? "—"}
+            mode_at_submit:{" "}
+            {diagnostics.mode_at_submit ??
+              diagnostics.field_missing_notes?.mode_at_submit ??
+              "—"}
             {"\n"}model: {diagnostics.model_used ?? "—"}
+          </Section>
+          <Section title="Credit accounting">
+            {JSON.stringify(diagnostics.credit_accounting ?? {}, null, 2)}
+          </Section>
+          <Section title="Thin files">
+            {(diagnostics.thin_or_missing_files ?? []).join("\n") || "—"}
           </Section>
           <Section title="Failure">{diagnostics.failure_message ?? "—"}</Section>
           <Section title="Stack">{diagnostics.stack_trace ?? "—"}</Section>

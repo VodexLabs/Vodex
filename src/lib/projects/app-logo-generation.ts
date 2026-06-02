@@ -59,26 +59,28 @@ export function buildLogoPrompt(input: {
     ].join(" ");
   }
   return [
-    `A premium modern circular app icon for ${input.appName}, ${purpose}.`,
-    "1024x1024 square, centered symbol fills 88% of frame with safe padding for circular mask.",
-    "Perfect circle crop safe — no corners cut off, no white border, no empty margin ring.",
-    "Full-bleed vibrant gradient background edge-to-edge; maskable icon composition.",
-    "No text, no letters, no watermark, no square frame, no drop shadow outside circle.",
-    "iOS/Android app store style, high contrast, minimal, professional.",
+    `Premium app icon symbol for ${input.appName} (${purpose}).`,
+    "1024x1024, bold abstract glyph or object — NO text, NO letters, NO words, NO initials.",
+    "Symbol fills 92% of canvas edge-to-edge; full-bleed saturated gradient background.",
+    "Circular mask safe: no white corners, no white border, no empty ring, no square matte.",
+    "High contrast, app-store quality, minimal, professional, maskable center composition.",
+    "Forbidden: typography, watermark, photo border, drop shadow outside circle, tiny centered logo.",
   ].join(" ");
 }
 
 /** Trim near-white edge pixels and flatten corners before circular mask. */
 async function normalizeIconBuffer(buffer: Buffer): Promise<Buffer> {
   const trimmed = await sharp(buffer)
-    .trim({ threshold: 12 })
+    .trim({ threshold: 18 })
     .resize(1024, 1024, { fit: "cover", position: "centre" })
     .flatten({ background: { r: 15, g: 23, b: 42 } })
+    .modulate({ saturation: 1.08 })
     .png()
     .toBuffer()
     .catch(() => buffer);
 
   return sharp(trimmed)
+    .resize(1024, 1024, { fit: "cover", position: "centre" })
     .ensureAlpha()
     .png()
     .toBuffer();

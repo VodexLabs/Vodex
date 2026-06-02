@@ -8,6 +8,7 @@ export type BuildDiagnosticsPayload = {
   app_id?: string | null;
   actor_user_id?: string | null;
   workspace_id?: string | null;
+  operation_id?: string | null;
   user_prompt?: string | null;
   mode_at_submit?: string | null;
   model_used?: string | null;
@@ -24,10 +25,14 @@ export type BuildDiagnosticsPayload = {
   preview_response?: string | null;
   source_integrity_report?: Record<string, unknown> | null;
   generated_files?: string[];
+  thin_or_missing_files?: string[];
   package_json_excerpt?: string | null;
   root_page_excerpt?: string | null;
   repair_attempts?: unknown[];
   credit_events?: unknown[];
+  ai_usage_rows?: unknown[];
+  credit_accounting?: Record<string, unknown> | null;
+  field_missing_notes?: Record<string, string>;
   slow_steps?: SlowStepEvent[];
   metadata?: Record<string, unknown>;
 };
@@ -44,6 +49,7 @@ export function buildCopyFixPrompt(diag: BuildDiagnosticsPayload): string {
     `- mode_at_submit: ${diag.mode_at_submit ?? "unknown"}`,
     `- build_job_id: ${diag.build_job_id}`,
     `- project_id: ${diag.project_id}`,
+    `- operation_id: ${diag.operation_id ?? "n/a"}`,
     `- app_id: ${diag.app_id ?? "n/a"}`,
     `- model: ${diag.model_used ?? "unknown"}`,
     `- billing_target: ${diag.billing_target ?? "unknown"}`,
@@ -69,6 +75,24 @@ export function buildCopyFixPrompt(diag: BuildDiagnosticsPayload): string {
     "",
     "## Generated files",
     (diag.generated_files ?? []).slice(0, 80).join("\n") || "(none)",
+    "",
+    "## Thin or shallow files",
+    (diag.thin_or_missing_files ?? []).join("\n") || "(none flagged)",
+    "",
+    "## Field linkage notes",
+    "```json",
+    JSON.stringify(diag.field_missing_notes ?? {}, null, 2),
+    "```",
+    "",
+    "## Credit accounting",
+    "```json",
+    JSON.stringify(diag.credit_accounting ?? {}, null, 2),
+    "```",
+    "",
+    "## AI usage rows",
+    "```json",
+    JSON.stringify((diag.ai_usage_rows ?? []).slice(0, 20), null, 2),
+    "```",
     "",
     "## Preview diagnostics",
     `- url: ${diag.preview_url ?? "n/a"}`,

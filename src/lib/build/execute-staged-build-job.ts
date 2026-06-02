@@ -1127,25 +1127,26 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
       }
     }
 
-    const doneSummary =
-      pr.meta?.summary?.trim() ||
-      `Done — ${pr.appName} is ready to preview with ${fileGate.fileCount} files.`;
-    await persistAssistantBuildMessage(input.writer, eventCtx, {
-      message: doneSummary.slice(0, 280),
-      progressPercent: 98,
-    });
-
     const previewLive = isStaticPreviewSnapshotHealthy(
       postPreviewHtml,
       workingFiles.length,
     );
+
+    const doneSummary = previewLive
+      ? pr.meta?.summary?.trim() ||
+        `${pr.appName} is ready to preview with ${fileGate.fileCount} files.`
+      : `Draft saved — preview needs repair (${fileGate.fileCount} files persisted).`;
+    await persistAssistantBuildMessage(input.writer, eventCtx, {
+      message: doneSummary.slice(0, 280),
+      progressPercent: 98,
+    });
     await persistBuildJobEvent(input.writer, {
       ...eventCtx,
       type: "completed",
-      title: previewLive ? "First version ready" : "Build saved",
+      title: previewLive ? "First version ready" : "Draft saved",
       detail: previewLive
         ? "Preview is live."
-        : "Files saved — preview needs repair. Use repair or retry preview.",
+        : "Draft saved — preview needs repair. Use repair or retry preview.",
       progressPercent: 100,
       metadata: {
         credits_charged: creditsCharged,

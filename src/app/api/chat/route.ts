@@ -807,7 +807,11 @@ export async function POST(request: Request) {
         error_message: null,
         meta: {
           model_id: modelId,
+          primary_model_id: modelId,
           mode_at_submit: modeAtSubmit,
+          user_prompt: userText,
+          operation_id: opId,
+          conversation_id: conversationId ?? null,
           intent: buildIntent?.intent,
           intent_confidence: buildIntent?.confidence,
           intent_reason: buildIntent?.reason,

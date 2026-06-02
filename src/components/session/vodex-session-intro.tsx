@@ -4,7 +4,8 @@ import * as React from "react";
 import { VodexBrandIcon } from "@/components/brand/vodex-brand-icon";
 import { INTRO_SESSION_KEY } from "@/lib/session/session-intro-decision";
 
-const MAX_MS = 2400;
+const INTRO_MS = 2800;
+const LETTERS = "VODEX".split("");
 
 export function VodexSessionIntro({
   show,
@@ -16,51 +17,76 @@ export function VodexSessionIntro({
   /** Called once when overlay is actually shown — safe place to mark session seen. */
   onVisible?: () => void;
 }) {
-  const [visible, setVisible] = React.useState(show);
+  const [phase, setPhase] = React.useState<"hidden" | "enter" | "hold" | "exit">("hidden");
   const doneRef = React.useRef(false);
   const visibleReported = React.useRef(false);
 
   const finish = React.useCallback(() => {
     if (doneRef.current) return;
     doneRef.current = true;
-    setVisible(false);
+    setPhase("hidden");
     onDone();
   }, [onDone]);
 
   React.useEffect(() => {
     if (!show) {
-      setVisible(false);
+      setPhase("hidden");
       visibleReported.current = false;
       return;
     }
-    setVisible(true);
     doneRef.current = false;
+    setPhase("enter");
     if (!visibleReported.current) {
       visibleReported.current = true;
       onVisible?.();
     }
-    const t = window.setTimeout(finish, MAX_MS);
-    return () => window.clearTimeout(t);
+    const hold = window.setTimeout(() => setPhase("hold"), 80);
+    const exitAt = window.setTimeout(() => setPhase("exit"), INTRO_MS - 520);
+    const doneAt = window.setTimeout(finish, INTRO_MS);
+    return () => {
+      window.clearTimeout(hold);
+      window.clearTimeout(exitAt);
+      window.clearTimeout(doneAt);
+    };
   }, [show, finish, onVisible]);
 
-  if (!visible) return null;
+  if (phase === "hidden") return null;
+
+  const exiting = phase === "exit";
 
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-background"
+      className={`vodex-premium-intro fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-[#05060a] ${exiting ? "vodex-premium-intro--exit" : ""}`}
       data-testid="vodex-session-intro"
       role="status"
       aria-live="polite"
       aria-label="Loading Vodex"
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_40%,color-mix(in_oklab,var(--accent)_22%,transparent),transparent_70%)]" />
-      <div className="relative flex flex-col items-center gap-4 px-6 text-center motion-reduce:animate-none">
-        <div className="relative">
-          <div className="absolute -inset-6 animate-pulse rounded-full bg-accent/20 blur-2xl motion-reduce:animate-none" />
-          <VodexBrandIcon size="xl" alt="" className="relative size-16" />
+      <div className="vodex-premium-intro__bg" aria-hidden />
+      <div className="vodex-premium-intro__aura vodex-premium-intro__aura--a" aria-hidden />
+      <div className="vodex-premium-intro__aura vodex-premium-intro__aura--b" aria-hidden />
+      <div className="vodex-premium-intro__ring vodex-premium-intro__ring--outer" aria-hidden />
+      <div className="vodex-premium-intro__ring vodex-premium-intro__ring--inner" aria-hidden />
+
+      <div className="relative z-10 flex flex-col items-center gap-5 px-6 text-center">
+        <div className="vodex-premium-intro__icon-wrap relative flex size-24 items-center justify-center">
+          <VodexBrandIcon size="xl" alt="" className="vodex-premium-intro__icon relative size-20" />
         </div>
-        <p className="text-lg font-semibold tracking-[0.28em] text-foreground">VODEX</p>
-        <p className="text-[12px] text-muted-foreground">Preparing your workspace</p>
+
+        <div className="flex items-center justify-center gap-[0.35em]" aria-hidden>
+          {LETTERS.map((ch, i) => (
+            <span
+              key={ch + i}
+              className="vodex-premium-intro__letter text-2xl font-semibold tracking-[0.2em] text-white"
+              style={{ animationDelay: `${120 + i * 70}ms` }}
+            >
+              {ch}
+            </span>
+          ))}
+        </div>
+        <p className="vodex-premium-intro__tagline text-[13px] font-medium tracking-wide text-white/70">
+          Preparing your workspace
+        </p>
       </div>
     </div>
   );

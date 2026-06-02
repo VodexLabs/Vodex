@@ -13,6 +13,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { truncateIdentityId } from "@/lib/identity/dreamos-identity";
 import { copyTextToClipboard } from "@/lib/clipboard/copy-text";
 import { toast } from "@/lib/toast";
+import { useDraggablePosition } from "@/lib/ui/use-draggable-position";
 
 function IdentitySummaryStrip() {
   const [summary, setSummary] = React.useState<{
@@ -94,6 +95,10 @@ export function RuntimeDiagnosticsDrawer() {
   const [open, setOpen] = React.useState(false);
   const [entries, setEntries] = React.useState<RuntimeDiagnosticEntry[]>([]);
   const [fallbackText, setFallbackText] = React.useState<string | null>(null);
+  const { style, dragHandlers } = useDraggablePosition("vodex_runtime_diagnostics_pos", {
+    x: 16,
+    y: typeof window !== "undefined" ? Math.round(window.innerHeight * 0.5) - 24 : 360,
+  });
 
   const refresh = React.useCallback(() => {
     setEntries(readRuntimeDiagnostics());
@@ -121,7 +126,7 @@ export function RuntimeDiagnosticsDrawer() {
     const text = JSON.stringify(bundle, null, 2);
     const result = await copyTextToClipboard(text);
     if (result.ok) {
-      toast.success(`Copied ${result.chars.toLocaleString()} characters`);
+      toast.success(`Copied diagnostic bundle — ${result.chars.toLocaleString()} characters`);
       setFallbackText(null);
       return;
     }
@@ -139,10 +144,14 @@ export function RuntimeDiagnosticsDrawer() {
           setOpen(true);
           refresh();
         }}
-        className="fixed left-4 top-1/2 z-[85] -translate-y-1/2 rounded-full bg-amber-500 px-3 py-2 text-[11px] font-semibold text-amber-950 shadow-lg ring-2 ring-amber-300/50"
-        title="Owner diagnostics"
+        className={cn(
+          "fixed z-[85] cursor-grab touch-none rounded-full bg-amber-500 px-3 py-2 text-[11px] font-semibold text-amber-950 shadow-lg ring-2 ring-amber-300/50 active:cursor-grabbing",
+        )}
+        style={style}
+        title="Owner diagnostics (drag to reposition)"
         aria-label="Open diagnostics"
         data-testid="owner-diagnostics-launcher"
+        {...dragHandlers}
       >
         <span className="flex items-center gap-1.5">
           <Bug className="size-3.5" strokeWidth={2} />

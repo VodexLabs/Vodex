@@ -36,6 +36,7 @@ import {
   hasFullScaffoldTree,
   replaceStubFilesWithArchetypeScaffold,
 } from "@/lib/build/archetype-scaffold-fallback";
+import { expandBuildPromptIfShallow } from "@/lib/build/build-feature-expansion";
 import {
   buildDeterministicPlanForArchetype,
   deterministicPlanToJson,
@@ -337,7 +338,24 @@ export async function runStagedBuildPipeline(input: {
   let totalOut = 0;
   let primaryModelId = "gpt-5.4-mini";
 
-  const archetypeEarly = classifyAppArchetype(input.userPrompt);
+  const featureExpansion = expandBuildPromptIfShallow(input.userPrompt);
+  const pipelinePrompt = featureExpansion.executionPrompt;
+  if (featureExpansion.expanded) {
+    dreamosLog({
+      source: "server",
+      category: "build",
+      severity: "info",
+      message: "Expanded shallow build prompt into MVP feature brief",
+      userId: input.userId,
+      buildId: input.buildJobId,
+      metadata: {
+        archetype: featureExpansion.archetypeId,
+        added_features: featureExpansion.addedFeatures.length,
+      },
+    });
+  }
+
+  const archetypeEarly = classifyAppArchetype(pipelinePrompt);
   const knownArchetypeFastPath = hasDeterministicArchetypePlan(archetypeEarly.id);
 
   const tracePersist = async (stage: BuildWorkerTraceStage, detail?: string) => {
@@ -359,7 +377,7 @@ export async function runStagedBuildPipeline(input: {
 
   let intakeResult: HugePromptIntakeResult | null = null;
   if (knownArchetypeFastPath) {
-    intakeResult = buildIntakeFromPrompt(input.userPrompt);
+    intakeResult = buildIntakeFromPrompt(pipelinePrompt);
   } else {
     try {
       const intakeRace = await withTimeout(
@@ -369,7 +387,7 @@ export async function runStagedBuildPipeline(input: {
           userEmail: input.userEmail,
           projectId: input.projectId,
           operationId: input.operationId,
-          rawPrompt: input.userPrompt,
+          rawPrompt: pipelinePrompt,
           userSelectedModelId: input.userSelectedModelId,
         }),
         PROVIDER_TIMEOUT_MS.build_intake ?? 30_000,
@@ -379,10 +397,10 @@ export async function runStagedBuildPipeline(input: {
         intakeResult = intakeRace.value;
         accumulatedCost += intakeResult.intakeProviderCostUsd;
       } else {
-        intakeResult = buildIntakeFromPrompt(input.userPrompt);
+        intakeResult = buildIntakeFromPrompt(pipelinePrompt);
       }
     } catch {
-      intakeResult = buildIntakeFromPrompt(input.userPrompt);
+      intakeResult = buildIntakeFromPrompt(pipelinePrompt);
     }
   }
 
@@ -390,7 +408,7 @@ export async function runStagedBuildPipeline(input: {
     traceBuildWorkerStage(input.buildTrace, "preflight_completed");
   }
 
-  const executionPrompt = resolveHeavyExecutionBrief(input.userPrompt, intakeResult);
+  const executionPrompt = resolveHeavyExecutionBrief(pipelinePrompt, intakeResult);
   const firstPassScope = intakeResult?.firstPassScope;
   const heavyBudget = new HeavyInputBudgetTracker();
 
@@ -1204,7 +1222,9 @@ export async function runStagedBuildPipeline(input: {
     entities: [],
     files: allFiles.map((f) => ({ path: f.path, action: "created" as const })),
     summary: ok
-      ? `Built ${resolvedAppName} with ${allFiles.length} files. Your first version is ready.`
+      ? buildContract.previewReady
+        ? `Built ${resolvedAppName} with ${allFiles.length} files.`
+        : `Draft saved for ${resolvedAppName} — preview needs repair.`
       : summaryText,
     dashboard: undefined,
     publish: undefined,
@@ -1233,7 +1253,30 @@ export async function runStagedBuildPipeline(input: {
   else track(events, "failed", summaryText || "Build needs another pass before preview.");
 
   if (input.buildJobId) {
+    const { data: jobRow } = await input.writer
+      .from("build_jobs")
+      .select("meta, prompt, conversation_id")
+      .eq("id", input.buildJobId)
+      .maybeSingle();
+    const prevJobMeta =
+      jobRow?.meta && typeof jobRow.meta === "object" && !Array.isArray(jobRow.meta)
+        ? (jobRow.meta as Record<string, unknown>)
+        : {};
     const pipelineMeta = {
+      ...prevJobMeta,
+      user_prompt:
+        featureExpansion.originalPrompt ||
+        (typeof prevJobMeta.user_prompt === "string" ? prevJobMeta.user_prompt : null) ||
+        (typeof jobRow?.prompt === "string" ? jobRow.prompt : null) ||
+        input.userPrompt,
+      expanded_prompt: featureExpansion.expanded ? featureExpansion.executionPrompt : undefined,
+      feature_expansion_count: featureExpansion.expanded ? featureExpansion.addedFeatures.length : 0,
+      operation_id: input.operationId,
+      conversation_id: input.conversationId ?? jobRow?.conversation_id ?? prevJobMeta.conversation_id,
+      mode_at_submit:
+        (typeof prevJobMeta.mode_at_submit === "string" ? prevJobMeta.mode_at_submit : null) ??
+        "build",
+      primary_model_id: primaryModelId,
       pipeline: "staged",
       complexity,
       provider_cost_usd: accumulatedCost,

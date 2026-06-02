@@ -325,5 +325,17 @@ export async function reconcileGenerationReservation(
     metadata: { refund: refundAmount },
   } as never).then(() => undefined, () => undefined);
 
+  const { logBuildCreditReconciliation } = await import("@/lib/billing/build-credit-audit-log");
+  await logBuildCreditReconciliation(writer, {
+    userId: input.userId,
+    operationId: input.generationId,
+    projectId: input.projectId,
+    reservedCredits: input.reservedCredits,
+    finalCharged,
+    refunded: refundAmount,
+    providerCostUsd: input.providerCostUsd,
+    success: input.success,
+  }).catch(() => undefined);
+
   return { refunded: refundAmount, finalCharged };
 }

@@ -362,23 +362,24 @@ export async function createAppIdentityForBuild(input: CreateAppIdentityInput): 
       if (!afford.ok || !creditAvail.available) {
         iconGenerationMode = "skipped_no_action_credits";
         logoGenerationStatus = "insufficient_credits";
-        await applyDeterministicFallback(
-          !creditAvail.available
-            ? "Generated a fallback icon because Action Credits were unavailable."
-            : undefined,
-        );
+        const depletedNotice =
+          "App draft saved. Icon generation skipped because Action Credits are depleted.";
+        await applyDeterministicFallback(depletedNotice);
+        userNotice = depletedNotice;
         await logServerOperation({
           writer: input.writer,
           userId: input.userId,
           userEmail: input.userEmail ?? null,
           stage: "build",
-          event: "app_icon_credit_check",
+          event: "skipped_paid_icon_due_to_no_action_credits",
           status: "skipped",
           mode: "build",
           projectId: input.projectId,
           operationId: logoOperationId,
           metadata: {
             icon_generation_mode: "skipped_no_action_credits",
+            icon_credit_skipped: true,
+            icon_credit_depleted: !creditAvail.available,
             credit_avail: creditAvail,
             afford_ok: afford.ok,
           },
