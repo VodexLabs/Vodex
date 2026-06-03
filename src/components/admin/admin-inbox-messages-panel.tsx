@@ -29,8 +29,10 @@ export function AdminInboxMessagesPanel() {
     if (!t) return;
     setTitle(t.title);
     setMessage(t.body);
+    if (t.actionUrl) setActionUrl(t.actionUrl);
     const iconMap: Record<string, MessageDesign["iconPreset"]> = {
-      sparkles: "welcome_sparkle",
+      sparkles: "vodex_welcome",
+      vodex_welcome: "vodex_welcome",
       megaphone: "megaphone",
       rocket: "rocket",
       gift: "gift",
@@ -38,6 +40,7 @@ export function AdminInboxMessagesPanel() {
       wrench: "wrench_status",
       users: "workspace_users",
       plug: "integration_plug",
+      discord: "discord_community",
       bell: "megaphone",
     };
     setDesign({
@@ -78,9 +81,20 @@ export function AdminInboxMessagesPanel() {
           design,
         }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Send failed");
-      toast.success(`Inbox message sent to ${json.recipientCount} user(s)`);
+      const json = (await res.json()) as { error?: string; recipientCount?: number };
+      if (!res.ok) {
+        const count = json.recipientCount ?? 0;
+        if (count === 0 || json.error?.toLowerCase().includes("no matching")) {
+          throw new Error("No matching users found.");
+        }
+        throw new Error(json.error ?? "Send failed");
+      }
+      const count = json.recipientCount ?? 0;
+      if (count === 0) {
+        toast.error("No matching users found.");
+        return;
+      }
+      toast.success(`Inbox message sent to ${count} user(s)`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Send failed");
     } finally {

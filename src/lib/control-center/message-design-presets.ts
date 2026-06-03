@@ -8,9 +8,17 @@ export type BackgroundPresetId =
   | "critical_red_pulse"
   | "success_green_shimmer"
   | "dark_premium"
+  | "animated_aurora_wave"
+  | "animated_blue_plasma"
+  | "animated_glass_sweep"
+  | "animated_violet_shimmer"
+  | "animated_icy_drift"
+  | "animated_radial_glow"
+  | "animated_constellation"
+  | "animated_gradient_shimmer"
+  /** @deprecated legacy ids — mapped in backgroundClass */
   | "animated_stars"
   | "animated_aurora"
-  | "animated_gradient_shimmer"
   | "animated_floating_particles";
 
 export type EffectPresetId =
@@ -22,9 +30,18 @@ export type EffectPresetId =
   | "animated_shine"
   | "status_pulse"
   | "promo_confetti"
-  | "frost_particles";
+  | "frost_particles"
+  | "shimmer_line"
+  | "floating_dots"
+  | "tiny_stars"
+  | "aurora_dust"
+  | "border_shine"
+  | "radial_spotlight"
+  | "success_sparkle"
+  | "warning_pulse";
 
 export type IconPresetId =
+  | "vodex_welcome"
   | "welcome_sparkle"
   | "megaphone"
   | "warning_triangle"
@@ -37,7 +54,10 @@ export type IconPresetId =
   | "wrench_status"
   | "integration_plug"
   | "crown_pro"
-  | "check_success";
+  | "check_success"
+  | "discord_community"
+  | "ai_wand"
+  | "app_window";
 
 export type MessageDesign = {
   backgroundPreset: BackgroundPresetId;
@@ -53,7 +73,7 @@ export type MessageDesign = {
 export const DEFAULT_INBOX_DESIGN: MessageDesign = {
   backgroundPreset: "soft_blue_white",
   effectPreset: "glow_pulse",
-  iconPreset: "welcome_sparkle",
+  iconPreset: "vodex_welcome",
   animatedIconEnabled: true,
   textColor: "#0f172a",
   accentColor: "#2563eb",
@@ -81,38 +101,53 @@ export const BACKGROUND_PRESETS: Array<{ id: BackgroundPresetId; label: string; 
   { id: "critical_red_pulse", label: "Critical red pulse" },
   { id: "success_green_shimmer", label: "Success green shimmer" },
   { id: "dark_premium", label: "Dark premium" },
-  { id: "animated_stars", label: "Animated stars", animated: true },
-  { id: "animated_aurora", label: "Animated aurora", animated: true },
-  { id: "animated_gradient_shimmer", label: "Animated gradient shimmer", animated: true },
-  { id: "animated_floating_particles", label: "Animated floating particles", animated: true },
+  { id: "animated_gradient_shimmer", label: "Gradient shimmer", animated: true },
+  { id: "animated_aurora_wave", label: "Aurora wave", animated: true },
+  { id: "animated_blue_plasma", label: "Soft blue plasma", animated: true },
+  { id: "animated_glass_sweep", label: "Glass light sweep", animated: true },
+  { id: "animated_violet_shimmer", label: "Violet-blue shimmer", animated: true },
+  { id: "animated_icy_drift", label: "Icy particle drift", animated: true },
+  { id: "animated_radial_glow", label: "Radial glow motion", animated: true },
+  { id: "animated_constellation", label: "Soft constellation", animated: true },
 ];
 
 export const EFFECT_PRESETS: Array<{ id: EffectPresetId; label: string }> = [
   { id: "none", label: "None" },
+  { id: "glow_pulse", label: "Soft glow pulse" },
+  { id: "shimmer_line", label: "Shimmer line" },
+  { id: "floating_dots", label: "Floating dots" },
+  { id: "tiny_stars", label: "Tiny stars" },
+  { id: "aurora_dust", label: "Aurora dust" },
+  { id: "border_shine", label: "Border shine" },
+  { id: "radial_spotlight", label: "Radial spotlight" },
+  { id: "success_sparkle", label: "Success sparkle" },
+  { id: "warning_pulse", label: "Warning pulse" },
   { id: "subtle_stars", label: "Subtle stars" },
-  { id: "glow_pulse", label: "Glow pulse" },
   { id: "floating_sparkles", label: "Floating sparkles" },
   { id: "soft_radial_beam", label: "Soft radial beam" },
   { id: "animated_shine", label: "Animated shine" },
   { id: "status_pulse", label: "Status pulse" },
-  { id: "promo_confetti", label: "Promo confetti" },
   { id: "frost_particles", label: "Frost particles" },
 ];
 
 export const ICON_PRESETS: Array<{ id: IconPresetId; label: string; color: string }> = [
-  { id: "welcome_sparkle", label: "Welcome sparkle", color: "#7c3aed" },
-  { id: "megaphone", label: "Megaphone", color: "#2563eb" },
-  { id: "warning_triangle", label: "Warning", color: "#dc2626" },
-  { id: "gift", label: "Gift", color: "#db2777" },
-  { id: "rocket", label: "Rocket", color: "#0ea5e9" },
+  { id: "vodex_welcome", label: "Vodex welcome orb", color: "#6366f1" },
+  { id: "discord_community", label: "Discord / community", color: "#5865F2" },
+  { id: "rocket", label: "Rocket / build", color: "#0ea5e9" },
   { id: "credit_bolt", label: "Credit bolt", color: "#f59e0b" },
-  { id: "shield", label: "Shield", color: "#059669" },
-  { id: "workspace_users", label: "Workspace users", color: "#6366f1" },
-  { id: "template_heart", label: "Template heart", color: "#ec4899" },
+  { id: "crown_pro", label: "Crown / upgrade", color: "#eab308" },
+  { id: "shield", label: "Shield / security", color: "#059669" },
   { id: "wrench_status", label: "Status / wrench", color: "#64748b" },
+  { id: "gift", label: "Gift", color: "#db2777" },
+  { id: "template_heart", label: "Template heart", color: "#ec4899" },
+  { id: "workspace_users", label: "Workspace people", color: "#6366f1" },
+  { id: "check_success", label: "Success check", color: "#22c55e" },
+  { id: "warning_triangle", label: "Warning", color: "#dc2626" },
   { id: "integration_plug", label: "Integration plug", color: "#14b8a6" },
-  { id: "crown_pro", label: "Crown / Pro", color: "#eab308" },
-  { id: "check_success", label: "Check success", color: "#22c55e" },
+  { id: "ai_wand", label: "AI wand", color: "#8b5cf6" },
+  { id: "app_window", label: "App window", color: "#2563eb" },
+  { id: "megaphone", label: "Megaphone", color: "#2563eb" },
+  { id: "welcome_sparkle", label: "Welcome sparkle (legacy)", color: "#7c3aed" },
 ];
 
 export function backgroundClass(id: BackgroundPresetId): string {
@@ -128,10 +163,17 @@ export function backgroundClass(id: BackgroundPresetId): string {
     critical_red_pulse: "bg-gradient-to-r from-red-600 to-rose-500",
     success_green_shimmer: "bg-gradient-to-r from-emerald-500 to-teal-500",
     dark_premium: "bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950",
-    animated_stars: "vodex-bg-animated-stars bg-slate-950",
-    animated_aurora: "vodex-bg-animated-aurora",
     animated_gradient_shimmer: "vodex-bg-animated-shimmer",
-    animated_floating_particles: "vodex-bg-animated-particles bg-slate-950/90",
+    animated_aurora_wave: "vodex-bg-aurora-wave",
+    animated_blue_plasma: "vodex-bg-blue-plasma",
+    animated_glass_sweep: "vodex-bg-glass-sweep",
+    animated_violet_shimmer: "vodex-bg-violet-shimmer",
+    animated_icy_drift: "vodex-bg-icy-drift",
+    animated_radial_glow: "vodex-bg-radial-glow",
+    animated_constellation: "vodex-bg-constellation",
+    animated_stars: "vodex-bg-animated-shimmer",
+    animated_aurora: "vodex-bg-aurora-wave",
+    animated_floating_particles: "vodex-bg-icy-drift",
   };
   return map[id] ?? map.soft_blue_white;
 }
@@ -139,17 +181,30 @@ export function backgroundClass(id: BackgroundPresetId): string {
 export function effectOverlayClass(id: EffectPresetId): string | null {
   const map: Partial<Record<EffectPresetId, string>> = {
     subtle_stars: "vodex-effect-subtle-stars",
+    tiny_stars: "vodex-effect-tiny-stars",
     glow_pulse: "vodex-effect-glow-pulse",
     floating_sparkles: "vodex-effect-floating-sparkles",
+    floating_dots: "vodex-effect-floating-dots",
     soft_radial_beam: "vodex-effect-radial-beam",
+    radial_spotlight: "vodex-effect-radial-spotlight",
     animated_shine: "vodex-effect-shine",
+    shimmer_line: "vodex-effect-shimmer-line",
     status_pulse: "vodex-effect-status-pulse",
+    warning_pulse: "vodex-effect-warning-pulse",
     promo_confetti: "vodex-effect-confetti",
+    success_sparkle: "vodex-effect-success-sparkle",
     frost_particles: "vodex-effect-frost",
+    aurora_dust: "vodex-effect-aurora-dust",
+    border_shine: "vodex-effect-border-shine",
   };
   return map[id] ?? null;
 }
 
 export function isAnimatedBackground(id: BackgroundPresetId): boolean {
   return id.startsWith("animated_");
+}
+
+/** Ensures effect/background layers stack correctly in preview and live UI. */
+export function messageDesignSurfaceClass(effectCls: string | null): string {
+  return ["relative overflow-hidden", effectCls].filter(Boolean).join(" ");
 }

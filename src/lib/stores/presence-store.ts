@@ -6,6 +6,7 @@ type PresenceState = {
   visibleStatus: VisiblePresenceStatus;
   label: string;
   loaded: boolean;
+  setOptimisticActive: () => void;
   setSnapshot: (input: {
     presenceMode: PresenceMode;
     visibleStatus: VisiblePresenceStatus;
@@ -23,6 +24,13 @@ const initial = {
 
 export const usePresenceStore = create<PresenceState>((set) => ({
   ...initial,
+  setOptimisticActive: () =>
+    set({
+      presenceMode: "auto",
+      visibleStatus: "online",
+      label: "Online",
+      loaded: true,
+    }),
   setSnapshot: (input) =>
     set({
       presenceMode: input.presenceMode,

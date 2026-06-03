@@ -14,7 +14,7 @@ import {
   textareaCls,
 } from "@/components/settings/shared";
 import { cn } from "@/lib/utils";
-import { Sun, Moon, ImagePlus, Trash2, AlertTriangle, Loader2, Zap, Sparkles } from "lucide-react";
+import { Sun, Moon, ImagePlus, Trash2, AlertTriangle, Loader2, Zap } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useHydrated } from "@/lib/hooks/use-hydrated";
 import { createClient } from "@/lib/supabase/client";
@@ -33,6 +33,8 @@ import { toast } from "@/lib/toast";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AccountIdentityCard } from "@/components/identity/account-identity-card";
+import { PresenceSettingsSection } from "@/components/settings/presence-settings-section";
+import { yourSpaceContextLabel } from "@/lib/profile/default-workspace-name";
 import { DestructiveActionModal } from "@/components/security/destructive-action-modal";
 
 export default function SettingsGeneralPage() {
@@ -186,7 +188,7 @@ export default function SettingsGeneralPage() {
 
       if (updated) {
         setProfile(updated);
-        toast.success("Dream Space icon saved");
+        toast.success("Space icon saved");
         router.refresh();
         return;
       }
@@ -237,8 +239,8 @@ export default function SettingsGeneralPage() {
         if (payload.profile.workspace_icon_url) {
           setWorkspaceIconUrl(payload.profile.workspace_icon_url);
         }
-        toast.success("Dream Space saved");
-        notifyUserActionComplete("Dream Space saved");
+        toast.success("Your Space saved");
+        notifyUserActionComplete("Your Space saved");
         router.refresh();
       }
     } catch (err) {
@@ -261,15 +263,14 @@ export default function SettingsGeneralPage() {
           <Link href="/auth/login" className="font-semibold underline underline-offset-2">
             Sign in again
           </Link>{" "}
-          to sync your profile and Dream Space.
+          to sync your profile and Your Space.
         </motion.div>
       ) : null}
-      {/* Dream Space — primary identity */}
+      {/* Your Space — primary identity */}
       <div className="overflow-hidden rounded-[var(--radius-xl)] bg-gradient-to-br from-accent/[0.09] via-background to-violet-500/[0.06] p-px shadow-[var(--shadow-card)] ring-1 ring-border/80">
         <div className="rounded-[calc(var(--radius-xl)-1px)] bg-background/95 px-4 py-5 backdrop-blur-sm sm:px-5 sm:py-5">
-          <div className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-accent">
-            <Sparkles className="size-3" strokeWidth={1.75} />
-            Dream Space
+          <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            {yourSpaceContextLabel()}
           </div>
 
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
@@ -362,7 +363,7 @@ export default function SettingsGeneralPage() {
                 <Input
                   value={workspaceName}
                   onChange={(e) => setWorkspaceName(e.target.value)}
-                  placeholder="My Dream Space"
+                  placeholder="My workspace"
                 />
               </label>
 
@@ -430,6 +431,8 @@ export default function SettingsGeneralPage() {
       </div>
 
       {signedIn ? <AccountIdentityCard /> : null}
+
+      {signedIn ? <PresenceSettingsSection /> : null}
 
       {/* Appearance */}
       <SectionCard title="Appearance" description="Customize how Vodex looks and feels.">

@@ -1996,9 +1996,93 @@ body {
   }
 }
 
+/* Settings — thin horizontal tab scroll on mobile */
+.settings-tabs-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.25) transparent;
+}
+
+.settings-tabs-scroll::-webkit-scrollbar {
+  height: 3px;
+}
+
+.settings-tabs-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: hsl(var(--muted-foreground) / 0.28);
+}
+
+.settings-tabs-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Notification inbox — horizontal category tabs */
+.notification-tabs-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.22) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.notification-tabs-scroll::-webkit-scrollbar {
+  height: 3px;
+}
+
+.notification-tabs-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: hsl(var(--muted-foreground) / 0.25);
+}
+
+/* Control Center — premium animated backgrounds */
+.vodex-bg-aurora-wave {
+  background: linear-gradient(125deg, #0ea5e9 0%, #6366f1 35%, #8b5cf6 65%, #22d3ee 100%);
+  background-size: 280% 280%;
+  animation: vodex-aurora-shift 10s ease-in-out infinite;
+}
+
+.vodex-bg-blue-plasma {
+  background: radial-gradient(ellipse 80% 60% at 30% 20%, rgba(56, 189, 248, 0.45), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 80% 70%, rgba(99, 102, 241, 0.35), transparent 50%),
+    linear-gradient(160deg, #e0f2fe, #f0f9ff 45%, #eef2ff);
+  animation: vodex-plasma-drift 12s ease-in-out infinite;
+}
+
+.vodex-bg-glass-sweep {
+  background: linear-gradient(105deg, #f8fafc 0%, #e0f2fe 40%, #ffffff 50%, #e0f2fe 60%, #f1f5f9 100%);
+  background-size: 220% 100%;
+  animation: vodex-glass-sweep 5s ease-in-out infinite;
+}
+
+.vodex-bg-violet-shimmer {
+  background: linear-gradient(120deg, #c4b5fd, #93c5fd, #a5b4fc, #c4b5fd);
+  background-size: 300% 300%;
+  animation: vodex-aurora-shift 7s ease infinite;
+}
+
+.vodex-bg-icy-drift {
+  background: radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.9) 0%, transparent 35%),
+    radial-gradient(circle at 75% 65%, rgba(186, 230, 253, 0.7) 0%, transparent 40%),
+    linear-gradient(180deg, #f0f9ff, #e0f2fe);
+  animation: vodex-icy-drift 14s ease-in-out infinite;
+}
+
+.vodex-bg-radial-glow {
+  background: radial-gradient(circle at 50% 50%, rgba(14, 165, 233, 0.22), transparent 55%),
+    linear-gradient(180deg, #f8fafc, #eff6ff);
+  animation: vodex-radial-glow 6s ease-in-out infinite;
+}
+
+.vodex-bg-constellation {
+  background-color: #0f172a;
+  background-image: radial-gradient(1px 1px at 20% 30%, rgba(255, 255, 255, 0.55), transparent),
+    radial-gradient(1px 1px at 60% 70%, rgba(255, 255, 255, 0.4), transparent),
+    radial-gradient(1.5px 1.5px at 80% 20%, rgba(186, 230, 253, 0.65), transparent);
+  background-size: 120px 120px, 160px 160px, 200px 200px;
+  animation: vodex-constellation 20s linear infinite;
+}
+
 /* Control Center — message design effects */
 .vodex-effect-glow-pulse::after,
-.vodex-effect-status-pulse::after {
+.vodex-effect-status-pulse::after,
+.vodex-effect-warning-pulse::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -2023,6 +2107,80 @@ body {
   background: linear-gradient(120deg, #0ea5e9, #6366f1, #8b5cf6, #0ea5e9);
   background-size: 300% 300%;
   animation: vodex-aurora-shift 8s ease infinite;
+}
+
+.vodex-effect-shimmer-line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.35) 50%,
+    transparent 65%
+  );
+  background-size: 200% 100%;
+  animation: vodex-shimmer 2.8s linear infinite;
+}
+
+.vodex-effect-floating-dots::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.4;
+  background-image: radial-gradient(circle, rgba(56, 189, 248, 0.55) 1px, transparent 1px);
+  background-size: 24px 24px;
+  animation: vodex-icy-drift 8s ease-in-out infinite;
+}
+
+.vodex-effect-tiny-stars::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.45;
+  background-image: radial-gradient(circle at 15% 25%, white 0.8px, transparent 1px),
+    radial-gradient(circle at 70% 55%, white 0.8px, transparent 1px);
+  background-size: 56px 56px, 72px 72px;
+}
+
+.vodex-effect-aurora-dust::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.35;
+  background: radial-gradient(ellipse at 30% 50%, rgba(139, 92, 246, 0.25), transparent 55%);
+  animation: vodex-plasma-drift 6s ease-in-out infinite;
+}
+
+.vodex-effect-border-shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+  animation: vodex-glow-pulse 2.2s ease-in-out infinite;
+}
+
+.vodex-effect-radial-spotlight::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.28), transparent 60%);
+}
+
+.vodex-effect-success-sparkle::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 28px rgba(34, 197, 94, 0.2);
+  animation: vodex-glow-pulse 2s ease-in-out infinite;
 }
 
 .vodex-bg-animated-shimmer {
@@ -2056,11 +2214,44 @@ body {
   50% { transform: translateY(-2px); }
 }
 
+@keyframes vodex-plasma-drift {
+  0%, 100% { background-position: 0% 50%, 100% 50%, 0% 0%; }
+  50% { background-position: 100% 50%, 0% 50%, 0% 0%; }
+}
+
+@keyframes vodex-glass-sweep {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes vodex-icy-drift {
+  0%, 100% { background-position: 0% 0%, 100% 100%, 0% 0%; }
+  50% { background-position: 100% 0%, 0% 100%, 0% 0%; }
+}
+
+@keyframes vodex-radial-glow {
+  0%, 100% { opacity: 0.85; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.02); }
+}
+
+@keyframes vodex-constellation {
+  0% { background-position: 0 0, 0 0, 0 0; }
+  100% { background-position: 120px 60px, -80px 40px, 40px -100px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .vodex-bg-animated-aurora,
   .vodex-bg-animated-shimmer,
+  .vodex-bg-aurora-wave,
+  .vodex-bg-blue-plasma,
+  .vodex-bg-glass-sweep,
+  .vodex-bg-violet-shimmer,
+  .vodex-bg-icy-drift,
+  .vodex-bg-radial-glow,
+  .vodex-bg-constellation,
   .vodex-icon-animated,
-  .vodex-effect-glow-pulse::after {
+  .vodex-effect-glow-pulse::after,
+  .vodex-effect-shimmer-line::after {
     animation: none !important;
   }
 }

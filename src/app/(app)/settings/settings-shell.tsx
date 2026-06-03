@@ -28,8 +28,8 @@ export function SettingsShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="max-w-5xl">
-      <div className="lg:hidden overflow-x-auto -mx-[var(--page-padding-x)] mb-6">
-        <nav className="flex border-b border-border px-[var(--page-padding-x)] min-w-max">
+      <div className="settings-tabs-scroll lg:hidden overflow-x-auto -mx-[var(--page-padding-x)] mb-6">
+        <nav className="flex gap-1 border-b border-border px-[var(--page-padding-x)] min-w-max pb-px">
           {navItems.map(({ label, href }) => {
             const isActive = pathname === href;
             return (
@@ -37,7 +37,7 @@ export function SettingsShell({ children }: { children: React.ReactNode }) {
                 key={href}
                 href={href}
                 className={cn(
-                  "px-3 py-3 text-[13px] font-medium whitespace-nowrap border-b-2 -mb-px transition-colors duration-150",
+                  "px-3.5 py-3 text-[13px] font-medium whitespace-nowrap border-b-2 -mb-px transition-colors duration-150",
                   isActive
                     ? "border-foreground text-foreground"
                     : "border-transparent text-muted-foreground hover:text-foreground",

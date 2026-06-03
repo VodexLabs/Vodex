@@ -30,10 +30,13 @@ export function AdminSystemStatusPanel() {
   const [incidentMessage, setIncidentMessage] = React.useState("");
   const [incidentComponent, setIncidentComponent] = React.useState("ai_builder");
 
-  const load = React.useCallback(async () => {
+  const load = React.useCallback(async (refreshSchema = false) => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/status/overview", { credentials: "include" });
+      const url = refreshSchema
+        ? "/api/admin/status/overview?refresh=1"
+        : "/api/admin/status/overview";
+      const res = await fetch(url, { credentials: "include" });
       const json = await res.json();
       setSchemaReady(Boolean(json.schemaReady));
       setHint(json.hint ?? null);
@@ -124,13 +127,22 @@ export function AdminSystemStatusPanel() {
         <p className="mt-2 text-[12px] leading-relaxed text-amber-950/80">
           {hint ?? STATUS_SCHEMA_INSTALL_HINT}
         </p>
-        <button
-          type="button"
-          className="mt-3 rounded-lg border border-border bg-background px-3 py-1.5 text-[12px]"
-          onClick={() => void load()}
-        >
-          Refresh
-        </button>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="rounded-lg border border-border bg-background px-3 py-1.5 text-[12px]"
+            onClick={() => void load(true)}
+          >
+            Refresh schema check
+          </button>
+          <button
+            type="button"
+            className="rounded-lg border border-border bg-background px-3 py-1.5 text-[12px]"
+            onClick={() => void load(false)}
+          >
+            Retry load
+          </button>
+        </div>
       </div>
     );
   }

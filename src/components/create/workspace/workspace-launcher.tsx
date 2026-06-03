@@ -170,7 +170,7 @@ function WorkspaceDropdown({
       onClick={(e) => e.stopPropagation()}
     >
       <div className="border-b border-border/80 px-3 py-1.5">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Dream Space</p>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">YOUR SPACE</p>
         <p className="truncate text-[12px] font-semibold text-foreground">{workspaceLabel}</p>
       </div>
       <div className="border-b border-border px-3 py-1.5">
@@ -529,7 +529,7 @@ export function WorkspaceLauncher({
                   setWorkspaceMenuOpen((v) => !v);
                 }}
                 className="inline-flex max-w-full items-center gap-1 rounded-lg px-1.5 py-0.5 text-[11.5px] font-medium text-muted-foreground transition hover:bg-surface hover:text-foreground"
-                aria-label="Dream Space workspace menu"
+                aria-label="Your Space workspace menu"
                 aria-expanded={workspaceMenuOpen}
               >
                 <span className="truncate">{workspaceLabel}</span>

@@ -1,3 +1,5 @@
+import { getDiscordInviteUrl } from "@/lib/config/canonical-urls";
+
 export type InboxMessageTemplate = {
   id: string;
   label: string;
@@ -7,6 +9,7 @@ export type InboxMessageTemplate = {
   effectKey: string;
   priority: "low" | "normal" | "high";
   category: string;
+  actionUrl?: string;
 };
 
 export const INBOX_MESSAGE_TEMPLATES: InboxMessageTemplate[] = [
@@ -89,5 +92,16 @@ export const INBOX_MESSAGE_TEMPLATES: InboxMessageTemplate[] = [
     effectKey: "frost",
     priority: "high",
     category: "security",
+  },
+  {
+    id: "discord_launch",
+    label: "Join the Vodex Discord",
+    title: "Join the Vodex Discord",
+    body: "Our official Discord server is live. Meet builders, share launches, get help, and follow product updates.",
+    iconKey: "discord",
+    effectKey: "glow",
+    priority: "normal",
+    category: "main",
+    actionUrl: getDiscordInviteUrl(),
   },
 ];

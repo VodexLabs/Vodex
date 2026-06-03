@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import {
   backgroundClass,
   effectOverlayClass,
+  messageDesignSurfaceClass,
   type MessageDesign,
 } from "@/lib/control-center/message-design-presets";
 import { MessageDesignIcon } from "@/components/control-center/message-design-icon";
@@ -28,9 +29,9 @@ export function InboxNotificationPreview({
       <button
         type="button"
         className={cn(
-          "relative flex w-full max-w-[320px] items-center gap-3 rounded-xl border px-4 py-2.5 text-left shadow-[var(--shadow-xs)]",
+          "flex w-full max-w-[320px] items-center gap-3 rounded-xl border px-4 py-2.5 text-left shadow-[var(--shadow-xs)]",
           backgroundClass(design.backgroundPreset),
-          effectCls,
+          messageDesignSurfaceClass(effectCls),
         )}
         style={{
           borderColor: design.outlineColor || undefined,

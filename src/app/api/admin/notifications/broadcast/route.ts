@@ -4,6 +4,8 @@ import { createServiceRoleClient } from "@/lib/supabase/admin";
 
 type TargetPlan = "all" | "free" | "starter" | "pro" | "infinity";
 
+const INSERT_CHUNK = 400;
+
 function planMatches(planId: string | null | undefined, target: TargetPlan): boolean {
   if (target === "all") return true;
   const p = (planId ?? "free").toLowerCase();
@@ -12,6 +14,35 @@ function planMatches(planId: string | null | undefined, target: TargetPlan): boo
   if (target === "pro") return p === "pro";
   if (target === "infinity") return p.startsWith("infinity") || p === "enterprise";
   return true;
+}
+
+async function resolveUserByEmail(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  email: string,
+): Promise<{ id: string; plan_id?: string } | null> {
+  const normalized = email.trim().toLowerCase();
+  const { data: profile } = await db
+    .from("profiles")
+    .select("id, plan_id")
+    .eq("email", normalized)
+    .maybeSingle();
+  if (profile?.id) return profile;
+
+  const getByEmail = db.auth?.admin?.getUserByEmail;
+  if (typeof getByEmail === "function") {
+    const { data: authUser, error: authErr } = await getByEmail.call(db.auth.admin, normalized);
+    if (!authErr && authUser?.user?.id) {
+      const { data: byId } = await db
+        .from("profiles")
+        .select("id, plan_id")
+        .eq("id", authUser.user.id)
+        .maybeSingle();
+      return byId?.id ? byId : { id: authUser.user.id, plan_id: "free" };
+    }
+  }
+
+  return null;
 }
 
 export async function POST(request: Request) {
@@ -58,17 +89,22 @@ export async function POST(request: Request) {
   let profiles: Array<{ id: string; plan_id?: string }> = [];
 
   if (body.targetEmail?.trim()) {
-    const { data: profile } = await db
-      .from("profiles")
-      .select("id, plan_id")
-      .eq("email", body.targetEmail.trim().toLowerCase())
-      .maybeSingle();
+    const profile = await resolveUserByEmail(db, body.targetEmail);
     if (!profile?.id) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "No matching users found.", recipientCount: 0 },
+        { status: 404 },
+      );
     }
     profiles = [profile];
   } else {
-    const { data: rows } = await db.from("profiles").select("id, plan_id").limit(10000);
+    const { data: rows, error: profilesErr } = await db
+      .from("profiles")
+      .select("id, plan_id")
+      .limit(10000);
+    if (profilesErr) {
+      return NextResponse.json({ error: profilesErr.message }, { status: 500 });
+    }
     const targetPlan = (body.targetPlan ?? "all") as TargetPlan;
     profiles = (rows ?? []).filter((p: { id: string; plan_id?: string }) =>
       planMatches(p.plan_id, targetPlan),
@@ -77,11 +113,13 @@ export async function POST(request: Request) {
 
   const userIds = profiles.map((p) => p.id);
   if (userIds.length === 0) {
-    return NextResponse.json({ error: "No recipients" }, { status: 400 });
+    return NextResponse.json(
+      { error: "No matching users found.", recipientCount: 0 },
+      { status: 400 },
+    );
   }
 
-  const rows = userIds.map((userId: string) => ({
-    user_id: userId,
+  const rowTemplate = {
     type: body.category === "credit" ? "credit" : "system",
     title,
     body: message,
@@ -92,22 +130,31 @@ export async function POST(request: Request) {
       play_sound: body.playSound !== false,
       premium: true,
       template_id: body.templateId ?? "custom",
-      icon_key: body.design?.iconPreset ?? body.iconKey ?? "bell",
-      effect_key: body.design?.effectPreset ?? body.effectKey ?? "glow",
+      icon_key: body.design?.iconPreset ?? body.iconKey ?? "megaphone",
+      effect_key: body.design?.effectPreset ?? body.effectKey ?? "glow_pulse",
       background_preset: body.design?.backgroundPreset,
       text_color: body.design?.textColor,
       accent_color: body.design?.accentColor,
       outline_color: body.design?.outlineColor,
       animated_icon: body.design?.animatedIconEnabled,
     },
-  }));
+  };
 
-  const { error } = await db.from("notifications").insert(rows);
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  let inserted = 0;
+  for (let i = 0; i < userIds.length; i += INSERT_CHUNK) {
+    const chunkIds = userIds.slice(i, i + INSERT_CHUNK);
+    const rows = chunkIds.map((userId: string) => ({
+      user_id: userId,
+      ...rowTemplate,
+    }));
+    const { error } = await db.from("notifications").insert(rows);
+    if (error) {
+      return NextResponse.json({ error: error.message, recipientCount: inserted }, { status: 500 });
+    }
+    inserted += rows.length;
   }
 
-  await db.from("admin_broadcasts").insert({
+  const { error: auditErr } = await db.from("admin_broadcasts").insert({
     title,
     body: message,
     category: body.category ?? "system",
@@ -128,9 +175,13 @@ export async function POST(request: Request) {
     text_color: body.design?.textColor ?? null,
     accent_color: body.design?.accentColor ?? null,
     outline_color: body.design?.outlineColor ?? null,
-    recipient_count: rows.length,
+    recipient_count: inserted,
     created_by: owner.user.id,
   });
 
-  return NextResponse.json({ ok: true, recipientCount: rows.length });
+  if (auditErr) {
+    console.warn("[broadcast] notifications delivered but audit log failed:", auditErr.message);
+  }
+
+  return NextResponse.json({ ok: true, recipientCount: inserted });
 }

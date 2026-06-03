@@ -23,6 +23,15 @@ import {
   type NotificationInboxTab,
 } from "@/lib/notifications/notification-kinds";
 import Link from "next/link";
+import {
+  backgroundClass,
+  effectOverlayClass,
+  messageDesignSurfaceClass,
+  type BackgroundPresetId,
+  type EffectPresetId,
+  type IconPresetId,
+} from "@/lib/control-center/message-design-presets";
+import { MessageDesignIcon } from "@/components/control-center/message-design-icon";
 
 const NOTIF_META: Record<string, { icon: React.ElementType; color: string; bg: string }> = {
   deploy: { icon: Rocket, color: "text-emerald-600", bg: "bg-emerald-500/10" },
@@ -76,6 +85,22 @@ export function NotificationPanel({ anchorRef, open, onClose }: NotificationPane
     [notifications, activeTab],
   );
   const panelRef = React.useRef<HTMLDivElement>(null);
+  const tabsRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const el = tabsRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth) return;
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [open]);
 
   React.useEffect(() => {
     setMounted(true);
@@ -186,7 +211,8 @@ export function NotificationPanel({ anchorRef, open, onClose }: NotificationPane
                 </div>
 
                 <div
-                  className="flex gap-1 overflow-x-auto border-b border-border px-2 py-2 scrollbar-none"
+                  ref={tabsRef}
+                  className="notification-tabs-scroll flex gap-1.5 overflow-x-auto border-b border-border px-2 py-2"
                   data-testid="notification-inbox-tabs"
                 >
                   {INBOX_TABS.map((t) => (
@@ -223,12 +249,25 @@ export function NotificationPanel({ anchorRef, open, onClose }: NotificationPane
                           kind === "welcome" ||
                           (typeof n.title === "string" && n.title.startsWith("Welcome to Vodex"));
                         const isPremium = Boolean(md?.premium) || isWelcome;
-                        const effectKey =
-                          typeof md?.effect_key === "string"
-                            ? md.effect_key
+                        const bgPreset =
+                          typeof md?.background_preset === "string"
+                            ? (md.background_preset as BackgroundPresetId)
                             : isWelcome
-                              ? "stars"
-                              : "glow";
+                              ? "soft_blue_white"
+                              : null;
+                        const effectPreset =
+                          typeof md?.effect_key === "string"
+                            ? (md.effect_key as EffectPresetId)
+                            : isWelcome
+                              ? "glow_pulse"
+                              : null;
+                        const iconPreset =
+                          typeof md?.icon_key === "string"
+                            ? (md.icon_key as IconPresetId)
+                            : isWelcome
+                              ? "vodex_welcome"
+                              : null;
+                        const effectCls = effectPreset ? effectOverlayClass(effectPreset) : null;
                         return (
                           <button
                             key={n.id}
@@ -236,39 +275,35 @@ export function NotificationPanel({ anchorRef, open, onClose }: NotificationPane
                             onClick={() => markRead(n.id)}
                             className={cn(
                               "flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-surface/60",
-                              !n.read && "bg-accent/3",
+                              !n.read && !isPremium && "bg-accent/3",
                               isPremium &&
-                                "relative overflow-hidden rounded-xl border border-sky-200/60 bg-gradient-to-br from-sky-50 via-indigo-50/80 to-violet-100/70 dark:from-slate-900/80 dark:via-indigo-950/40 dark:to-violet-950/30",
-                              effectKey === "frost" &&
-                                isPremium &&
-                                "border-cyan-200/60 from-cyan-50/90 via-sky-50/70 to-blue-50/80",
+                                cn(
+                                  "mx-2 my-1 rounded-xl border border-sky-200/60 shadow-sm",
+                                  bgPreset
+                                    ? messageDesignSurfaceClass(effectCls)
+                                    : "relative overflow-hidden",
+                                  bgPreset
+                                    ? backgroundClass(bgPreset)
+                                    : "bg-gradient-to-br from-sky-50 via-indigo-50/80 to-violet-100/70 dark:from-slate-900/80 dark:via-indigo-950/40 dark:to-violet-950/30",
+                                ),
                             )}
                           >
-                            {isPremium && (effectKey === "stars" || isWelcome) ? (
-                              <div
-                                className="pointer-events-none absolute inset-0 opacity-40"
-                                aria-hidden
-                                style={{
-                                  backgroundImage:
-                                    "radial-gradient(circle at 20% 30%, white 1px, transparent 1px), radial-gradient(circle at 70% 60%, white 1px, transparent 1px)",
-                                  backgroundSize: "48px 48px, 64px 64px",
-                                }}
+                            {isPremium && iconPreset ? (
+                              <MessageDesignIcon
+                                preset={iconPreset}
+                                animated={Boolean(md?.animated_icon ?? isWelcome)}
+                                size="sm"
                               />
-                            ) : null}
-                            <div
-                              className={cn(
-                                "relative mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-xl",
-                                isWelcome
-                                  ? "bg-gradient-to-br from-sky-500 to-violet-600 text-white shadow-md"
-                                  : meta.bg,
-                              )}
-                            >
-                              {isWelcome ? (
-                                <span className="text-[11px] font-bold">V</span>
-                              ) : (
+                            ) : (
+                              <div
+                                className={cn(
+                                  "relative mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-xl",
+                                  meta.bg,
+                                )}
+                              >
                                 <Icon className={cn("size-4", meta.color)} strokeWidth={1.65} />
-                              )}
-                            </div>
+                              </div>
+                            )}
                             <div className="min-w-0 flex-1">
                               <p
                                 className={cn(

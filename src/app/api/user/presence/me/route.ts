@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
-import { getOwnPresenceSnapshot } from "@/lib/presence/user-presence";
+import {
+  getOwnPresenceSnapshot,
+  normalizePresenceMode,
+  upsertPresenceHeartbeat,
+} from "@/lib/presence/user-presence";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +19,11 @@ export async function GET() {
   const admin = createServiceRoleClient();
   if (!admin) return NextResponse.json({ error: "Server misconfiguration" }, { status: 503 });
 
-  const snapshot = await getOwnPresenceSnapshot(admin, user.id);
+  let snapshot = await getOwnPresenceSnapshot(admin, user.id);
+  const mode = normalizePresenceMode(snapshot.presenceMode);
+  if (mode === "auto" || mode === "online") {
+    await upsertPresenceHeartbeat(admin, user.id);
+    snapshot = await getOwnPresenceSnapshot(admin, user.id);
+  }
   return NextResponse.json(snapshot);
 }

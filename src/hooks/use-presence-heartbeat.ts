@@ -5,7 +5,7 @@ import { usePresenceStore } from "@/lib/stores/presence-store";
 import type { PresenceMode, VisiblePresenceStatus } from "@/lib/presence/user-presence";
 
 const HEARTBEAT_MS = 50_000;
-const MIN_GAP_MS = 8_000;
+const MIN_GAP_MS = 4_000;
 
 type MeResponse = {
   presenceMode: PresenceMode;
@@ -44,6 +44,7 @@ async function postHeartbeat(): Promise<boolean> {
 
 /**
  * Keeps the signed-in user's presence fresh while the tab is visible.
+ * Sends an immediate heartbeat on bootstrap, focus, and visibility restore.
  */
 export function usePresenceHeartbeat(enabled: boolean) {
   const lastBeatRef = React.useRef(0);
@@ -51,7 +52,7 @@ export function usePresenceHeartbeat(enabled: boolean) {
 
   const beat = React.useCallback(async (force = false) => {
     if (!enabled) return;
-    if (typeof document !== "undefined" && document.hidden) return;
+    if (!force && typeof document !== "undefined" && document.hidden) return;
     const now = Date.now();
     if (!force && now - lastBeatRef.current < MIN_GAP_MS) return;
     lastBeatRef.current = now;
@@ -64,7 +65,11 @@ export function usePresenceHeartbeat(enabled: boolean) {
       return;
     }
 
+    usePresenceStore.getState().setOptimisticActive();
+
     let cancelled = false;
+
+    void postHeartbeat();
 
     void (async () => {
       const me = await fetchMe();
@@ -80,8 +85,13 @@ export function usePresenceHeartbeat(enabled: boolean) {
       void beat(true);
     };
 
+    const onPageShow = () => {
+      void beat(true);
+    };
+
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("focus", onFocus);
+    window.addEventListener("pageshow", onPageShow);
 
     timerRef.current = window.setInterval(() => {
       void beat(false);
@@ -91,6 +101,7 @@ export function usePresenceHeartbeat(enabled: boolean) {
       cancelled = true;
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener("pageshow", onPageShow);
       if (timerRef.current != null) window.clearInterval(timerRef.current);
     };
   }, [enabled, beat]);

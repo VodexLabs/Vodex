@@ -4,11 +4,12 @@ import { createServiceRoleClient } from "@/lib/supabase/admin";
 import { STATUS_SCHEMA_INSTALL_HINT, isStatusSchemaMissingError } from "@/lib/status/status-db";
 import { checkStatusSchemaReady, fetchPublicStatusPayload } from "@/lib/status/status-public";
 
-export async function GET() {
+export async function GET(request: Request) {
   const owner = await requireDreamosOwner();
   if (owner.error) return owner.error;
 
-  const schemaReady = await checkStatusSchemaReady();
+  const bustCache = new URL(request.url).searchParams.get("refresh") === "1";
+  const schemaReady = await checkStatusSchemaReady({ bustCache });
   if (!schemaReady) {
     return NextResponse.json({
       schemaReady: false,
@@ -49,6 +50,18 @@ export async function GET() {
       .limit(30);
     if (!fallback.error) {
       announcements = fallback.data;
+      error = null;
+    }
+  }
+
+  if (error && isStatusSchemaMissingError(error)) {
+    const minimal = await db
+      .from("platform_announcements")
+      .select("id,title,message,severity,is_active,priority,created_at")
+      .order("created_at", { ascending: false })
+      .limit(30);
+    if (!minimal.error) {
+      announcements = minimal.data;
       error = null;
     }
   }

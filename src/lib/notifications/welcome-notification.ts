@@ -34,8 +34,8 @@ export async function ensureWelcomeNotification(
       kind: "welcome",
       premium: true,
       free_credits: true,
-      icon_key: "sparkles",
-      effect_key: "stars",
+      icon_key: "vodex_welcome",
+      effect_key: "glow_pulse",
       play_sound: true,
     },
   } as never);

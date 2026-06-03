@@ -19,7 +19,7 @@ import { PlanBadge } from "@/components/billing/plan-badge";
 import { normalizePlanId } from "@/lib/billing/plans";
 import { isHighestPaidPlan, nextUpgradePlanId } from "@/lib/billing/upgrade-policy";
 import { resolveEffectivePlanId } from "@/lib/billing/resolve-effective-plan-id";
-import { resolveDreamSpaceLabel } from "@/lib/dream-space";
+import { yourSpaceContextLabel } from "@/lib/profile/default-workspace-name";
 import { resolveDisplayName } from "@/lib/profile-display";
 import { cn } from "@/lib/utils";
 import { useHydrated } from "@/lib/hooks/use-hydrated";
@@ -92,8 +92,9 @@ export function UserMenu() {
     storePlanId: planId,
     isCreditsConfirmed: isConfirmed,
   });
-  const dreamLabel = resolveDreamSpaceLabel(safeProfile, hydrated ? user : null);
+  const spaceLabel = yourSpaceContextLabel();
   const displayName = resolveDisplayName(safeProfile, hydrated ? user : null);
+  const avatarName = displayName || spaceLabel;
   const atHighestPlan = isHighestPaidPlan(effectivePlanId);
   const nextPlan = nextUpgradePlanId(effectivePlanId);
   const upgradeHref = "/pricing";
@@ -139,11 +140,13 @@ export function UserMenu() {
         data-testid="mobile-profile-menu-trigger"
       >
         <div className="hidden max-w-[200px] min-w-0 items-center gap-2 text-right leading-tight sm:flex">
-          <p className="truncate text-[12px] font-medium tracking-[-0.01em]">{dreamLabel}</p>
+          <p className="truncate text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            {spaceLabel}
+          </p>
           {hydrated ? <PlanBadge planId={effectivePlanId} size="xs" className="shrink-0" /> : null}
         </div>
         <PresenceAvatar
-          name={displayName || dreamLabel}
+          name={avatarName}
           src={safeProfile?.avatar_url}
           size="md"
           className="ring-2 ring-accent/20"
@@ -165,7 +168,7 @@ export function UserMenu() {
             <div className="shrink-0 border-b border-border/60 bg-gradient-to-br from-accent/[0.06] via-background to-background px-4 py-3">
               <div className="flex items-start gap-3">
                 <PresenceAvatar
-                  name={displayName || dreamLabel}
+                  name={avatarName}
                   src={safeProfile?.avatar_url}
                   size="lg"
                   status={presenceLoaded ? visibleStatus : null}
@@ -173,7 +176,8 @@ export function UserMenu() {
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <p className="truncate text-[13.5px] font-semibold tracking-[-0.02em]">{dreamLabel}</p>
+                    <p className="truncate text-[13.5px] font-semibold tracking-[-0.02em]">{displayName || spaceLabel}</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{spaceLabel}</p>
                     {hydrated ? <PlanBadge planId={effectivePlanId} size="xs" className="shrink-0" /> : null}
                   </div>
                   {(safeProfile?.email || user?.email) && (

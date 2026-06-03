@@ -848,6 +848,8 @@
     "verify:p2-production": "node scripts/verify-p2-production.mjs",
     "verify:control-center-notifications": "node scripts/verify-control-center-notifications.mjs",
     "verify:user-presence": "node scripts/verify-user-presence.mjs",
+    "verify:notification-delivery": "node scripts/verify-notification-delivery.mjs",
+    "verify:welcome-notification": "node scripts/verify-welcome-notification.mjs",
     "verify:mobile-notifications": "node scripts/verify-mobile-notifications.mjs",
     "verify:signup-consent": "node scripts/verify-signup-consent.mjs",
     "verify:sound-preferences": "node scripts/verify-sound-preferences.mjs",

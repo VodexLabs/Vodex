@@ -9,9 +9,14 @@ export function defaultWorkspaceNameFromEmail(email: string | null | undefined):
   return prefix.charAt(0).toUpperCase() + prefix.slice(1);
 }
 
-/** Suffix label when UI needs to clarify this is a Dream Space (not part of the user name). */
+/** Primary shell label for the user's workspace identity. */
+export function yourSpaceContextLabel(): string {
+  return "YOUR SPACE";
+}
+
+/** @deprecated use yourSpaceContextLabel */
 export function dreamSpaceContextLabel(): string {
-  return "Dream Space";
+  return yourSpaceContextLabel();
 }
 
 export function isGenericWorkspaceName(name: string | null | undefined): boolean {
@@ -21,6 +26,7 @@ export function isGenericWorkspaceName(name: string | null | undefined): boolean
     n === "my workspace" ||
     n === "workspace" ||
     n === "dream space" ||
+    n === "your space" ||
     n.endsWith("'s workspace") ||
     n.endsWith(" workspace")
   );

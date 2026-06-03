@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Primary shell identity: the user’s workspace profile (name + icon on `profiles`),
- * combined account + workspace concept — labeled “Dream Space” in the product.
+ * combined account + workspace concept — labeled “Your Space” in the product shell.
  */
 export function resolveDreamSpaceLabel(
   profile: Profile | null | undefined,
@@ -23,7 +23,7 @@ export function dreamSpaceInitials(label: string): string {
   const trimmed = label.trim();
   if (!trimmed) return "?";
 
-  const possessive = /^(.+?)'s\s+Dream Space$/iu.exec(trimmed);
+  const possessive = /^(.+?)'s\s+(?:Dream Space|Your Space)$/iu.exec(trimmed);
   if (possessive) {
     const raw = possessive[1]!;
     const alnum = raw.replace(/[^\p{L}\p{N}]/gu, "");

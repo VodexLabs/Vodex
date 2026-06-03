@@ -53,6 +53,10 @@ mustNot(hb, "userId", "no client user id", errors);
 const hook = read("src/hooks/use-presence-heartbeat.ts");
 must(hook, "document.hidden", "pause hidden tab", errors);
 must(hook, "visibilitychange", "visibility handler", errors);
+must(hook, "pageshow", "pageshow handler", errors);
+must(hook, "setOptimisticActive", "optimistic online on bootstrap", errors);
+must(read("src/app/(app)/settings/page.tsx"), "PresenceSettingsSection", "status on general settings", errors);
+must(read("src/components/layout/user-menu.tsx"), "yourSpaceContextLabel", "your space shell label", errors);
 
 must(read("src/components/layout/user-menu.tsx"), "PresenceAvatar", "top bar presence", errors);
 must(read("src/components/providers/app-provider.tsx"), "usePresenceHeartbeat", "heartbeat wired", errors);

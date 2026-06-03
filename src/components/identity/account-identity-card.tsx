@@ -118,7 +118,7 @@ export function AccountIdentityCard() {
           </div>
           <p className="flex items-start gap-2 text-[11px] text-muted-foreground">
             <Shield className="mt-0.5 size-3 shrink-0 text-accent/70" strokeWidth={1.75} />
-            Account ID is your login identity. Workspace ID is your Dream Space container for apps, team, and
+            Account ID is your login identity. Workspace ID is your space container for apps, team, and
             billing. API keys authenticate against your workspace — project GitHub/Supabase links are configured
             per app in the builder.
           </p>

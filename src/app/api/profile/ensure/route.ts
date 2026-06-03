@@ -14,6 +14,7 @@ import {
   loadUserProfileCore,
   PROFILE_REQUIRED_SELECT,
 } from "@/lib/supabase/load-user-profile";
+import { ensureWelcomeNotification } from "@/lib/notifications/welcome-notification";
 
 /**
  * Ensures a `public.profiles` row exists for the signed-in user (service role).
@@ -72,6 +73,22 @@ export async function POST() {
     }
 
     const { profile: core, schemaDegraded } = await loadUserProfileCore(admin, user.id);
+
+    try {
+      const { data: nameRow } = await admin
+        .from("profiles")
+        .select("display_name, full_name")
+        .eq("id", user.id)
+        .maybeSingle();
+      await ensureWelcomeNotification(
+        admin,
+        user.id,
+        nameRow?.display_name ?? nameRow?.full_name ?? null,
+      );
+    } catch {
+      /* welcome is best-effort */
+    }
+
     if (!core) {
       const { data, error } = await admin
         .from("profiles")
