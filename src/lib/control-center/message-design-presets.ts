@@ -100,7 +100,6 @@ export const BACKGROUND_PRESETS: Array<{ id: BackgroundPresetId; label: string; 
   { id: "sunset_promo", label: "Sunset promo" },
   { id: "critical_red_pulse", label: "Critical red pulse" },
   { id: "success_green_shimmer", label: "Success green shimmer" },
-  { id: "dark_premium", label: "Dark premium" },
   { id: "animated_gradient_shimmer", label: "Gradient shimmer", animated: true },
   { id: "animated_aurora_wave", label: "Aurora wave", animated: true },
   { id: "animated_blue_plasma", label: "Soft blue plasma", animated: true },

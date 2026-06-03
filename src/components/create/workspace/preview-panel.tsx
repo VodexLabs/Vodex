@@ -21,9 +21,9 @@ import { PreviewEditOverlay } from "@/components/preview/preview-edit-overlay";
 type Viewport = "desktop" | "tablet" | "mobile";
 
 const VIEWPORT_CONFIG: Record<Viewport, { width: string; label: string; icon: React.ElementType }> = {
-  desktop: { width: "w-full max-w-[1280px]", label: "Desktop", icon: Monitor },
-  tablet: { width: "w-[768px] max-w-full", label: "Tablet", icon: Tablet },
-  mobile: { width: "w-[390px] max-w-full", label: "Mobile", icon: Smartphone },
+  desktop: { width: "w-full max-w-[1440px]", label: "Desktop (1440)", icon: Monitor },
+  tablet: { width: "w-[768px] max-w-full", label: "Tablet (768)", icon: Tablet },
+  mobile: { width: "w-[390px] max-w-full", label: "Phone (390)", icon: Smartphone },
 };
 
 export interface PreviewPanelProps {
@@ -236,7 +236,7 @@ export function PreviewPanel({
                 transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                 className={cn(
                   "relative flex max-h-full flex-col overflow-hidden rounded-[var(--radius-lg)] bg-white shadow-[0_8px_32px_-8px_rgba(0,0,0,0.18)] ring-1 ring-border",
-                  viewport === "desktop" && "h-full min-h-[480px] w-full max-w-[1280px]",
+                  viewport === "desktop" && "h-full min-h-[480px] w-full max-w-[1440px]",
                   viewport === "tablet" && "h-[min(100%,900px)] w-[768px] max-w-[calc(100%-24px)]",
                   viewport === "mobile" &&
                     "z-10 h-[min(100%,844px)] max-h-[90vh] w-[390px] max-w-[calc(100%-24px)] shadow-[0_0_40px_rgba(0,0,0,0.5)]",

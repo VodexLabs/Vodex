@@ -119,8 +119,8 @@ export function checkPublishReadiness(input: {
     (input.buildStatus ?? "").toLowerCase() === "preview_failed";
   const importPreviewValidated =
     isImport &&
-    importMeta?.preview_ready === true &&
-    Boolean(pickPreviewEntry(safeFiles));
+    input.metadata.preview_renderable === true &&
+    input.metadata.preview_honest === true;
   const previewReady =
     (input.metadata.preview_ready === true && input.metadata.preview_honest === true) ||
     importPreviewValidated;

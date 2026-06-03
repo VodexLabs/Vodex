@@ -562,7 +562,7 @@ export function AppBuilderWorkspace({
   }
 
   return (
-    <div className={cn("builder-shell flex h-full min-h-0 flex-col overflow-x-hidden", className)}>
+    <div className={cn("builder-shell flex h-full min-h-0 flex-col overflow-hidden", className)}>
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
         <div className="min-w-0">
           <p className="truncate text-[12px] font-semibold text-foreground">{projectName}</p>
@@ -649,7 +649,7 @@ export function AppBuilderWorkspace({
         ))}
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(180px,220px)_1fr]">
+      <div className="grid min-h-0 flex-1 overflow-hidden grid-cols-1 lg:grid-cols-[minmax(180px,220px)_1fr]">
         <EditorFileTree
           files={treeNodes}
           selectedPath={activePath}
@@ -657,10 +657,18 @@ export function AppBuilderWorkspace({
             openFile(p);
             setMobilePanel("code");
           }}
-          className={cn("border-r border-border", mobilePanel !== "files" && "hidden lg:flex")}
+          className={cn(
+            "min-h-0 overflow-hidden border-r border-border",
+            mobilePanel !== "files" && "hidden lg:flex",
+          )}
         />
 
-        <div className={cn("flex min-h-0 min-w-0 flex-col", mobilePanel !== "code" && "hidden lg:flex")}>
+        <div
+          className={cn(
+            "flex min-h-0 min-w-0 flex-col overflow-hidden",
+            mobilePanel !== "code" && "hidden lg:flex",
+          )}
+        >
           <EditorTabs
             tabs={tabs}
             activePath={activePath}

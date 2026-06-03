@@ -20,6 +20,7 @@ export const CANONICAL_ROUTES = {
   create: "/create",
   templates: "/templates",
   billing: "/settings/billing",
+  pricing: "/pricing",
   settingsBilling: "/settings?tab=billing",
   adminControlCenter: "/admin",
   statusPage: "https://status.vodex.dev",

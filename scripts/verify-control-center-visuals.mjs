@@ -18,7 +18,8 @@ must(read("src/components/control-center/topbar-banner-preview.tsx"), "admin-ann
 must(read("src/components/admin/admin-inbox-messages-panel.tsx"), "MessageDesignFields", "inbox design fields", errors);
 must(read("src/components/admin/admin-announcements-panel.tsx"), "TopbarBannerPreview", "announcement banner preview", errors);
 must(read("src/lib/email/credit-usage-email-automation.ts"), "maybeSendCreditUsageEmails", "credit automation", errors);
-must(read("src/lib/status/status-schema.ts"), "checkStatusSchemaReady", "schema probe", errors);
+must(read("src/lib/status/status-schema.ts"), "getStatusSchemaState", "schema probe", errors);
+must(read("src/lib/status/status-schema.ts"), "loadPlatformAnnouncementsAdmin", "tiered announcement load", errors);
 if (!fs.existsSync(path.join(root, "supabase/migrations/20260730120000_p23_control_center_visuals_and_status_fix.sql"))) {
   errors.push("missing p23 migration");
 }

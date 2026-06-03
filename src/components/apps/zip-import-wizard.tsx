@@ -207,6 +207,9 @@ export function ZipImportWizard({ onClose, onComplete }: ZipImportWizardProps) {
     redirectTo: string;
     fileCount: number;
     framework: string;
+    previewReady: boolean;
+    blockedReason: string | null;
+    previewStatus: string;
   } | null>(null);
   const [projectName, setProjectName] = React.useState("");
   const [importError, setImportError] = React.useState<Record<string, unknown> | null>(null);
@@ -277,6 +280,9 @@ export function ZipImportWizard({ onClose, onComplete }: ZipImportWizardProps) {
       scanStats?: ScanResult["scanStats"];
       projectId?: string;
       redirectTo?: string;
+      previewReady?: boolean;
+      blockedReason?: string | null;
+      previewStatus?: string;
     };
 
     if (!res.ok) {
@@ -317,6 +323,9 @@ export function ZipImportWizard({ onClose, onComplete }: ZipImportWizardProps) {
       redirectTo: j.redirectTo!,
       fileCount: j.fileCount ?? 0,
       framework: j.framework ?? "unknown",
+      previewReady: j.previewReady === true,
+      blockedReason: j.blockedReason ?? null,
+      previewStatus: j.previewStatus ?? "failed",
     });
     setScanResult(
       scanResultFromImportApi({
@@ -506,14 +515,30 @@ export function ZipImportWizard({ onClose, onComplete }: ZipImportWizardProps) {
                 className="space-y-4 max-h-[60vh] overflow-y-auto pr-1 scrollbar-none"
               >
                 {/* Summary */}
-                <div className="flex items-center gap-3 rounded-lg bg-positive/8 px-4 py-3 ring-1 ring-positive/20">
-                  <CheckCircle2 className="size-4 text-positive" strokeWidth={1.75} />
+                <div
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-4 py-3 ring-1",
+                    importResult?.previewReady
+                      ? "bg-positive/8 ring-positive/20"
+                      : "bg-amber-500/8 ring-amber-500/20",
+                  )}
+                >
+                  {importResult?.previewReady ? (
+                    <CheckCircle2 className="size-4 text-positive" strokeWidth={1.75} />
+                  ) : (
+                    <AlertCircle className="size-4 text-amber-600 dark:text-amber-400" strokeWidth={1.75} />
+                  )}
                   <div>
                     <p className="text-[13px] font-medium text-foreground">
-                      Scan complete — {scanResult.framework} project detected
+                      {importResult?.previewReady
+                        ? `Preview ready — ${scanResult.framework}`
+                        : `Files imported — ${scanResult.framework} (preview not renderable)`}
                     </p>
                     <p className="text-[11px] text-muted-foreground">
-                      Estimated restore: {scanResult.estimatedRestore}
+                      {importResult?.previewReady
+                        ? "Runnable preview validated. You can publish after reviewing integrations."
+                        : (importResult?.blockedReason ??
+                          "Open the app dashboard to rebuild preview or review build logs.")}
                     </p>
                   </div>
                 </div>

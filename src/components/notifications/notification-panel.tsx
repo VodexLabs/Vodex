@@ -23,6 +23,7 @@ import {
   type NotificationInboxTab,
 } from "@/lib/notifications/notification-kinds";
 import Link from "next/link";
+import { refreshUserNotificationsFromApi } from "@/lib/notifications/refresh-user-notifications";
 import {
   backgroundClass,
   effectOverlayClass,
@@ -105,6 +106,11 @@ export function NotificationPanel({ anchorRef, open, onClose }: NotificationPane
   React.useEffect(() => {
     setMounted(true);
   }, []);
+
+  React.useEffect(() => {
+    if (!open) return;
+    void refreshUserNotificationsFromApi();
+  }, [open]);
 
   React.useEffect(() => {
     if (!open) return;

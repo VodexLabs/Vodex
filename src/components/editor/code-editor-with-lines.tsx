@@ -57,7 +57,7 @@ export function CodeEditorWithLines({
           readOnly={readOnly}
           spellCheck={false}
           placeholder={placeholder}
-          className="min-h-0 flex-1 resize-none bg-transparent px-3 py-3 font-mono text-[11px] leading-[1.625rem] text-[#e6edf3] outline-none placeholder:text-white/25"
+          className="min-h-0 flex-1 resize-none overflow-auto overscroll-contain bg-transparent px-3 py-3 font-mono text-[11px] leading-[1.625rem] text-[#e6edf3] outline-none placeholder:text-white/25"
         />
       </div>
     </div>

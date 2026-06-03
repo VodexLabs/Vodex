@@ -141,17 +141,47 @@ export async function POST(request: Request) {
   };
 
   let inserted = 0;
+  const insertedUserIds: string[] = [];
   for (let i = 0; i < userIds.length; i += INSERT_CHUNK) {
     const chunkIds = userIds.slice(i, i + INSERT_CHUNK);
     const rows = chunkIds.map((userId: string) => ({
       user_id: userId,
       ...rowTemplate,
     }));
-    const { error } = await db.from("notifications").insert(rows);
+    const { data: insertedRows, error } = await db
+      .from("notifications")
+      .insert(rows)
+      .select("id, user_id");
     if (error) {
-      return NextResponse.json({ error: error.message, recipientCount: inserted }, { status: 500 });
+      return NextResponse.json(
+        { error: error.message, recipientCount: inserted, insertedCount: inserted },
+        { status: 500 },
+      );
     }
-    inserted += rows.length;
+    const count = insertedRows?.length ?? rows.length;
+    inserted += count;
+    for (const row of insertedRows ?? []) {
+      if (row.user_id) insertedUserIds.push(row.user_id);
+    }
+  }
+
+  const verifyUserId = insertedUserIds[0] ?? userIds[0];
+  let readableCount = 0;
+  if (verifyUserId) {
+    const { count } = await db
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", verifyUserId)
+      .eq("title", title)
+      .eq("read", false);
+    readableCount = count ?? 0;
+  }
+
+  if (inserted === 0) {
+    return NextResponse.json(
+      { error: "No notifications were inserted.", recipientCount: 0, insertedCount: 0 },
+      { status: 500 },
+    );
   }
 
   const { error: auditErr } = await db.from("admin_broadcasts").insert({
@@ -183,5 +213,12 @@ export async function POST(request: Request) {
     console.warn("[broadcast] notifications delivered but audit log failed:", auditErr.message);
   }
 
-  return NextResponse.json({ ok: true, recipientCount: inserted });
+  return NextResponse.json({
+    ok: true,
+    recipientCount: inserted,
+    insertedCount: inserted,
+    verifySampleUserId: verifyUserId,
+    verifyUnreadForSample: readableCount,
+    table: "notifications",
+  });
 }

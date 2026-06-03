@@ -136,11 +136,15 @@ ${section(
           "100% exhausted",
           `<p style="margin:0;color:#7f1d1d;">Upgrade for more capacity, or wait for your plan reset — your projects and files stay saved.</p>`,
         )}
-${cta(`${ctx.appUrl}${CANONICAL_ROUTES.billing}`, "Upgrade plan", {
+${cta(`${ctx.appUrl}${CANONICAL_ROUTES.pricing}`, "Upgrade plan", {
           href: `${ctx.appUrl}${CANONICAL_ROUTES.settingsBilling}`,
-          label: "Add credits",
+          label: "Manage billing",
         })}
-<p style="font-size:13px;color:#64748b;">Manage billing anytime from Settings → Billing.</p>`,
+${section(
+          "Your work is safe",
+          `<p style="margin:0;color:#475569;">Projects, files, and publish settings stay saved. Upgrading only refreshes your monthly credit allowance — nothing is deleted.</p>`,
+        )}
+<p style="font-size:13px;color:#64748b;">Questions? Reply to this email or join us on Discord.</p>`,
         ctx,
       ),
   },
@@ -185,8 +189,18 @@ ${section(
 <li>Priority support on <a href="${CANONICAL_ROUTES.discord}" style="color:#2563eb;">Discord</a></li>
 </ul>`,
         )}
-${cta(`${ctx.appUrl}${CANONICAL_ROUTES.billing}`, "See pricing & upgrade")}`,
+${section(
+          "Limited-time value",
+          `<p style="margin:0;color:#334155;">Annual billing saves <strong>20%</strong> on paid plans. Pick the tier that matches your monthly build volume — from Starter to Infinity.</p>`,
+        )}
+${cta(`${ctx.appUrl}${CANONICAL_ROUTES.pricing}`, "See pricing & upgrade", {
+          href: `${ctx.appUrl}${CANONICAL_ROUTES.templates}`,
+          label: "Browse templates",
+        })}
+<p style="font-size:13px;color:#64748b;">You can change or cancel your plan anytime from Settings → Billing.</p>`,
         ctx,
+        `<span style="font-size:26px;font-weight:800;color:#fff;">Unlock more on Vodex</span>
+<p style="margin:10px 0 0;font-size:14px;color:rgba(255,255,255,0.92);">More credits, Pro integrations, and collaboration — built for serious builders.</p>`,
       ),
   },
 ];

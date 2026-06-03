@@ -15,6 +15,7 @@ const mustNot = (rel, needle, label) => {
 };
 
 must("src/lib/publish/publish-readiness.ts", "importPreviewValidated", "import preview gate");
+must("src/lib/publish/publish-readiness.ts", "preview_renderable", "import requires renderable preview");
 mustNot(
   "src/app/api/projects/[id]/publish/readiness/route.ts",
   "Missing environment variables — complete setup",

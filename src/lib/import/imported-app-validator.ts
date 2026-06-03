@@ -75,10 +75,9 @@ export function validateImportedApp(
     blockers.push("index.html is empty or too small to preview");
   }
 
-  const previewReady =
-    quality.total >= 70 && files.length > 0 && blockers.length === 0 && previewEntry != null;
-  const publishReady =
-    previewReady && quality.total >= 85 && routes.length > 0 && blockers.length === 0;
+  // Preview readiness is set only after runtime build + health check (see runImportPreviewBuild).
+  const previewReady = false;
+  const publishReady = false;
 
   return {
     valid: blockers.length === 0 && files.length > 0,

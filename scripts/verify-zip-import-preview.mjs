@@ -6,13 +6,21 @@ import { fileURLToPath } from "node:url";
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const errors = [];
 const must = (rel, needle, label) => {
-  const src = fs.readFileSync(path.join(root, rel), "utf8");
+  const p = path.join(root, rel);
+  if (!fs.existsSync(p)) {
+    errors.push(`missing: ${rel}`);
+    return;
+  }
+  const src = fs.readFileSync(p, "utf8");
   if (!src.includes(needle)) errors.push(label);
 };
 
-must("src/lib/import/imported-app-validator.ts", "pickPreviewEntry", "entry detection");
-must("src/lib/import/legacy-platform-detector.ts", "base44", "Base44 detection");
-must("src/lib/import/imported-app-validator.ts", "No renderable entry", "preview blocker");
+must("src/lib/import/imported-app-validator.ts", "previewReady = false", "validator does not fake preview");
+must("src/lib/imports/framework-detector.ts", "detectImportedFramework", "framework detector");
+must("src/lib/imports/base44-lovable-adapter.ts", "injectPreviewShims", "preview shims");
+must("src/lib/imports/preview-health-check.ts", "previewRenderable", "health check");
+must("src/app/api/projects/import-zip/route.ts", "runProjectPreviewBuild", "zip import runs preview build");
+must("src/lib/publish/publish-readiness.ts", "preview_renderable", "publish gates on renderable");
 
 if (errors.length) {
   console.error("verify:zip-import-preview FAILED\n", errors.map((e) => `  - ${e}`).join("\n"));

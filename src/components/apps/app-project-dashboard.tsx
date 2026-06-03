@@ -5,6 +5,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import type { Tables } from "@/lib/supabase/types";
 import { AppDashboardPanel, type DashSection } from "@/components/create/workspace/app-dashboard-panel";
+import { ImportPreviewStatusPanel } from "@/components/apps/import-preview-status-panel";
 import { isZipImportProject } from "@/lib/projects/imported-project-state";
 import { LayoutGrid } from "lucide-react";
 
@@ -36,6 +37,11 @@ export function AppProjectDashboard({ project }: { project: ProjectRow }) {
           </p>
         </div>
         <div className="max-h-[min(70vh,720px)] overflow-y-auto">
+          {isImport && (
+            <div className="border-b border-border p-4">
+              <ImportPreviewStatusPanel appId={project.id} />
+            </div>
+          )}
           <AppDashboardPanel
             project={project}
             isBusy={false}

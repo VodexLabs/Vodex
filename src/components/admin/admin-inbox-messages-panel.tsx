@@ -81,7 +81,11 @@ export function AdminInboxMessagesPanel() {
           design,
         }),
       });
-      const json = (await res.json()) as { error?: string; recipientCount?: number };
+      const json = (await res.json()) as {
+        error?: string;
+        recipientCount?: number;
+        verifyUnreadForSample?: number;
+      };
       if (!res.ok) {
         const count = json.recipientCount ?? 0;
         if (count === 0 || json.error?.toLowerCase().includes("no matching")) {
@@ -94,7 +98,11 @@ export function AdminInboxMessagesPanel() {
         toast.error("No matching users found.");
         return;
       }
-      toast.success(`Inbox message sent to ${count} user(s)`);
+      const verify =
+        typeof json.verifyUnreadForSample === "number" && json.verifyUnreadForSample > 0
+          ? " Verified in notifications table."
+          : "";
+      toast.success(`Inbox message sent to ${count} user(s).${verify}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Send failed");
     } finally {

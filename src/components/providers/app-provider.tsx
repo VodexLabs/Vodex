@@ -44,6 +44,7 @@ import {
   mergeProfileOnboardingStatus,
 } from "@/lib/onboarding/onboarding-status";
 import { isLightweightPublicPath } from "@/lib/routing/lightweight-public-paths";
+import { refreshUserNotificationsFromApi } from "@/lib/notifications/refresh-user-notifications";
 import {
   getCachedNotificationPrefs,
   refreshNotificationPrefsFromApi,
@@ -213,7 +214,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         )
         .subscribe();
 
+      const pollNotifications = () => {
+        void refreshUserNotificationsFromApi();
+      };
+      pollNotifications();
+      const pollTimer = window.setInterval(pollNotifications, 45_000);
+
       realtimeDispose = () => {
+        window.clearInterval(pollTimer);
         supabase.removeChannel(notificationsChannel);
         supabase.removeChannel(profileChannel);
       };

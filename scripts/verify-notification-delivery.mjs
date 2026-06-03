@@ -24,7 +24,11 @@ must(route, "INSERT_CHUNK", "chunked notification inserts", errors);
 must(route, "No matching users found", "zero-recipient error", errors);
 must(route, "recipientCount", "recipient count response", errors);
 must(route, "resolveUserByEmail", "email resolution helper", errors);
-must(route, 'from("notifications").insert', "notifications insert", errors);
+must(route, '.from("notifications")', "notifications table", errors);
+must(route, ".insert(rows)", "notifications insert", errors);
+must(route, ".select(\"id, user_id\")", "insert returning rows", errors);
+must(read("src/lib/notifications/refresh-user-notifications.ts"), "/api/notifications", "poll refresh", errors);
+must(read("src/components/providers/app-provider.tsx"), "refreshUserNotificationsFromApi", "provider poll", errors);
 must(panel, "No matching users found", "UI zero-recipient toast", errors);
 must(panel, "recipientCount", "success count toast", errors);
 

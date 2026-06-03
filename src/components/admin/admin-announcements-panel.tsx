@@ -25,6 +25,7 @@ type TargetPlan = "all" | "free" | "starter" | "pro" | "infinity";
 
 export function AdminAnnouncementsPanel() {
   const [schemaReady, setSchemaReady] = React.useState<boolean | null>(null);
+  const [schemaDegraded, setSchemaDegraded] = React.useState(false);
   const [hint, setHint] = React.useState<string | null>(null);
   const [announcements, setAnnouncements] = React.useState<AnnRow[]>([]);
   const [busy, setBusy] = React.useState(false);
@@ -43,8 +44,14 @@ export function AdminAnnouncementsPanel() {
       ? "/api/admin/status/overview?refresh=1"
       : "/api/admin/status/overview";
     const res = await fetch(url, { credentials: "include" });
-    const json = await res.json();
+    const json = (await res.json()) as {
+      schemaReady?: boolean;
+      schemaDegraded?: boolean;
+      hint?: string | null;
+      announcements?: AnnRow[];
+    };
     setSchemaReady(Boolean(json.schemaReady));
+    setSchemaDegraded(Boolean(json.schemaDegraded));
     setHint(json.hint ?? null);
     setAnnouncements(json.announcements ?? []);
   }, []);
@@ -154,6 +161,11 @@ export function AdminAnnouncementsPanel() {
 
   return (
     <div className="space-y-4 rounded-xl border border-border bg-surface p-4" data-testid="admin-announcements-panel">
+      {schemaDegraded && hint ? (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-950 dark:text-amber-100">
+          {hint}
+        </div>
+      ) : null}
       <div>
         <h3 className="text-[14px] font-semibold">Top-bar alerts</h3>
         <p className="mt-1 text-[12px] text-muted-foreground">

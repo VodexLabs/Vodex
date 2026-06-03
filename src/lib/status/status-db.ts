@@ -1,26 +1,48 @@
-/** Supabase/PostgREST errors when status tables are missing from schema cache. */
-export function isStatusSchemaMissingError(error: unknown): boolean {
-  if (!error || typeof error !== "object") return false;
-  const e = error as { code?: string; message?: string; details?: string; hint?: string };
-  const msg = `${e.message ?? ""} ${e.details ?? ""} ${e.hint ?? ""}`.toLowerCase();
+function errorMessage(error: unknown): string {
+  if (!error || typeof error !== "object") return "";
+  const e = error as { message?: string; details?: string; hint?: string };
+  return `${e.message ?? ""} ${e.details ?? ""} ${e.hint ?? ""}`.toLowerCase();
+}
+
+function errorCode(error: unknown): string | undefined {
+  if (!error || typeof error !== "object") return undefined;
+  return (error as { code?: string }).code;
+}
+
+/** Table missing from DB or PostgREST cache. */
+export function isStatusTableMissingError(error: unknown): boolean {
+  const msg = errorMessage(error);
+  const code = errorCode(error);
   return (
-    e.code === "PGRST205" ||
-    e.code === "PGRST204" ||
-    e.code === "42P01" ||
-    e.code === "42703" ||
-    msg.includes("schema cache") ||
-    msg.includes("platform_announcements") ||
-    msg.includes("status_components") ||
-    msg.includes("status_daily_history") ||
-    msg.includes("status_incidents") ||
+    code === "PGRST205" ||
+    code === "42P01" ||
     msg.includes("could not find the table") ||
+    (msg.includes("relation") && msg.includes("does not exist"))
+  );
+}
+
+/** Column missing — table exists; reload schema cache or apply latest migration. */
+export function isStatusColumnMissingError(error: unknown): boolean {
+  const msg = errorMessage(error);
+  const code = errorCode(error);
+  return (
+    code === "PGRST204" ||
+    code === "42703" ||
     msg.includes("could not find the column") ||
     (msg.includes("column") && msg.includes("does not exist"))
   );
 }
 
+/** @deprecated prefer isStatusTableMissingError / isStatusColumnMissingError */
+export function isStatusSchemaMissingError(error: unknown): boolean {
+  return isStatusTableMissingError(error) || isStatusColumnMissingError(error);
+}
+
 export const STATUS_SCHEMA_INSTALL_HINT =
-  "Apply migrations 20260720120000_platform_status.sql, 20260721120000_platform_status_p16.sql, 20260722120000_p17_production_stability.sql, 20260728120000_p21_control_center_comms.sql, and 20260730120000_p23_control_center_visuals_and_status_fix.sql in Supabase SQL Editor, then run: NOTIFY pgrst, 'reload schema';";
+  "Status tables are missing. Apply supabase/migrations/20260802120000_p29_status_announcements_schema_repair.sql (and earlier status migrations if needed), then run: NOTIFY pgrst, 'reload schema';";
+
+export const STATUS_SCHEMA_CACHE_HINT =
+  "Tables exist but PostgREST schema cache is stale. In Supabase SQL Editor run: NOTIFY pgrst, 'reload schema'; then click Refresh schema check.";
 
 export function uptimePercentForStatus(status: string): number {
   switch (status) {

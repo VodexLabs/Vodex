@@ -26,6 +26,7 @@ import {
 } from "@/lib/import/zip-import-diagnostics";
 import { lifecyclePatch } from "@/lib/projects/project-lifecycle";
 import type { Json } from "@/lib/supabase/types";
+import { runProjectPreviewBuild } from "@/lib/imports/run-project-preview-build";
 
 export const runtime = "nodejs";
 
@@ -142,7 +143,7 @@ export async function POST(req: Request) {
   const defaultTitle = baseSlug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   const frameworkId = validation.framework.id;
 
-  const lifecycleStatus = validation.previewReady ? "imported_preview_ready" : "imported";
+  const lifecycleStatus = "imported";
   const importPaths = files.map((f) => f.path);
   const importEntryFile =
     importPaths.find((p) => /\.html?$/i.test(p)) ??
@@ -196,16 +197,16 @@ export async function POST(req: Request) {
           legacy_platform: validation.legacy.platform,
           legacy_base44_sdk: validation.legacy.usesBase44Sdk,
           quality_score: validation.qualityScore,
-          preview_ready: validation.previewReady,
-          publish_ready: validation.publishReady,
+          preview_ready: false,
+          publish_ready: false,
           entry_file: importEntryFile,
           prepared_at: new Date().toISOString(),
           warnings: validation.warnings,
           rejected_secrets: rejectedSecrets,
           rejected_paths: rejectedPaths,
         },
-        preview_ready: validation.previewReady,
-        preview_honest: validation.previewReady,
+        preview_ready: false,
+        preview_honest: false,
         ...lifecyclePatch(lifecycleStatus),
       } as Json,
     } as never)
@@ -312,19 +313,40 @@ export async function POST(req: Request) {
     return importFail("imported_projects_insert", importedErr.message, { projectId }, 503);
   }
 
+  let previewBuild: Awaited<ReturnType<typeof runProjectPreviewBuild>> | null = null;
+  try {
+    previewBuild = await runProjectPreviewBuild({
+      admin,
+      writer: supabase,
+      userId: user.id,
+      projectId,
+    });
+  } catch (e) {
+    console.error("[import-zip] preview build failed:", e);
+  }
+
+  const diagnostics = previewBuild?.diagnostics;
+  const previewReady = diagnostics?.previewRenderable === true;
+  const publishReady = previewReady && diagnostics?.sourceIntegrityOk === true;
+
   return NextResponse.json({
     projectId,
     fileCount: files.length,
     scanStats: extracted.stats,
     estimatedAiCostUsd: 0,
     aiRepairOptional: true,
-    framework: frameworkId,
-    frameworkLabel: validation.framework.label,
+    framework: diagnostics?.framework ?? frameworkId,
+    frameworkLabel: diagnostics?.frameworkLabel ?? validation.framework.label,
     qualityScore: validation.qualityScore,
-    previewReady: validation.previewReady,
-    publishReady: validation.publishReady,
+    previewReady,
+    publishReady,
+    previewStatus: diagnostics?.previewStatus ?? "failed",
+    blockedReason: diagnostics?.blockedReason ?? null,
+    previewUrl: diagnostics?.previewUrl ?? null,
+    diagnostics,
+    jobId: previewBuild?.jobId ?? null,
     routes: validation.routes,
-    warnings: validation.warnings,
+    warnings: [...validation.warnings, ...(diagnostics?.warnings ?? [])],
     rejectedSecrets,
     redirectTo: `/apps/${projectId}/dashboard?imported=1`,
     alsoCreate: `/create?projectId=${projectId}&mode=build`,

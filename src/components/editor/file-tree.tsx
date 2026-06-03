@@ -182,7 +182,7 @@ export function EditorFileTree({
           className="w-full min-w-0 bg-transparent text-[12px] outline-none"
         />
       </div>
-      <ul className="flex-1 overflow-y-auto overflow-x-hidden p-1 text-[12px]">
+      <ul className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-1 text-[12px]">
         {displayTree.length === 0 ? (
           <li className="px-2 py-4 text-center text-[11px] text-muted-foreground">No files</li>
         ) : (
