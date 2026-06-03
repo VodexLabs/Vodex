@@ -561,6 +561,26 @@ export const notifications: Notification[] = [];
 
 export const changelog: ChangelogEntry[] = [
   {
+    id: "platform-control-status-community-may-2026",
+    version: "1.0.0",
+    date: "May 24, 2026",
+    type: "major",
+    title: "Platform Control, Status, Community & Generation Polish",
+    description:
+      "A premium platform release focused on visibility, trust, and polish — public status, owner control center tools, safer destructive actions, and a more cinematic first-run experience.",
+    highlights: [
+      "New public Vodex Status page with service health and incident visibility",
+      "Admin Control Center for platform banners and broadcast announcements",
+      "Platform-wide announcement banners across the product",
+      "Refined Discord community surfaces in Community and the footer",
+      "Clearer organization for drafts and failed apps in your library",
+      "More polished cinematic intro with full app preview showcases",
+      "Notification preferences and welcome notification groundwork",
+      "Icy footer design, navigation polish, and improved page spacing",
+      "Safer destructive-action flow with email verification before permanent deletes",
+    ],
+  },
+  {
     id: "production-reliability-may-2026",
     version: "0.9.0",
     date: "May 23, 2026",

@@ -123,7 +123,7 @@ export function VodexSessionIntro({
 
         {(inShowcase || collapsing) && (
           <div
-            className="vodex-intro-p13__stage pointer-events-none absolute inset-0"
+            className="vodex-intro-p13__stage pointer-events-none absolute inset-0 overflow-visible"
             style={{ perspective: 1700 }}
           >
             {INTRO_CINEMATIC_APPS.map((app) => (

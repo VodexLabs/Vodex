@@ -50,7 +50,7 @@ export function VodexImportantLinksFooter({ className }: { className?: string })
   return (
     <footer
       className={cn(
-        "vodex-important-links-footer relative mt-auto shrink-0 overflow-hidden border-t border-sky-200/50",
+        "vodex-important-links-footer relative mt-auto shrink-0 overflow-visible border-t border-sky-200/50",
         className,
       )}
       data-testid="vodex-important-links-footer"
@@ -58,7 +58,7 @@ export function VodexImportantLinksFooter({ className }: { className?: string })
       <div className="vodex-footer-particles pointer-events-none absolute inset-0" aria-hidden />
       <div className="vodex-footer-ambient pointer-events-none absolute inset-0" aria-hidden />
       <FooterIcedBirds />
-      <div className="vodex-footer-glass relative mx-auto max-w-6xl px-[var(--page-padding-x)] py-8">
+      <div className="vodex-footer-glass relative z-[2] mx-auto max-w-6xl px-[var(--page-padding-x)] py-8">
         <div className="mb-6 grid gap-6 lg:grid-cols-[1fr_minmax(240px,300px)] lg:items-center">
           <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
             {COLUMNS.map((col) => (

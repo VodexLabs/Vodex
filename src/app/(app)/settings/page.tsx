@@ -33,6 +33,7 @@ import { toast } from "@/lib/toast";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AccountIdentityCard } from "@/components/identity/account-identity-card";
+import { DestructiveActionModal } from "@/components/security/destructive-action-modal";
 
 export default function SettingsGeneralPage() {
   const router = useRouter();
@@ -66,8 +67,8 @@ export default function SettingsGeneralPage() {
   const [description, setDescription] = React.useState("");
   const [workspaceIconUrl, setWorkspaceIconUrl] = React.useState<string | null>(null);
   const [showBranding, setShowBranding] = React.useState(!hideDreamosBranding);
-  const [deleteConfirm, setDeleteConfirm] = React.useState(false);
-  const [deleteInput, setDeleteInput] = React.useState("");
+  const [workspaceDeleteOpen, setWorkspaceDeleteOpen] = React.useState(false);
+  const [workspaceDeleting, setWorkspaceDeleting] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [uploadingIcon, setUploadingIcon] = React.useState(false);
   const iconInputRef = React.useRef<HTMLInputElement>(null);
@@ -533,54 +534,46 @@ export default function SettingsGeneralPage() {
 
       {/* Danger Zone */}
       <SectionCard title="Danger Zone" description="Irreversible actions that affect your entire workspace." danger>
-        {!deleteConfirm ? (
-          <div className="flex items-start justify-between gap-6">
-            <div>
-              <p className="text-[13px] font-medium text-foreground">Delete workspace</p>
-              <p className="mt-0.5 text-[13px] text-muted-foreground">
-                Permanently delete this workspace, all projects, and data. This cannot be undone.
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="md"
-              className="shrink-0 text-red-600 dark:text-red-400 ring-red-200/70 dark:ring-red-800/50 hover:bg-red-50 dark:hover:bg-red-950/30"
-              onClick={() => setDeleteConfirm(true)}
-            >
-              <Trash2 className="size-3.5" strokeWidth={1.6} />
-              Delete workspace
-            </Button>
+        <div className="flex items-start justify-between gap-6">
+          <div>
+            <p className="text-[13px] font-medium text-foreground">Delete workspace</p>
+            <p className="mt-0.5 text-[13px] text-muted-foreground">
+              Permanently delete this workspace, all projects, and data. Requires email verification.
+            </p>
           </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="flex items-start gap-3 rounded-[var(--radius-md)] bg-red-100/60 dark:bg-red-950/30 px-4 py-3 ring-1 ring-red-200/60 dark:ring-red-800/40">
-              <AlertTriangle className="size-4 shrink-0 mt-0.5 text-red-600 dark:text-red-400" strokeWidth={1.6} />
-              <p className="text-[13px] text-red-700 dark:text-red-300">
-                Type <strong>delete workspace</strong> below to confirm.
-              </p>
-            </div>
-            <Input
-              value={deleteInput}
-              onChange={(e) => setDeleteInput(e.target.value)}
-              placeholder='Type "delete workspace" to confirm'
-              className="ring-red-200/70 dark:ring-red-800/40 focus:ring-red-400"
-            />
-            <div className="flex gap-2">
-              <Button variant="ghost" size="md" onClick={() => { setDeleteConfirm(false); setDeleteInput(""); }}>
-                Cancel
-              </Button>
-              <Button
-                variant="outline"
-                size="md"
-                disabled={deleteInput !== "delete workspace"}
-                className="text-red-600 dark:text-red-400 ring-red-200/70 dark:ring-red-800/50 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-40"
-              >
-                Permanently delete
-              </Button>
-            </div>
-          </div>
-        )}
+          <Button
+            variant="outline"
+            size="md"
+            className="shrink-0 text-red-600 dark:text-red-400 ring-red-200/70 dark:ring-red-800/50 hover:bg-red-50 dark:hover:bg-red-950/30"
+            onClick={() => setWorkspaceDeleteOpen(true)}
+            disabled={workspaceDeleting}
+            data-testid="delete-workspace-trigger"
+          >
+            <Trash2 className="size-3.5" strokeWidth={1.6} />
+            Delete workspace
+          </Button>
+        </div>
       </SectionCard>
+
+      <DestructiveActionModal
+        open={workspaceDeleteOpen}
+        onClose={() => setWorkspaceDeleteOpen(false)}
+        actionType="delete_workspace"
+        onVerifiedDelete={async (verificationId) => {
+          setWorkspaceDeleting(true);
+          const res = await fetch("/api/workspace/delete-secure", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ verificationId }),
+          });
+          const json = (await res.json()) as { error?: string };
+          if (!res.ok) throw new Error(json.error ?? "Workspace deletion failed");
+          toast.success("Workspace deleted");
+          router.push("/projects");
+          router.refresh();
+        }}
+      />
     </motion.div>
   );
 }

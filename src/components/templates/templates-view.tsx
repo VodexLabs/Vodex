@@ -309,7 +309,7 @@ function CommunityTemplatesSection() {
       initial="hidden"
       animate="show"
       transition={{ delay: 0.35 }}
-      className="mt-16"
+      className="vodex-pre-footer-spacing mt-16"
     >
       <div className="mb-4 flex items-center justify-between">
         <div>

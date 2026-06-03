@@ -336,8 +336,8 @@ const suites = {
   },
   "intro-mobile-image-sizing": () => {
     const errors = [];
-    must(read("src/components/session/intro/CinematicAppPanel.tsx"), "aspect-square", "mobile square", errors);
-    must(read("src/components/session/intro/intro-apps.ts"), '"-34%"', "2x2 cluster", errors);
+    must(read("src/components/session/intro/CinematicAppPanel.tsx"), "46vw", "mobile width", errors);
+    must(read("src/components/session/intro/intro-apps.ts"), '"-30vw"', "corner cluster", errors);
     must(read("src/components/session/intro/IntroReferenceImage.tsx"), "object-contain", "mobile contain", errors);
     return errors;
   },
@@ -426,12 +426,12 @@ const suites = {
   },
   "intro-mobile-corner-layout": () => {
     const errors = [];
-    must(read("src/components/session/intro/intro-apps.ts"), '"-42%"', "corner x", errors);
+    must(read("src/components/session/intro/intro-apps.ts"), '"-30vw"', "corner x vw", errors);
     return errors;
   },
   "intro-showcase-spacing": () => {
     const errors = [];
-    must(read("src/components/session/intro/CinematicAppPanel.tsx"), "46vw", "mobile size", errors);
+    must(read("src/components/session/intro/CinematicAppPanel.tsx"), "40vh", "mobile height", errors);
     return errors;
   },
   "intro-fusion-center-path": () => {

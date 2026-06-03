@@ -43,6 +43,7 @@ import { ArchitectureWorkflowView } from "@/components/projects/architecture-wor
 import { ProjectIntegrationsPanel } from "@/components/integrations/project-integrations-panel";
 import { readLifecycleFromMetadata } from "@/lib/projects/project-lifecycle";
 import { resolveDisplayPublicUrl } from "@/lib/publish/publish-display-url";
+import { DestructiveActionModal } from "@/components/security/destructive-action-modal";
 
 interface ProjectRow {
   id: string;
@@ -1396,7 +1397,11 @@ function SettingsTab({ project }: { project: ProjectRow }) {
         </div>
       </div>
 
-      <DangerZone projectId={project.id} />
+      <DangerZone
+        projectId={project.id}
+        projectName={project.name}
+        isFailed={project.status === "error"}
+      />
     </div>
   );
 }
@@ -1413,52 +1418,54 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   );
 }
 
-function DangerZone({ projectId }: { projectId: string }) {
-  const supabase = createClient();
-  const [confirming, setConfirming] = React.useState(false);
-  const [deleting, setDeleting] = React.useState(false);
-
-  async function destroy() {
-    setDeleting(true);
-    const { error } = await supabase.from("projects").delete().eq("id", projectId);
-    setDeleting(false);
-    if (!error) {
-      window.location.href = "/projects";
-    }
-  }
+function DangerZone({
+  projectId,
+  projectName,
+  isFailed,
+}: {
+  projectId: string;
+  projectName: string;
+  isFailed?: boolean;
+}) {
+  const [modalOpen, setModalOpen] = React.useState(false);
 
   return (
     <div className="rounded-[var(--radius-xl)] border border-destructive/30 bg-destructive/5 p-5">
       <h3 className="text-[13px] font-semibold tracking-tight text-destructive">Danger zone</h3>
       <p className="mt-1 text-[12px] text-muted-foreground">
-        Deleting a project removes its deployments, memory, and conversation history. Cannot be undone.
+        Deleting a project removes its deployments, memory, and conversation history. Email verification is
+        required.
       </p>
-      {!confirming ? (
-        <button
-          onClick={() => setConfirming(true)}
-          className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-destructive/10 px-3 py-1.5 text-[12px] font-semibold text-destructive transition hover:bg-destructive/15"
-        >
-          <Trash2 className="size-3.5" strokeWidth={2} />
-          Delete project
-        </button>
-      ) : (
-        <div className="mt-3 flex gap-2">
-          <button
-            onClick={destroy}
-            disabled={deleting}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-destructive px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-destructive/90 disabled:opacity-50"
-          >
-            {deleting ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" strokeWidth={2} />}
-            {deleting ? "Deleting…" : "Yes, delete forever"}
-          </button>
-          <button
-            onClick={() => setConfirming(false)}
-            className="inline-flex items-center rounded-lg bg-surface px-3 py-1.5 text-[12px] font-semibold text-foreground ring-1 ring-border transition hover:bg-surface-raised"
-          >
-            Cancel
-          </button>
-        </div>
-      )}
+      <button
+        type="button"
+        onClick={() => setModalOpen(true)}
+        className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-destructive/10 px-3 py-1.5 text-[12px] font-semibold text-destructive transition hover:bg-destructive/15"
+        data-testid="delete-project-trigger"
+      >
+        <Trash2 className="size-3.5" strokeWidth={2} />
+        Delete project
+      </button>
+      <DestructiveActionModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        actionType={isFailed ? "delete_failed_project" : "delete_project"}
+        targetId={projectId}
+        targetName={projectName}
+        onVerifiedDelete={async (verificationId) => {
+          const res = await fetch(`/api/projects/${projectId}/delete-secure`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              verificationId,
+              actionType: isFailed ? "delete_failed_project" : "delete_project",
+            }),
+          });
+          const json = (await res.json()) as { error?: string };
+          if (!res.ok) throw new Error(json.error ?? "Could not delete project");
+          window.location.href = "/projects";
+        }}
+      />
     </div>
   );
 }

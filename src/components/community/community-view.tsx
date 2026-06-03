@@ -1083,7 +1083,7 @@ export function CommunityView() {
         initial="hidden"
         animate="show"
         transition={{ delay: 0.12 }}
-        className="relative mt-10"
+        className="vodex-pre-footer-spacing relative mt-10"
       >
         <VodexDiscordCommunityCard />
       </motion.div>
