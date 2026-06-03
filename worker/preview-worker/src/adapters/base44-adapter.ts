@@ -1,0 +1,30 @@
+export function injectPreviewEnvShims(html: string, legacy: { base44: boolean; lovable: boolean }): string {
+  if (!legacy.base44 && !legacy.lovable) return html;
+  const shim = `<script>
+(function(){
+  var g = typeof globalThis !== 'undefined' ? globalThis : window;
+  if (!g.__VODEX_PREVIEW__) g.__VODEX_PREVIEW__ = true;
+  if (${legacy.base44}) {
+    g.process = g.process || { env: {} };
+    g.process.env.VITE_BASE44_APP_ID = g.process.env.VITE_BASE44_APP_ID || 'preview-mock';
+    g.process.env.VITE_BASE44_API_URL = g.process.env.VITE_BASE44_API_URL || '';
+  }
+  if (${legacy.lovable}) {
+    g.process = g.process || { env: {} };
+    g.process.env.VITE_SUPABASE_URL = g.process.env.VITE_SUPABASE_URL || 'https://preview.invalid';
+    g.process.env.VITE_SUPABASE_ANON_KEY = g.process.env.VITE_SUPABASE_ANON_KEY || 'preview-anon-key';
+  }
+})();
+</script>`;
+  if (html.includes("</head>")) return html.replace("</head>", `${shim}</head>`);
+  if (html.includes("<body")) return html.replace(/<body[^>]*>/i, (m) => `${m}${shim}`);
+  return shim + html;
+}
+
+export function detectLegacy(files: { content: string }[]): { base44: boolean; lovable: boolean } {
+  const blob = files.map((f) => f.content).join("\n");
+  return {
+    base44: /@base44\/|BASE44_/i.test(blob),
+    lovable: /lovable\.dev|VITE_SUPABASE_URL/i.test(blob),
+  };
+}

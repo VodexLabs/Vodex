@@ -1,0 +1,29 @@
+import "dotenv/config";
+function req(name: string): string {
+  const v = process.env[name]?.trim();
+  if (!v) throw new Error(`Missing required env: ${name}`);
+  return v;
+}
+
+function num(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+export const config = {
+  supabaseUrl: req("SUPABASE_URL"),
+  supabaseServiceRoleKey: req("SUPABASE_SERVICE_ROLE_KEY"),
+  workerId: process.env.PREVIEW_WORKER_ID?.trim() || `worker-${process.pid}`,
+  workspaceDir: process.env.PREVIEW_WORKSPACE_DIR?.trim() || "/tmp/vodex-preview-workspaces",
+  artifactBucket: process.env.PREVIEW_ARTIFACT_BUCKET?.trim() || "preview-artifacts",
+  sourceBucket: process.env.PREVIEW_SOURCE_BUCKET?.trim() || "preview-sources",
+  jobConcurrency: Math.max(1, num("PREVIEW_JOB_CONCURRENCY", 1)),
+  installTimeoutMs: num("PREVIEW_INSTALL_TIMEOUT_MS", 180_000),
+  buildTimeoutMs: num("PREVIEW_BUILD_TIMEOUT_MS", 180_000),
+  maxFiles: num("PREVIEW_MAX_FILES", 5000),
+  maxSourceMb: num("PREVIEW_MAX_SOURCE_MB", 200),
+  pollIntervalMs: num("PREVIEW_POLL_INTERVAL_MS", 5000),
+  allowNpmScripts: process.env.PREVIEW_ALLOW_NPM_SCRIPTS === "1",
+};
