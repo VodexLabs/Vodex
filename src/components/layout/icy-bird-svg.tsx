@@ -1,80 +1,123 @@
 import { cn } from "@/lib/utils";
 
-type BirdProps = { className?: string; uid?: string; mirrored?: boolean };
+type BirdProps = { className?: string; uid?: string };
 
-function CrystalBirdPaths({ uid }: { uid: string }) {
-  const g = (name: string) => `${name}-${uid}`;
+/** Faceted crystal ice bird — opaque body, crisp edges, minimal bloom. */
+function CrystalBirdArt({ uid }: { uid: string }) {
+  const id = (n: string) => `${n}-${uid}`;
   return (
     <>
       <defs>
-        <linearGradient id={g("body")} x1="20%" y1="0%" x2="80%" y2="100%">
+        <linearGradient id={id("core")} x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#ffffff" />
-          <stop offset="35%" stopColor="#e0f7fa" />
-          <stop offset="70%" stopColor="#7dd3fc" />
+          <stop offset="45%" stopColor="#e0f7ff" />
           <stop offset="100%" stopColor="#38bdf8" />
         </linearGradient>
-        <linearGradient id={g("wing")} x1="0%" y1="50%" x2="100%" y2="50%">
-          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.98" />
-          <stop offset="50%" stopColor="#bae6fd" stopOpacity="0.92" />
-          <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.78" />
+        <linearGradient id={id("wing")} x1="0%" y1="30%" x2="100%" y2="70%">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="55%" stopColor="#a5f3fc" />
+          <stop offset="100%" stopColor="#0ea5e9" />
         </linearGradient>
-        <linearGradient id={g("shard")} x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id={id("edge")} x1="0%" y1="50%" x2="100%" y2="50%">
           <stop offset="0%" stopColor="#f0f9ff" />
-          <stop offset="100%" stopColor="#67e8f9" stopOpacity="0.88" />
+          <stop offset="100%" stopColor="#22d3ee" />
         </linearGradient>
-        <radialGradient id={g("aura")} cx="50%" cy="45%" r="55%">
-          <stop offset="0%" stopColor="#bae6fd" stopOpacity="0.45" />
-          <stop offset="70%" stopColor="#38bdf8" stopOpacity="0.1" />
-          <stop offset="100%" stopColor="#38bdf8" stopOpacity="0" />
-        </radialGradient>
       </defs>
 
-      <ellipse cx="50" cy="30" rx="36" ry="20" fill={`url(#${g("aura")})`} className="vodex-icy-bird-aura" />
+      {/* Thin outer ring — not a blur blob */}
+      <ellipse
+        cx="58"
+        cy="34"
+        rx="44"
+        ry="24"
+        fill="none"
+        stroke="#7dd3fc"
+        strokeWidth="0.6"
+        opacity="0.22"
+        className="vodex-icy-bird-halo"
+      />
 
       <g className="vodex-icy-bird-body">
-        <path d="M12 34 L8 40 L14 38 Z" fill={`url(#${g("shard")})`} stroke="#e0f2fe" strokeWidth="0.4" />
-        <path d="M16 32 L10 36 L15 35 Z" fill="#ffffff" opacity="0.72" stroke="#bae6fd" strokeWidth="0.35" />
+        {/* Tail crystals */}
+        <path
+          d="M8 38 L2 44 L10 42 L6 48 L14 44 Z"
+          fill={`url(#${id("edge")})`}
+          stroke="#ffffff"
+          strokeWidth="0.5"
+        />
+        <path d="M14 36 L10 40 L16 39 Z" fill="#ffffff" stroke="#bae6fd" strokeWidth="0.4" />
 
         <g className="vodex-icy-bird-wing vodex-icy-bird-wing--left">
           <path
-            d="M28 28 L14 18 L22 24 L18 32 Z"
-            fill={`url(#${g("wing")})`}
+            d="M32 30 L10 14 L20 22 L14 34 L26 28 Z"
+            fill={`url(#${id("wing")})`}
             stroke="#ffffff"
-            strokeWidth="0.45"
+            strokeWidth="0.75"
+            strokeLinejoin="round"
           />
-          <path d="M26 26 L16 14 L24 20 Z" fill="#ffffff" opacity="0.88" stroke="#e0f2fe" strokeWidth="0.35" />
-          <path d="M24 30 L12 26 L20 32 Z" fill={`url(#${g("shard")})`} stroke="#7dd3fc" strokeWidth="0.35" />
+          <path d="M28 28 L14 10 L24 18 Z" fill="#ffffff" stroke="#e0f2fe" strokeWidth="0.45" />
+          <path
+            d="M26 32 L8 28 L18 36 Z"
+            fill="#bae6fd"
+            fillOpacity="0.55"
+            stroke="#38bdf8"
+            strokeWidth="0.4"
+          />
+          <path d="M22 24 L12 16 L20 20 Z" fill="#f0f9ff" stroke="#ffffff" strokeWidth="0.35" />
         </g>
 
+        {/* Body — solid, readable silhouette */}
         <path
-          d="M34 32 C38 22 46 16 56 15 C64 14 72 18 76 26 C78 32 74 38 66 40 C58 42 48 40 42 36 Z"
-          fill={`url(#${g("body")})`}
+          d="M36 36 C40 24 50 16 62 14 C74 12 86 18 92 28 C96 36 90 44 78 46 C66 48 52 46 44 42 Z"
+          fill={`url(#${id("core")})`}
           stroke="#ffffff"
-          strokeWidth="0.65"
+          strokeWidth="0.9"
           strokeLinejoin="round"
         />
-        <path d="M48 20 L58 18 L62 24 L52 26 Z" fill="#ffffff" opacity="0.58" stroke="#e0f2fe" strokeWidth="0.3" />
+        <path d="M52 18 L64 16 L70 24 L58 26 Z" fill="#ffffff" opacity="0.75" stroke="#e0f2fe" strokeWidth="0.35" />
+        <path d="M48 32 L58 30 L62 36 L52 38 Z" fill="#7dd3fc" opacity="0.35" stroke="none" />
 
         <g className="vodex-icy-bird-wing vodex-icy-bird-wing--right">
           <path
-            d="M72 26 L88 16 L80 22 L84 30 Z"
-            fill={`url(#${g("wing")})`}
+            d="M84 28 L106 12 L96 20 L102 32 L90 26 Z"
+            fill={`url(#${id("wing")})`}
             stroke="#ffffff"
-            strokeWidth="0.45"
+            strokeWidth="0.75"
+            strokeLinejoin="round"
           />
-          <path d="M74 24 L86 12 L78 18 Z" fill="#ffffff" opacity="0.88" stroke="#e0f2fe" strokeWidth="0.35" />
-          <path d="M76 28 L90 24 L82 32 Z" fill={`url(#${g("shard")})`} stroke="#7dd3fc" strokeWidth="0.35" />
+          <path d="M88 26 L102 8 L92 16 Z" fill="#ffffff" stroke="#e0f2fe" strokeWidth="0.45" />
+          <path
+            d="M90 30 L108 26 L98 34 Z"
+            fill="#bae6fd"
+            fillOpacity="0.55"
+            stroke="#38bdf8"
+            strokeWidth="0.4"
+          />
+          <path d="M94 22 L104 14 L96 18 Z" fill="#f0f9ff" stroke="#ffffff" strokeWidth="0.35" />
         </g>
 
-        <path d="M58 14 L66 12 L70 16 L64 18 Z" fill="#ffffff" stroke="#bae6fd" strokeWidth="0.4" />
-        <circle cx="64" cy="15" r="2.2" fill="#ffffff" />
-        <circle cx="64.8" cy="14.8" r="1.1" fill="#0ea5e9" className="vodex-icy-bird-eye" />
-        <path d="M66 14 L70 15 L68 16 Z" fill="#38bdf8" opacity="0.92" />
+        {/* Head + beak + eye */}
+        <path d="M64 12 L76 10 L82 16 L74 20 L66 18 Z" fill="#ffffff" stroke="#bae6fd" strokeWidth="0.5" />
+        <path d="M78 14 L84 15 L80 17 Z" fill="#38bdf8" stroke="#0ea5e9" strokeWidth="0.35" />
+        <circle cx="72" cy="15" r="2.6" fill="#ffffff" stroke="#7dd3fc" strokeWidth="0.4" />
+        <circle cx="73" cy="14.8" r="1.25" fill="#06b6d4" className="vodex-icy-bird-eye" />
+        <circle cx="73.6" cy="14.4" r="0.45" fill="#ffffff" opacity="0.95" />
 
-        <circle cx="44" cy="12" r="0.9" fill="#ffffff" opacity="0.92" className="vodex-icy-bird-sparkle" />
-        <circle cx="78" cy="20" r="0.7" fill="#ffffff" opacity="0.8" className="vodex-icy-bird-sparkle vodex-icy-bird-sparkle--d1" />
-        <circle cx="32" cy="22" r="0.6" fill="#e0f2fe" opacity="0.85" className="vodex-icy-bird-sparkle vodex-icy-bird-sparkle--d2" />
+        {/* Crystal highlights */}
+        <path d="M46 22 L50 18 L54 22 L50 24 Z" fill="#ffffff" opacity="0.9" />
+        <path d="M80 34 L84 30 L88 34 L84 36 Z" fill="#ffffff" opacity="0.65" />
       </g>
+
+      {/* Crisp silhouette outline */}
+      <path
+        className="vodex-icy-bird-outline"
+        d="M8 38 L14 36 L32 30 L36 36 C50 16 74 12 92 28 C96 36 84 28 106 12 L90 26 L64 12 L82 16 L78 46 L44 42 L26 32 L8 38 Z"
+        fill="none"
+        stroke="#ffffff"
+        strokeWidth="0.55"
+        strokeLinejoin="round"
+        opacity="0.45"
+      />
     </>
   );
 }
@@ -82,12 +125,12 @@ function CrystalBirdPaths({ uid }: { uid: string }) {
 export function IcyBirdSvgA({ className, uid = "a" }: BirdProps) {
   return (
     <svg
-      viewBox="0 0 100 58"
+      viewBox="0 0 116 64"
       className={cn("vodex-icy-bird-svg", className)}
       aria-hidden
       data-testid="icy-bird-svg-a"
     >
-      <CrystalBirdPaths uid={uid} />
+      <CrystalBirdArt uid={uid} />
     </svg>
   );
 }
@@ -95,13 +138,13 @@ export function IcyBirdSvgA({ className, uid = "a" }: BirdProps) {
 export function IcyBirdSvgB({ className, uid = "b" }: BirdProps) {
   return (
     <svg
-      viewBox="0 0 100 58"
-      className={cn("vodex-icy-bird-svg vodex-icy-bird-svg--mirrored", className)}
+      viewBox="0 0 116 64"
+      className={cn("vodex-icy-bird-svg", className)}
       aria-hidden
       data-testid="icy-bird-svg-b"
       style={{ transform: "scaleX(-1)" }}
     >
-      <CrystalBirdPaths uid={uid} />
+      <CrystalBirdArt uid={uid} />
     </svg>
   );
 }

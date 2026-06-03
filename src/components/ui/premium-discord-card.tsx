@@ -66,13 +66,15 @@ export function PremiumDiscordCard({
       rel="noopener noreferrer"
       data-testid={testId}
       className={cn(
-        "vodex-discord-card-icy group relative block overflow-hidden rounded-xl border border-[#5865F2]/30 shadow-lg transition hover:shadow-xl hover:shadow-[#5865F2]/20",
-        isFooter ? "h-[60px] px-3 py-1.5" : "rounded-2xl p-4 sm:p-5",
+        "vodex-discord-card-icy group relative block overflow-hidden rounded-xl border shadow-lg transition",
+        isFooter
+          ? "vodex-discord-card-icy--footer h-[54px] border-white/25 px-2.5 py-1 shadow-md hover:shadow-lg dark:border-sky-400/20"
+          : "rounded-2xl border-[#5865F2]/30 p-4 shadow-lg hover:shadow-xl hover:shadow-[#5865F2]/20 sm:p-5",
         className,
       )}
     >
       <div className="vodex-discord-icy-bg pointer-events-none absolute inset-0" aria-hidden />
-      <IcySparkles dense={isFooter} />
+      {!isFooter && <IcySparkles />}
       <div
         className={cn(
           "relative flex items-center gap-3",
@@ -83,7 +85,7 @@ export function PremiumDiscordCard({
           <div
             className={cn(
               "flex shrink-0 items-center justify-center rounded-lg bg-[#5865F2] text-white shadow-md ring-1 ring-white/40",
-              isFooter ? "size-9" : "size-12 rounded-xl",
+              isFooter ? "size-8 rounded-md bg-[#5865F2]/90" : "size-12 rounded-xl",
             )}
           >
             <DiscordGlyph className={isFooter ? "size-5" : "size-7"} />
