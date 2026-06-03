@@ -4,7 +4,6 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight, FilePen } from "lucide-react";
 import { ProjectIcon } from "@/components/projects/project-icon";
-import { projectIconSrc } from "@/lib/projects/ensure-project-icon";
 import {
   computeProjectCardUiState,
   type ProjectCardUiInput,
@@ -34,7 +33,6 @@ export function DraftsSection({ projects }: { projects: YourAppsProject[] }) {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {projects.slice(0, 8).map((p, i) => {
           const ui = computeProjectCardUiState(p as ProjectCardUiInput);
-          const iconSrc = projectIconSrc(p.id, p.icon_svg, p.icon_url, p.updated_at);
           const isFailed = ui.visibility_status === "failed_attempt";
           return (
             <motion.div
@@ -46,7 +44,13 @@ export function DraftsSection({ projects }: { projects: YourAppsProject[] }) {
             >
               <Link href={`/apps/${p.id}/builder`} className="block p-3">
                 <div className="flex items-center gap-2.5">
-                  <ProjectIcon projectId={p.id} iconUrl={iconSrc} iconSvg={p.icon_svg} size={36} />
+                  <ProjectIcon
+                    projectId={p.id}
+                    iconSvg={p.icon_svg}
+                    iconUrl={p.icon_url}
+                    cacheKey={p.updated_at}
+                    size={36}
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[12px] font-semibold text-foreground">{p.name}</p>
                     <p className="text-[10px] text-muted-foreground">{ui.status_label}</p>

@@ -15,9 +15,14 @@ export async function GET(
   const supabase = await createClient();
   const { data: row } = await supabase
     .from("projects")
-    .select("name, app_name, icon_svg")
+    .select("name, app_name, icon_svg, icon_url")
     .eq("id", id)
     .maybeSingle();
+
+  const iconUrl = row?.icon_url?.trim();
+  if (iconUrl && (iconUrl.startsWith("http://") || iconUrl.startsWith("https://"))) {
+    return NextResponse.redirect(iconUrl, 302);
+  }
 
   const title = row?.app_name?.trim() || row?.name?.trim() || "App";
   const svg = ensureProjectIconSvg(title, row?.icon_svg);

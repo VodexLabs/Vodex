@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { cn } from "@/lib/utils";
 import { projectIconSrc } from "@/lib/projects/ensure-project-icon";
 
@@ -24,8 +25,14 @@ export function ProjectIcon({
   className,
   circular = true,
 }: Props) {
-  const src = projectIconSrc(projectId, iconSvg, iconUrl, cacheKey);
+  const primarySrc = projectIconSrc(projectId, iconSvg, iconUrl, cacheKey);
+  const fallbackSrc = projectIconSrc(projectId, null, null, cacheKey);
+  const [src, setSrc] = React.useState(primarySrc);
   const px = `${size}px`;
+
+  React.useEffect(() => {
+    setSrc(primarySrc);
+  }, [primarySrc]);
 
   return (
     <div
@@ -37,7 +44,15 @@ export function ProjectIcon({
       style={{ width: px, height: px }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={src} alt="" className="size-full object-cover" loading="lazy" />
+      <img
+        src={src}
+        alt=""
+        className="size-full object-cover"
+        loading="lazy"
+        onError={() => {
+          if (src !== fallbackSrc) setSrc(fallbackSrc);
+        }}
+      />
     </div>
   );
 }

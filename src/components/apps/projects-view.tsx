@@ -161,7 +161,13 @@ function ProjectCard({
       <div className="relative z-[1] flex flex-1 flex-col gap-3 p-4 pt-3.5">
         <div className="flex items-start justify-between gap-2">
           <Link href={`/projects/${project.id}`} className="flex min-w-0 items-start gap-2.5">
-            <ProjectIcon projectId={project.id} iconSvg={iconSvg} iconUrl={project.icon_url} size={40} />
+            <ProjectIcon
+              projectId={project.id}
+              iconSvg={iconSvg}
+              iconUrl={project.icon_url}
+              cacheKey={project.updated_at}
+              size={40}
+            />
             <div className="min-w-0">
             <p className="truncate text-[14px] font-semibold tracking-tight text-foreground">
               {appName}

@@ -101,6 +101,7 @@ export function YourAppsSection({ projects }: { projects: YourAppsProject[] }) {
                         projectId={p.id}
                         iconSvg={p.icon_svg}
                         iconUrl={p.icon_url}
+                        cacheKey={p.updated_at}
                         size={36}
                       />
                       <div className="min-w-0 flex-1">

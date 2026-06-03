@@ -11,8 +11,20 @@ export function isWeakIconSvg(svg: string | null | undefined): boolean {
     /fill="url\(#/i.test(svg) ||
     /<rect[^>]+fill:\s*(?!none)/i.test(svg);
   const hasSolidCircle = /<circle[^>]+fill=(?!["']none["'])/i.test(svg);
-  if (!hasSolidRect && !hasSolidCircle) return true;
+  const hasSolidPath = /<path[^>]+fill=(?!["']none["'])/i.test(svg);
+  if (!hasSolidRect && !hasSolidCircle && !hasSolidPath) return true;
   return false;
+}
+
+function isRemoteOrStoredIconUrl(url: string): boolean {
+  const u = url.trim();
+  if (!u) return false;
+  return (
+    u.startsWith("http://") ||
+    u.startsWith("https://") ||
+    u.startsWith("/") ||
+    u.startsWith("blob:")
+  );
 }
 
 /** Deterministic icon — never returns weak/transparent SVG. */
@@ -28,10 +40,18 @@ export function projectIconSrc(
   iconUrl?: string | null,
   cacheKey?: string | null,
 ): string {
-  const bust = cacheKey?.trim() ? `?v=${encodeURIComponent(cacheKey.trim())}` : "";
+  const key = cacheKey?.trim();
+  const bust = key ? `?v=${encodeURIComponent(key)}` : "";
+  const storedUrl = iconUrl?.trim();
+  if (storedUrl && isRemoteOrStoredIconUrl(storedUrl)) {
+    if (storedUrl.startsWith("data:")) return storedUrl;
+    if (!key) return storedUrl;
+    const sep = storedUrl.includes("?") ? "&" : "?";
+    return `${storedUrl}${sep}v=${encodeURIComponent(key)}`;
+  }
   if (iconSvg?.trim() && !isWeakIconSvg(iconSvg)) {
     return `data:image/svg+xml,${encodeURIComponent(iconSvg.trim())}`;
   }
-  const url = iconUrl?.trim() || `/api/projects/${projectId}/icon`;
-  return bust && !url.startsWith("data:") ? `${url}${bust}` : url;
+  const fallback = `/api/projects/${projectId}/icon`;
+  return bust ? `${fallback}${bust}` : fallback;
 }

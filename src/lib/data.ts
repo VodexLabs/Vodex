@@ -563,7 +563,7 @@ export const changelog: ChangelogEntry[] = [
   {
     id: "platform-control-status-community-may-2026",
     version: "1.0.0",
-    date: "May 24, 2026",
+    date: "June 3, 2026",
     type: "major",
     title: "Platform Control, Status, Community & Generation Polish",
     description:
