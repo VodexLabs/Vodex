@@ -90,22 +90,22 @@ const suites = {
     must(read("src/components/layout/footer-iced-birds.tsx"), "footer-iced-birds", "birds testid", errors);
     must(read("src/components/layout/footer-iced-birds.tsx"), "footer-iced-bird-a", "bird a", errors);
     must(read("src/components/layout/footer-iced-birds.tsx"), "footer-iced-bird-b", "bird b", errors);
-    must(read("src/components/layout/icy-bird-svg.tsx"), "IcyBirdSvgA", "real svg bird", errors);
+    must(read("src/components/layout/footer-iced-birds.tsx"), "icy-bird-static.png", "static png", errors);
+    must(read("src/components/layout/footer-iced-birds.tsx"), "vodex-footer-bird-png", "png class", errors);
     must(read("src/app/globals.css"), "vodex-footer-birds-layer", "birds layer css", errors);
-    must(read("src/app/globals.css"), "vodex-footer-orbit-spin-a", "orbit animation", errors);
+    must(read("src/app/globals.css"), "vodex-footer-bird-static", "static placement", errors);
     must(read("src/components/layout/vodex-important-links-footer.tsx"), "FooterIcedBirds", "footer wired", errors);
+    if (!fs.existsSync(path.join(root, "public/footer/icy-bird-static.png"))) {
+      errors.push("public/footer/icy-bird-static.png missing");
+    }
     return errors;
   },
   "footer-iced-birds-loop": () => {
     const errors = [];
     const css = read("src/app/globals.css");
-    must(css, "vodex-footer-orbit-spin-a", "loop a", errors);
-    must(css, "vodex-footer-orbit-spin-b", "loop b", errors);
-    must(css, "infinite", "infinite loop", errors);
-    must(css, "vodex-footer-trail-fade", "trail fade", errors);
-    if (!css.includes("24s linear infinite") && !css.includes("28s linear infinite")) {
-      errors.push("loop duration missing");
-    }
+    must(css, "vodex-footer-bird-static", "static birds", errors);
+    must(css, "vodex-footer-bird-png", "bird png style", errors);
+    must(read("src/components/layout/footer-iced-birds.tsx"), "FOOTER_ICY_BIRD_SRC", "bird src const", errors);
     return errors;
   },
   "footer-section-spacing": () => {

@@ -1628,77 +1628,7 @@ body {
     0 1px 2px rgb(0 0 0 / 0.55);
 }
 
-/* Footer icy birds — side loops, crisp SVG, ~0.8s trail */
-@keyframes vodex-footer-orbit-spin-a {
-  from {
-    offset-distance: 0%;
-  }
-  to {
-    offset-distance: 100%;
-  }
-}
-
-@keyframes vodex-footer-orbit-spin-b {
-  from {
-    offset-distance: 0%;
-  }
-  to {
-    offset-distance: 100%;
-  }
-}
-
-@keyframes vodex-icy-bird-wing-flap-left {
-  0%,
-  100% {
-    transform: rotate(0deg);
-  }
-  50% {
-    transform: rotate(-7deg);
-  }
-}
-
-@keyframes vodex-icy-bird-wing-flap-right {
-  0%,
-  100% {
-    transform: rotate(0deg);
-  }
-  50% {
-    transform: rotate(7deg);
-  }
-}
-
-@keyframes vodex-icy-bird-sparkle-twinkle {
-  0%,
-  100% {
-    opacity: 0.55;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-@keyframes vodex-footer-trail-fade {
-  0% {
-    opacity: 0.55;
-    transform: translate3d(2px, 0, 0) scale(1) rotate(0deg);
-  }
-  100% {
-    opacity: 0;
-    transform: translate3d(-16px, 0, 0) scale(0.35) rotate(-12deg);
-  }
-}
-
-@keyframes vodex-footer-trail-fade-reverse {
-  0% {
-    opacity: 0.55;
-    transform: translate3d(-2px, 0, 0) scale(1) rotate(0deg);
-  }
-  100% {
-    opacity: 0;
-    transform: translate3d(16px, 0, 0) scale(0.35) rotate(12deg);
-  }
-}
-
+/* Footer icy birds — static premium PNG, left/right placement */
 .vodex-footer-birds-arena {
   position: absolute;
   inset: 0;
@@ -1709,143 +1639,48 @@ body {
 
 .vodex-footer-birds-layer {
   position: absolute;
-  inset: 8% 0 10% 0;
-  overflow: hidden;
-}
-
-.vodex-footer-bird-flyer,
-.vodex-footer-bird-orbit {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 52px;
-  height: 29px;
-  margin-left: -26px;
-  margin-top: -14.5px;
-  offset-rotate: auto;
-  offset-anchor: center;
-  will-change: offset-distance;
-}
-
-.vodex-footer-bird-orbit--a {
-  offset-path: ellipse(34% 42% at 32% 56%);
-  animation: vodex-footer-orbit-spin-a 24s linear infinite;
-}
-
-.vodex-footer-bird-orbit--b {
-  offset-path: ellipse(34% 42% at 68% 56%);
-  animation: vodex-footer-orbit-spin-b 28s linear infinite;
-  animation-delay: -14s;
-}
-
-.vodex-footer-bird-graphic,
-.vodex-icy-bird-svg {
-  width: 52px;
-  height: 29px;
-  display: block;
-  position: relative;
-  z-index: 2;
-  filter: drop-shadow(0 1px 1px rgb(12 74 110 / 0.35));
-}
-
-.dark .vodex-footer-bird-graphic,
-.dark .vodex-icy-bird-svg {
-  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.5)) drop-shadow(0 0 6px rgb(34 211 238 / 0.35));
-}
-
-.vodex-icy-bird-halo {
-  opacity: 0.22;
-}
-
-.vodex-icy-bird-eye {
-  animation: vodex-icy-bird-eye-pulse 2.8s ease-in-out infinite;
-}
-
-@keyframes vodex-icy-bird-eye-pulse {
-  0%,
-  100% {
-    opacity: 0.85;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-.vodex-icy-bird-wing--left {
-  transform-origin: 32px 28px;
-  animation: vodex-icy-bird-wing-flap-left 1.25s ease-in-out infinite;
-}
-
-.vodex-icy-bird-wing--right {
-  transform-origin: 84px 26px;
-  animation: vodex-icy-bird-wing-flap-right 1.25s ease-in-out infinite;
-  animation-delay: 0.1s;
-}
-
-.vodex-footer-bird-trail {
-  position: absolute;
   inset: 0;
-  z-index: 1;
-  pointer-events: none;
 }
 
-.vodex-footer-bird-trail--left .vodex-footer-bird-trail-crystal,
-.vodex-footer-bird-trail--left .vodex-footer-bird-trail-dot,
-.vodex-footer-bird-trail--left .vodex-footer-bird-trail-streak {
-  right: calc(100% - 2px);
-  left: auto;
-  animation: vodex-footer-trail-fade 0.8s ease-out infinite;
-}
-
-.vodex-footer-bird-trail--right .vodex-footer-bird-trail-crystal,
-.vodex-footer-bird-trail--right .vodex-footer-bird-trail-dot,
-.vodex-footer-bird-trail--right .vodex-footer-bird-trail-streak {
-  left: calc(100% - 2px);
-  right: auto;
-  animation: vodex-footer-trail-fade-reverse 0.8s ease-out infinite;
-}
-
-.vodex-footer-bird-trail-crystal {
+.vodex-footer-bird-static {
   position: absolute;
-  top: 50%;
-  width: 4px;
-  height: 4px;
-  margin-top: -2px;
-  background: linear-gradient(135deg, #ffffff 0%, #bae6fd 100%);
-  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
-  opacity: 0.6;
+  bottom: 12%;
+  width: clamp(96px, 13vw, 152px);
+  max-width: 42%;
+  line-height: 0;
 }
 
-.vodex-footer-bird-trail-crystal--1 {
-  animation-delay: 0.14s !important;
-  width: 3px;
-  height: 3px;
-  margin-top: -5px;
+.vodex-footer-bird-static--left {
+  left: clamp(0.25rem, 2vw, 1.25rem);
 }
 
-.vodex-footer-bird-trail-dot {
-  position: absolute;
-  top: 50%;
-  width: 2px;
-  height: 2px;
-  margin-top: -1px;
-  border-radius: 50%;
-  background: #ffffff;
-  opacity: 0.5;
-  animation-delay: 0.22s !important;
+.vodex-footer-bird-static--right {
+  right: clamp(0.25rem, 2vw, 1.25rem);
 }
 
-.vodex-footer-bird-trail-streak {
-  position: absolute;
-  top: 50%;
-  width: 18px;
-  height: 1px;
-  margin-top: -0.5px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.5), rgb(186 230 253 / 0.35));
-  opacity: 0.45;
-  animation-delay: 0.06s !important;
-  z-index: 0;
+.vodex-footer-bird-png {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: contain;
+  user-select: none;
+  filter: drop-shadow(0 2px 6px rgb(14 116 144 / 0.28));
+}
+
+.vodex-footer-bird-png--mirrored {
+  transform: scaleX(-1);
+}
+
+.dark .vodex-footer-bird-png {
+  filter: drop-shadow(0 2px 10px rgb(34 211 238 / 0.4)) brightness(1.04) contrast(1.02);
+}
+
+@media (max-width: 640px) {
+  .vodex-footer-bird-static {
+    width: clamp(72px, 22vw, 100px);
+    bottom: 8%;
+    opacity: 0.92;
+  }
 }
 
 .vodex-pre-footer-spacing {
@@ -1868,30 +1703,4 @@ body {
     animation: none !important;
   }
 
-  .vodex-footer-bird-orbit {
-    animation: none !important;
-  }
-
-  .vodex-footer-bird-orbit--a {
-    offset-distance: 22%;
-  }
-
-  .vodex-footer-bird-orbit--b {
-    offset-distance: 72%;
-  }
-
-  .vodex-icy-bird-wing--left,
-  .vodex-icy-bird-wing--right,
-  .vodex-icy-bird-eye,
-  .vodex-footer-bird-trail-crystal,
-  .vodex-footer-bird-trail-dot,
-  .vodex-footer-bird-trail-streak {
-    animation: none !important;
-  }
-
-  .vodex-footer-bird-trail-crystal,
-  .vodex-footer-bird-trail-dot,
-  .vodex-footer-bird-trail-streak {
-    opacity: 0.2 !important;
-  }
 }

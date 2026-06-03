@@ -65,19 +65,16 @@ const suites = {
   },
   "icy-birds-visible-real-svg": () => {
     const errors = [];
-    must(read("src/components/layout/icy-bird-svg.tsx"), "IcyBirdSvgA", "bird a", errors);
-    must(read("src/components/layout/icy-bird-svg.tsx"), "<path", "bird path", errors);
-    must(read("src/components/layout/footer-iced-birds.tsx"), "IcyBirdSvgA", "footer uses svg", errors);
+    must(read("src/components/layout/footer-iced-birds.tsx"), "icy-bird-static.png", "static png asset", errors);
+    must(read("src/components/layout/footer-iced-birds.tsx"), "vodex-footer-bird-png", "footer png class", errors);
     must(read("src/components/layout/footer-iced-birds.tsx"), "data-testid=\"footer-iced-birds\"", "testid", errors);
     return errors;
   },
   "icy-birds-loop-and-trail": () => {
     const errors = [];
-    must(read("src/app/globals.css"), "vodex-footer-orbit-spin-a", "orbit a", errors);
-    must(read("src/app/globals.css"), "vodex-footer-trail-fade", "trail fade", errors);
-    must(read("src/app/globals.css"), "vodex-footer-bird-trail-streak", "trail streak", errors);
-    const css = read("src/app/globals.css");
-    if (!css.includes("infinite")) errors.push("infinite loop animations");
+    must(read("src/app/globals.css"), "vodex-footer-bird-static", "static placement", errors);
+    must(read("src/app/globals.css"), "vodex-footer-bird-png", "png styling", errors);
+    must(read("src/components/layout/footer-iced-birds.tsx"), "FOOTER_ICY_BIRD_SRC", "src export", errors);
     return errors;
   },
 };
