@@ -354,6 +354,10 @@ export async function chargeAiOperation(
         billed_to_type: billingTarget?.billedToType,
       },
     });
+
+    void import("@/lib/email/credit-usage-email-automation").then(({ maybeSendCreditUsageEmailsAfterCharge }) =>
+      maybeSendCreditUsageEmailsAfterCharge(chargeUserId, input.mode, input.operationType),
+    );
   } else if (idempotent) {
     logCredits("info", "charge skipped idempotent", {
       balance_after: remaining,

@@ -59,6 +59,7 @@ must(read("src/components/providers/app-provider.tsx"), "usePresenceHeartbeat", 
 must(read("src/app/api/team/route.ts"), "visible_status", "team presence", errors);
 must(read("src/app/(app)/settings/team/page.tsx"), "PresenceDot", "team UI dot", errors);
 must(read("src/components/layout/quick-collaborator-popover.tsx"), "PresenceDot", "collaborator popover", errors);
+must(read("src/components/presence/presence-avatar.tsx"), "-bottom-1", "dot position", errors);
 
 if (errors.length) {
   console.error("verify:user-presence FAILED\n");

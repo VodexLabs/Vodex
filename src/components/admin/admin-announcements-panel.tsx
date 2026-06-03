@@ -4,6 +4,13 @@ import * as React from "react";
 import { toast } from "@/lib/toast";
 import { BANNER_TEMPLATES, type BannerTemplateId } from "@/lib/status/announcement-templates";
 import { STATUS_SCHEMA_INSTALL_HINT } from "@/lib/status/status-db";
+import {
+  DEFAULT_BANNER_DESIGN,
+  type MessageDesign,
+} from "@/lib/control-center/message-design-presets";
+import { MessageDesignFields } from "@/components/control-center/message-design-fields";
+import { TopbarBannerPreview } from "@/components/control-center/topbar-banner-preview";
+import { sanitizeAdminUrl } from "@/lib/control-center/sanitize-url";
 
 type AnnRow = {
   id: string;
@@ -13,6 +20,8 @@ type AnnRow = {
   priority: number;
   banner_type: string;
 };
+
+type TargetPlan = "all" | "free" | "starter" | "pro" | "infinity";
 
 export function AdminAnnouncementsPanel() {
   const [schemaReady, setSchemaReady] = React.useState<boolean | null>(null);
@@ -24,10 +33,10 @@ export function AdminAnnouncementsPanel() {
   const [message, setMessage] = React.useState("");
   const [linkLabel, setLinkLabel] = React.useState("");
   const [linkUrl, setLinkUrl] = React.useState("");
-  const [gradientFrom, setGradientFrom] = React.useState("#DC2626");
-  const [gradientTo, setGradientTo] = React.useState("#EF4444");
   const [priority, setPriority] = React.useState(100);
   const [targetEmail, setTargetEmail] = React.useState("");
+  const [targetPlan, setTargetPlan] = React.useState<TargetPlan>("all");
+  const [design, setDesign] = React.useState<MessageDesign>(DEFAULT_BANNER_DESIGN);
 
   const load = React.useCallback(async () => {
     const res = await fetch("/api/admin/status/overview", { credentials: "include" });
@@ -48,14 +57,23 @@ export function AdminAnnouncementsPanel() {
     setMessage(tpl.message);
     setLinkLabel(tpl.linkLabel);
     setLinkUrl(tpl.linkUrl);
-    setGradientFrom(tpl.gradientFrom);
-    setGradientTo(tpl.gradientTo);
     setPriority(tpl.priority);
+    setDesign({
+      ...DEFAULT_BANNER_DESIGN,
+      textColor: tpl.textColor ?? "#ffffff",
+      accentColor: tpl.textColor ?? "#ffffff",
+    });
   }, [templateId]);
 
   async function publish() {
+    const activeCount = announcements.filter((a) => a.is_active).length;
+    if (activeCount >= 2) {
+      toast.error("Max 2 active banners. Deactivate one first.");
+      return;
+    }
     setBusy(true);
     try {
+      const safeUrl = sanitizeAdminUrl(linkUrl);
       const res = await fetch("/api/admin/status/announcements/publish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -65,11 +83,11 @@ export function AdminAnnouncementsPanel() {
           title: title.trim(),
           message: message.trim(),
           linkLabel: linkLabel.trim() || undefined,
-          linkUrl: linkUrl.trim() || undefined,
-          gradientFrom,
-          gradientTo,
+          linkUrl: safeUrl ?? undefined,
           priority,
           targetEmail: targetEmail.trim() || undefined,
+          targetPlan: targetEmail.trim() ? undefined : targetPlan,
+          design,
         }),
       });
       const json = await res.json();
@@ -109,6 +127,9 @@ export function AdminAnnouncementsPanel() {
         <p className="mt-2 text-[12px] leading-relaxed text-amber-950/80 dark:text-amber-100/80">
           {hint ?? STATUS_SCHEMA_INSTALL_HINT}
         </p>
+        <button type="button" className="mt-3 rounded-lg border border-border bg-background px-3 py-1.5 text-[12px]" onClick={() => void load()}>
+          Refresh
+        </button>
       </div>
     );
   }
@@ -118,30 +139,23 @@ export function AdminAnnouncementsPanel() {
   return (
     <div className="space-y-4 rounded-xl border border-border bg-surface p-4" data-testid="admin-announcements-panel">
       <div>
-        <h3 className="text-[14px] font-semibold">Admin announcements (top bar)</h3>
+        <h3 className="text-[14px] font-semibold">Top-bar alerts</h3>
         <p className="mt-1 text-[12px] text-muted-foreground">
-          Visible banner at the top of the app. Max 2 active at once. Link text is clickable for users.
+          Long horizontal banner at the top of the app. Max 2 active. Preview matches live banner height.
         </p>
         {activeCount > 0 ? (
           <p className="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">
-            {activeCount} active banner{activeCount !== 1 ? "s" : ""} (max 2 shown)
+            {activeCount} active (max 2)
           </p>
         ) : null}
       </div>
 
-      <div
-        className="overflow-hidden rounded-xl px-4 py-3 text-[13px] text-white shadow-md"
-        style={{ background: `linear-gradient(90deg, ${gradientFrom}, ${gradientTo})` }}
-        data-testid="admin-announcement-preview"
-      >
-        <p className="font-semibold">{title || "Announcement title"}</p>
-        <p className="mt-1 text-[12px] opacity-95">
-          {message || "Message preview"}{" "}
-          {linkLabel && linkUrl ? (
-            <span className="underline underline-offset-2">{linkLabel}</span>
-          ) : null}
-        </p>
-      </div>
+      <TopbarBannerPreview
+        title={title}
+        message={message}
+        linkLabel={linkLabel}
+        design={design}
+      />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <select
@@ -155,10 +169,22 @@ export function AdminAnnouncementsPanel() {
             </option>
           ))}
         </select>
+        <select
+          value={targetPlan}
+          onChange={(e) => setTargetPlan(e.target.value as TargetPlan)}
+          disabled={Boolean(targetEmail.trim())}
+          className="rounded-lg border border-border bg-background px-3 py-2 text-[12px] sm:col-span-2 disabled:opacity-50"
+        >
+          <option value="all">All users</option>
+          <option value="free">Free</option>
+          <option value="starter">Starter</option>
+          <option value="pro">Pro</option>
+          <option value="infinity">Infinity (all tiers)</option>
+        </select>
         <input
           value={targetEmail}
           onChange={(e) => setTargetEmail(e.target.value)}
-          placeholder="Target email (optional — blank = everyone)"
+          placeholder="Specific email (optional)"
           className="rounded-lg border border-border bg-background px-3 py-2 text-[12px] sm:col-span-2"
         />
         <input
@@ -181,21 +207,28 @@ export function AdminAnnouncementsPanel() {
         <input
           value={linkUrl}
           onChange={(e) => setLinkUrl(e.target.value)}
-          placeholder="https://..."
+          placeholder="https:// or /path"
           className="rounded-lg border border-border bg-background px-3 py-2 text-[12px]"
         />
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void publish()}
-          className="rounded-lg bg-accent px-4 py-2 text-[12px] font-semibold text-white disabled:opacity-50"
-        >
-          Publish announcement
-        </button>
-      </div>
+      <MessageDesignFields
+        design={design}
+        onChange={setDesign}
+        onReset={() => {
+          const tpl = BANNER_TEMPLATES.find((t) => t.id === templateId);
+          if (tpl) setDesign({ ...DEFAULT_BANNER_DESIGN, textColor: tpl.textColor ?? "#ffffff" });
+        }}
+      />
+
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => void publish()}
+        className="rounded-lg bg-accent px-4 py-2 text-[12px] font-semibold text-white disabled:opacity-50"
+      >
+        Publish announcement
+      </button>
 
       {announcements.length > 0 ? (
         <ul className="space-y-2 border-t border-border pt-4">

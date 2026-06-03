@@ -57,7 +57,34 @@ function withTimeout<T>(p: PromiseLike<T>, ms: number, label: string): Promise<T
   ]);
 }
 
-const COMMUNITY_FETCH_TIMEOUT_MS = 1_000;
+const COMMUNITY_FETCH_TIMEOUT_MS = 10_000;
+const COMMUNITY_DISCUSSIONS_LIMIT = 30;
+
+function DiscussionsInlineFallback({
+  message,
+  onRetry,
+  onStartDiscussion,
+}: {
+  message: string;
+  onRetry: () => void;
+  onStartDiscussion?: () => void;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-muted/20 px-4 py-6 text-center">
+      <p className="text-[13px] text-muted-foreground">{message}</p>
+      <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+        <Button variant="secondary" size="sm" type="button" onClick={onRetry}>
+          Retry
+        </Button>
+        {onStartDiscussion ? (
+          <Button variant="accent" size="sm" type="button" onClick={onStartDiscussion}>
+            Start discussion
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 function CommunityFetchFallback({
   title,
@@ -849,7 +876,7 @@ export function CommunityView() {
               .select("*")
               .order("is_pinned", { ascending: false })
               .order("created_at", { ascending: false })
-              .limit(50),
+              .limit(COMMUNITY_DISCUSSIONS_LIMIT),
             user
               ? supabase.from("discussion_likes").select("discussion_id").eq("user_id", user.id)
               : Promise.resolve({ data: [] as { discussion_id: string }[] | null, error: null }),
@@ -978,20 +1005,16 @@ export function CommunityView() {
       {tab === "Trending" && (
         <motion.div variants={variants.fadeUp} initial="hidden" animate="show" transition={{ delay: 0.1 }} className="mt-6">
           {discussionsLoading ? (
-            <div className="flex justify-center py-16">
-              <Loader2 className="size-6 animate-spin text-muted-foreground" />
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-16 animate-pulse rounded-xl bg-muted/50 ring-1 ring-border" />
+              ))}
             </div>
           ) : discussionsError ? (
-            <CommunityFetchFallback
-              title="Get started"
-              description={
-                discussionsError === "Request timed out"
-                  ? "Discussions are slow to respond right now. Shipped something amazing while you wait, or try again in a moment."
-                  : `We couldn’t load discussions (${discussionsError}). You can still start building, post when the feed is back, or retry.`
-              }
+            <DiscussionsInlineFallback
+              message="Couldn't load discussions yet."
               onRetry={() => setDiscussionsRetryKey((k) => k + 1)}
-              secondaryLabel="Start a discussion"
-              onSecondary={() => setShowCreate(true)}
+              onStartDiscussion={() => setShowCreate(true)}
             />
           ) : (
             <TrendingTab onStartDiscussion={() => { setTab("Discussions"); setShowCreate(true); }} discussions={discussions} />
@@ -1017,20 +1040,16 @@ export function CommunityView() {
       {tab === "Discussions" && (
         <motion.div variants={variants.fadeUp} initial="hidden" animate="show" transition={{ delay: 0.1 }} className="mt-6">
           {discussionsLoading ? (
-            <div className="flex justify-center py-16">
-              <Loader2 className="size-6 animate-spin text-muted-foreground" />
+            <div className="space-y-2">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-20 animate-pulse rounded-xl bg-muted/50 ring-1 ring-border" />
+              ))}
             </div>
           ) : discussionsError ? (
-            <CommunityFetchFallback
-              title="Get started"
-              description={
-                discussionsError === "Request timed out"
-                  ? "Discussions are slow to respond right now. Shipped something amazing while you wait, or try again in a moment."
-                  : `We couldn’t load discussions (${discussionsError}). You can still start building, post when the feed is back, or retry.`
-              }
+            <DiscussionsInlineFallback
+              message="Couldn't load discussions yet."
               onRetry={() => setDiscussionsRetryKey((k) => k + 1)}
-              secondaryLabel="Start a discussion"
-              onSecondary={() => setShowCreate(true)}
+              onStartDiscussion={() => setShowCreate(true)}
             />
           ) : discussions.length === 0 ? (
             <EmptyDiscussions onStart={() => setShowCreate(true)} />
@@ -1047,7 +1066,7 @@ export function CommunityView() {
       {/* Builders tab */}
       {tab === "Builders" && (
         <motion.div variants={variants.fadeUp} initial="hidden" animate="show" transition={{ delay: 0.1 }} className="mt-6">
-          <BuildersTab />
+          <BuildersTab onExploreCommunity={() => setTab("Discussions")} />
         </motion.div>
       )}
 
@@ -1159,97 +1178,41 @@ function CommunityAppsTab() {
 
 // ─── Builders tab ─────────────────────────────────────────────────────────────
 
-function BuildersTab() {
-  const supabase = createClient();
-  const [builders, setBuilders] = React.useState<Array<{ id: string; full_name: string | null; email: string; avatar_url: string | null }>>([]);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
-  const [retryKey, setRetryKey] = React.useState(0);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const { data, error: err } = await withTimeout(
-          supabase.from("profiles").select("id, full_name, email, avatar_url").order("created_at", { ascending: false }).limit(12),
-          COMMUNITY_FETCH_TIMEOUT_MS,
-          "Request timed out",
-        );
-        if (cancelled) return;
-        if (err) throw new Error(err.message);
-        setBuilders(data ?? []);
-      } catch (e) {
-        if (!cancelled) {
-          setBuilders([]);
-          setError(e instanceof Error ? e.message : "Failed to load builders");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [retryKey]);
-
-  if (loading) {
-    return <div className="flex justify-center py-16"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>;
-  }
-
-  if (error) {
-    return (
-      <CommunityFetchFallback
-        title="Get started"
-        description="We couldn’t load builder profiles right now. Start shipping an app or try again in a moment."
-        onRetry={() => setRetryKey((k) => k + 1)}
-      />
-    );
-  }
-
+function BuildersTab({ onExploreCommunity }: { onExploreCommunity: () => void }) {
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2 mb-4">
-        <Users className="size-4 text-accent" strokeWidth={1.75} />
-        <p className="text-[13px] font-semibold text-foreground">Builders on Vodex</p>
-        <span className="ml-auto text-[12px] text-muted-foreground">{builders.length} members</span>
+    <div
+      className="relative overflow-hidden rounded-[var(--radius-xl)] border border-sky-200/40 bg-gradient-to-br from-sky-50/90 via-white to-indigo-50/70 px-6 py-10 text-center shadow-[var(--shadow-card)] ring-1 ring-border dark:from-slate-900/80 dark:via-slate-950 dark:to-indigo-950/40"
+      data-testid="builders-coming-soon"
+    >
+      <div className="pointer-events-none absolute -right-12 -top-12 size-40 rounded-full bg-sky-400/15 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-8 -left-8 size-32 rounded-full bg-violet-400/15 blur-3xl" />
+      <div className="relative mx-auto mb-4 flex size-16 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white shadow-lg ring-1 ring-white/20">
+        <Users className="size-8" strokeWidth={1.5} />
       </div>
-
-      {builders.length === 0 ? (
-        <div className="flex flex-col items-center rounded-[var(--radius-xl)] bg-surface py-12 text-center ring-1 ring-border px-6">
-          <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-accent/10 ring-1 ring-accent/20">
-            <Users className="size-7 text-accent" strokeWidth={1.5} />
-          </div>
-          <p className="text-[15px] font-semibold text-foreground">No builders yet</p>
-          <p className="mt-2 max-w-md text-[13px] text-muted-foreground">
-            When teammates join, they&apos;ll show up here. Invite people from Team settings or start shipping apps.
-          </p>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-            <Button variant="accent" size="sm" className="gap-1.5" asChild>
-              <Link href="/settings/team">Invite builders</Link>
-            </Button>
-            <Button variant="secondary" size="sm" className="gap-1.5" asChild>
-              <Link href="/">Start building</Link>
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {builders.map((b) => {
-            const name = b.full_name ?? b.email.split("@")[0];
-            return (
-              <div key={b.id} className="flex flex-col items-center gap-2 rounded-[var(--radius-xl)] bg-surface p-4 text-center ring-1 ring-border transition hover:ring-accent/20">
-                <Avatar name={name} src={b.avatar_url ?? undefined} size="lg" />
-                <div>
-                  <p className="text-[12.5px] font-semibold text-foreground">{name}</p>
-                  <p className="text-[11px] text-muted-foreground truncate max-w-[120px]">{b.email}</p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <h2 className="relative text-[17px] font-semibold tracking-tight text-foreground">
+        Builders directory is coming soon
+      </h2>
+      <p className="relative mx-auto mt-2 max-w-md text-[13px] leading-relaxed text-muted-foreground">
+        Discover creators, teams, and makers building with Vodex.
+      </p>
+      <div className="relative mt-4 flex flex-wrap items-center justify-center gap-2">
+        {["Verified builders", "Featured creators", "Team profiles"].map((badge) => (
+          <span
+            key={badge}
+            className="rounded-full border border-border/80 bg-background/70 px-2.5 py-1 text-[10px] font-medium text-muted-foreground"
+          >
+            {badge}
+          </span>
+        ))}
+      </div>
+      <div className="relative mt-6 flex flex-wrap items-center justify-center gap-2">
+        <Button variant="accent" size="sm" className="gap-1.5" type="button" onClick={onExploreCommunity}>
+          Explore community
+        </Button>
+        <Button variant="secondary" size="sm" className="gap-1.5" asChild>
+          <Link href="/create">Create your first app</Link>
+        </Button>
+      </div>
     </div>
   );
 }

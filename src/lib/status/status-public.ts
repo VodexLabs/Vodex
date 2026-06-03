@@ -197,14 +197,4 @@ export async function fetchPublicStatusPayload(options?: { fullView?: boolean })
   };
 }
 
-export async function checkStatusSchemaReady(): Promise<boolean> {
-  const admin = createServiceRoleClient();
-  if (!admin) return false;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = admin as any;
-  const { error: cErr } = await db.from("status_components").select("id").limit(1);
-  if (!cErr) return true;
-  if (!isStatusSchemaMissingError(cErr)) return false;
-  const { error: aErr } = await db.from("platform_announcements").select("id").limit(1);
-  return !aErr || !isStatusSchemaMissingError(aErr);
-}
+export { checkStatusSchemaReady } from "@/lib/status/status-schema";

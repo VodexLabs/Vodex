@@ -18,6 +18,10 @@ import {
 } from "@/lib/auth/auth-cookie-options";
 import { validateOAuthRedirectForBrowser } from "@/lib/auth/oauth-origin-guard";
 import { isLocalhostOrigin } from "@/lib/url/app-origin";
+import {
+  DREAMOS_SIGNUP_CONSENT_COOKIE,
+  DREAMOS_SIGNUP_MARKETING_COOKIE,
+} from "@/lib/auth/signup-consent";
 
 export const DREAMOS_AUTH_RETURN_TO_STORAGE = "dreamos_auth_return_to";
 export const DREAMOS_RETURN_TO_COOKIE = "dreamos_auth_return_to";
@@ -323,4 +327,9 @@ export function resolvePostAuthDestination(
   return "/";
 }
 
-export const OAUTH_EPHEMERAL_COOKIES = [DREAMOS_REF_COOKIE, DREAMOS_RETURN_TO_COOKIE] as const;
+export const OAUTH_EPHEMERAL_COOKIES = [
+  DREAMOS_REF_COOKIE,
+  DREAMOS_RETURN_TO_COOKIE,
+  DREAMOS_SIGNUP_CONSENT_COOKIE,
+  DREAMOS_SIGNUP_MARKETING_COOKIE,
+] as const;

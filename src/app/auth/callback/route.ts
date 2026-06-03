@@ -5,6 +5,11 @@ import {
   readRefCookieFromRequest,
 } from "@/lib/auth/profile-bootstrap";
 import {
+  applySignupConsentToProfile,
+  readSignupConsentFromCookieHeader,
+} from "@/lib/auth/signup-consent";
+import { createSupabaseAdmin } from "@/lib/supabase/admin";
+import {
   OAUTH_EPHEMERAL_COOKIES,
   resolvePostAuthDestination,
 } from "@/lib/auth/oauth-prep";
@@ -156,6 +161,12 @@ export async function GET(request: NextRequest) {
       logAuthEvent("profile_ensure_started", { userId: user.id }, "info", "server");
       const result = await bootstrapProfileFromOAuth(user, refCookie);
       onboardingCompleted = result.onboardingCompleted;
+      const consent = readSignupConsentFromCookieHeader(request.headers.get("cookie"));
+      if (consent) {
+        const admin = createSupabaseAdmin();
+        const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+        await applySignupConsentToProfile(admin, user.id, consent, ip);
+      }
       logAuthEvent(
         "profile_ensure_succeeded",
         { onboardingCompleted },

@@ -30,6 +30,15 @@ export async function POST(request: Request) {
     templateId?: string;
     iconKey?: string;
     effectKey?: string;
+    design?: {
+      backgroundPreset?: string;
+      effectPreset?: string;
+      iconPreset?: string;
+      animatedIconEnabled?: boolean;
+      textColor?: string;
+      accentColor?: string;
+      outlineColor?: string;
+    };
   };
 
   const title = body.title?.trim();
@@ -83,8 +92,13 @@ export async function POST(request: Request) {
       play_sound: body.playSound !== false,
       premium: true,
       template_id: body.templateId ?? "custom",
-      icon_key: body.iconKey ?? "bell",
-      effect_key: body.effectKey ?? "glow",
+      icon_key: body.design?.iconPreset ?? body.iconKey ?? "bell",
+      effect_key: body.design?.effectPreset ?? body.effectKey ?? "glow",
+      background_preset: body.design?.backgroundPreset,
+      text_color: body.design?.textColor,
+      accent_color: body.design?.accentColor,
+      outline_color: body.design?.outlineColor,
+      animated_icon: body.design?.animatedIconEnabled,
     },
   }));
 
@@ -105,6 +119,15 @@ export async function POST(request: Request) {
       : body.targetPlan && body.targetPlan !== "all"
         ? `plan:${body.targetPlan}`
         : "all_existing",
+    target_plan: body.targetPlan ?? null,
+    target_email: body.targetEmail?.trim() || null,
+    background_preset: body.design?.backgroundPreset ?? null,
+    effect_preset: body.design?.effectPreset ?? null,
+    icon_preset: body.design?.iconPreset ?? null,
+    animated_icon_enabled: body.design?.animatedIconEnabled ?? false,
+    text_color: body.design?.textColor ?? null,
+    accent_color: body.design?.accentColor ?? null,
+    outline_color: body.design?.outlineColor ?? null,
     recipient_count: rows.length,
     created_by: owner.user.id,
   });

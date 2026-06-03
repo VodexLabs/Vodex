@@ -49,9 +49,10 @@ import {
   refreshNotificationPrefsFromApi,
 } from "@/lib/notifications/notification-prefs-cache";
 import {
-  shouldPlaySound,
+  shouldPlayInWebSound,
   normalizeNotificationPrefs,
 } from "@/lib/notifications/notification-preferences";
+import { resolveInWebSoundKey } from "@/lib/notifications/in-web-sound-keys";
 import { playNotificationChime } from "@/lib/notifications/notification-sound";
 import { usePresenceHeartbeat } from "@/hooks/use-presence-heartbeat";
 
@@ -173,9 +174,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             const md = row.metadata as Record<string, unknown> | null;
             const allowSound = md?.play_sound !== false;
             addNotification(row);
+            const soundKey = resolveInWebSoundKey(row);
             if (
               allowSound &&
-              shouldPlaySound(prefs, row.type) &&
+              shouldPlayInWebSound(prefs, soundKey) &&
               Date.now() - lastChimeAt > 2000
             ) {
               lastChimeAt = Date.now();

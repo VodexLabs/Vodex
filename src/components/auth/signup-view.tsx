@@ -23,6 +23,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { hasActiveSession } from "@/lib/auth/client-identity";
 import { clearStaleSupabaseAuthCookies } from "@/lib/supabase/supabase-auth-cookies";
 import { cn } from "@/lib/utils";
+import { persistSignupConsentForBrowser } from "@/lib/auth/signup-consent";
 
 function PasswordStrength({ password }: { password: string }) {
   const checks = [
@@ -76,6 +77,7 @@ export function SignupView() {
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [agreed, setAgreed] = React.useState(false);
+  const [marketingOptIn, setMarketingOptIn] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [oauthLoading, setOauthLoading] = React.useState<"google" | "github" | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -119,6 +121,7 @@ export function SignupView() {
     if (!agreed || !email || !password || !name) return;
     setLoading(true);
     setError(null);
+    persistSignupConsentForBrowser({ termsAccepted: true, marketingOptIn });
 
     const { data, error: authError } = await authSignUp(email, password, name);
 
@@ -140,11 +143,20 @@ export function SignupView() {
       return;
     }
 
+    void fetch("/api/profile/consent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ termsAccepted: true, marketingOptIn }),
+    }).catch(() => undefined);
+
     setSuccess(true);
     setLoading(false);
   }
 
   async function handleOAuth(provider: "google" | "github") {
+    if (!agreed) return;
+    persistSignupConsentForBrowser({ termsAccepted: true, marketingOptIn });
     setOauthLoading(provider);
     setError(null);
 
@@ -328,7 +340,7 @@ export function SignupView() {
             </div>
 
             {/* Terms checkbox */}
-            <label className="flex cursor-pointer items-start gap-2.5">
+            <label className="flex cursor-pointer items-start gap-2.5" data-testid="signup-terms-checkbox">
               <div
                 role="checkbox"
                 aria-checked={agreed}
@@ -362,12 +374,34 @@ export function SignupView() {
               </span>
             </label>
 
+            <label className="flex cursor-pointer items-start gap-2.5" data-testid="signup-marketing-opt-in">
+              <div
+                role="checkbox"
+                aria-checked={marketingOptIn}
+                tabIndex={0}
+                className={cn(
+                  "mt-0.5 flex size-4 shrink-0 cursor-pointer items-center justify-center rounded transition",
+                  marketingOptIn
+                    ? "bg-accent"
+                    : "bg-muted ring-1 ring-border hover:ring-accent/40",
+                )}
+                onClick={() => setMarketingOptIn(!marketingOptIn)}
+                onKeyDown={(e) => e.key === " " && setMarketingOptIn(!marketingOptIn)}
+              >
+                {marketingOptIn && <Check className="size-2.5 text-white" strokeWidth={3} />}
+              </div>
+              <span className="text-[12px] text-muted-foreground">
+                Send me product updates, tips, and offers by email (optional)
+              </span>
+            </label>
+
             <Button
               variant="accent"
               size="lg"
               className="w-full"
               type="submit"
               disabled={anyLoading || !agreed || !email || !password || !name}
+              data-testid="signup-submit"
             >
               {loading ? (
                 <Loader2 className="size-4 animate-spin" aria-label="Creating account…" />
@@ -389,7 +423,7 @@ export function SignupView() {
               size="lg"
               className="w-full gap-3"
               onClick={() => handleOAuth("github")}
-              disabled={anyLoading}
+              disabled={anyLoading || !agreed}
               type="button"
               aria-label="Sign up with GitHub"
             >
@@ -407,7 +441,7 @@ export function SignupView() {
               size="lg"
               className="w-full gap-3"
               onClick={() => handleOAuth("google")}
-              disabled={anyLoading}
+              disabled={anyLoading || !agreed}
               type="button"
               aria-label="Sign up with Google"
             >
@@ -436,17 +470,6 @@ export function SignupView() {
           </Link>
         </p>
 
-        <p className="mt-4 text-center text-[11px] text-muted-foreground">
-          By continuing, you agree to the{" "}
-          <Link href="/terms" className="hover:underline underline-offset-4">
-            Terms
-          </Link>{" "}
-          and acknowledge the{" "}
-          <Link href="/privacy" className="hover:underline underline-offset-4">
-            Privacy Policy
-          </Link>
-          .
-        </p>
       </motion.div>
     </div>
   );

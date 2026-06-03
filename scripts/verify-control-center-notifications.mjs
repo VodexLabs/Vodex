@@ -26,7 +26,8 @@ must(read("src/components/notifications/notification-panel.tsx"), "notification-
 must(read("src/lib/notifications/inbox-message-templates.ts"), "Welcome to Vodex", "8 inbox templates", errors);
 must(read("src/lib/status/announcement-templates.ts"), "service_restored", "8 announcement templates", errors);
 must(read("src/lib/email/marketing-email-templates.ts"), "MARKETING_EMAIL_TEMPLATES", "email templates", errors);
-must(read("src/app/(app)/settings/notifications/page.tsx"), "In-app notification sounds", "sounds only settings", errors);
+must(read("src/app/(app)/settings/notifications/page.tsx"), "In-web sounds", "sounds only settings", errors);
+must(read("src/app/(app)/settings/notifications/page.tsx"), "prompt_finished", "prompt sound", errors);
 must(read("src/app/globals.css"), "--mobile-bottom-nav-height", "mobile nav height var", errors);
 must(read("src/app/globals.css"), "vodex-footer-columns", "footer column padding", errors);
 must(read("src/lib/notifications/create-user-notification.ts"), "createUserNotification", "typed notifications", errors);
@@ -37,6 +38,7 @@ for (const f of [
   "supabase/migrations/20260721120000_platform_status_p16.sql",
   "supabase/migrations/20260722120000_p17_production_stability.sql",
   "supabase/migrations/20260728120000_p21_control_center_comms.sql",
+  "supabase/migrations/20260730120000_p23_control_center_visuals_and_status_fix.sql",
 ]) {
   if (!fs.existsSync(path.join(root, f))) errors.push(`missing ${f}`);
 }

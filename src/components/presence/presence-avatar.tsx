@@ -26,7 +26,7 @@ export function PresenceAvatar({
     <span className="relative inline-flex shrink-0">
       <Avatar size={size} className={className} {...avatarProps} />
       {showStatus && status ? (
-        <span className="pointer-events-none absolute -bottom-0.5 -right-0.5 z-10">
+        <span className="pointer-events-none absolute -bottom-1 -right-0.5 z-10">
           <PresenceDot status={status} label={statusLabel} size={dotSize} />
         </span>
       ) : null}

@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { getCanonicalOAuthRedirectTo } from "@/lib/auth/oauth-redirect";
 import { persistAuthReturnToForBrowser } from "@/lib/auth/oauth-prep";
 import { PresenceSettingsSection } from "@/components/settings/presence-settings-section";
+import { EmailPreferencesSection } from "@/components/settings/email-preferences-section";
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
@@ -844,6 +845,10 @@ export function AccountSettings() {
 
         <motion.div variants={variants.staggerItem}>
           <PresenceSettingsSection />
+        </motion.div>
+
+        <motion.div variants={variants.staggerItem}>
+          <EmailPreferencesSection />
         </motion.div>
 
         {/* Password */}

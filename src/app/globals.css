@@ -1977,19 +1977,90 @@ body {
 }
 
 .vodex-presence-dot--online {
-  background: rgb(52 211 153);
+  background: rgb(34 197 94);
   box-shadow:
-    0 0 0 1px rgb(16 185 129 / 0.35),
-    0 0 10px rgb(52 211 153 / 0.55);
+    0 0 0 1.5px rgb(255 255 255 / 0.9),
+    0 0 8px rgb(34 197 94 / 0.55);
 }
 
 .vodex-presence-dot--offline {
   background: rgb(148 163 184);
-  box-shadow: 0 0 0 1px rgb(100 116 139 / 0.25);
+  box-shadow:
+    0 0 0 1.5px rgb(255 255 255 / 0.85),
+    0 0 0 1px rgb(100 116 139 / 0.2);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .vodex-presence-dot {
     transition: none;
+  }
+}
+
+/* Control Center — message design effects */
+.vodex-effect-glow-pulse::after,
+.vodex-effect-status-pulse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  animation: vodex-glow-pulse 2.4s ease-in-out infinite;
+  box-shadow: inset 0 0 24px rgba(56, 189, 248, 0.15);
+}
+
+.vodex-effect-subtle-stars::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.35;
+  background-image: radial-gradient(circle at 20% 30%, white 1px, transparent 1px),
+    radial-gradient(circle at 70% 60%, white 1px, transparent 1px);
+  background-size: 48px 48px, 64px 64px;
+}
+
+.vodex-bg-animated-aurora {
+  background: linear-gradient(120deg, #0ea5e9, #6366f1, #8b5cf6, #0ea5e9);
+  background-size: 300% 300%;
+  animation: vodex-aurora-shift 8s ease infinite;
+}
+
+.vodex-bg-animated-shimmer {
+  background: linear-gradient(90deg, #e0f2fe, #fff, #e0f2fe);
+  background-size: 200% 100%;
+  animation: vodex-shimmer 3s linear infinite;
+}
+
+.vodex-icon-animated {
+  animation: vodex-icon-bob 2s ease-in-out infinite;
+}
+
+@keyframes vodex-glow-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+@keyframes vodex-aurora-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes vodex-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes vodex-icon-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vodex-bg-animated-aurora,
+  .vodex-bg-animated-shimmer,
+  .vodex-icon-animated,
+  .vodex-effect-glow-pulse::after {
+    animation: none !important;
   }
 }

@@ -64,8 +64,12 @@ export async function PUT(request: Request) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any).from("notification_preferences").upsert({
     user_id: user.id,
-    prefs: prefs.categories,
-    sound_enabled: prefs.soundEnabled,
+    prefs: {
+      categories: prefs.categories,
+      inWebSounds: prefs.inWebSounds,
+      soundEnabled: prefs.inWebSounds.inbox_message,
+    },
+    sound_enabled: prefs.inWebSounds.inbox_message,
     updated_at: new Date().toISOString(),
   } as never);
 

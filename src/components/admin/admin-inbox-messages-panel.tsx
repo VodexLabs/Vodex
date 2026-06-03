@@ -1,62 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { Bell, Megaphone, Rocket, AlertTriangle, Sparkles, Wrench, Gift, Users, Plug, Layers, type LucideIcon } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { INBOX_MESSAGE_TEMPLATES } from "@/lib/notifications/inbox-message-templates";
-
-const ICON_MAP: Record<string, LucideIcon> = {
-  bell: Bell,
-  megaphone: Megaphone,
-  rocket: Rocket,
-  alert: AlertTriangle,
-  gift: Gift,
-  wrench: Wrench,
-  sparkles: Sparkles,
-  users: Users,
-  plug: Plug,
-  layers: Layers,
-};
-
-const EFFECT_CLASS: Record<string, string> = {
-  glow: "from-sky-500/20 via-indigo-500/10 to-violet-500/20",
-  stars: "from-sky-50/90 via-indigo-50/80 to-violet-100/70 dark:from-slate-900/80 dark:via-indigo-950/40 dark:to-violet-950/30",
-  frost: "from-cyan-500/15 via-sky-400/10 to-blue-500/15",
-};
-
-function InboxPreviewCard({
-  title,
-  message,
-  iconKey,
-  effectKey,
-}: {
-  title: string;
-  message: string;
-  iconKey: string;
-  effectKey: string;
-}) {
-  const Icon = ICON_MAP[iconKey] ?? Bell;
-  const effect = EFFECT_CLASS[effectKey] ?? EFFECT_CLASS.glow;
-  return (
-    <div
-      className={`relative w-full max-w-[340px] overflow-hidden rounded-xl border border-sky-200/60 bg-gradient-to-br p-3.5 dark:border-sky-500/30 ${effect}`}
-      data-testid="admin-inbox-preview"
-    >
-      <div className="flex items-center gap-2.5">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-violet-600 text-white shadow-md">
-          <Icon className="size-4" strokeWidth={1.75} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-[12.5px] font-bold leading-snug text-foreground">{title || "Title"}</p>
-          <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
-            {message || "Message body"}
-          </p>
-        </div>
-        <span className="size-1.5 shrink-0 rounded-full bg-accent" />
-      </div>
-    </div>
-  );
-}
+import {
+  DEFAULT_INBOX_DESIGN,
+  type MessageDesign,
+} from "@/lib/control-center/message-design-presets";
+import { MessageDesignFields } from "@/components/control-center/message-design-fields";
+import { InboxNotificationPreview } from "@/components/control-center/inbox-notification-preview";
+import { sanitizeAdminUrl } from "@/lib/control-center/sanitize-url";
 
 type TargetPlan = "all" | "free" | "starter" | "pro" | "infinity";
 
@@ -64,26 +17,49 @@ export function AdminInboxMessagesPanel() {
   const [templateId, setTemplateId] = React.useState(INBOX_MESSAGE_TEMPLATES[0]!.id);
   const [title, setTitle] = React.useState(INBOX_MESSAGE_TEMPLATES[0]!.title);
   const [message, setMessage] = React.useState(INBOX_MESSAGE_TEMPLATES[0]!.body);
-  const [iconKey, setIconKey] = React.useState(INBOX_MESSAGE_TEMPLATES[0]!.iconKey);
-  const [effectKey, setEffectKey] = React.useState(INBOX_MESSAGE_TEMPLATES[0]!.effectKey);
+  const [design, setDesign] = React.useState<MessageDesign>(DEFAULT_INBOX_DESIGN);
   const [targetEmail, setTargetEmail] = React.useState("");
   const [targetPlan, setTargetPlan] = React.useState<TargetPlan>("all");
   const [actionUrl, setActionUrl] = React.useState("/");
   const [playSound, setPlaySound] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
 
-  React.useEffect(() => {
-    const t = INBOX_MESSAGE_TEMPLATES.find((x) => x.id === templateId);
+  const applyTemplate = React.useCallback((id: string) => {
+    const t = INBOX_MESSAGE_TEMPLATES.find((x) => x.id === id);
     if (!t) return;
     setTitle(t.title);
     setMessage(t.body);
-    setIconKey(t.iconKey);
-    setEffectKey(t.effectKey);
-  }, [templateId]);
+    const iconMap: Record<string, MessageDesign["iconPreset"]> = {
+      sparkles: "welcome_sparkle",
+      megaphone: "megaphone",
+      rocket: "rocket",
+      gift: "gift",
+      alert: "warning_triangle",
+      wrench: "wrench_status",
+      users: "workspace_users",
+      plug: "integration_plug",
+      bell: "megaphone",
+    };
+    setDesign({
+      ...DEFAULT_INBOX_DESIGN,
+      iconPreset: iconMap[t.iconKey] ?? DEFAULT_INBOX_DESIGN.iconPreset,
+      effectPreset:
+        t.effectKey === "stars"
+          ? "subtle_stars"
+          : t.effectKey === "frost"
+            ? "frost_particles"
+            : "glow_pulse",
+    });
+  }, []);
+
+  React.useEffect(() => {
+    applyTemplate(templateId);
+  }, [templateId, applyTemplate]);
 
   async function send() {
     setBusy(true);
     try {
+      const safeUrl = sanitizeAdminUrl(actionUrl);
       const res = await fetch("/api/admin/notifications/broadcast", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -93,12 +69,13 @@ export function AdminInboxMessagesPanel() {
           message: message.trim(),
           targetEmail: targetEmail.trim() || undefined,
           targetPlan: targetEmail.trim() ? undefined : targetPlan,
-          actionUrl: actionUrl.trim() || undefined,
+          actionUrl: safeUrl ?? undefined,
           templateId,
-          iconKey,
-          effectKey,
+          iconKey: design.iconPreset,
+          effectKey: design.effectPreset,
           playSound,
           category: "system",
+          design,
         }),
       });
       const json = await res.json();
@@ -115,9 +92,9 @@ export function AdminInboxMessagesPanel() {
     <div className="rounded-xl border border-border bg-surface p-4" data-testid="admin-inbox-messages">
       <h3 className="text-[14px] font-semibold">User inbox messages</h3>
       <p className="mt-1 text-[12px] text-muted-foreground">
-        Sends to the in-app notification bell only — not email. Preview matches the user popover card.
+        In-app notification bell only — not email. Preview matches the real popover card height.
       </p>
-      <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_340px]">
+      <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_minmax(280px,360px)]">
         <div className="space-y-3">
           <select
             value={templateId}
@@ -140,7 +117,7 @@ export function AdminInboxMessagesPanel() {
             <option value="free">Free plan</option>
             <option value="starter">Starter</option>
             <option value="pro">Pro</option>
-            <option value="infinity">Infinity</option>
+            <option value="infinity">Infinity (all tiers)</option>
           </select>
           <input
             value={targetEmail}
@@ -165,9 +142,14 @@ export function AdminInboxMessagesPanel() {
             placeholder="Action URL (optional)"
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-[12px]"
           />
+          <MessageDesignFields
+            design={design}
+            onChange={setDesign}
+            onReset={() => applyTemplate(templateId)}
+          />
           <label className="flex items-center gap-2 text-[12px]">
             <input type="checkbox" checked={playSound} onChange={(e) => setPlaySound(e.target.checked)} />
-            Play in-web sound (if user enabled sounds in settings)
+            Play in-web sound (if user enabled sounds)
           </label>
           <button
             type="button"
@@ -179,7 +161,7 @@ export function AdminInboxMessagesPanel() {
             {busy ? "Sending…" : "Send inbox message"}
           </button>
         </div>
-        <InboxPreviewCard title={title} message={message} iconKey={iconKey} effectKey={effectKey} />
+        <InboxNotificationPreview title={title} message={message} design={design} />
       </div>
     </div>
   );

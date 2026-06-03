@@ -213,7 +213,7 @@ export default function TeamSettingsPage() {
                         memberInitials(m) || "?"
                       )}
                     </div>
-                    <span className="pointer-events-none absolute -bottom-0.5 -right-0.5">
+                    <span className="pointer-events-none absolute -bottom-1 -right-0.5">
                       <PresenceDot status={m.visible_status ?? "offline"} size="sm" />
                     </span>
                   </div>

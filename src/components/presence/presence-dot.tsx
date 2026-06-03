@@ -13,8 +13,8 @@ export type PresenceDotProps = {
 };
 
 const sizeMap = {
-  sm: "size-2.5 border-[1.5px]",
-  md: "size-3 border-2",
+  sm: "size-2 border-[1.5px]",
+  md: "size-2.5 border-[1.5px]",
 } as const;
 
 export function PresenceDot({ status, label, size = "md", className }: PresenceDotProps) {
