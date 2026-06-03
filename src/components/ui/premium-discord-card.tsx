@@ -67,7 +67,7 @@ export function PremiumDiscordCard({
       data-testid={testId}
       className={cn(
         "vodex-discord-card-icy group relative block overflow-hidden rounded-xl border border-[#5865F2]/30 shadow-lg transition hover:shadow-xl hover:shadow-[#5865F2]/20",
-        isFooter ? "h-[66px] px-3 py-2" : "rounded-2xl p-4 sm:p-5",
+        isFooter ? "h-[60px] px-3 py-1.5" : "rounded-2xl p-4 sm:p-5",
         className,
       )}
     >

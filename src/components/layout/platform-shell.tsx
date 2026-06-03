@@ -263,7 +263,7 @@ export function PlatformShell({
               ? "relative flex min-h-0 flex-1 min-w-0 flex-col overflow-y-auto overflow-x-hidden"
               : isFullBleed
                 ? "relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-                : "relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden bg-atmosphere px-[var(--page-padding-x)] py-[var(--page-padding-y)]"
+                : "relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden bg-atmosphere px-[var(--page-padding-x)] pt-[var(--page-padding-y)] pb-0"
           }
           style={
             isHomeShellScroll || !isFullBleed ? { scrollBehavior: "smooth" } : undefined
