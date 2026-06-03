@@ -170,7 +170,7 @@ function WorkspaceDropdown({
       onClick={(e) => e.stopPropagation()}
     >
       <div className="border-b border-border/80 px-3 py-1.5">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">YOUR SPACE</p>
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Workspace</p>
         <p className="truncate text-[12px] font-semibold text-foreground">{workspaceLabel}</p>
       </div>
       <div className="border-b border-border px-3 py-1.5">

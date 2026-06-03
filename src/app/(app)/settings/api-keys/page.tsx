@@ -354,7 +354,7 @@ export default function ApiKeysPage() {
           </Button>
           <p className="mt-3 text-[11px] text-muted-foreground">
             Need more access?{" "}
-            <a href="/settings/billing" className="font-medium text-accent hover:underline">
+            <a href="/pricing" className="font-medium text-accent hover:underline">
               Upgrade to Starter
             </a>
           </p>

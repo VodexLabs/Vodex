@@ -1,7 +1,7 @@
 import { sealIntegrationSecret, unsealSecret } from "@/lib/secrets/seal";
 import { getIntegrationAdmin } from "@/lib/integrations/server/verify-project";
 
-export type UserProvider = "github" | "supabase";
+export type UserProvider = "github" | "supabase" | "discord";
 
 export type UserProviderConnection = {
   provider: UserProvider;

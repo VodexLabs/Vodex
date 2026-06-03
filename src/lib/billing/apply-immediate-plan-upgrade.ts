@@ -22,6 +22,7 @@ import type { BillingInterval } from "@/lib/billing/upgrade-policy";
 import { billingPeriodEndFromNow } from "@/lib/billing/upgrade-policy";
 import type { PlanId } from "@/lib/supabase/types";
 import { computeUpgradeCycleCredits } from "@/lib/billing/mid-cycle-upgrade-credits";
+import { scheduleDiscordRoleSync } from "@/lib/integrations/server/sync-discord-role-for-user";
 
 export type ApplyImmediatePlanUpgradeInput = {
   userId: string;
@@ -260,6 +261,13 @@ export async function applyImmediatePlanUpgrade(
     await patchBillingAttempt(input.billingAttemptId, {
       period_start_after: effectiveAt,
       period_end_after: periodEndIso,
+    });
+  }
+
+  if (applied) {
+    scheduleDiscordRoleSync(input.userId, {
+      source: input.source,
+      planIdOverride: newPlan,
     });
   }
 

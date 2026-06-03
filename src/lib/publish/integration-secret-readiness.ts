@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
 import { detectRequiredIntegrations } from "@/lib/generated-apps/integration-requirements";
 import { INTEGRATION_PROVIDERS } from "@/lib/generated-apps/integration-registry";
+import type { LegacyPlatformInfo } from "@/lib/import/legacy-platform-detector";
 
 export type PublishSetupGap = {
   kind: "integration" | "secret";
@@ -28,11 +29,16 @@ export async function collectPublishSetupGaps(
   input: {
     prompt?: string;
     files: Array<{ path: string; content: string }>;
+    legacy?: LegacyPlatformInfo | null;
   },
 ): Promise<PublishSetupGap[]> {
   const combined = input.files.map((f) => f.content).join("\n");
   const fromPrompt = detectRequiredIntegrations(input.prompt ?? "", combined);
   const providers = new Set<string>(fromPrompt.map((r) => r.provider));
+
+  if (input.legacy?.platform === "base44" && !input.legacy.usesBase44Sdk) {
+    providers.delete("discord");
+  }
 
   for (const rule of FILE_ENV_PATTERNS) {
     if (rule.pattern.test(combined)) providers.add(rule.provider);

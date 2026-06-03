@@ -190,7 +190,11 @@ export async function POST(req: Request) {
             has_stripe: validation.dependencies.hasStripe,
             has_tailwind: validation.dependencies.hasTailwind,
           },
-          env_requirements: validation.envRequirements,
+          env_requirements: validation.envRequirements
+            .filter((e) => !e.key.startsWith("BASE44_") || validation.legacy.usesBase44Sdk)
+            .map((e) => e.key),
+          legacy_platform: validation.legacy.platform,
+          legacy_base44_sdk: validation.legacy.usesBase44Sdk,
           quality_score: validation.qualityScore,
           preview_ready: validation.previewReady,
           publish_ready: validation.publishReady,

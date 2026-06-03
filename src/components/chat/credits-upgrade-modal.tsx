@@ -43,6 +43,31 @@ interface CreditsUpgradeModalProps {
 export function CreditsUpgradeModal({ onClose, currentPlanId = "free" }: CreditsUpgradeModalProps) {
   const { build, totalUsedThisPeriod } = useCreditsStore();
   const totalCredits = build.available + totalUsedThisPeriod;
+  const [minimized, setMinimized] = React.useState(false);
+
+  if (minimized) {
+    return (
+      <div className="fixed bottom-4 right-4 z-50 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setMinimized(false)}
+          className="flex items-center gap-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2 text-[12px] font-semibold text-white shadow-lg ring-1 ring-white/20"
+          data-testid="credits-upgrade-reminder-pill"
+        >
+          <Zap className="size-3.5" strokeWidth={2} />
+          Out of credits — Upgrade
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex size-8 items-center justify-center rounded-full bg-background text-muted-foreground shadow ring-1 ring-border"
+          aria-label="Dismiss"
+        >
+          <X className="size-3.5" />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/25 backdrop-blur-sm p-4">
@@ -66,8 +91,9 @@ export function CreditsUpgradeModal({ onClose, currentPlanId = "free" }: Credits
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={() => setMinimized(true)}
             className="cursor-pointer rounded-lg p-1 text-muted-foreground hover:bg-surface hover:text-foreground transition"
+            aria-label="Minimize"
           >
             <X className="size-4" strokeWidth={1.75} />
           </button>

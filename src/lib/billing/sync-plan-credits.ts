@@ -2,6 +2,7 @@ import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { monthlyTokensForPlan, normalizePlanId } from "@/lib/billing/plans";
 import { monthlyActionCreditsForPlan } from "@/lib/action-credits/action-credit-allowances";
 import type { PlanId } from "@/lib/supabase/types";
+import { scheduleDiscordRoleSync } from "@/lib/integrations/server/sync-discord-role-for-user";
 
 /** Reset monthly Build + Action allowances after subscription activation or renewal. */
 export async function syncPlanCreditsForUser(input: {
@@ -42,6 +43,11 @@ export async function syncPlanCreditsForUser(input: {
     p_source: "purchase",
     p_reason: `${input.source} — ${planId}`,
     p_metadata: { ...(input.metadata ?? {}), plan_id: planId, action_credits: actionCredits },
+  });
+
+  scheduleDiscordRoleSync(input.userId, {
+    source: input.source,
+    planIdOverride: planId,
   });
 
   return { buildCredits, actionCredits };

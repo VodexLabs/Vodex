@@ -117,15 +117,21 @@ export function checkPublishReadiness(input: {
   const previewFailedWithFiles =
     input.metadata.files_ready_preview_failed === true ||
     (input.buildStatus ?? "").toLowerCase() === "preview_failed";
+  const importPreviewValidated =
+    isImport &&
+    importMeta?.preview_ready === true &&
+    Boolean(pickPreviewEntry(safeFiles));
   const previewReady =
     (input.metadata.preview_ready === true && input.metadata.preview_honest === true) ||
-    Boolean(isImport && (importMeta?.preview_ready || safeFiles.length > 0));
+    importPreviewValidated;
   if (previewFailedWithFiles && !previewReady) {
     blockers.push("Preview must be repaired before publishing.");
   } else if (!previewReady && !isImport) {
     blockers.push("Start a successful preview before publishing");
   } else if (!previewReady && isImport) {
-    warnings.push("Review imported app setup — preview may need preparation");
+    blockers.push(
+      "Imported app preview is not ready — open the builder and fix the entry file or dependencies",
+    );
   }
 
   const entry = pickPreviewEntry(safeFiles);

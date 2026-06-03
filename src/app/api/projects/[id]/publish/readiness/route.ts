@@ -137,9 +137,6 @@ export async function GET(
   }
   if (!buildCompleted && !isImport) blockers.push("Latest build has not completed successfully");
   if (!hasAppName && !isImport) blockers.push("App needs a generated name");
-  if (isImport && (importMeta.env_requirements?.length ?? 0) > 0) {
-    blockers.push("Missing environment variables — complete setup in Secrets");
-  }
   if (hasPreviewErrors) blockers.push("Preview has compile errors — fix before publish");
 
   const canPublishWeb = isImport

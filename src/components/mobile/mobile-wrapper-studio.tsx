@@ -341,7 +341,7 @@ export function MobileWrapperStudio({
             </button>
           ) : (
             <Link
-              href="/settings/billing"
+              href="/pricing"
               className="inline-flex items-center gap-1.5 rounded-xl bg-accent px-3 py-2 text-[11px] font-semibold text-white"
             >
               <Lock className="size-3.5" />

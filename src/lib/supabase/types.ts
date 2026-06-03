@@ -76,6 +76,12 @@ export interface Database {
           last_active_at: string | null;
           marketing_emails_opt_in: boolean;
           presence_mode: "auto" | "online" | "offline" | "invisible";
+          discord_user_id: string | null;
+          discord_username: string | null;
+          discord_linked_at: string | null;
+          discord_role_sync_status: string | null;
+          discord_role_sync_error: string | null;
+          discord_role_synced_at: string | null;
           subscription_status: string | null;
           account_status: string | null;
           monthly_token_limit: number | null;

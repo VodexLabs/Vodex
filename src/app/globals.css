@@ -2183,6 +2183,62 @@ body {
   animation: vodex-glow-pulse 2s ease-in-out infinite;
 }
 
+.vodex-effect-floating-sparkles::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.7) 1px, transparent 1.5px);
+  background-size: 28px 28px;
+  animation: vodex-icy-drift 10s linear infinite;
+}
+
+.vodex-effect-radial-beam::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(255, 255, 255, 0.35), transparent 70%);
+}
+
+.vodex-effect-shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    120deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: vodex-shimmer 2.5s ease-in-out infinite;
+}
+
+.vodex-effect-confetti::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.4;
+  background-image: radial-gradient(circle at 10% 20%, #f472b6 2px, transparent 2px),
+    radial-gradient(circle at 80% 30%, #38bdf8 2px, transparent 2px),
+    radial-gradient(circle at 40% 80%, #a78bfa 2px, transparent 2px);
+  background-size: 100% 100%;
+  animation: vodex-icy-drift 12s ease-in-out infinite;
+}
+
+.vodex-effect-frost::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.35;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.25), transparent 40%);
+}
+
 .vodex-bg-animated-shimmer {
   background: linear-gradient(90deg, #e0f2fe, #fff, #e0f2fe);
   background-size: 200% 100%;

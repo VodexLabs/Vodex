@@ -2,6 +2,7 @@ import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { logAdminAudit } from "@/lib/admin/audit-log";
 import { listAdminUsers } from "@/lib/admin/list-users";
 import { loadCanonicalCredits, serializeCanonicalCredits } from "@/lib/credits/canonical-credits";
+import { scheduleDiscordRoleSync } from "@/lib/integrations/server/sync-discord-role-for-user";
 import type { AdminActionPayload } from "@/lib/admin/otp-confirmation";
 import type { PlanId } from "@/lib/supabase/types";
 import { roundCreditOneDecimal } from "@/lib/credits/parse-credit-amount";
@@ -230,6 +231,13 @@ export async function executeAdminAction(input: {
       title: `${input.payload.amount} Action Credits added`,
       body: `Support granted ${input.payload.amount} Action Credits. Reason: ${input.payload.reason}`,
       action_url: "/settings",
+    });
+  }
+
+  if (input.payload.action === "set_plan" && input.payload.planId) {
+    scheduleDiscordRoleSync(targetUserId, {
+      source: "admin_set_plan",
+      planIdOverride: input.payload.planId,
     });
   }
 

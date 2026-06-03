@@ -408,7 +408,7 @@ export function ProjectIntegrationsPanel({
           Connect tools like email, payments, storage, and analytics after upgrading.
         </p>
         <Link
-          href="/settings/billing"
+          href="/pricing"
           className="mt-4 inline-flex rounded-xl bg-accent px-4 py-2 text-[12px] font-semibold text-white shadow-sm hover:bg-accent/90"
         >
           Upgrade to connect integrations

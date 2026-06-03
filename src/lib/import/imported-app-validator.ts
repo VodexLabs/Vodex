@@ -4,6 +4,8 @@ import { detectPackageScripts, detectPackageManager } from "@/lib/import/package
 import { detectDependencies } from "@/lib/import/dependency-detector";
 import { detectEnvRequirements } from "@/lib/import/env-requirement-detector";
 import { scoreImportQuality } from "@/lib/import/import-quality-score";
+import { detectLegacyPlatform } from "@/lib/import/legacy-platform-detector";
+import { pickPreviewEntry } from "@/lib/preview/preview-sandbox";
 
 export type ImportedAppValidation = {
   valid: boolean;
@@ -18,6 +20,8 @@ export type ImportedAppValidation = {
   qualityScore: number;
   previewReady: boolean;
   publishReady: boolean;
+  legacy: ReturnType<typeof detectLegacyPlatform>;
+  previewEntry: ReturnType<typeof pickPreviewEntry>;
 };
 
 export function validateImportedApp(
@@ -57,8 +61,24 @@ export function validateImportedApp(
     warnings.push(`${opts!.rejectedSecrets!.length} secret/env files excluded from import`);
   }
 
-  const previewReady = quality.total >= 70 && files.length > 0 && blockers.length === 0;
-  const publishReady = quality.total >= 85 && routes.length > 0 && blockers.length === 0;
+  const legacy = detectLegacyPlatform(files);
+  if (legacy.message) warnings.push(legacy.message);
+
+  const previewFiles = files.map((f) => ({ path: f.path, content: f.content }));
+  const previewEntry = pickPreviewEntry(previewFiles);
+
+  if (!previewEntry) {
+    blockers.push(
+      "No renderable entry found (need index.html, app/page.tsx, pages/index, or src/main)",
+    );
+  } else if (previewEntry.kind === "html" && previewEntry.content.trim().length < 80) {
+    blockers.push("index.html is empty or too small to preview");
+  }
+
+  const previewReady =
+    quality.total >= 70 && files.length > 0 && blockers.length === 0 && previewEntry != null;
+  const publishReady =
+    previewReady && quality.total >= 85 && routes.length > 0 && blockers.length === 0;
 
   return {
     valid: blockers.length === 0 && files.length > 0,
@@ -73,5 +93,7 @@ export function validateImportedApp(
     qualityScore: quality.total,
     previewReady,
     publishReady,
+    legacy,
+    previewEntry,
   };
 }

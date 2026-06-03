@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { Loader2, Layers } from "lucide-react";
 import { IntegrationsCatalogPanel } from "@/components/integrations/integrations-catalog-panel";
+import { DiscordAccountCard } from "@/components/settings/discord-account-card";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 type ProjectRow = { id: string; name: string; app_name?: string | null };
@@ -30,6 +31,8 @@ export function SettingsIntegrationsView() {
 
   return (
     <div className="space-y-6" data-testid="settings-integrations-view">
+      <DiscordAccountCard />
+
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-accent/[0.06] via-background to-violet-500/[0.04] p-6 ring-1 ring-accent/15">
         <div className="flex items-start gap-4">
           <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-accent/15 ring-1 ring-accent/25">

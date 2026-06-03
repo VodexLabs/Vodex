@@ -2,9 +2,15 @@
 
 import * as React from "react";
 import {
+  siAnthropic,
+  siDiscord,
+  siFirebase,
   siGithub,
   siGooglegemini,
+  siLemonsqueezy,
   siOpenai,
+  siPaddle,
+  siPaypal,
   siResend,
   siStripe,
   siSupabase,
@@ -21,7 +27,13 @@ export type IntegrationProvider =
   | "resend"
   | "slack"
   | "openai"
-  | "gemini";
+  | "gemini"
+  | "anthropic"
+  | "paddle"
+  | "paypal"
+  | "lemonsqueezy"
+  | "discord"
+  | "firebase";
 
 const PROVIDER_ALIASES: Record<string, IntegrationProvider> = {
   supabase: "supabase",
@@ -33,6 +45,17 @@ const PROVIDER_ALIASES: Record<string, IntegrationProvider> = {
   openai: "openai",
   gemini: "gemini",
   googlegemini: "gemini",
+  anthropic: "anthropic",
+  paddle: "paddle",
+  paypal: "paypal",
+  lemonsqueezy: "lemonsqueezy",
+  lemon_squeezy: "lemonsqueezy",
+  discord: "discord",
+  discord_webhook: "discord",
+  "discord-webhook": "discord",
+  firebase: "firebase",
+  lemon: "lemonsqueezy",
+  "lemon-squeezy": "lemonsqueezy",
 };
 
 /** Marks that use `currentColor` for light/dark contrast (not brand hex on dark UI). */
@@ -91,6 +114,36 @@ export const INTEGRATION_BRANDS: Record<
     wellClassName:
       "bg-gradient-to-br from-[#4285F4]/14 via-[#9B72CB]/12 to-[#D96570]/12 ring-[#4285F4]/25 dark:from-[#4285F4]/20 dark:via-[#9B72CB]/15 dark:to-[#D96570]/15",
     simpleIcon: siGooglegemini,
+  },
+  anthropic: {
+    title: "Anthropic",
+    wellClassName: "bg-[#D4A574]/15 ring-[#D4A574]/25",
+    simpleIcon: siAnthropic,
+  },
+  paddle: {
+    title: "Paddle",
+    wellClassName: "bg-[#FDDD35]/15 ring-[#FDDD35]/30",
+    simpleIcon: siPaddle,
+  },
+  paypal: {
+    title: "PayPal",
+    wellClassName: "bg-[#003087]/10 ring-[#003087]/20",
+    simpleIcon: siPaypal,
+  },
+  lemonsqueezy: {
+    title: "Lemon Squeezy",
+    wellClassName: "bg-[#FFC233]/15 ring-[#FFC233]/30",
+    simpleIcon: siLemonsqueezy,
+  },
+  discord: {
+    title: "Discord",
+    wellClassName: "bg-[#5865F2]/15 ring-[#5865F2]/25",
+    simpleIcon: siDiscord,
+  },
+  firebase: {
+    title: "Firebase",
+    wellClassName: "bg-[#FFCA28]/15 ring-[#FFCA28]/25",
+    simpleIcon: siFirebase,
   },
 };
 

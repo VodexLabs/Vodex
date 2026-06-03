@@ -42,6 +42,7 @@ export function PlanUpgradeModal({
 
   React.useEffect(() => {
     if (!open) return;
+    setPreview(null);
     setLoading(true);
     setError(null);
     void fetch(
@@ -119,7 +120,11 @@ export function PlanUpgradeModal({
         </button>
 
         <h2 id="upgrade-modal-title" className="text-lg font-semibold">
-          Upgrade plan
+          Confirm upgrade
+          {preview ? ` · ${preview.newPlan.name}` : ""}
+          <span className="ml-1 text-[13px] font-normal text-muted-foreground">
+            ({interval === "yearly" ? "Yearly" : "Monthly"})
+          </span>
         </h2>
 
         {loading && (
@@ -181,8 +186,10 @@ export function PlanUpgradeModal({
                     <Loader2 className="mr-1 size-4 animate-spin" />
                     Processing…
                   </>
+                ) : preview.amountDueTodayUsd != null ? (
+                  `Pay $${preview.amountDueTodayUsd} today · ${preview.newPlan.name}`
                 ) : (
-                  `Pay $${preview.amountDueTodayUsd ?? ""} today`
+                  "Confirm upgrade"
                 )}
               </Button>
             </div>

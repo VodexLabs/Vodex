@@ -321,13 +321,15 @@ async function uploadLogoDerivatives(
   const prepped = await normalizeIconBuffer(source);
   const massed = await scaleIconVisualMass(prepped);
   const cornerFixed = await flattenWhiteCornerArtifacts(massed);
-  const normalized = await applyCircularMask(cornerFixed).catch(() => cornerFixed);
+  const png1024 = await sharp(cornerFixed)
+    .resize(1024, 1024, { fit: "cover", position: "centre" })
+    .png()
+    .toBuffer();
 
-  const png1024 = normalized;
-  const png512 = await sharp(source).resize(512, 512, { fit: "cover" }).png().toBuffer();
-  const png192 = await sharp(source).resize(192, 192, { fit: "cover" }).png().toBuffer();
-  const png180 = await sharp(source).resize(180, 180, { fit: "cover" }).png().toBuffer();
-  const png64 = await sharp(source).resize(64, 64, { fit: "cover" }).png().toBuffer();
+  const png512 = await sharp(png1024).resize(512, 512, { fit: "cover" }).png().toBuffer();
+  const png192 = await sharp(png1024).resize(192, 192, { fit: "cover" }).png().toBuffer();
+  const png180 = await sharp(png1024).resize(180, 180, { fit: "cover" }).png().toBuffer();
+  const png64 = await sharp(png1024).resize(64, 64, { fit: "cover" }).png().toBuffer();
 
   const uploads: Array<{ path: string; body: Buffer; contentType: string }> = [
     { path: `${basePath}/icon-1024.png`, body: png1024, contentType: "image/png" },

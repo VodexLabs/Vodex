@@ -21,7 +21,7 @@ function must(src, needle, label, errors) {
 }
 
 function mustNot(src, needle, label, errors) {
-  if (src.includes(needle)) errors.push(label);
+  if (src.includes(needle)) errors.push(`should not contain: ${label}`);
 }
 
 const errors = [];
@@ -56,7 +56,8 @@ must(hook, "visibilitychange", "visibility handler", errors);
 must(hook, "pageshow", "pageshow handler", errors);
 must(hook, "setOptimisticActive", "optimistic online on bootstrap", errors);
 must(read("src/app/(app)/settings/page.tsx"), "PresenceSettingsSection", "status on general settings", errors);
-must(read("src/components/layout/user-menu.tsx"), "yourSpaceContextLabel", "your space shell label", errors);
+must(read("src/components/layout/user-menu.tsx"), "resolveDreamSpaceLabel", "workspace label in shell", errors);
+mustNot(read("src/components/layout/user-menu.tsx"), "yourSpaceContextLabel", "your space not in user menu", errors);
 
 must(read("src/components/layout/user-menu.tsx"), "PresenceAvatar", "top bar presence", errors);
 must(read("src/components/providers/app-provider.tsx"), "usePresenceHeartbeat", "heartbeat wired", errors);

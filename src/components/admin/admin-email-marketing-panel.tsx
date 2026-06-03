@@ -95,22 +95,40 @@ export function AdminEmailMarketingPanel() {
       </div>
 
       {tab === "templates" && (
-        <div className="mt-4 space-y-3">
-          {MARKETING_EMAIL_TEMPLATES.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => {
-                setTemplateId(t.id);
-                setTab("send");
-              }}
-              className="block w-full rounded-xl border border-border bg-background/60 px-4 py-3 text-left transition hover:border-accent/40"
-            >
-              <p className="text-[13px] font-semibold text-foreground">{t.label}</p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">{t.subject}</p>
-              <p className="mt-1 text-[11px] text-muted-foreground">{t.preheader}</p>
-            </button>
-          ))}
+        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,280px)_1fr]">
+          <div className="space-y-2">
+            {MARKETING_EMAIL_TEMPLATES.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTemplateId(t.id)}
+                className={cn(
+                  "block w-full rounded-xl border px-4 py-3 text-left transition",
+                  templateId === t.id
+                    ? "border-accent/40 bg-accent/[0.06]"
+                    : "border-border bg-background/60 hover:border-accent/30",
+                )}
+              >
+                <p className="text-[13px] font-semibold text-foreground">{t.label}</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">{t.subject}</p>
+              </button>
+            ))}
+          </div>
+          <div className="rounded-xl border border-border bg-muted/20 p-3">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Full email preview (680px)
+            </p>
+            <div className="max-h-[min(72vh,720px)] overflow-y-auto rounded-lg bg-[#e8eef5] p-4">
+              <iframe
+                title="Email preview"
+                className="mx-auto block w-full max-w-[680px] min-h-[640px] rounded-lg border border-border bg-white shadow-lg"
+                srcDoc={template.buildHtml({
+                  appUrl: typeof window !== "undefined" ? window.location.origin : "https://vodex.dev",
+                  unsubscribeUrl: "/settings/account",
+                })}
+              />
+            </div>
+          </div>
         </div>
       )}
 

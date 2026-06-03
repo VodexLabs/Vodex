@@ -30,6 +30,7 @@ import {
   unifiedActionAllowsExecution,
 } from "@/lib/billing/plan-change-router";
 import { PlanUpgradeModal } from "@/components/billing/plan-upgrade-modal";
+import { BillingIntervalPickerModal } from "@/components/billing/billing-interval-picker-modal";
 import { BillingDowngradeModal } from "@/components/billing/billing-downgrade-modal";
 import Link from "next/link";
 
@@ -65,6 +66,7 @@ export function BillingSubscriptionPanel({
   openCancelOnMount = false,
 }: Props) {
   const [upgradePlan, setUpgradePlan] = React.useState<BillablePlanId | null>(null);
+  const [intervalPickerTarget, setIntervalPickerTarget] = React.useState<BillablePlanId | null>(null);
   const [paddleSubscriptionId, setPaddleSubscriptionId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -172,12 +174,13 @@ export function BillingSubscriptionPanel({
     onRefresh();
   }
 
-  function startUpgrade(target: BillablePlanId, interval: CatalogBillingInterval = "monthly") {
+  function startUpgrade(target: BillablePlanId, interval?: CatalogBillingInterval) {
+    const targetInterval = interval ?? currentInterval ?? "monthly";
     const resolved = resolveUnifiedBillingAction({
       currentPlanId: planId,
       currentInterval,
       targetPlan: target,
-      targetInterval: interval,
+      targetInterval,
       paddleSubscriptionId,
     });
     if (resolved.unifiedAction === "same_plan" || resolved.unifiedAction === "blocked") {
@@ -197,7 +200,19 @@ export function BillingSubscriptionPanel({
       toast.info(resolved.description);
       return;
     }
+    if (!interval) {
+      setIntervalPickerTarget(target);
+      return;
+    }
     setUpgradeInterval(interval === "annual" ? "yearly" : "monthly");
+    setUpgradePlan(target);
+  }
+
+  function confirmUpgradeInterval(interval: "monthly" | "yearly") {
+    if (!intervalPickerTarget) return;
+    const target = intervalPickerTarget;
+    setIntervalPickerTarget(null);
+    setUpgradeInterval(interval);
     setUpgradePlan(target);
   }
 
@@ -491,8 +506,18 @@ export function BillingSubscriptionPanel({
         </div>
       ) : null}
 
+      {intervalPickerTarget ? (
+        <BillingIntervalPickerModal
+          open
+          targetPlanId={intervalPickerTarget}
+          onClose={() => setIntervalPickerTarget(null)}
+          onSelect={confirmUpgradeInterval}
+        />
+      ) : null}
+
       {upgradePlan ? (
         <PlanUpgradeModal
+          key={`${upgradePlan}-${upgradeInterval}`}
           open
           targetPlanId={upgradePlan}
           interval={upgradeInterval}
