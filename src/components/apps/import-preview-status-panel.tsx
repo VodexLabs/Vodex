@@ -31,6 +31,8 @@ type PreviewImportStatus = {
   workerUnavailable: boolean;
   workerConnected: boolean;
   workerUnavailableMessage: string | null;
+  jobAgeLabel: string | null;
+  requiresDeployedWorker: boolean;
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -77,6 +79,8 @@ export function ImportPreviewStatusPanel({ appId }: { appId: string }) {
         workerConnected: Boolean(j.workerConnected),
         workerUnavailableMessage:
           typeof j.workerUnavailableMessage === "string" ? j.workerUnavailableMessage : null,
+        jobAgeLabel: typeof j.jobAgeLabel === "string" ? j.jobAgeLabel : null,
+        requiresDeployedWorker: Boolean(j.requiresDeployedWorker),
       });
     } finally {
       setLoading(false);
@@ -145,7 +149,14 @@ export function ImportPreviewStatusPanel({ appId }: { appId: string }) {
     : status.jobStatus && STATUS_LABELS[status.jobStatus]
       ? status.jobStatus
       : status.previewStatus;
-  const statusLabel = STATUS_LABELS[statusKey] ?? statusKey;
+  const statusLabel =
+    status.workerUnavailable &&
+    !status.workerConnected &&
+    (status.jobStatus === "queued" || status.previewStatus === "queued")
+      ? status.requiresDeployedWorker
+        ? "Worker not deployed"
+        : "Worker not connected"
+      : STATUS_LABELS[statusKey] ?? statusKey;
 
   return (
     <div className="rounded-xl bg-surface ring-1 ring-border overflow-hidden">
@@ -197,6 +208,9 @@ export function ImportPreviewStatusPanel({ appId }: { appId: string }) {
 
       <div className="grid gap-2 px-4 py-3 text-[12px] sm:grid-cols-2">
         <Row label="Job status" value={status.jobStatus ?? status.previewStatus} />
+        {status.jobAgeLabel && status.jobStatus === "queued" ? (
+          <Row label="Queue age" value={status.jobAgeLabel} />
+        ) : null}
         <Row
           label="Preview"
           value={ready ? "Renderable" : status.blockedReason ?? "Not renderable"}

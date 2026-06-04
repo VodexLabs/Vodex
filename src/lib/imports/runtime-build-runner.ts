@@ -34,6 +34,7 @@ import {
   queuePreviewBuildJob,
 } from "@/lib/imports/preview-build-queue";
 import type { DetectedFrameworkId } from "@/lib/imports/framework-detector";
+import { repairImportedThinFiles } from "@/lib/imports/repair-imported-thin-files";
 
 const execFileAsync = promisify(execFile);
 
@@ -166,7 +167,9 @@ export async function runImportPreviewBuild(input: {
   files: ZipImportFile[];
   existingJobId?: string | null;
 }): Promise<PreviewBuildRunResult> {
-  const analysis = analyzeImportedProjectFiles(input.files);
+  const repaired = repairImportedThinFiles(input.files);
+  const files = repaired.files;
+  const analysis = analyzeImportedProjectFiles(files);
   const now = new Date().toISOString();
   let diagnostics = analysisToDiagnostics(analysis, {
     previewStatus: "analyzing",
@@ -208,7 +211,7 @@ export async function runImportPreviewBuild(input: {
       admin: input.admin,
       userId: input.userId,
       projectId: input.projectId,
-      files: input.files,
+      files,
       jobId,
     });
   }
@@ -224,14 +227,14 @@ export async function runImportPreviewBuild(input: {
     diagnostics,
   });
 
-  const sourceFiles = input.files.map((f) => ({ path: f.path, content: f.content }));
+  const sourceFiles = files.map((f) => ({ path: f.path, content: f.content }));
   let buildLogs = "";
   let artifactPath: string | null = null;
   let htmlForHealth = "";
 
   if (fw === "static") {
     diagnostics = { ...diagnostics, previewStatus: "serving", buildStrategy: "static" };
-    const index = input.files.find((f) => f.path === "index.html" || f.path.endsWith("/index.html"));
+    const index = files.find((f) => f.path === "index.html" || f.path.endsWith("/index.html"));
     let html = index?.content ?? "";
     html = injectPreviewShims(
       html.includes("<html") ? html : `<!DOCTYPE html><html><body>${html}</body></html>`,
@@ -256,7 +259,7 @@ export async function runImportPreviewBuild(input: {
     analysis.framework.scripts.build
   ) {
     diagnostics = { ...diagnostics, previewStatus: "installing", buildStrategy: "vite_build" };
-    const sandbox = await createImportSandbox(input.files, input.projectId);
+    const sandbox = await createImportSandbox(files, input.projectId);
     try {
       diagnostics = { ...diagnostics, previewStatus: "building" };
       const built = await tryNpmBuild(sandbox.rootDir, analysis.framework);
@@ -291,7 +294,7 @@ export async function runImportPreviewBuild(input: {
             "npm build failed — falling back to static snapshot preview",
           ],
         };
-        const snap = buildStaticSnapshotHtml(input.files, input.projectId, analysis);
+        const snap = buildStaticSnapshotHtml(files, input.projectId, analysis);
         buildLogs += `\n[fallback]\n${snap.logs}`;
         const upload = await writeHtmlArtifact(input.admin, input.projectId, buildId, snap.html);
         if (upload.ok) {
@@ -311,7 +314,7 @@ export async function runImportPreviewBuild(input: {
     !analysis.framework.isSsrNext
   ) {
     diagnostics = { ...diagnostics, previewStatus: "building", buildStrategy: "next_build" };
-    const sandbox = await createImportSandbox(input.files, input.projectId);
+    const sandbox = await createImportSandbox(files, input.projectId);
     try {
       const built = await tryNpmBuild(sandbox.rootDir, analysis.framework);
       buildLogs = built.logs;
@@ -332,7 +335,7 @@ export async function runImportPreviewBuild(input: {
         diagnostics.warnings.push("Next build failed — using static snapshot");
       }
       if (!artifactPath) {
-        const snap = buildStaticSnapshotHtml(input.files, input.projectId, analysis);
+        const snap = buildStaticSnapshotHtml(files, input.projectId, analysis);
         buildLogs += `\n[fallback]\n${snap.logs}`;
         const upload = await writeHtmlArtifact(input.admin, input.projectId, buildId, snap.html);
         if (upload.ok) {
@@ -349,7 +352,7 @@ export async function runImportPreviewBuild(input: {
       previewStatus: "building",
       buildStrategy: "static_snapshot",
     };
-    const snap = buildStaticSnapshotHtml(input.files, input.projectId, analysis);
+    const snap = buildStaticSnapshotHtml(files, input.projectId, analysis);
     buildLogs = snap.logs;
     const upload = await writeHtmlArtifact(input.admin, input.projectId, buildId, snap.html);
     if (upload.ok) {

@@ -1,10 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { loadLatestPreviewDiagnostics } from "@/lib/imports/runtime-build-runner";
-import type { PreviewRuntimeStatusPayload } from "@/lib/preview/preview-runtime-status";
+import { formatJobAge, type PreviewRuntimeStatusPayload } from "@/lib/preview/preview-runtime-status";
+import { isServerlessHost } from "@/lib/imports/preview-build-queue";
 
 const WORKER_STALE_MS = 5 * 60 * 1000;
 const WORKER_CONNECTED_MS = 2 * 60 * 1000;
+const WORKER_QUEUE_GRACE_MS = 8_000;
 
 export async function loadPreviewRuntimeStatus(
   supabase: SupabaseClient,
@@ -62,10 +64,19 @@ export async function loadPreviewRuntimeStatus(
   }
 
   const jobStatus = jobRow?.status ?? null;
-  const queuedAt = jobRow?.created_at ? new Date(jobRow.created_at).getTime() : 0;
-  const workerUnavailable =
-    (jobStatus === "queued" && queuedAt > 0 && Date.now() - queuedAt > WORKER_STALE_MS) ||
-    (jobStatus === "queued" && !workerConnected && queuedAt > 0 && Date.now() - queuedAt > 30_000);
+  const jobCreatedAt = jobRow?.created_at ?? null;
+  const queuedAt = jobCreatedAt ? new Date(jobCreatedAt).getTime() : 0;
+  const jobAgeSeconds =
+    queuedAt > 0 ? Math.max(0, Math.floor((Date.now() - queuedAt) / 1000)) : null;
+  const requiresDeployedWorker = isServerlessHost();
+  const queueStale =
+    jobStatus === "queued" && queuedAt > 0 && Date.now() - queuedAt > WORKER_STALE_MS;
+  const queueNoWorker =
+    jobStatus === "queued" &&
+    !workerConnected &&
+    queuedAt > 0 &&
+    Date.now() - queuedAt > WORKER_QUEUE_GRACE_MS;
+  const workerUnavailable = queueStale || queueNoWorker;
 
   const previewRenderable = Boolean(meta.preview_renderable ?? diag?.previewRenderable);
   const previewHonest = Boolean(meta.preview_honest ?? previewRenderable);
@@ -96,9 +107,15 @@ export async function loadPreviewRuntimeStatus(
     workerConnected,
     workerUnavailableMessage: workerUnavailable
       ? workerConnected
-        ? "Job is queued but not progressing — check worker logs."
-        : "Preview worker not connected — run npm run preview-worker:dev or deploy the worker."
+        ? "Job is queued but not progressing — check worker logs or rebuild preview."
+        : requiresDeployedWorker
+          ? "Production cannot run npm builds on Vercel. Deploy worker/preview-worker (Railway/Render) or run npm run preview-worker:dev locally against this project."
+          : "Preview worker not connected — run npm run preview-worker:dev or deploy the worker."
       : null,
+    jobCreatedAt,
+    jobAgeLabel: jobAgeSeconds != null ? formatJobAge(jobAgeSeconds) : null,
+    jobAgeSeconds,
+    requiresDeployedWorker,
     lastPreviewBuildAt:
       (typeof diag?.lastPreviewBuildAt === "string" ? diag.lastPreviewBuildAt : null) ??
       (typeof meta.last_preview_build_at === "string" ? meta.last_preview_build_at : null),

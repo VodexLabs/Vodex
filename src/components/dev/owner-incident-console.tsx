@@ -32,7 +32,6 @@ export function OwnerIncidentConsole() {
     syncDiagnosticsToOwnerIncidents();
     setIncidents(readOwnerIncidents());
     return subscribeOwnerIncidents(() => {
-      syncDiagnosticsToOwnerIncidents();
       setIncidents(readOwnerIncidents());
     });
   }, [isOwner]);

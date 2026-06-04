@@ -65,14 +65,24 @@ function diagnosticToIncident(entry: RuntimeDiagnosticEntry): OwnerIncident | nu
   };
 }
 
+let syncingDiagnostics = false;
+
 export function syncDiagnosticsToOwnerIncidents(): void {
-  for (const entry of readRuntimeDiagnostics().slice(0, 12)) {
-    const inc = diagnosticToIncident(entry);
-    if (inc && !incidents.some((i) => i.id === inc.id)) {
-      incidents = [inc, ...incidents].slice(0, MAX);
+  if (syncingDiagnostics) return;
+  syncingDiagnostics = true;
+  try {
+    let added = false;
+    for (const entry of readRuntimeDiagnostics().slice(0, 12)) {
+      const inc = diagnosticToIncident(entry);
+      if (inc && !incidents.some((i) => i.id === inc.id)) {
+        incidents = [inc, ...incidents].slice(0, MAX);
+        added = true;
+      }
     }
+    if (added) emit();
+  } finally {
+    syncingDiagnostics = false;
   }
-  emit();
 }
 
 let wired = false;

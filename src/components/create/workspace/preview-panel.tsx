@@ -52,6 +52,8 @@ export interface PreviewPanelProps {
   previewRoutes?: PreviewRouteEntry[];
   previewRoute?: string;
   onPreviewRouteChange?: (path: string) => void;
+  onRebuildPreview?: () => void;
+  previewRebuilding?: boolean;
 }
 
 function isUnrenderableSrcDoc(doc: string | null | undefined): boolean {
@@ -78,6 +80,8 @@ export function PreviewPanel({
   previewRoutes = [],
   previewRoute = "/",
   onPreviewRouteChange,
+  onRebuildPreview,
+  previewRebuilding = false,
 }: PreviewPanelProps) {
   const [viewport, setViewport] = React.useState<Viewport>("desktop");
   const [reloadKey, setReloadKey] = React.useState(0);
@@ -236,7 +240,11 @@ export function PreviewPanel({
 
         {showRuntimeOverlay && runtimeStatus && (
           <div className="absolute inset-x-3 top-3 z-30 max-w-lg mx-auto">
-            <PreviewRuntimeStatusPanel status={runtimeStatus} />
+            <PreviewRuntimeStatusPanel
+              status={runtimeStatus}
+              onRebuild={onRebuildPreview}
+              rebuilding={previewRebuilding}
+            />
           </div>
         )}
 

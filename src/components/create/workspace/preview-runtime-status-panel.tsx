@@ -1,19 +1,24 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, ChevronUp, Loader2, Server } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, RefreshCw, Server } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PreviewRuntimeStatusPayload } from "@/lib/preview/preview-runtime-status";
 import { previewRuntimeStateLabel } from "@/lib/preview/preview-runtime-status";
+import { Button } from "@/components/ui/button";
 
 export function PreviewRuntimeStatusPanel({
   status,
   compact,
   className,
+  onRebuild,
+  rebuilding,
 }: {
   status: PreviewRuntimeStatusPayload;
   compact?: boolean;
   className?: string;
+  onRebuild?: () => void;
+  rebuilding?: boolean;
 }) {
   const [logsOpen, setLogsOpen] = React.useState(false);
   const label = previewRuntimeStateLabel(status);
@@ -24,6 +29,14 @@ export function PreviewRuntimeStatusPanel({
 
   if (status.previewRenderable && !compact) return null;
 
+  const subline =
+    status.workerUnavailable && (status.jobStatus === "queued" || status.previewStatus === "queued")
+      ? (status.workerUnavailableMessage ??
+        (status.requiresDeployedWorker
+          ? "Deploy the preview worker for production builds."
+          : "Start the preview worker locally."))
+      : status.blockedReason ?? "Waiting for a renderable preview build.";
+
   return (
     <div
       className={cn(
@@ -31,7 +44,9 @@ export function PreviewRuntimeStatusPanel({
         status.previewRenderable
           ? "border-positive/30 bg-positive/5"
           : pending
-            ? "border-accent/30 bg-accent/8"
+            ? status.workerUnavailable && !status.workerConnected
+              ? "border-destructive/30 bg-destructive/8"
+              : "border-accent/30 bg-accent/8"
             : "border-amber-500/30 bg-amber-500/8",
         className,
       )}
@@ -45,25 +60,53 @@ export function PreviewRuntimeStatusPanel({
         )}
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-foreground">{label}</p>
-          {!compact && (
-            <p className="mt-0.5 text-muted-foreground">
-              {status.workerConnected
-                ? "Worker connected"
-                : status.workerUnavailable
-                  ? (status.workerUnavailableMessage ?? "Worker not connected")
-                  : status.blockedReason ?? "Waiting for a renderable preview build."}
+          {!compact && <p className="mt-0.5 text-muted-foreground">{subline}</p>}
+          {!compact && status.jobAgeLabel && status.jobStatus === "queued" && (
+            <p className="mt-0.5 text-[10px] text-muted-foreground/80">
+              Queued {status.jobAgeLabel}
+              {status.workerConnected ? " · worker connected" : " · no worker heartbeat"}
             </p>
           )}
         </div>
+        {onRebuild && !compact && (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="h-7 shrink-0 gap-1 px-2 text-[10px]"
+            disabled={rebuilding || (pending && status.workerConnected && !status.workerUnavailable)}
+            onClick={onRebuild}
+          >
+            {rebuilding ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : (
+              <RefreshCw className="size-3" />
+            )}
+            Rebuild
+          </Button>
+        )}
       </div>
 
       <dl className={cn("mt-2 grid gap-1", compact ? "grid-cols-2" : "sm:grid-cols-2")}>
         <Item label="Job" value={status.jobId ?? "—"} />
         <Item label="Job status" value={status.jobStatus ?? status.previewStatus} />
+        {status.jobAgeLabel ? <Item label="Queue age" value={status.jobAgeLabel} /> : null}
         <Item label="Framework" value={status.frameworkLabel ?? status.framework ?? "—"} />
         <Item label="Artifact" value={status.artifactPath ?? "—"} mono />
         <Item label="Renderable" value={status.previewRenderable ? "yes" : "no"} />
         <Item label="Honest" value={status.previewHonest ? "yes" : "no"} />
+        <Item
+          label="Worker"
+          value={
+            status.workerConnected
+              ? "Connected"
+              : status.workerUnavailable
+                ? status.requiresDeployedWorker
+                  ? "Not deployed"
+                  : "Not connected"
+                : "Unknown"
+          }
+        />
         {status.lockedBy ? <Item label="Worker id" value={status.lockedBy} mono /> : null}
       </dl>
 
@@ -78,7 +121,7 @@ export function PreviewRuntimeStatusPanel({
             {logsOpen ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
           </button>
           {logsOpen && (
-            <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap font-mono text-[9px] text-muted-foreground">
+            <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-[9px] text-muted-foreground">
               {status.buildLogs}
             </pre>
           )}

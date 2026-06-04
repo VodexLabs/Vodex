@@ -134,6 +134,7 @@ import { notifyProjectCatalogUpdated } from "@/lib/projects/project-catalog-sync
 import { isUuid } from "@/lib/utils/uuid";
 import { projectPreviewFrameUrl } from "@/lib/preview/preview-frame-url";
 import type { PreviewRuntimeStatusPayload } from "@/lib/preview/preview-runtime-status";
+import { previewRuntimeStatusEqual } from "@/lib/preview/preview-runtime-status-equal";
 import {
   detectPreviewRoutesFromFiles,
   type PreviewRouteEntry,
@@ -2421,16 +2422,52 @@ export function ImmersiveWorkspace({
     { path: "/", label: "Home", source: "default" },
   ]);
   const [previewRoute, setPreviewRoute] = React.useState("/");
+  const [previewRebuilding, setPreviewRebuilding] = React.useState(false);
 
   React.useEffect(() => {
-    if (codeFiles.length > 0) {
-      setPreviewRoutes(
-        detectPreviewRoutesFromFiles(
-          codeFiles.map((f) => ({ path: f.path, content: f.content })),
-        ),
-      );
-    }
+    if (codeFiles.length === 0) return;
+    const next = detectPreviewRoutesFromFiles(
+      codeFiles.map((f) => ({ path: f.path, content: f.content })),
+    );
+    setPreviewRoutes((prev) => {
+      if (
+        prev.length === next.length &&
+        prev.every((r, i) => r.path === next[i]?.path && r.label === next[i]?.label)
+      ) {
+        return prev;
+      }
+      return next;
+    });
   }, [codeFiles]);
+
+  const rebuildPreview = React.useCallback(async () => {
+    if (!effectiveProjectId) return;
+    setPreviewRebuilding(true);
+    try {
+      const res = await fetch(`/api/projects/${effectiveProjectId}/preview/build`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const body = (await res.json()) as {
+        ok?: boolean;
+        queued?: boolean;
+        message?: string;
+        blockedReason?: string;
+      };
+      if (body.queued) {
+        toast.info(body.message ?? "Preview build queued for worker");
+      } else if (body.ok) {
+        toast.success("Preview is ready");
+      } else {
+        toast.error(body.blockedReason ?? body.message ?? "Preview build failed");
+      }
+      setProjectDataRefresh((n) => n + 1);
+    } catch {
+      toast.error("Could not rebuild preview");
+    } finally {
+      setPreviewRebuilding(false);
+    }
+  }, [effectiveProjectId]);
 
   React.useEffect(() => {
     if (!effectiveProjectId || projectFiles.length === 0) {
@@ -2448,30 +2485,19 @@ export function ImmersiveWorkspace({
         });
         if (!r.ok || cancelled) return;
         const body = (await r.json()) as PreviewRuntimeStatusPayload;
-        setPreviewRuntime(body);
+        setPreviewRuntime((prev) => (previewRuntimeStatusEqual(prev, body) ? prev : body));
       } catch {
         /* ignore */
       }
     };
 
     void poll();
-    const pending =
-      previewRuntime?.jobStatus === "queued" ||
-      previewRuntime?.jobStatus === "running" ||
-      previewRuntime?.previewStatus === "queued";
-    const interval = pending ? 5000 : 12_000;
-    const t = window.setInterval(() => void poll(), interval);
+    const t = window.setInterval(() => void poll(), 6000);
     return () => {
       cancelled = true;
       window.clearInterval(t);
     };
-  }, [
-    effectiveProjectId,
-    projectDataRefresh,
-    projectFiles.length,
-    previewRuntime?.jobStatus,
-    previewRuntime?.previewStatus,
-  ]);
+  }, [effectiveProjectId, projectFiles.length, projectDataRefresh]);
 
   const previewFrameUrl = effectiveProjectId
     ? projectPreviewFrameUrl(
@@ -3257,9 +3283,16 @@ export function ImmersiveWorkspace({
                 previewRoutes={previewRoutes}
                 previewRoute={previewRoute}
                 onPreviewRouteChange={(path) => {
-                  setPreviewRoute(path);
-                  setProjectDataRefresh((n) => n + 1);
+                  setPreviewRoute((prev) => {
+                    if (prev === path) return prev;
+                    queueMicrotask(() => setProjectDataRefresh((n) => n + 1));
+                    return path;
+                  });
                 }}
+                onRebuildPreview={
+                  effectiveProjectId ? () => void rebuildPreview() : undefined
+                }
+                previewRebuilding={previewRebuilding}
                 onEditTarget={(info) => {
                   setEditTarget(info.section);
                   setScope(info.section.toLowerCase().replace(/\s+/g, "_") as EditScope);
