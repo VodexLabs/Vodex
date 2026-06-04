@@ -10,10 +10,13 @@ import {
 import { MessageDesignFields } from "@/components/control-center/message-design-fields";
 import { InboxNotificationPreview } from "@/components/control-center/inbox-notification-preview";
 import { sanitizeAdminUrl } from "@/lib/control-center/sanitize-url";
+import { AdminUserSearchSelect } from "@/components/admin/admin-user-search-select";
+import { useAuthStore } from "@/lib/stores/auth-store";
 
 type TargetPlan = "all" | "free" | "starter" | "pro" | "infinity";
 
 export function AdminInboxMessagesPanel() {
+  const profile = useAuthStore((s) => s.profile);
   const [templateId, setTemplateId] = React.useState(INBOX_MESSAGE_TEMPLATES[0]!.id);
   const [title, setTitle] = React.useState(INBOX_MESSAGE_TEMPLATES[0]!.title);
   const [message, setMessage] = React.useState(INBOX_MESSAGE_TEMPLATES[0]!.body);
@@ -59,6 +62,50 @@ export function AdminInboxMessagesPanel() {
     applyTemplate(templateId);
   }, [templateId, applyTemplate]);
 
+  async function sendTestToMe() {
+    const email = profile?.email?.trim();
+    if (!email) {
+      toast.error("Sign in as owner to send a test.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const safeUrl = sanitizeAdminUrl(actionUrl);
+      const res = await fetch("/api/admin/notifications/broadcast", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          title: title.trim(),
+          message: message.trim(),
+          targetEmail: email,
+          actionUrl: safeUrl ?? undefined,
+          templateId,
+          iconKey: design.iconPreset,
+          effectKey: design.effectPreset,
+          playSound,
+          category: "system",
+          design,
+        }),
+      });
+      const json = (await res.json()) as {
+        error?: string;
+        recipientCount?: number;
+        verifiedCount?: number;
+        visibleToOwner?: boolean;
+        diagnostics?: string;
+      };
+      if (!res.ok || (json.verifiedCount ?? json.recipientCount ?? 0) === 0) {
+        throw new Error(json.error ?? "Test send not verified in database.");
+      }
+      toast.success(json.diagnostics ?? `Test sent to ${email}.`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Test send failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function send() {
     setBusy(true);
     try {
@@ -84,7 +131,10 @@ export function AdminInboxMessagesPanel() {
       const json = (await res.json()) as {
         error?: string;
         recipientCount?: number;
+        verifiedCount?: number;
         verifyUnreadForSample?: number;
+        visibleToOwner?: boolean;
+        diagnostics?: string;
       };
       if (!res.ok) {
         const count = json.recipientCount ?? 0;
@@ -94,15 +144,15 @@ export function AdminInboxMessagesPanel() {
         throw new Error(json.error ?? "Send failed");
       }
       const count = json.recipientCount ?? 0;
-      if (count === 0) {
-        toast.error("No matching users found.");
+      const verified = json.verifiedCount ?? json.verifyUnreadForSample ?? 0;
+      if (count === 0 || verified === 0) {
+        toast.error(json.error ?? "No notifications verified in database.");
         return;
       }
-      const verify =
-        typeof json.verifyUnreadForSample === "number" && json.verifyUnreadForSample > 0
-          ? " Verified in notifications table."
-          : "";
-      toast.success(`Inbox message sent to ${count} user(s).${verify}`);
+      const diag =
+        json.diagnostics ??
+        `Inserted ${count} / Verified ${verified} / Owner visible: ${json.visibleToOwner ? "yes" : "no"}`;
+      toast.success(`Inbox message sent. ${diag}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Send failed");
     } finally {
@@ -141,11 +191,10 @@ export function AdminInboxMessagesPanel() {
             <option value="pro">Pro</option>
             <option value="infinity">Infinity (all tiers)</option>
           </select>
-          <input
+          <AdminUserSearchSelect
             value={targetEmail}
-            onChange={(e) => setTargetEmail(e.target.value)}
-            placeholder="Specific email (overrides plan)"
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-[12px]"
+            onSelect={(u) => setTargetEmail(u?.email ?? "")}
+            placeholder="Search user by email or name (overrides plan)"
           />
           <input
             value={title}
@@ -173,6 +222,16 @@ export function AdminInboxMessagesPanel() {
             <input type="checkbox" checked={playSound} onChange={(e) => setPlaySound(e.target.checked)} />
             Play in-web sound (if user enabled sounds)
           </label>
+          <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void sendTestToMe()}
+            className="rounded-lg border border-border bg-background px-4 py-2.5 text-[12px] font-semibold text-foreground disabled:opacity-50"
+            data-testid="admin-send-inbox-test-me"
+          >
+            Send test to me
+          </button>
           <button
             type="button"
             disabled={busy}
@@ -182,6 +241,7 @@ export function AdminInboxMessagesPanel() {
           >
             {busy ? "Sending…" : "Send inbox message"}
           </button>
+          </div>
         </div>
         <InboxNotificationPreview title={title} message={message} design={design} />
       </div>

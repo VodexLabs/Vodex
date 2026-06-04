@@ -35,7 +35,7 @@ ${heroBlock}
 <tr><td style="padding:28px 36px 36px;font-size:15px;line-height:1.65;">${body}</td></tr>
 <tr><td style="padding:0 36px 32px;font-size:12px;color:#64748b;line-height:1.55;border-top:1px solid #e2e8f0;">
 <p style="margin:0 0 8px;">© ${new Date().getFullYear()} Vodex · <a href="${ctx.appUrl}" style="color:#2563eb;text-decoration:none;">Open Vodex</a></p>
-<p style="margin:0 0 6px;"><a href="${CANONICAL_ROUTES.discord}" style="color:#2563eb;text-decoration:none;">Join our Discord</a> · <a href="${CANONICAL_ROUTES.publicStatus}" style="color:#2563eb;text-decoration:none;">Status</a></p>
+<p style="margin:0 0 6px;"><a href="${CANONICAL_ROUTES.discord}" style="color:#2563eb;text-decoration:none;">Discord</a> · <a href="${CANONICAL_ROUTES.publicStatus}" style="color:#2563eb;text-decoration:none;">Status</a> · <a href="mailto:support@vodex.dev" style="color:#2563eb;text-decoration:none;">Support</a></p>
 <p style="margin:0;">Product email — <a href="${ctx.unsubscribeUrl}" style="color:#2563eb;">Manage preferences</a></p>
 </td></tr>
 </table>

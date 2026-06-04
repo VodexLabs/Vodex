@@ -14,7 +14,8 @@ must("src/app/api/admin/email-marketing/send/route.ts", "RESEND_API_KEY", "env c
 must("src/app/api/admin/email-marketing/send/route.ts", "deliveredToInbox", "delivery result");
 must("src/components/admin/email-marketing-preview.tsx", "min-h-[720px]", "full preview height");
 must("src/components/admin/admin-email-recipient-search.tsx", "/api/admin/users/search", "user search");
-must("src/app/api/admin/users/search/route.ts", "searchMarketingRecipients", "search route");
+must("src/app/api/admin/users/search/route.ts", "requireDreamosOwner", "search route owner guard");
+must("src/app/api/admin/users/search/route.ts", "results: users", "search route dual shape");
 
 if (errors.length) {
   console.error("verify:email-marketing-delivery FAILED\n", errors.map((e) => `  - ${e}`).join("\n"));

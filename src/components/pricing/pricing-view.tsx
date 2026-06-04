@@ -34,6 +34,7 @@ import {
 } from "@/components/billing/use-paddle-checkout";
 import {
   resolvePlanAction,
+  INFINITY_SUFFIX_TO_TARGET,
   type PlanActionTargetId,
 } from "@/lib/billing/plan-action-resolver";
 import { normalizePlanId } from "@/lib/billing/plans";
@@ -934,6 +935,15 @@ export function PricingView({ publicMode = false }: { publicMode?: boolean }) {
 
   const planId = profile?.plan_id ?? null;
   const prettyPlan = planId ? planId.charAt(0).toUpperCase() + planId.slice(1) : "Free";
+
+  React.useEffect(() => {
+    if (!planId?.startsWith("infinity_")) return;
+    const suffix = planId.replace(/^infinity_/, "");
+    const targetId = INFINITY_SUFFIX_TO_TARGET[suffix];
+    if (!targetId) return;
+    const tier = INFINITY_TIERS.find((t) => t.id === targetId);
+    if (tier) setInfTier(tier);
+  }, [planId]);
 
   function openContact(kind: "sales" | "support") {
     setContactKind(kind);

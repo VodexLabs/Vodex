@@ -78,6 +78,8 @@ export function classifyRepairIssues(input: {
   providerCapHit?: boolean;
   authSessionProblem?: boolean;
   previewLogs?: string[];
+  previewErrorCode?: string | null;
+  previewUserMessage?: string | null;
 }): RepairIssue[] {
   const issues: RepairIssue[] = [];
   const validation = input.validationReasons ?? [];
@@ -183,16 +185,21 @@ export function classifyRepairIssues(input: {
   }
 
   if (input.previewError) {
+    const code = input.previewErrorCode ?? "";
+    const oom = code === "VITE_BUILD_OOM" || /out of memory/i.test(input.previewError);
     issues.push({
       type: "preview_failed",
-      title: "Preview failed",
-      summary: input.previewError,
-      whatHappened: input.previewError,
-      whyItMatters: "You need a working preview before publishing.",
-      exactFix: "Check preview logs, fix reported issues, then retry preview.",
-      severity: "medium",
+      title: oom ? "Preview build out of memory" : "Preview build failed",
+      summary: input.previewUserMessage ?? input.previewError,
+      whatHappened: input.previewUserMessage ?? input.previewError,
+      whyItMatters: "ZIP and framework previews require a successful worker build.",
+      exactFix: oom
+        ? "Increase preview worker memory on Railway (2–4GB) or reduce bundle size, then rebuild preview."
+        : "Open preview runtime logs, fix the build error, then use Rebuild preview.",
+      severity: "high",
       needsAi: false,
       technicalDetails: {
+        errorCode: code || null,
         lastPreviewError: input.previewError,
         logs: input.previewLogs?.slice(-20) ?? [],
       },
@@ -302,5 +309,24 @@ export function classifyRepairIssues(input: {
     });
   }
 
-  return issues;
+  const priority: Record<RepairIssueType, number> = {
+    auth_session: 0,
+    migration_missing: 1,
+    preview_failed: 2,
+    build_failed: 3,
+    validation_failed: 4,
+    incomplete_source: 9,
+    no_files: 8,
+    generated_placeholder: 5,
+    publish_failed: 6,
+    insufficient_credits: 4,
+    missing_env: 7,
+    vercel_not_connected: 10,
+    token_invalid: 10,
+    provider_cap_hit: 11,
+    stale_lifecycle: 12,
+    missing_id: 13,
+  };
+
+  return issues.sort((a, b) => (priority[a.type] ?? 50) - (priority[b.type] ?? 50));
 }

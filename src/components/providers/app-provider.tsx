@@ -218,10 +218,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         void refreshUserNotificationsFromApi();
       };
       pollNotifications();
-      const pollTimer = window.setInterval(pollNotifications, 30_000);
+      const onVisible = () => {
+        if (document.visibilityState === "visible") void refreshUserNotificationsFromApi();
+      };
+      document.addEventListener("visibilitychange", onVisible);
+
+      const pollTimer = window.setInterval(pollNotifications, 40_000);
 
       realtimeDispose = () => {
         window.clearInterval(pollTimer);
+        document.removeEventListener("visibilitychange", onVisible);
         supabase.removeChannel(notificationsChannel);
         supabase.removeChannel(profileChannel);
       };

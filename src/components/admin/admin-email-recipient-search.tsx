@@ -39,8 +39,18 @@ export function AdminEmailRecipientSearch({
         credentials: "include",
       })
         .then(async (res) => {
-          const json = (await res.json()) as { results?: Result[] };
-          setResults(json.results ?? []);
+          const json = (await res.json()) as {
+            results?: Result[];
+            users?: Array<{ id: string; email: string; displayName: string }>;
+          };
+          const rows = json.results ?? json.users ?? [];
+          setResults(
+            rows.map((r) => ({
+              id: r.id,
+              email: r.email,
+              displayName: r.displayName ?? r.email,
+            })),
+          );
           setOpen(true);
         })
         .catch(() => setResults([]))

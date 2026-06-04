@@ -6,6 +6,8 @@ import {
   normalizeProjectStatus,
   readLifecycleFromMetadata,
 } from "@/lib/projects/project-lifecycle";
+import { loadPreviewRuntimeStatus } from "@/lib/preview/load-preview-runtime-status";
+import { shouldSuppressThinFileBlocker } from "@/lib/preview/preview-blocker-priority";
 
 type Writer = SupabaseClient<Database>;
 
@@ -79,19 +81,38 @@ export async function loadRepairContext(
   const creditsRequired =
     typeof metaRaw.repair_credits_required === "number" ? metaRaw.repair_credits_required : undefined;
 
+  const previewRuntime = await loadPreviewRuntimeStatus(writer, projectId, metaRaw);
+  const suppressThinFiles = shouldSuppressThinFileBlocker({
+    workerConnected: previewRuntime.workerConnected,
+    workerUnavailable: previewRuntime.workerUnavailable,
+    jobStatus: previewRuntime.jobStatus,
+    previewStatus: previewRuntime.previewStatus,
+    previewRenderable: previewRuntime.previewRenderable,
+    blockedReason: previewRuntime.blockedReason,
+    errorCode: previewRuntime.errorCode,
+    requiresDeployedWorker: previewRuntime.requiresDeployedWorker,
+  });
+
   const sourceIntegrityOk = metaRaw.source_integrity_ok === true;
   const sourceIncomplete =
+    !suppressThinFiles &&
     (count ?? 0) > 0 &&
     (sourceIntegrityOk === false ||
       metaRaw.blocked_reason === "technical_generation_incomplete" ||
       String(metaRaw.blocked_reason ?? "").startsWith("technical_generation_incomplete:"));
+
+  const previewError =
+    previewRuntime.blockedReason ??
+    (typeof metaRaw.last_preview_error === "string" ? metaRaw.last_preview_error : null);
 
   const issues = classifyRepairIssues({
     lifecycleStatus: lifecycle,
     buildStatus: project.build_status,
     fileCount: count ?? 0,
     sourceIncomplete,
-    previewError: typeof metaRaw.last_preview_error === "string" ? metaRaw.last_preview_error : null,
+    previewError,
+    previewErrorCode: previewRuntime.errorCode,
+    previewUserMessage: previewRuntime.userMessage,
     publishError: typeof metaRaw.last_publish_error === "string" ? metaRaw.last_publish_error : null,
     validationReasons,
     creditsRemaining: billingCredits,

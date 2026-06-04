@@ -5,6 +5,12 @@ import {
   notificationMatchesTab,
   readNotificationKind,
 } from "@/lib/notifications/notification-kinds";
+import {
+  getOwnerUserIdForBroadcast,
+  insertAdminBroadcastNotifications,
+  resolveBroadcastRecipientIds,
+  verifyNotificationsReadable,
+} from "@/lib/notifications/notification-service";
 import type { Notification } from "@/lib/supabase/types";
 
 type TargetPlan = "all" | "free" | "starter" | "pro" | "infinity";
@@ -116,7 +122,13 @@ export async function POST(request: Request) {
     );
   }
 
-  const userIds = profiles.map((p) => p.id);
+  const ownerProfileId = owner.user.id;
+  const platformOwnerId = (await getOwnerUserIdForBroadcast(db)) ?? ownerProfileId;
+  const userIds = await resolveBroadcastRecipientIds({
+    db,
+    profileIds: profiles.map((p) => p.id),
+    ownerUserId: platformOwnerId,
+  });
   if (userIds.length === 0) {
     return NextResponse.json(
       { error: "No matching users found.", recipientCount: 0 },
@@ -261,16 +273,25 @@ export async function POST(request: Request) {
     );
   }
 
+  const ownerReadable = platformOwnerId
+    ? await verifyNotificationsReadable(db, platformOwnerId, title)
+    : 0;
+
   return NextResponse.json({
     ok: true,
     recipientCount: inserted,
     insertedCount: inserted,
+    verifiedCount: readableCount,
+    failedCount: Math.max(0, inserted - readableCount),
     verifySampleUserId: verifyUserId,
     verifyUnreadForSample: readableCount,
+    ownerIncluded: userIds.includes(platformOwnerId),
+    visibleToOwner: ownerReadable > 0,
     sampleNotificationIds,
     sampleRecipientIds: insertedUserIds.slice(0, 5),
     visibleOnMain,
     visibleOnAll,
     table: "notifications",
+    diagnostics: `Inserted ${inserted} / Verified ${readableCount} / Owner visible: ${ownerReadable > 0 ? "yes" : "no"}`,
   });
 }

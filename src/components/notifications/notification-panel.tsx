@@ -77,7 +77,7 @@ interface NotificationPanelProps {
 
 export function NotificationPanel({ anchorRef, open, onClose }: NotificationPanelProps) {
   const { notifications, unreadCount, markRead, markAllRead } = useNotificationsStore();
-  const [activeTab, setActiveTab] = React.useState<NotificationInboxTab>("main");
+  const [activeTab, setActiveTab] = React.useState<NotificationInboxTab>("all");
   const [mounted, setMounted] = React.useState(false);
   const isMobile = useIsMobilePanel();
 

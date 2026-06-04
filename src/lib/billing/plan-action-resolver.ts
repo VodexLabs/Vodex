@@ -117,7 +117,7 @@ export function resolvePlanAction(
   return { kind: "current", label: "Current plan", disabled: true, targetPlanId };
 }
 
-const INFINITY_SUFFIX_TO_TARGET: Record<string, PlanActionTargetId> = {
+export const INFINITY_SUFFIX_TO_TARGET: Record<string, PlanActionTargetId> = {
   i: "inf-1",
   ii: "inf-2",
   iii: "inf-3",

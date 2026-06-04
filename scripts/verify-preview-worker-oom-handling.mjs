@@ -72,7 +72,7 @@ if (fs.existsSync(readme)) {
 }
 
 const wizard = path.join(root, "src/components/apps/zip-import-wizard.tsx");
-mustInclude(wizard, ["ZIP import flow version: P3.5", "Estimated Preview Cost"], "zip-import-wizard");
+mustInclude(wizard, ["ZIP import flow version: P3.6", "Estimated Preview Cost"], "zip-import-wizard");
 
 const credits = path.join(root, "src/lib/imports/zip-preview-action-credits.ts");
 mustInclude(credits, ["dependencySurchargeCredits", "sizeBaseCredits"], "zip-preview-action-credits");

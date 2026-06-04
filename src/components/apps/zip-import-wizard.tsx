@@ -206,6 +206,7 @@ const STATUS_ICONS: Record<DetectedItem["status"], React.ElementType> = {
 };
 
 // ─── Main wizard ──────────────────────────────────────────────────────────────
+// ZIP import flow version: P3.6 (cost confirmation, staged loading, preview redirect)
 
 type WizardStep = "idle" | "scanning" | "confirm" | "importing" | "results" | "done";
 
@@ -248,8 +249,49 @@ export function ZipImportWizard({ onClose, onComplete }: ZipImportWizardProps) {
     scanStats?: ScanResult["scanStats"];
   } | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [importProgress, setImportProgress] = React.useState(0);
+  const [importStageLabel, setImportStageLabel] = React.useState("");
+  const [importElapsedSec, setImportElapsedSec] = React.useState(0);
+  const importStartedAt = React.useRef<number | null>(null);
 
   const isDev = process.env.NODE_ENV !== "production";
+
+  const IMPORT_STAGES: { pct: number; label: string }[] = [
+    { pct: 10, label: "Uploading ZIP" },
+    { pct: 25, label: "Scanning files" },
+    { pct: 40, label: "Analyzing framework" },
+    { pct: 55, label: "Preparing source snapshot" },
+    { pct: 70, label: "Queueing preview worker" },
+    { pct: 85, label: "Installing dependencies" },
+    { pct: 95, label: "Building preview" },
+    { pct: 100, label: "Finalizing preview" },
+  ];
+
+  React.useEffect(() => {
+    if (step !== "importing") {
+      importStartedAt.current = null;
+      return;
+    }
+    importStartedAt.current = Date.now();
+    setImportProgress(0);
+    setImportElapsedSec(0);
+    const tick = window.setInterval(() => {
+      const started = importStartedAt.current ?? Date.now();
+      const elapsed = Math.floor((Date.now() - started) / 1000);
+      setImportElapsedSec(elapsed);
+      const idx = Math.min(
+        IMPORT_STAGES.length - 1,
+        Math.floor(elapsed / 12),
+      );
+      const stage = IMPORT_STAGES[idx]!;
+      setImportStageLabel(stage.label);
+      const base = idx > 0 ? IMPORT_STAGES[idx - 1]!.pct : 0;
+      const span = stage.pct - base;
+      const within = Math.min(1, (elapsed % 12) / 12);
+      setImportProgress(Math.min(98, Math.round(base + span * within)));
+    }, 400);
+    return () => window.clearInterval(tick);
+  }, [step]);
 
   function copyImportDiagnostics(payload: Record<string, unknown>) {
     const text = JSON.stringify(payload, null, 2);
@@ -440,7 +482,7 @@ export function ZipImportWizard({ onClose, onComplete }: ZipImportWizardProps) {
       setStep("confirm");
       return;
     }
-    setImportResult({
+    const result = {
       projectId: j.projectId!,
       redirectTo: j.redirectTo!,
       fileCount: j.fileCount ?? 0,
@@ -448,8 +490,24 @@ export function ZipImportWizard({ onClose, onComplete }: ZipImportWizardProps) {
       previewReady: j.previewReady === true,
       blockedReason: j.blockedReason ?? null,
       previewStatus: j.previewStatus ?? "queued",
-    });
+    };
+    setImportProgress(100);
+    setImportResult(result);
+    if (result.redirectTo && !result.previewReady) {
+      setStep("done");
+      const name = projectName || file?.name.replace(/\.zip$/i, "") || "Imported";
+      onComplete({ projectId: result.projectId, name });
+      router.push(result.redirectTo);
+      return;
+    }
     setStep("results");
+  }
+
+  function handleClose() {
+    if (step === "importing") {
+      toast.success("Preview build continues in the background. Check your project card for status.");
+    }
+    onClose();
   }
 
   function handleOpen() {
@@ -463,7 +521,7 @@ export function ZipImportWizard({ onClose, onComplete }: ZipImportWizardProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-foreground/30 backdrop-blur-md p-4">
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 8 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -478,7 +536,7 @@ export function ZipImportWizard({ onClose, onComplete }: ZipImportWizardProps) {
             <p className="text-[12px] text-muted-foreground">Restore an existing project into Vodex</p>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-surface hover:text-foreground transition"
           >
             <X className="size-4" strokeWidth={1.75} />
@@ -630,6 +688,7 @@ export function ZipImportWizard({ onClose, onComplete }: ZipImportWizardProps) {
                 <div className="rounded-xl bg-accent/8 p-4 ring-1 ring-accent/25 space-y-4">
                   <div>
                     <p className="text-[16px] font-semibold text-foreground">Preview Build Summary</p>
+                    <p className="text-[12px] font-medium text-muted-foreground">Estimated Preview Cost</p>
                     <p className="mt-1 text-[12px] text-muted-foreground">
                       ZIP scan is complete and free. Review cost below before starting the preview build.
                     </p>
@@ -743,12 +802,25 @@ export function ZipImportWizard({ onClose, onComplete }: ZipImportWizardProps) {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="flex flex-col items-center gap-3 py-12"
+                className="flex flex-col items-center gap-4 py-10"
               >
                 <Loader2 className="size-8 animate-spin text-accent" />
-                <p className="text-[14px] font-medium text-foreground">Importing & queueing preview build…</p>
-                <p className="text-[12px] text-muted-foreground">
-                  Importing sources and queueing the preview build. Credits are not charged until the build succeeds.
+                <p className="text-[14px] font-medium text-foreground">{importStageLabel || "Importing…"}</p>
+                <div className="w-full max-w-md">
+                  <div className="h-2 overflow-hidden rounded-full bg-border">
+                    <div
+                      className="h-full rounded-full bg-accent transition-all duration-300"
+                      style={{ width: `${importProgress}%` }}
+                    />
+                  </div>
+                  <p className="mt-2 text-center text-[12px] text-muted-foreground">
+                    {importProgress}% · {importElapsedSec}s elapsed
+                    {file ? ` · ${(file.size / (1024 * 1024)).toFixed(1)} MB` : ""}
+                  </p>
+                </div>
+                <p className="max-w-md text-center text-[12px] text-muted-foreground">
+                  Credits are currently <strong>reserved</strong>, not charged. We capture Action Credits only if the
+                  preview build succeeds. Large imported apps can take a few minutes.
                 </p>
               </motion.div>
             )}

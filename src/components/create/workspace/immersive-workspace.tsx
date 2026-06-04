@@ -56,6 +56,7 @@ import { ModeSwitch, type EditScope } from "@/components/create/workspace/mode-s
 import { AttachmentRail, DropZone, type Attachment } from "@/components/create/workspace/attachment-rail";
 import { PreviewPanel } from "@/components/create/workspace/preview-panel";
 import { PreviewBlockedPopup, type PreviewBlockingIssue } from "@/components/preview/preview-blocked-popup";
+import { resolveAuthoritativePreviewBlocker } from "@/lib/preview/preview-blocker-priority";
 import { RepairCenter } from "@/components/repair/repair-center";
 import { buildRepairChatPrompt } from "@/lib/repair/repair-chat-prompt";
 import { BuildLiveProgress } from "@/components/create/workspace/build-live-progress";
@@ -2552,6 +2553,28 @@ export function ImmersiveWorkspace({
       setPreviewIssue(null);
       return;
     }
+    if (previewRuntime && !previewRuntime.previewRenderable) {
+      const blocker = resolveAuthoritativePreviewBlocker({
+        workerConnected: previewRuntime.workerConnected,
+        workerUnavailable: previewRuntime.workerUnavailable,
+        jobStatus: previewRuntime.jobStatus,
+        previewStatus: previewRuntime.previewStatus,
+        previewRenderable: previewRuntime.previewRenderable,
+        blockedReason: previewRuntime.blockedReason,
+        errorCode: previewRuntime.errorCode,
+        userMessage: previewRuntime.userMessage,
+        requiresDeployedWorker: previewRuntime.requiresDeployedWorker,
+      });
+      if (blocker) {
+        setPreviewIssue({
+          title: blocker.title,
+          summary: blocker.summary,
+          details: blocker.details,
+          fixHint: blocker.fixHint,
+        });
+        return;
+      }
+    }
     let cancelled = false;
     fetch(`/api/projects/${effectiveProjectId}/repair`, { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
@@ -2575,7 +2598,13 @@ export function ImmersiveWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [effectiveProjectId, codeFiles.length, projectDataRefresh, previewSrcRenderable]);
+  }, [
+    effectiveProjectId,
+    codeFiles.length,
+    projectDataRefresh,
+    previewSrcRenderable,
+    previewRuntime,
+  ]);
   const extractedCode = React.useMemo(() => extractFencedCode(lastAssistantText), [lastAssistantText]);
   const integrationSecretKeys = React.useMemo(
     () => (mode === "build" ? detectRequiredSecretNames(lastAssistantText) : []),

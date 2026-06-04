@@ -37,7 +37,13 @@ export async function executeAdminAction(input: {
     .maybeSingle();
 
   let actionLabel: string;
-  let rpcResult: { success?: boolean; error?: string } | null = null;
+  let rpcResult: {
+    success?: boolean;
+    error?: string;
+    plan?: string;
+    remaining?: number;
+    action_credits?: number;
+  } | null = null;
   let rpcError: { message: string } | null = null;
 
   const adminId = input.adminUser.id;
@@ -90,14 +96,23 @@ export async function executeAdminAction(input: {
         return { ok: false, error: "planId and reason required" };
       }
       actionLabel = "set_plan";
-      const { data, error } = await adminDb.rpc("admin_set_plan", {
-        p_admin_id: adminId,
-        p_user_id: targetUserId,
-        p_plan: input.payload.planId as PlanId,
-        p_reason: input.payload.reason,
+      const { applyAdminPlanChange } = await import("@/lib/billing/apply-admin-plan-change");
+      const planResult = await applyAdminPlanChange({
+        userId: targetUserId,
+        newPlan: input.payload.planId,
+        reason: input.payload.reason,
+        adminId,
       });
-      rpcResult = data;
-      rpcError = error;
+      if (!planResult.ok) {
+        return { ok: false, error: planResult.error ?? "Plan change failed" };
+      }
+      rpcResult = {
+        success: true,
+        plan: planResult.plan,
+        remaining: planResult.buildCredits,
+        action_credits: planResult.actionCredits,
+      };
+      rpcError = null;
       break;
     }
     case "add_action_credits": {
