@@ -15,6 +15,9 @@ must("worker/android-builder/Dockerfile", "npm --version", "npm verified in imag
 must("worker/android-builder/Dockerfile", "npm ci", "npm ci in Dockerfile");
 must("worker/android-builder/Dockerfile", 'CMD ["npm", "start"]', "npm start CMD");
 must("worker/android-builder/package-lock.json", "lockfileVersion", "package-lock for npm ci");
+must("worker/android-builder/src/config.ts", "process.env.PORT", "PORT env first");
+must("worker/android-builder/src/config.ts", "8080", "default port 8080");
+must("worker/android-builder/src/index.ts", 'status: "ok"', "/health JSON status ok");
 must("worker/android-builder/src/index.ts", "/v1/build", "builder HTTP webhook");
 must("worker/android-builder/src/gradle-build.ts", "assembleRelease", "APK gradle task");
 must("worker/android-builder/src/gradle-build.ts", "bundleRelease", "AAB gradle task");

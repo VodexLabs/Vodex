@@ -6,7 +6,7 @@ function required(name: string): string {
 
 export const config = {
   builderId: process.env.ANDROID_BUILDER_ID?.trim() ?? "android-builder-1",
-  port: Number(process.env.ANDROID_BUILDER_PORT ?? 8788),
+  port: Number(process.env.PORT || process.env.HEALTH_PORT || 8080),
   supabaseUrl:
     process.env.SUPABASE_URL?.trim() ||
     process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ||

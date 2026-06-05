@@ -16,7 +16,7 @@ function startHttpServer(): void {
   const server = http.createServer((req, res) => {
     if (req.method === "GET" && req.url === "/health") {
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ok: true, builderId: config.builderId }));
+      res.end(JSON.stringify({ status: "ok" }));
       return;
     }
 
