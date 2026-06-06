@@ -20,6 +20,7 @@ import { preferredEntryFile } from "@/lib/projects/imported-project-state";
 import { fileMeetsMeaningfulThreshold } from "@/lib/build/source-integrity-validator";
 import { canManualCodeEdit } from "@/lib/billing/plan-features";
 import { AppVersionHistoryPanel } from "@/components/builder/app-version-history-panel";
+import { VodexConfirmModal } from "@/components/ui/vodex-confirm-modal";
 
 export type BuilderFile = { path: string; content: string };
 
@@ -77,6 +78,7 @@ export function AppBuilderWorkspace({
   const [diffBusy, setDiffBusy] = React.useState(false);
   const [rollbackBusyId, setRollbackBusyId] = React.useState<string | null>(null);
   const [mobilePanel, setMobilePanel] = React.useState<"files" | "code">("code");
+  const [closeTabTarget, setCloseTabTarget] = React.useState<string | null>(null);
   const sessionRestored = React.useRef(false);
   const supabase = React.useMemo(() => createClient(), []);
   const [contentLoadingPath, setContentLoadingPath] = React.useState<string | null>(null);
@@ -168,16 +170,21 @@ export function AppBuilderWorkspace({
     setActivePath(path);
   };
 
-  const closeTab = (path: string) => {
-    if (dirtyPaths.has(path)) {
-      const ok = window.confirm(`"${path.split("/").pop()}" has unsaved changes. Close anyway?`);
-      if (!ok) return;
-    }
+  const finishCloseTab = (path: string) => {
     setTabs((t) => t.filter((x) => x.path !== path));
     if (activePath === path) {
       const rest = tabs.filter((x) => x.path !== path);
       setActivePath(rest[0]?.path ?? null);
     }
+    setCloseTabTarget(null);
+  };
+
+  const closeTab = (path: string) => {
+    if (dirtyPaths.has(path)) {
+      setCloseTabTarget(path);
+      return;
+    }
+    finishCloseTab(path);
   };
 
   const displayContent = activePath
@@ -739,6 +746,21 @@ export function AppBuilderWorkspace({
           ) : null}
         </div>
       </div>
+      <VodexConfirmModal
+        open={closeTabTarget != null}
+        title="Discard unsaved changes?"
+        description={
+          closeTabTarget
+            ? `"${closeTabTarget.split("/").pop()}" has unsaved edits. Close without saving?`
+            : undefined
+        }
+        confirmLabel="Close tab"
+        variant="destructive"
+        onCancel={() => setCloseTabTarget(null)}
+        onConfirm={() => {
+          if (closeTabTarget) finishCloseTab(closeTabTarget);
+        }}
+      />
     </div>
   );
 }

@@ -24,6 +24,7 @@ import {
   getOfficialTemplatePreviewUrl,
 } from "@/lib/templates/official-templates";
 import { getTemplateSourceFiles } from "@/lib/templates/template-source-files";
+import { TemplateUseConfirmModal } from "@/components/templates/template-use-confirm-modal";
 
 const TEMPLATE_LOADING_MSG = "Creating your template workspace…";
 
@@ -255,6 +256,12 @@ export function TemplatesView() {
   const [community, setCommunity] = React.useState<CommunityItem[]>([]);
   const [communityLoading, setCommunityLoading] = React.useState(true);
   const [likingId, setLikingId] = React.useState<string | null>(null);
+  const [pendingTemplate, setPendingTemplate] = React.useState<{
+    id: string;
+    name: string;
+    previewUrl?: string | null;
+    kind: "official" | "community";
+  } | null>(null);
 
   const officialTemplates = React.useMemo(
     () => OFFICIAL_TEMPLATES.filter((t) => getTemplateSourceFiles(t.id).length > 0),
@@ -278,19 +285,7 @@ export function TemplatesView() {
     if (tab === "community") void loadCommunity();
   }, [tab, loadCommunity]);
 
-  const handleUseOfficial = React.useCallback(async (template: Template) => {
-    setLoadingTemplateId(template.id);
-    setLoadingMessage(TEMPLATE_LOADING_MSG);
-    try {
-      await activateTemplate(template.id);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not use template");
-      setLoadingTemplateId(null);
-      setLoadingMessage(null);
-    }
-  }, []);
-
-  const handleUseCommunity = React.useCallback(async (id: string) => {
+  const runActivate = React.useCallback(async (id: string) => {
     setLoadingTemplateId(id);
     setLoadingMessage(TEMPLATE_LOADING_MSG);
     try {
@@ -301,6 +296,38 @@ export function TemplatesView() {
       setLoadingMessage(null);
     }
   }, []);
+
+  const requestUseOfficial = React.useCallback((template: Template) => {
+    const isMobile = typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches;
+    if (isMobile) {
+      setPendingTemplate({
+        id: template.id,
+        name: template.name,
+        previewUrl: getOfficialTemplatePreviewUrl(template.id),
+        kind: "official",
+      });
+      return;
+    }
+    void runActivate(template.id);
+  }, [runActivate]);
+
+  const requestUseCommunity = React.useCallback(
+    (id: string) => {
+      const item = community.find((c) => c.id === id);
+      const isMobile = typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches;
+      if (isMobile && item) {
+        setPendingTemplate({
+          id,
+          name: item.name,
+          previewUrl: item.previewImageUrl,
+          kind: "community",
+        });
+        return;
+      }
+      void runActivate(id);
+    },
+    [community, runActivate],
+  );
 
   const handleToggleLike = React.useCallback(
     async (id: string) => {
@@ -437,7 +464,7 @@ export function TemplatesView() {
                 <OfficialTemplateCard
                   key={t.id}
                   template={t}
-                  onUse={handleUseOfficial}
+                  onUse={requestUseOfficial}
                   using={loadingTemplateId === t.id}
                 />
               ))}
@@ -474,7 +501,7 @@ export function TemplatesView() {
                 <CommunityTemplateCard
                   key={item.id}
                   item={item}
-                  onUse={handleUseCommunity}
+                  onUse={requestUseCommunity}
                   onToggleLike={handleToggleLike}
                   using={loadingTemplateId === item.id}
                   liking={likingId === item.id}
@@ -503,6 +530,19 @@ export function TemplatesView() {
           </Link>
         </Button>
       </motion.div>
+
+      <TemplateUseConfirmModal
+        open={Boolean(pendingTemplate)}
+        templateName={pendingTemplate?.name ?? ""}
+        previewUrl={pendingTemplate?.previewUrl}
+        loading={Boolean(pendingTemplate && loadingTemplateId === pendingTemplate.id)}
+        onCancel={() => setPendingTemplate(null)}
+        onUse={() => {
+          if (!pendingTemplate) return;
+          void runActivate(pendingTemplate.id);
+          setPendingTemplate(null);
+        }}
+      />
     </div>
   );
 }

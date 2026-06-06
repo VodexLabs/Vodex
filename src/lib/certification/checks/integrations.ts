@@ -91,10 +91,12 @@ export async function runIntegrationCertificationChecks(
       id: "integrations_none",
       section: "integrations",
       title: "Connected integrations",
-      status: "warning",
-      weight: 4,
-      detail: "No integrations connected yet. Mock/sandbox tests available without live accounts.",
-      fix: "Connect GitHub or Supabase for launch; use mock mode to verify harness.",
+      status: ctx.published ? "blocker" : "passed",
+      weight: ctx.published ? 10 : 2,
+      detail: ctx.published
+        ? "No integrations connected — connect GitHub or Supabase for a live app."
+        : "Not required until publish.",
+      fix: ctx.published ? "Open Integrations → connect GitHub and/or Supabase." : undefined,
     });
   } else {
     checks.push({

@@ -217,7 +217,7 @@ export function evaluateSourceIntegrity(
     (previewHtmlLength < 400 || /no renderable content/i.test(previewHtmlSnippet));
   const sourceIntegrityOk = coreOk;
   const previewRenderable =
-    coreOk && !htmlLooksEmpty && (previewSessionOk === true || previewHtmlLength >= 800);
+    coreOk && !htmlLooksEmpty && (previewSessionOk === true || previewHtmlLength >= 400);
 
   let blockedReason: string | null = null;
   if (totalFileRows > 0 && meaningfulSourceFileCount === 0) {

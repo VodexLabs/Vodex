@@ -14,6 +14,7 @@ import { variants } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { GroupChatPanel } from "@/components/community/group-chat-panel";
 
 interface Group {
   id: string;
@@ -232,22 +233,12 @@ export function GroupPageClient({ groupId }: { groupId: string }) {
         )}
       </motion.div>
 
-      {/* Discussions placeholder */}
       <motion.div variants={variants.fadeUp} initial="hidden" animate="show" transition={{ delay: 0.15 }}>
         <div className="mb-3 flex items-center justify-between">
-          <p className="text-[11px] font-semibold tracking-[0.15em] uppercase text-muted-foreground">Discussions</p>
-          <Button variant="accent" size="sm" className="gap-1.5" asChild>
-            <Link href="/community">
-              <Plus className="size-3.5" strokeWidth={2} />
-              Start discussion
-            </Link>
-          </Button>
+          <p className="text-[11px] font-semibold tracking-[0.15em] uppercase text-muted-foreground">Messages</p>
+          <span className="text-[11px] text-muted-foreground">{joined ? "Realtime chat" : "Join to chat"}</span>
         </div>
-        <div className="flex flex-col items-center rounded-[var(--radius-xl)] bg-surface py-10 text-center ring-1 ring-border px-6">
-          <MessageCircle className="mb-2 size-8 text-muted-foreground/30" strokeWidth={1.25} />
-          <p className="text-[13px] font-medium text-foreground">No discussions yet</p>
-          <p className="mt-1 text-[12px] text-muted-foreground">Group discussions are coming soon. Start a community discussion in the meantime.</p>
-        </div>
+        <GroupChatPanel groupId={groupId} joined={joined} />
       </motion.div>
     </div>
   );

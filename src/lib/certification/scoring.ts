@@ -8,6 +8,8 @@ const CRITICAL_SECTIONS = new Set(["security", "auth", "publish"]);
 
 export function scoreSection(checks: CertificationCheck[]): number {
   if (!checks.length) return 100;
+  if (checks.some((c) => c.id === "integrations_none" && c.status === "blocker")) return 0;
+  if (checks.some((c) => c.id === "payment_readiness_score" && c.status === "blocker")) return 0;
   let earned = 0;
   let total = 0;
   for (const c of checks) {

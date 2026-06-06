@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import type { ProductionCertificationResult } from "@/lib/certification/types";
+import { CertificationFixIssuesCenter } from "@/components/certification/certification-fix-issues-center";
 
 const LEVEL_COLORS: Record<string, string> = {
   NOT_READY: "text-red-600 bg-red-500/10 ring-red-500/20",
@@ -43,7 +44,13 @@ function StatusIcon({ status }: { status: string }) {
   return <AlertTriangle className="size-4 text-amber-600" />;
 }
 
-export function ProductionCertificationCenter({ projectId }: { projectId: string }) {
+export function ProductionCertificationCenter({
+  projectId,
+  planId,
+}: {
+  projectId: string;
+  planId?: string | null;
+}) {
   const [running, setRunning] = React.useState(false);
   const [progress, setProgress] = React.useState(0);
   const [result, setResult] = React.useState<ProductionCertificationResult | null>(null);
@@ -204,6 +211,8 @@ export function ProductionCertificationCenter({ projectId }: { projectId: string
                 </ul>
               </div>
             ) : null}
+
+            <CertificationFixIssuesCenter projectId={projectId} planId={planId ?? undefined} result={result} />
 
             {result.auto_fix_suggestions.length ? (
               <div className="rounded-xl bg-muted/20 p-3 ring-1 ring-border/50">

@@ -55,7 +55,9 @@ export function BuildRunSummaryCard({
   const title =
     headline ??
     (failed
-      ? status === "failed_before_generation"
+      ? status === "preview_failed"
+        ? "App files were created, but preview needs attention"
+        : status === "failed_before_generation"
         ? "Couldn't start the build"
         : "Build needs attention"
       : partial

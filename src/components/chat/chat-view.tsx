@@ -38,6 +38,7 @@ import { useComposerClickCapture } from "@/lib/dev/composer-click-capture";
 import { pushSubmitTrace } from "@/lib/dev/submit-pipeline-trace";
 import { SubmitPipelinePanel } from "@/components/dev/submit-pipeline-panel";
 import { CHAT_BUILD_BUNDLE } from "@/lib/dev/chat-build-bundle";
+import { ChatMarkdown } from "@/lib/chat/chat-markdown";
 import { isSubmitDebugEnabled } from "@/lib/dev/submit-debug-enabled";
 import {
   beginConversationLoad,
@@ -388,7 +389,13 @@ function MessageBubble({ msg, displayName, avatarUrl, attachments = [] }: {
               aria-hidden
             />
           )}
-          <div className={cn("relative whitespace-pre-wrap", !isUser && "text-foreground/95")}>{text}</div>
+          <div className={cn("relative", !isUser && "text-foreground/95")}>
+            {isUser ? (
+              <span className="whitespace-pre-wrap">{text}</span>
+            ) : (
+              <ChatMarkdown text={text} />
+            )}
+          </div>
           {images.length > 0 && (
             <div className={cn("relative mt-2 flex flex-wrap gap-2", isUser ? "justify-end" : "justify-start")}>
               {images.map((a) => (
@@ -481,6 +488,7 @@ export function ChatView() {
   const [isSending, setIsSending] = React.useState(false);
   const composerRootRef = React.useRef<HTMLDivElement>(null);
   const submitInFlightRef = React.useRef(false);
+  const lastSendFingerprintRef = React.useRef<{ text: string; at: number } | null>(null);
   const formRef = React.useRef<HTMLFormElement>(null);
   useComposerClickCapture("chat", composerRootRef);
   const fileRef = React.useRef<HTMLInputElement>(null);
@@ -783,6 +791,12 @@ export function ChatView() {
       return;
     }
 
+    const prevFp = lastSendFingerprintRef.current;
+    if (prevFp && prevFp.text === text && Date.now() - prevFp.at < 2_500) {
+      return;
+    }
+    lastSendFingerprintRef.current = { text, at: Date.now() };
+
     submitInFlightRef.current = true;
     setIsSending(true);
     const draft = presetText ?? input;
@@ -792,13 +806,7 @@ export function ChatView() {
     setTokenError(false);
     clearError();
 
-    // Instant UX — user message visible before preflight/network.
     if (!presetText) setInput("");
-    const optimisticId = `opt-user-${Date.now()}`;
-    setMessages((prev) => [
-      ...prev,
-      { id: optimisticId, role: "user", parts: [{ type: "text", text }] },
-    ]);
 
     try {
     setSubmitStatusLabel("Preflight started");
@@ -826,7 +834,6 @@ export function ChatView() {
     });
 
     if (!isAiPreflightSuccess(pre)) {
-      setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
       setPreflightState("error");
       const blocked = preflightBlockedLabel(pre.code, pre.status);
       if (pre.code === "insufficient_tokens") {
@@ -883,7 +890,6 @@ export function ChatView() {
         const r = await fetch("/api/chat/attachments", { method: "POST", body: fd });
         const j = (await r.json()) as { id?: string; error?: string };
         if (!r.ok) {
-          setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
           if (!presetText) setInput(draft);
           failSend("blocked:server", j.error ?? "Could not upload attachment");
           setSubmitStatusLabel(`Failed: ${j.error ?? "Could not upload attachment"}`);
@@ -906,7 +912,6 @@ export function ChatView() {
       submitDebug("chat", "ui updated");
       setSubmitStatusLabel("Chat started (stream active)");
     } catch (err) {
-      setMessages((prev) => prev.filter((m) => !m.id.startsWith("opt-user-")));
       setChatState("error");
       const msg = err instanceof Error ? err.message : "Could not send message";
       if (!msg.includes("Not enough tokens") && !msg.toLowerCase().includes("credit")) {
@@ -1261,7 +1266,7 @@ export function ChatView() {
         </div>
 
         {/* Messages */}
-        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
+        <div className="vodex-scroll-panel min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain">
           <div className="mx-auto w-full max-w-3xl space-y-4 px-4 py-4 sm:px-5 lg:px-6">
             {messages.length === 0 && !isBusy && (
               <motion.div
@@ -1398,7 +1403,7 @@ export function ChatView() {
         {/* Input area */}
         <div
           ref={composerRootRef}
-          className="relative z-30 shrink-0 border-t border-border/60 bg-background/90 px-2.5 pt-2 backdrop-blur-xl pb-[max(0.75rem,calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom,0px)+0.5rem))] sm:px-3 lg:pb-3"
+          className="relative z-30 shrink-0 border-t border-border/60 bg-background/90 px-2.5 pt-2 backdrop-blur-xl pb-[max(0.75rem,calc(var(--vodex-mobile-bottom-nav-height,68px)+env(safe-area-inset-bottom,0px)+0.5rem))] sm:px-3 lg:pb-3"
         >
           {attachments.length > 0 && (
             <div className="mx-auto mb-2 flex w-full max-w-3xl flex-wrap gap-2">

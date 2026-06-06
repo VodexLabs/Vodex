@@ -126,14 +126,14 @@ export function MobileReadinessScanModal({
   return createPortal(
     <AnimatePresence>
       {open ? (
-        <>
+        <div className="fixed inset-0 z-[20000] flex items-end justify-center sm:items-center sm:p-4">
           <motion.button
             type="button"
             aria-label="Close"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[20000] bg-black/50 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={onClose}
           />
           <motion.div
@@ -142,7 +142,7 @@ export function MobileReadinessScanModal({
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 24 }}
-            className="fixed inset-x-4 top-[8vh] z-[20001] mx-auto max-h-[84vh] w-full max-w-lg overflow-hidden rounded-2xl bg-background shadow-2xl ring-1 ring-border sm:inset-x-auto"
+            className="relative z-[20001] flex max-h-[min(92dvh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl bg-background shadow-2xl ring-1 ring-border sm:rounded-2xl"
             data-testid="mobile-readiness-scan-modal"
           >
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
@@ -157,9 +157,14 @@ export function MobileReadinessScanModal({
 
             <div className="max-h-[calc(84vh-64px)] overflow-y-auto p-5">
               {!findings.length && !scanning ? (
-                <p className="text-[12px] text-muted-foreground">
-                  Scan your app for Play Store, App Store, icons, auth, and bundle requirements. You can close this modal — the scan continues in the background.
-                </p>
+                <>
+                  <p className="text-[12px] text-muted-foreground">
+                    Scan your app for Play Store, App Store, icons, auth, and bundle requirements.
+                  </p>
+                  <p className="mt-2 rounded-lg bg-accent/8 px-3 py-2 text-[11px] text-accent">
+                    You can leave this page. We&apos;ll notify you when the scan finishes.
+                  </p>
+                </>
               ) : null}
 
               {(scanning || progress > 0) && findings.length === 0 ? (
@@ -240,7 +245,7 @@ export function MobileReadinessScanModal({
               </div>
             </div>
           </motion.div>
-        </>
+        </div>
       ) : null}
     </AnimatePresence>,
     document.body,

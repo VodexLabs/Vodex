@@ -41,6 +41,7 @@ import {
 } from "@/lib/mobile/store-setup-copy";
 import { StoreOnboardingWizard } from "@/components/mobile/store-onboarding-wizard";
 import { MobileReadinessScanModal } from "@/components/mobile/mobile-readiness-scan-modal";
+import { MobileSigningConfigDrawer } from "@/components/mobile/mobile-signing-config-drawer";
 import type { StoreOnboardingProgress } from "@/lib/mobile/store-onboarding-steps";
 import {
   exportShaRegistryJson,
@@ -154,6 +155,7 @@ export function MobileWrapperStudio({
   const [wrapperType, setWrapperType] = React.useState<"capacitor" | "twa">("capacitor");
   const [gatePassed, setGatePassed] = React.useState(false);
   const [scanModalOpen, setScanModalOpen] = React.useState(false);
+  const [signingDrawerOpen, setSigningDrawerOpen] = React.useState(false);
   const [sha256Input, setSha256Input] = React.useState("");
   const [sha1Input, setSha1Input] = React.useState("");
   const [storeProgress, setStoreProgress] = React.useState<StoreOnboardingProgress>({
@@ -436,17 +438,7 @@ export function MobileWrapperStudio({
               </p>
             </div>
           </div>
-          {!locked ? (
-            <button
-              type="button"
-              onClick={() => setScanModalOpen(true)}
-              disabled={scanning}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-accent px-3 py-2 text-[11px] font-semibold text-white shadow-sm hover:bg-accent/90 disabled:opacity-60"
-            >
-              {scanning ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
-              Run readiness scan
-            </button>
-          ) : (
+          {!locked ? null : (
             <Link
               href="/pricing"
               className="inline-flex items-center gap-1.5 rounded-xl bg-accent px-3 py-2 text-[11px] font-semibold text-white"
@@ -497,6 +489,29 @@ export function MobileWrapperStudio({
           {engineScore != null ? (
             <p className="mb-2 text-[11px] font-medium text-foreground">Readiness score: {engineScore}/100</p>
           ) : null}
+          <div className="mb-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setScanModalOpen(true)}
+              disabled={scanning || locked}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-accent px-3 py-2 text-[11px] font-semibold text-white shadow-sm hover:bg-accent/90 disabled:opacity-60"
+            >
+              {scanning ? <Loader2 className="size-3.5 animate-spin" /> : <Smartphone className="size-3.5" />}
+              Run readiness scan
+            </button>
+            <button
+              type="button"
+              onClick={() => setSigningDrawerOpen(true)}
+              disabled={locked}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-surface px-3 py-2 text-[11px] font-semibold ring-1 ring-border"
+            >
+              <Shield className="size-3.5" />
+              Signing & identifiers
+            </button>
+          </div>
+          <p className="mb-3 rounded-lg bg-accent/8 px-3 py-2 text-[11px] text-accent">
+            You can leave this page. We&apos;ll notify you when the scan finishes.
+          </p>
           <div className="flex flex-wrap gap-2">
             <a
               href={`/api/projects/${projectId}/mobile/readiness?format=json`}
@@ -911,6 +926,12 @@ export function MobileWrapperStudio({
         open={scanModalOpen}
         onClose={() => setScanModalOpen(false)}
         projectId={projectId}
+      />
+      <MobileSigningConfigDrawer
+        open={signingDrawerOpen}
+        onClose={() => setSigningDrawerOpen(false)}
+        projectId={projectId}
+        onSaved={() => void load()}
       />
     </div>
   );

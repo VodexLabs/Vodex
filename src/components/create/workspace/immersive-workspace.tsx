@@ -1580,7 +1580,7 @@ export function ImmersiveWorkspace({
       text: trimmed,
       status: "queued",
       createdAt: Date.now(),
-      mode,
+      mode: lockedTaskMode ?? mode,
     };
     promptQueueRef.current.push(item);
     syncQueueState();
@@ -2127,6 +2127,8 @@ export function ImmersiveWorkspace({
     const next = promptQueueRef.current[nextIdx]!;
     promptQueueRef.current.splice(nextIdx, 1);
     syncQueueState();
+    setLockedTaskMode(next.mode);
+    lockedTaskModeRef.current = next.mode;
     if (next.mode !== mode) setMode(next.mode);
     toast.info("Starting queued prompt…");
     pendingOperationIdRef.current = null;
@@ -2760,7 +2762,18 @@ export function ImmersiveWorkspace({
           )}
         >
           <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border/50 bg-background/60 px-2.5 backdrop-blur-sm">
-            <ModeSwitch value={mode} onChange={setMode} disabledModes={disabledModes} />
+            <ModeSwitch
+              value={activeMode}
+              onChange={(m) => {
+                if (lockedTaskMode || buildJobActive || buildStarting || submitInFlightRef.current) return;
+                setMode(m);
+              }}
+              disabledModes={
+                lockedTaskMode || buildJobActive || buildStarting
+                  ? (["discuss", "edit", "build"] as const)
+                  : disabledModes
+              }
+            />
             {modeStyle.badge && (
               <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1", modeStyle.badge.color)}>
                 {modeStyle.badge.label}
@@ -2772,7 +2785,7 @@ export function ImmersiveWorkspace({
             ref={scrollRef}
             onScroll={onChatScroll}
             className={cn(
-              "scrollbar-workflow min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]",
+              "scrollbar-workflow vodex-scroll-panel min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]",
               mode === "build" && "bg-gradient-to-b from-accent/[0.04] to-transparent",
             )}
           >

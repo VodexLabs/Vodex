@@ -23,6 +23,10 @@ export type NotificationKind =
   | "deployment_started"
   | "deployment_completed"
   | "deployment_failed"
+  | "mobile_readiness_scan_completed"
+  | "security_scan_completed"
+  | "certification_completed"
+  | "secret_setup_required"
   | "security_alert"
   | "integration_connected"
   | "integration_failed"
@@ -87,6 +91,10 @@ const TAB_KINDS: Record<Exclude<NotificationInboxTab, "main" | "all">, Set<Notif
     "system_status",
     "integration_connected",
     "integration_failed",
+    "mobile_readiness_scan_completed",
+    "security_scan_completed",
+    "certification_completed",
+    "secret_setup_required",
     "welcome",
   ]),
 };

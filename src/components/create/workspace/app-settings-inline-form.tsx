@@ -4,6 +4,7 @@ import * as React from "react";
 import Image from "next/image";
 import { Loader2, CheckCircle2, AlertCircle, Sparkles } from "lucide-react";
 import { toast } from "@/lib/toast";
+import { VodexConfirmModal } from "@/components/ui/vodex-confirm-modal";
 import { notifyProjectCatalogUpdated } from "@/lib/projects/project-catalog-sync";
 
 type AppSettingsInlineFormProps = {
@@ -30,6 +31,7 @@ export function AppSettingsInlineForm({
   const [regeneratingLogo, setRegeneratingLogo] = React.useState(false);
   const [uploadingLogo, setUploadingLogo] = React.useState(false);
   const [logoCost, setLogoCost] = React.useState<number | null>(null);
+  const [logoConfirmOpen, setLogoConfirmOpen] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
@@ -68,9 +70,6 @@ export function AppSettingsInlineForm({
   }
 
   async function handleRegenerateLogo() {
-    const costLabel =
-      logoCost != null ? `${logoCost} Action Credit${logoCost === 1 ? "" : "s"}` : "Action Credits";
-    if (!window.confirm(`Regenerate app logo? This costs ${costLabel} and only charges on success.`)) return;
     setRegeneratingLogo(true);
     try {
       const res = await fetch(`/api/projects/${projectId}/identity/regenerate-logo`, {
@@ -122,10 +121,26 @@ export function AppSettingsInlineForm({
     }
   }
 
+  const costLabel =
+    logoCost != null ? `${logoCost} Action Credit${logoCost === 1 ? "" : "s"}` : "5 Action Credits";
+
   return (
+    <>
+    <VodexConfirmModal
+      open={logoConfirmOpen}
+      title="Regenerate app logo?"
+      description={`This costs ${costLabel} and only charges on success.`}
+      confirmLabel="Generate logo"
+      onCancel={() => setLogoConfirmOpen(false)}
+      onConfirm={async () => {
+        setLogoConfirmOpen(false);
+        await handleRegenerateLogo();
+      }}
+      loading={regeneratingLogo}
+    />
     <form onSubmit={(e) => void handleSave(e)} className="space-y-4" data-testid="app-settings-inline-form">
       <div className="flex items-start gap-3">
-        <div className="relative size-14 shrink-0 overflow-hidden rounded-2xl ring-1 ring-border">
+        <div className="relative size-14 shrink-0 overflow-hidden rounded-full ring-1 ring-border">
           <Image src={iconSrc} alt="" width={56} height={56} className="size-full object-cover" unoptimized />
         </div>
         <div className="min-w-0 flex-1 space-y-3">
@@ -153,7 +168,7 @@ export function AppSettingsInlineForm({
             />
             <button
               type="button"
-              onClick={() => void handleRegenerateLogo()}
+              onClick={() => setLogoConfirmOpen(true)}
               disabled={regeneratingLogo}
               className="inline-flex items-center gap-1.5 rounded-lg bg-muted/60 px-2.5 py-1.5 text-[11px] font-medium text-foreground ring-1 ring-border hover:bg-muted disabled:opacity-50"
               data-testid="generate-app-logo"
@@ -214,5 +229,6 @@ export function AppSettingsInlineForm({
         ) : null}
       </div>
     </form>
+    </>
   );
 }

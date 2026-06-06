@@ -22,6 +22,14 @@ type ProviderCard = {
   webhook_url?: string | null;
 };
 
+const PROVIDER_BRAND: Record<string, { initials: string; className: string }> = {
+  stripe: { initials: "S", className: "bg-[#635BFF] text-white" },
+  paddle: { initials: "P", className: "bg-[#FDDD35] text-slate-900" },
+  paypal: { initials: "PP", className: "bg-[#003087] text-white" },
+  revenuecat: { initials: "RC", className: "bg-[#2D2D2D] text-white" },
+  lemon_squeezy: { initials: "LS", className: "bg-[#FFC233] text-slate-900" },
+};
+
 function apiErrorMessage(data: { error?: string | { message?: string } } | null): string {
   if (!data?.error) return "Request failed";
   if (typeof data.error === "string") return data.error;
@@ -230,9 +238,20 @@ export function ProjectPaymentsPanel({
                 )}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-[14px] font-semibold">{p.label}</p>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">{p.tagline}</p>
+                  <div className="flex items-start gap-2.5">
+                    <div
+                      className={cn(
+                        "flex size-9 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold",
+                        PROVIDER_BRAND[p.provider]?.className ?? "bg-muted text-foreground",
+                      )}
+                      aria-hidden
+                    >
+                      {PROVIDER_BRAND[p.provider]?.initials ?? p.label.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-[14px] font-semibold">{p.label}</p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">{p.tagline}</p>
+                    </div>
                   </div>
                   {p.is_mobile ? (
                     <Smartphone className="size-4 text-muted-foreground" />

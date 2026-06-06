@@ -15,6 +15,7 @@ import {
   Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "@/lib/toast";
 import { BuildPreviewSurface } from "@/components/create/workspace/build-preview-surface";
 import { PreviewEditOverlay } from "@/components/preview/preview-edit-overlay";
 import { PreviewRuntimeStatusPanel } from "@/components/create/workspace/preview-runtime-status-panel";
@@ -62,6 +63,23 @@ function isUnrenderableSrcDoc(doc: string | null | undefined): boolean {
   return /no renderable content/i.test(doc);
 }
 
+function isArtifactPreviewUrl(url: string | null): boolean {
+  if (!url?.trim()) return false;
+  if (url.startsWith("/api/projects/") || url.includes("/preview-html") || url.includes("/preview-assets")) {
+    return true;
+  }
+  try {
+    const u = new URL(url, typeof window !== "undefined" ? window.location.origin : "https://localhost");
+    return (
+      u.pathname.includes("/preview-html") ||
+      u.pathname.includes("/preview-assets") ||
+      u.pathname.includes("/api/projects/")
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function PreviewPanel({
   url,
   srcDoc = null,
@@ -102,14 +120,27 @@ export function PreviewPanel({
     if (url || srcDoc) setIframeLoading(true);
   }, [url, srcDoc, reloadKey]);
 
+  React.useEffect(() => {
+    if (!iframeLoading) return;
+    const t = window.setTimeout(() => {
+      setIframeLoading(false);
+      setIframeError(true);
+    }, 14_000);
+    return () => window.clearTimeout(t);
+  }, [iframeLoading, reloadKey, url, srcDoc]);
+
   const hasInline = !!srcDoc?.trim() && !isUnrenderableSrcDoc(srcDoc);
   const hasPreviewArtifact = !!url || hasInline;
+  const artifactUrlOk = hasInline || !url || isArtifactPreviewUrl(url);
+  const embedBlocked = Boolean(url && !hasInline && !artifactUrlOk);
   const iframeRenderable = runtimeStatus?.previewRenderable === true;
   const showBuildShell = buildActive || thinking;
   const showArtifact = hasPreviewArtifact && !showBuildShell;
-  const showIframe = showArtifact && iframeRenderable;
-  const showBlockedPreview = showArtifact && !iframeRenderable && Boolean(runtimeStatus);
-  const showRuntimeOverlay = showBlockedPreview;
+  const showEmbedFallback = showArtifact && (embedBlocked || iframeError) && !hasInline;
+  const showRuntimeOverlay =
+    showArtifact && !iframeRenderable && Boolean(runtimeStatus) && !showEmbedFallback;
+  const showIframe =
+    showArtifact && !showEmbedFallback && !showRuntimeOverlay && (iframeRenderable || artifactUrlOk || hasInline);
   const shellState =
     buildActive || thinking
       ? previewState === "compiling"
@@ -255,16 +286,67 @@ export function PreviewPanel({
           />
         )}
 
-        {showBlockedPreview && (
+        {showRuntimeOverlay && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-atmosphere p-6">
-            {runtimeStatus ? (
-              <PreviewRuntimeStatusPanel
-                status={runtimeStatus}
-                onRebuild={onRebuildPreview}
-                rebuilding={previewRebuilding}
-                className="max-w-lg w-full shadow-lg"
-              />
-            ) : null}
+            <PreviewRuntimeStatusPanel
+              status={runtimeStatus!}
+              onRebuild={onRebuildPreview}
+              rebuilding={previewRebuilding}
+              className="max-w-lg w-full shadow-lg"
+            />
+          </div>
+        )}
+
+        {showEmbedFallback && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-atmosphere p-6">
+            <div className="flex max-w-md flex-col items-center gap-3 rounded-2xl bg-background p-8 text-center shadow-lg ring-1 ring-border">
+              <div className="flex size-12 items-center justify-center rounded-full bg-destructive/10 ring-1 ring-destructive/20">
+                <ShieldAlert className="size-5 text-destructive" strokeWidth={1.7} />
+              </div>
+              <p className="text-[13px] font-semibold text-foreground">Preview blocked</p>
+              <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+                {embedBlocked
+                  ? "Preview cannot be embedded because this route blocks iframe rendering or is not the Vodex preview artifact URL."
+                  : "This route refused to connect or timed out — often caused by X-Frame-Options, CSP, or a missing preview artifact."}
+              </p>
+              <div className="flex flex-wrap justify-center gap-2">
+                {url ? (
+                  <>
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[12px] font-semibold text-white"
+                    >
+                      Open preview in new tab
+                      <ExternalLink className="size-3.5" strokeWidth={2} />
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(url).then(
+                          () => toast.success("Copied preview URL"),
+                          () => toast.error("Could not copy"),
+                        );
+                      }}
+                      className="rounded-lg px-3 py-1.5 text-[12px] font-semibold ring-1 ring-border"
+                    >
+                      Copy preview URL
+                    </button>
+                  </>
+                ) : null}
+                {onRebuildPreview ? (
+                  <button
+                    type="button"
+                    onClick={() => onRebuildPreview()}
+                    disabled={previewRebuilding}
+                    className="rounded-lg bg-surface px-3 py-1.5 text-[12px] font-semibold ring-1 ring-border"
+                  >
+                    {previewRebuilding ? "Repairing…" : "Run preview repair"}
+                  </button>
+                ) : null}
+              </div>
+            </div>
           </div>
         )}
 
@@ -311,30 +393,7 @@ export function PreviewPanel({
                   )}
                 </AnimatePresence>
 
-                {iframeError ? (
-                  <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-                    <div className="flex size-12 items-center justify-center rounded-full bg-destructive/10 ring-1 ring-destructive/20">
-                      <ShieldAlert className="size-5 text-destructive" strokeWidth={1.7} />
-                    </div>
-                    <p className="text-[13px] font-semibold text-foreground">Preview blocked</p>
-                    <p className="max-w-xs text-[11.5px] text-muted-foreground">
-                      The app sets <code className="rounded bg-muted px-1 text-[10px]">X-Frame-Options</code>{" "}
-                      preventing embedding. Open it directly instead.
-                    </p>
-                    {url && (
-                      <a
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-accent/90"
-                      >
-                        Open app
-                        <ExternalLink className="size-3.5" strokeWidth={2} />
-                      </a>
-                    )}
-                  </div>
-                ) : (
-                  <iframe
+                <iframe
                     ref={iframeRef}
                     key={reloadKey}
                     src={hasInline ? undefined : url ?? undefined}
@@ -344,6 +403,7 @@ export function PreviewPanel({
                     onLoad={() => {
                       setIframeLoading(false);
                       setIframeLoaded(true);
+                      setIframeError(false);
                     }}
                     onError={() => {
                       setIframeError(true);
@@ -351,7 +411,6 @@ export function PreviewPanel({
                     }}
                     sandbox="allow-scripts allow-same-origin"
                   />
-                )}
               </motion.div>
             </AnimatePresence>
           </div>

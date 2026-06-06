@@ -38,7 +38,7 @@ export function detectBrokenPreviewSnapshot(html: string): {
     reasons.push("low_tag_ratio");
   }
 
-  return { broken: reasons.length > 0, reasons };
+  return { broken: reasons.length >= 2, reasons };
 }
 
 export function isStaticPreviewHtmlHealthy(

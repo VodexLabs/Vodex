@@ -1833,12 +1833,28 @@ body {
 }
 
 :root {
-  --mobile-bottom-nav-height: 76px;
+  --vodex-mobile-bottom-nav-height: 68px;
+  --mobile-bottom-nav-height: var(--vodex-mobile-bottom-nav-height);
 }
 
 .vodex-mobile-bottom-nav {
   contain: layout style;
-  min-height: var(--mobile-bottom-nav-height);
+  min-height: var(--vodex-mobile-bottom-nav-height);
+}
+
+.vodex-mobile-content-pad {
+  padding-bottom: calc(var(--vodex-mobile-bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 12px);
+}
+
+@media (min-width: 1024px) {
+  .vodex-mobile-content-pad {
+    padding-bottom: 0;
+  }
+}
+
+.vodex-scroll-panel {
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* P5.2 — compact mobile typography and spacing (320–430px) */

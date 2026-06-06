@@ -273,7 +273,7 @@ async function generateOpenAiLogo(prompt: string): Promise<{
       prompt,
       n: 1,
       size: "1024x1024",
-      quality: "low",
+      quality: "medium",
     }),
   });
 
@@ -330,7 +330,8 @@ async function uploadLogoDerivatives(
   const prepped = await normalizeIconBuffer(source);
   const massed = await scaleIconVisualMass(prepped);
   const cornerFixed = await flattenWhiteCornerArtifacts(massed);
-  const png1024 = await sharp(cornerFixed)
+  const masked = await applyCircularMask(cornerFixed);
+  const png1024 = await sharp(masked)
     .resize(1024, 1024, { fit: "cover", position: "centre" })
     .png()
     .toBuffer();

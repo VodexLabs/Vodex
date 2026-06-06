@@ -89,9 +89,21 @@ export function usePresenceHeartbeat(enabled: boolean) {
       void beat(true);
     };
 
+    let activityTimer: ReturnType<typeof setTimeout> | null = null;
+    const onActivity = () => {
+      if (activityTimer != null) return;
+      activityTimer = setTimeout(() => {
+        activityTimer = null;
+      }, 4_000);
+      void beat(true);
+    };
+
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("focus", onFocus);
     window.addEventListener("pageshow", onPageShow);
+    window.addEventListener("pointerdown", onActivity, { passive: true });
+    window.addEventListener("keydown", onActivity, { passive: true });
+    window.addEventListener("scroll", onActivity, { passive: true, capture: true });
 
     timerRef.current = window.setInterval(() => {
       void beat(false);
@@ -102,6 +114,10 @@ export function usePresenceHeartbeat(enabled: boolean) {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener("pointerdown", onActivity);
+      window.removeEventListener("keydown", onActivity);
+      window.removeEventListener("scroll", onActivity, true);
+      if (activityTimer != null) clearTimeout(activityTimer);
       if (timerRef.current != null) window.clearInterval(timerRef.current);
     };
   }, [enabled, beat]);

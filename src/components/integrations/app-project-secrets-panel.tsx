@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, Shield, Trash2, KeyRound } from "lucide-react";
+import { Loader2, Shield, Trash2, KeyRound, Sparkles } from "lucide-react";
+import { motion } from "framer-motion";
+import { VodexConfirmModal } from "@/components/ui/vodex-confirm-modal";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import { detectRequiredIntegrations } from "@/lib/generated-apps/integration-requirements";
@@ -32,12 +34,16 @@ function guideForKey(keyName: string): string {
 export function AppProjectSecretsPanel({
   projectId,
   appPrompt,
+  onInsertChatPrompt,
 }: {
   projectId: string;
   appPrompt?: string;
+  onInsertChatPrompt?: (prompt: string) => void;
 }) {
   const [rows, setRows] = React.useState<SecretRow[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [deleteTarget, setDeleteTarget] = React.useState<string | null>(null);
+  const [deleting, setDeleting] = React.useState(false);
   const [editingKey, setEditingKey] = React.useState<string | null>(null);
   const [draft, setDraft] = React.useState("");
   const [saving, setSaving] = React.useState(false);
@@ -99,18 +105,24 @@ export function AppProjectSecretsPanel({
     }
   }
 
-  async function deleteKey(keyName: string) {
-    if (!window.confirm(`Remove secret ${keyName}?`)) return;
-    const res = await fetch(
-      `/api/projects/${projectId}/secrets?key=${encodeURIComponent(keyName)}`,
-      { method: "DELETE", credentials: "include" },
-    );
-    if (!res.ok) {
-      toast.error("Could not delete secret");
-      return;
+  async function confirmDeleteKey() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(
+        `/api/projects/${projectId}/secrets?key=${encodeURIComponent(deleteTarget)}`,
+        { method: "DELETE", credentials: "include" },
+      );
+      if (!res.ok) {
+        toast.error("Could not delete secret");
+        return;
+      }
+      toast.success("Secret removed");
+      setDeleteTarget(null);
+      await load();
+    } finally {
+      setDeleting(false);
     }
-    toast.success("Secret removed");
-    await load();
   }
 
   function providerForKey(keyName: string): string {
@@ -120,14 +132,39 @@ export function AppProjectSecretsPanel({
     return prov?.id ?? "custom";
   }
 
+  const aiPrompt =
+    "Help me connect all required secrets for this app. For each missing key, explain why it is needed, where to get it, and verify once I paste values.";
+
   return (
     <div className="space-y-4" data-testid="app-project-secrets-panel">
+      <motion.button
+        type="button"
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.99 }}
+        onClick={() => {
+          if (onInsertChatPrompt) onInsertChatPrompt(aiPrompt);
+          else {
+            window.location.href = `/apps/${projectId}/builder?insertPrompt=${encodeURIComponent(aiPrompt)}`;
+          }
+        }}
+        className="flex w-full items-start gap-3 rounded-2xl bg-gradient-to-br from-sky-500/15 via-blue-500/10 to-background px-4 py-3.5 text-left ring-1 ring-sky-500/25"
+        data-testid="secrets-ai-setup-cta"
+      >
+        <div className="flex size-10 items-center justify-center rounded-xl bg-sky-500/20 ring-1 ring-sky-500/30">
+          <Sparkles className="size-5 text-sky-600" />
+        </div>
+        <div>
+          <p className="text-[13px] font-semibold text-foreground">Ask AI to help connect secrets</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            Injects a guided setup prompt into chat — no external redirects.
+          </p>
+        </div>
+      </motion.button>
+
       <div className="flex items-start gap-2 rounded-xl bg-sky-500/5 px-3 py-2.5 ring-1 ring-sky-500/15">
         <Shield className="mt-0.5 size-4 shrink-0 text-sky-600 dark:text-sky-400" />
         <p className="text-[12px] leading-relaxed text-muted-foreground">
-          Only secrets you or the AI add appear here — not integration connections. Values are encrypted
-          with <code className="text-[11px]">APP_SECRET_ENCRYPTION_KEY</code> and never shown again.
-          Collaborators cannot view secret values.
+          Values are encrypted and never shown again after save. Collaborators cannot view secret values.
         </p>
       </div>
 
@@ -207,7 +244,7 @@ export function AppProjectSecretsPanel({
                     {!isMissing ? (
                       <button
                         type="button"
-                        onClick={() => void deleteKey(keyName)}
+                        onClick={() => setDeleteTarget(keyName)}
                         className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-[12px] text-destructive ring-1 ring-destructive/30"
                       >
                         <Trash2 className="size-3.5" />
@@ -221,6 +258,16 @@ export function AppProjectSecretsPanel({
           })}
         </ul>
       )}
+      <VodexConfirmModal
+        open={deleteTarget != null}
+        title="Remove secret?"
+        description={deleteTarget ? `Remove ${deleteTarget} from this project? You can add it again later.` : undefined}
+        confirmLabel="Remove"
+        variant="destructive"
+        loading={deleting}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => void confirmDeleteKey()}
+      />
     </div>
   );
 }

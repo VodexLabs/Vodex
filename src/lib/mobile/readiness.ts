@@ -6,11 +6,31 @@ import {
   validateVersionName,
 } from "@/lib/mobile/package-validation";
 
+const SETUP_ONLY_IDS = new Set([
+  "package_id",
+  "version_name",
+  "version_code",
+  "bundle_id",
+  "ios_build",
+  "icon",
+  "splash",
+  "play_sha256",
+  "play_sha1",
+  "short_description",
+  "full_description",
+  "screenshots",
+  "privacy_policy",
+]);
+
 function scoreFromItems(items: ReadinessItem[]): number {
   if (items.length === 0) return 0;
-  const pass = items.filter((i) => i.status === "pass").length;
-  const warn = items.filter((i) => i.status === "warning").length;
-  return Math.min(100, Math.round(((pass + warn * 0.5) / items.length) * 100));
+  let points = 0;
+  for (const item of items) {
+    if (item.status === "pass") points += 1;
+    else if (item.status === "warning") points += 0.5;
+    else if (SETUP_ONLY_IDS.has(item.id)) points += 0.35;
+  }
+  return Math.min(100, Math.round((points / items.length) * 100));
 }
 
 export function scanGeneralReadiness(input: {

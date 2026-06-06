@@ -15,6 +15,8 @@ import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import type { Discussion } from "@/lib/supabase/types";
+import { DiscussionDetailDrawer } from "@/components/community/discussion-detail-drawer";
+import { sortByTrending } from "@/lib/community/trending-score";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -504,9 +506,11 @@ function CreateGroupModal({
 function DiscussionCard({
   disc,
   onLike,
+  onOpen,
 }: {
   disc: DiscussionWithAuthor;
   onLike: (id: string) => void;
+  onOpen: (disc: DiscussionWithAuthor) => void;
 }) {
   const authorName = disc.author_name ?? "Community member";
   const timeAgo = React.useMemo(() => {
@@ -522,7 +526,15 @@ function DiscussionCard({
   }, [disc.created_at]);
 
   return (
-    <div className="flex items-start gap-4 px-5 py-4 transition hover:bg-muted/20 cursor-pointer">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpen(disc)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") onOpen(disc);
+      }}
+      className="flex cursor-pointer items-start gap-4 px-5 py-4 transition hover:bg-muted/20"
+    >
       <Avatar name={authorName} src={disc.author_avatar} size="sm" />
       <div className="min-w-0 flex-1">
         <div className="flex items-start gap-2">
@@ -855,6 +867,7 @@ export function CommunityView() {
   const [showCreate, setShowCreate] = React.useState(false);
   const [showCreateGroup, setShowCreateGroup] = React.useState(false);
   const [likedIds, setLikedIds] = React.useState<Set<string>>(new Set());
+  const [openDiscussion, setOpenDiscussion] = React.useState<DiscussionWithAuthor | null>(null);
 
   React.useEffect(() => {
     if (tab !== "Discussions" && tab !== "Trending") {
@@ -1017,7 +1030,11 @@ export function CommunityView() {
               onStartDiscussion={() => setShowCreate(true)}
             />
           ) : (
-            <TrendingTab onStartDiscussion={() => { setTab("Discussions"); setShowCreate(true); }} discussions={discussions} />
+            <TrendingTab
+              onStartDiscussion={() => { setTab("Discussions"); setShowCreate(true); }}
+              discussions={discussions}
+              onOpen={(disc) => setOpenDiscussion(disc)}
+            />
           )}
         </motion.div>
       )}
@@ -1056,7 +1073,12 @@ export function CommunityView() {
           ) : (
             <div className="overflow-hidden rounded-[var(--radius-xl)] bg-surface shadow-[var(--shadow-card)] ring-1 ring-border divide-y divide-border/60">
               {discussions.map((disc) => (
-                <DiscussionCard key={disc.id} disc={disc} onLike={handleLike} />
+                <DiscussionCard
+                  key={disc.id}
+                  disc={disc}
+                  onLike={handleLike}
+                  onOpen={setOpenDiscussion}
+                />
               ))}
             </div>
           )}
@@ -1093,14 +1115,33 @@ export function CommunityView() {
         )}
       </AnimatePresence>
 
+      {openDiscussion ? (
+        <DiscussionDetailDrawer
+          discussion={openDiscussion}
+          authorName={openDiscussion.author_name ?? "Community member"}
+          authorAvatar={openDiscussion.author_avatar}
+          liked={openDiscussion.liked}
+          onClose={() => setOpenDiscussion(null)}
+          onLikeToggle={() => void handleLike(openDiscussion.id)}
+        />
+      ) : null}
+
     </div>
   );
 }
 
 // ─── Trending tab ─────────────────────────────────────────────────────────────
 
-function TrendingTab({ onStartDiscussion, discussions }: { onStartDiscussion: () => void; discussions: DiscussionWithAuthor[] }) {
-  const trending = [...discussions].sort((a, b) => b.like_count - a.like_count).slice(0, 10);
+function TrendingTab({
+  onStartDiscussion,
+  discussions,
+  onOpen,
+}: {
+  onStartDiscussion: () => void;
+  discussions: DiscussionWithAuthor[];
+  onOpen: (disc: DiscussionWithAuthor) => void;
+}) {
+  const trending = sortByTrending(discussions).slice(0, 10);
 
   if (trending.length === 0) {
     return (
@@ -1127,7 +1168,12 @@ function TrendingTab({ onStartDiscussion, discussions }: { onStartDiscussion: ()
         <p className="text-[13px] font-semibold text-foreground">Hot this week</p>
       </div>
       {trending.map((disc, i) => (
-        <div key={disc.id} className="flex items-start gap-4 px-5 py-3 hover:bg-muted/20 transition cursor-pointer">
+        <button
+          type="button"
+          key={disc.id}
+          onClick={() => onOpen(disc)}
+          className="flex w-full items-start gap-4 px-5 py-3 text-left transition hover:bg-muted/20"
+        >
           <span className="shrink-0 w-5 text-[12px] font-bold text-muted-foreground/40 tabular-nums pt-0.5">{i + 1}</span>
           <div className="min-w-0 flex-1">
             <p className="text-[13px] font-medium text-foreground leading-snug">{disc.title}</p>
@@ -1145,7 +1191,7 @@ function TrendingTab({ onStartDiscussion, discussions }: { onStartDiscussion: ()
               </span>
             </div>
           </div>
-        </div>
+        </button>
       ))}
     </div>
   );

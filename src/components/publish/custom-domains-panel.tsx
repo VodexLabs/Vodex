@@ -1,9 +1,23 @@
 "use client";
 
 import * as React from "react";
-import { Copy, Globe, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { motion } from "framer-motion";
+import {
+  Copy,
+  Globe,
+  Loader2,
+  RefreshCw,
+  Trash2,
+  Lock,
+  Shield,
+  CheckCircle2,
+  AlertCircle,
+  Sparkles,
+} from "lucide-react";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
+import { VodexConfirmModal } from "@/components/ui/vodex-confirm-modal";
+import Link from "next/link";
 
 type DomainRow = {
   id: string;
@@ -12,7 +26,23 @@ type DomainRow = {
   verification_token?: string;
   dns_records?: Record<string, unknown>;
   failure_reason?: string | null;
+  verified_at?: string | null;
+  last_checked_at?: string | null;
 };
+
+function StatusPill({ status }: { status: string }) {
+  const active = status === "active";
+  return (
+    <span
+      className={cn(
+        "rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+        active ? "bg-emerald-500/15 text-emerald-700" : "bg-amber-500/15 text-amber-800",
+      )}
+    >
+      {status.replace(/_/g, " ")}
+    </span>
+  );
+}
 
 export function CustomDomainsPanel({
   projectId,
@@ -27,6 +57,8 @@ export function CustomDomainsPanel({
   const [loading, setLoading] = React.useState(true);
   const [hostname, setHostname] = React.useState("");
   const [busy, setBusy] = React.useState(false);
+  const [wizardStep, setWizardStep] = React.useState(0);
+  const [removeTarget, setRemoveTarget] = React.useState<string | null>(null);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -62,6 +94,7 @@ export function CustomDomainsPanel({
       }
       toast.success("Domain added — configure DNS below");
       setHostname("");
+      setWizardStep(2);
       await load();
     } finally {
       setBusy(false);
@@ -86,96 +119,236 @@ export function CustomDomainsPanel({
     }
   }
 
+  async function removeDomain() {
+    if (!removeTarget) return;
+    setBusy(true);
+    try {
+      const r = await fetch(`/api/projects/${projectId}/custom-domains`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "remove", domainId: removeTarget }),
+      });
+      const body = await r.json();
+      if (!r.ok) {
+        toast.error(body.error ?? "Could not remove domain");
+        return;
+      }
+      toast.success("Domain removed");
+      setRemoveTarget(null);
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function copyText(text: string, label: string) {
+    void navigator.clipboard.writeText(text);
+    toast.success(`${label} copied`);
+  }
+
   if (!canUseCustomDomain) {
     return (
-      <p className="text-[12px] text-muted-foreground">
-        Custom domains are available on Starter plans and above.{" "}
-        <a href="/billing" className="font-medium text-accent">
-          Upgrade
-        </a>
-      </p>
+      <div className="space-y-4" data-testid="custom-domains-panel">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600/20 via-indigo-500/10 to-background p-6 ring-1 ring-border/60"
+        >
+          <div className="flex items-start gap-3">
+            <div className="flex size-12 items-center justify-center rounded-2xl bg-violet-500/20 ring-1 ring-violet-500/30">
+              <Globe className="size-6 text-violet-600" />
+            </div>
+            <div>
+              <p className="text-[18px] font-semibold text-foreground">Custom domains</p>
+              <p className="mt-1 text-[13px] text-muted-foreground">
+                Use your own hostname with automatic SSL and DNS verification.
+              </p>
+            </div>
+          </div>
+          <div className="mt-5 rounded-xl bg-background/80 px-4 py-4 text-center ring-1 ring-border/60">
+            <Lock className="mx-auto size-6 text-muted-foreground" />
+            <p className="mt-2 text-[13px] font-semibold">Starter+ required</p>
+            <p className="mt-1 text-[12px] text-muted-foreground">Free plans use Vodex subdomains only.</p>
+            <Link
+              href="/pricing"
+              className="mt-4 inline-flex rounded-xl bg-accent px-5 py-2.5 text-[12px] font-semibold text-white"
+            >
+              View plans
+            </Link>
+          </div>
+        </motion.div>
+      </div>
     );
   }
 
-  return (
-    <div className="space-y-4" data-testid="custom-domains-panel">
-      {publishedSubdomain && (
-        <div className="rounded-xl bg-surface px-3 py-2 text-[12px] ring-1 ring-border">
-          <span className="text-muted-foreground">Vodex subdomain: </span>
-          <span className="font-medium">{publishedSubdomain}.vodex.app</span>
-        </div>
-      )}
+  const activeDomain = domains.find((d) => d.status === "active");
 
-      <div className="flex gap-2">
-        <input
-          value={hostname}
-          onChange={(e) => setHostname(e.target.value)}
-          placeholder="app.example.com"
-          className="flex-1 rounded-xl bg-background px-3 py-2 text-[12px] ring-1 ring-border"
-        />
-        <button
-          type="button"
-          disabled={busy || !hostname.includes(".")}
-          onClick={() => void addDomain()}
-          className="rounded-xl bg-accent px-4 py-2 text-[12px] font-semibold text-white disabled:opacity-40"
-        >
-          Add domain
-        </button>
+  return (
+    <div className="space-y-5" data-testid="custom-domains-panel">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="overflow-hidden rounded-2xl bg-gradient-to-br from-sky-600/15 via-violet-500/10 to-background p-5 ring-1 ring-border/60"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Domains</p>
+            <h2 className="mt-1 text-[20px] font-bold text-foreground">Your production hostname</h2>
+            <p className="mt-1 max-w-lg text-[13px] text-muted-foreground">
+              Connect a custom domain with SSL, DNS verification, and live status monitoring.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-500/20">
+              <Shield className="size-3.5" /> SSL auto
+            </span>
+            {activeDomain ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-500/10 px-3 py-1 text-[11px] font-semibold text-sky-700 ring-1 ring-sky-500/20">
+                <CheckCircle2 className="size-3.5" /> Live
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-3 py-1 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-500/20">
+                <AlertCircle className="size-3.5" /> Setup needed
+              </span>
+            )}
+          </div>
+        </div>
+        {publishedSubdomain ? (
+          <div className="mt-4 rounded-xl bg-background/70 px-4 py-3 ring-1 ring-border/50">
+            <p className="text-[11px] font-medium text-muted-foreground">Vodex subdomain</p>
+            <p className="mt-0.5 font-mono text-[14px] font-semibold text-foreground">
+              {publishedSubdomain}.vodex.app
+            </p>
+          </div>
+        ) : null}
+      </motion.div>
+
+      <div className="rounded-2xl bg-surface p-4 ring-1 ring-border/70">
+        <div className="mb-4 flex items-center gap-2">
+          <Sparkles className="size-4 text-accent" />
+          <p className="text-[13px] font-semibold">Custom domain wizard</p>
+        </div>
+        <ol className="mb-4 grid gap-2 sm:grid-cols-3">
+          {["Enter hostname", "Configure DNS", "Verify & go live"].map((label, i) => (
+            <li
+              key={label}
+              className={cn(
+                "rounded-xl px-3 py-2 text-[11px] font-semibold ring-1",
+                wizardStep >= i ? "bg-accent/10 text-accent ring-accent/25" : "bg-muted/30 text-muted-foreground ring-border",
+              )}
+            >
+              {i + 1}. {label}
+            </li>
+          ))}
+        </ol>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input
+            value={hostname}
+            onChange={(e) => {
+              setHostname(e.target.value);
+              setWizardStep(0);
+            }}
+            placeholder="app.yourdomain.com"
+            className="flex-1 rounded-xl bg-background px-4 py-3 text-[13px] ring-1 ring-border focus:ring-2 focus:ring-accent/30"
+          />
+          <button
+            type="button"
+            disabled={busy || !hostname.includes(".")}
+            onClick={() => void addDomain()}
+            className="rounded-xl bg-accent px-5 py-3 text-[13px] font-semibold text-white disabled:opacity-40"
+          >
+            Add domain
+          </button>
+        </div>
       </div>
 
       {loading ? (
-        <Loader2 className="size-4 animate-spin text-muted-foreground" />
+        <div className="space-y-2">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="h-24 animate-pulse rounded-2xl bg-muted/40" />
+          ))}
+        </div>
+      ) : domains.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border bg-muted/20 px-4 py-10 text-center">
+          <Globe className="mx-auto size-8 text-muted-foreground/40" />
+          <p className="mt-2 text-[13px] font-medium text-foreground">No custom domains yet</p>
+          <p className="mt-1 text-[12px] text-muted-foreground">Add a hostname above to start the wizard.</p>
+        </div>
       ) : (
         <ul className="space-y-3">
           {domains.map((d) => (
-            <li key={d.id} className="rounded-xl border border-border p-3">
-              <div className="flex items-center gap-2">
+            <li key={d.id} className="rounded-2xl bg-surface p-4 ring-1 ring-border/70">
+              <div className="flex flex-wrap items-center gap-2">
                 <Globe className="size-4 text-accent" />
-                <span className="flex-1 text-[13px] font-semibold">{d.hostname}</span>
-                <span
-                  className={cn(
-                    "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
-                    d.status === "active" ? "bg-emerald-500/15 text-emerald-600" : "bg-amber-500/15 text-amber-600",
-                  )}
-                >
-                  {d.status.replace(/_/g, " ")}
-                </span>
+                <span className="flex-1 font-mono text-[14px] font-semibold">{d.hostname}</span>
+                <StatusPill status={d.status} />
               </div>
-              {d.status !== "active" && (
-                <div className="mt-2 space-y-1 text-[11px] text-muted-foreground">
-                  <p>
-                    CNAME <code>{d.hostname}</code> → <code>cname.vodex.dev</code>
+              {d.status !== "active" ? (
+                <div className="mt-3 space-y-2 rounded-xl bg-muted/30 p-3 text-[12px]">
+                  <p className="font-semibold text-foreground">DNS records</p>
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-background px-3 py-2 ring-1 ring-border/50">
+                    <span>
+                      CNAME <code className="text-accent">{d.hostname}</code> → <code>cname.vodex.dev</code>
+                    </span>
                     <button
                       type="button"
-                      className="ml-1 inline text-accent"
-                      onClick={() => void navigator.clipboard.writeText("cname.vodex.dev")}
+                      className="text-accent"
+                      onClick={() => copyText("cname.vodex.dev", "CNAME target")}
                     >
-                      <Copy className="inline size-3" />
+                      <Copy className="size-4" />
                     </button>
-                  </p>
-                  <p>
-                    TXT <code>_vodex.{d.hostname}</code> →{" "}
-                    <code>vodex-verify={d.verification_token}</code>
-                  </p>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-background px-3 py-2 ring-1 ring-border/50">
+                    <span className="truncate">
+                      TXT <code>_vodex.{d.hostname}</code> → <code>vodex-verify={d.verification_token}</code>
+                    </span>
+                    <button
+                      type="button"
+                      className="shrink-0 text-accent"
+                      onClick={() => copyText(`vodex-verify=${d.verification_token ?? ""}`, "TXT value")}
+                    >
+                      <Copy className="size-4" />
+                    </button>
+                  </div>
                 </div>
-              )}
-              {d.failure_reason && d.status !== "active" && (
-                <p className="mt-1 text-[11px] text-destructive">{d.failure_reason}</p>
-              )}
-              <div className="mt-2 flex gap-2">
+              ) : null}
+              {d.failure_reason && d.status !== "active" ? (
+                <p className="mt-2 text-[11px] text-destructive">{d.failure_reason}</p>
+              ) : null}
+              <div className="mt-3 flex flex-wrap gap-2">
                 <button
                   type="button"
                   disabled={busy}
                   onClick={() => void verifyDomain(d.id)}
-                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] ring-1 ring-border"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-accent/10 px-3 py-2 text-[12px] font-semibold text-accent ring-1 ring-accent/25"
                 >
-                  <RefreshCw className="size-3" /> Verify DNS
+                  <RefreshCw className="size-3.5" /> Verify DNS
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setRemoveTarget(d.id)}
+                  className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-semibold text-destructive ring-1 ring-destructive/25"
+                >
+                  <Trash2 className="size-3.5" /> Remove
                 </button>
               </div>
             </li>
           ))}
         </ul>
       )}
+
+      <VodexConfirmModal
+        open={removeTarget != null}
+        title="Remove custom domain?"
+        description="Visitors will no longer reach your app on this hostname until you add it again."
+        confirmLabel="Remove domain"
+        variant="destructive"
+        loading={busy}
+        onCancel={() => setRemoveTarget(null)}
+        onConfirm={() => void removeDomain()}
+      />
     </div>
   );
 }

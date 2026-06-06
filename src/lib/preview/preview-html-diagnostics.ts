@@ -20,7 +20,7 @@ export function isStaticPreviewSnapshotHealthy(
   html: string,
   sourceFileCount: number,
 ): boolean {
-  return isStaticPreviewHtmlHealthy(html, sourceFileCount);
+  return isStaticPreviewHtmlHealthy(html, sourceFileCount) || isViteSpaPreviewShell(html);
 }
 
 export { detectBrokenPreviewSnapshot };

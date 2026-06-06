@@ -1,5 +1,6 @@
 import { scanAppSourceForReadiness } from "@/lib/publish/readiness-scan";
 import type { MobileAppConfig, ReadinessItem } from "@/lib/mobile/types";
+import { readShaRegistry } from "@/lib/mobile/sha-key-registry";
 import {
   scanAndroidReadiness,
   scanGeneralReadiness,
@@ -22,14 +23,38 @@ export type EligibilityReport = {
   critical: EligibilityFinding[];
   warnings: EligibilityFinding[];
   recommendations: EligibilityFinding[];
-  scores: { android: number; ios: number; store: number; general: number };
+  scores: {
+    source: number;
+    android: number;
+    ios: number;
+    store: number;
+    general: number;
+    billing: number;
+    overall: number;
+  };
   gatePassed: boolean;
   revenueCat: { status: "configured" | "opted_out" | "missing"; detail: string };
   generatedAt: string;
 };
 
+const CONFIG_SETUP_IDS = new Set([
+  "package_id",
+  "version_name",
+  "version_code",
+  "bundle_id",
+  "ios_build",
+  "icon",
+  "splash",
+  "privacy_policy",
+  "short_description",
+  "full_description",
+  "screenshots",
+]);
+
 function mapItemTier(item: ReadinessItem): EligibilityTier {
-  if (item.status === "missing") return "critical";
+  if (item.status === "missing") {
+    return CONFIG_SETUP_IDS.has(item.id) ? "warning" : "critical";
+  }
   if (item.status === "warning") return "warning";
   return "recommendation";
 }
@@ -188,19 +213,16 @@ export function buildEligibilityReport(input: {
     input.config.store_draft && typeof input.config.store_draft === "object"
       ? (input.config.store_draft as Record<string, unknown>)
       : {};
-  const sha256 = Array.isArray(draft.play_sha256_fingerprints)
-    ? (draft.play_sha256_fingerprints as string[]).filter(Boolean)
-    : [];
-  const sha1 = Array.isArray(draft.play_sha1_fingerprints)
-    ? (draft.play_sha1_fingerprints as string[]).filter(Boolean)
-    : [];
+  const shaReg = readShaRegistry(draft);
+  const sha256 = shaReg.sha256.map((e) => e.fingerprint);
+  const sha1 = shaReg.sha1.map((e) => e.fingerprint);
 
   if (sha256.length === 0) {
     fromSource.push({
       id: "play_sha256",
       tier: "warning",
       label: "Play SHA-256 fingerprints",
-      detail: "Add at least one SHA-256 for Play App Signing / assetlinks.",
+      detail: "Needs setup — add at least one SHA-256 for Play App Signing / assetlinks.",
       platform: "android",
       category: "signing",
     });
@@ -262,18 +284,35 @@ export function buildEligibilityReport(input: {
     (results.find((r) => r.platform === "android")?.score ?? 0) >= 55 &&
     (results.find((r) => r.platform === "ios")?.score ?? 0) >= 55;
 
+  const sourceScore = results.find((r) => r.platform === "general")?.score ?? 0;
+  const androidScore = results.find((r) => r.platform === "android")?.score ?? 0;
+  const iosScore = results.find((r) => r.platform === "ios")?.score ?? 0;
+  const storeScore = Math.round(
+    results.filter((r) => r.platform === "store").reduce((s, r) => s + r.score, 0) /
+      Math.max(1, results.filter((r) => r.platform === "store").length),
+  );
+  const billingScore =
+    revenueCat.status === "configured" ? 100 : revenueCat.status === "opted_out" ? 85 : 40;
+  const overall = Math.round(
+    sourceScore * 0.35 +
+      androidScore * 0.2 +
+      iosScore * 0.2 +
+      storeScore * 0.15 +
+      billingScore * 0.1,
+  );
+
   return {
     critical,
     warnings,
     recommendations,
     scores: {
-      general: results.find((r) => r.platform === "general")?.score ?? 0,
-      android: results.find((r) => r.platform === "android")?.score ?? 0,
-      ios: results.find((r) => r.platform === "ios")?.score ?? 0,
-      store: Math.round(
-        results.filter((r) => r.platform === "store").reduce((s, r) => s + r.score, 0) /
-          Math.max(1, results.filter((r) => r.platform === "store").length),
-      ),
+      source: sourceScore,
+      general: sourceScore,
+      android: androidScore,
+      ios: iosScore,
+      store: storeScore,
+      billing: billingScore,
+      overall,
     },
     gatePassed,
     revenueCat,

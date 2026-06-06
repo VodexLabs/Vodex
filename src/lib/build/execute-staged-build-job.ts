@@ -70,6 +70,14 @@ import { startValidationWatchdog } from "@/lib/build/validation-watchdog";
 
 type Writer = SupabaseClient<Database>;
 
+function isPreviewGateFailed(
+  html: string,
+  files: Array<{ path: string; content: string }>,
+  previewSessionOk: boolean,
+): boolean {
+  return !analyzePreviewHtml(html, files, { previewSessionOk }).previewRenderable;
+}
+
 /** Prevents duplicate `after()` invocations from running two pipelines on one job (dev server). */
 const inFlightBuildJobs = new Set<string>();
 
@@ -888,8 +896,11 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
       postPreviewHtml,
       workingFiles.length,
     );
-    let previewStillFailed =
-      !staticPreviewOk && (!previewResult.ok || !postPreview.shouldComplete);
+    let previewStillFailed = isPreviewGateFailed(
+      postPreviewHtml,
+      workingFiles,
+      previewResult.ok || staticPreviewOk,
+    );
     if (previewStillFailed) {
       const htmlDiag = analyzePreviewHtml(postPreviewHtml, workingFiles, {
         previewSessionOk: previewResult.ok || staticPreviewOk,
@@ -959,9 +970,11 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
             previewHtmlLength: postPreviewHtml.length,
             previewHtmlSnippet: postPreviewHtml.slice(0, 2000),
           });
-          previewStillFailed =
-            !isStaticPreviewSnapshotHealthy(postPreviewHtml, workingFiles.length) &&
-            (!previewResult.ok || !postPreview.shouldComplete);
+          previewStillFailed = isPreviewGateFailed(
+            postPreviewHtml,
+            workingFiles,
+            previewResult.ok || staticPreviewOk,
+          );
           if (!previewStillFailed) {
             await emitRepairWorkflowEvent(input.writer, eventCtx, {
               phase: "completed",
@@ -1034,7 +1047,7 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
         metadata: {
           preview_failed: true,
           files_kept: filesKept,
-          failure_kind: "failed_after_generation",
+          failure_kind: "preview_failed",
           preview_failure_code: previewCode,
           source_integrity_ok: postPreview.sourceIntegrity.sourceIntegrityOk,
           preview_renderable: postPreview.sourceIntegrity.previewRenderable,

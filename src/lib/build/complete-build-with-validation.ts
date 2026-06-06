@@ -42,7 +42,7 @@ export async function completeBuildWithValidation(input: {
 
   const { data: cur } = await input.writer
     .from("projects")
-    .select("metadata, preview_url")
+    .select("metadata, preview_url, build_status")
     .eq("id", input.projectId)
     .eq("owner_id", input.userId)
     .maybeSingle();
@@ -116,7 +116,12 @@ export async function completeBuildWithValidation(input: {
     lifecycle = "generated";
   }
 
+  const existingBuildStatus = String((cur as { build_status?: string } | null)?.build_status ?? "").toLowerCase();
+  const previewFailedPersisted =
+    existingBuildStatus === "preview_failed" || prevMeta.files_ready_preview_failed === true;
+
   const previewWasReady =
+    !previewFailedPersisted &&
     prevMeta.preview_ready === true &&
     prevMeta.preview_honest === true &&
     Boolean(cur?.preview_url?.trim() || input.previewUrl?.trim());
@@ -133,11 +138,17 @@ export async function completeBuildWithValidation(input: {
     ? (cur?.preview_url ?? input.previewUrl ?? null)
     : null;
 
+  const nextBuildStatus = previewFailedPersisted
+    ? "preview_failed"
+    : fileCount >= MIN_RENDERABLE_FILES
+      ? "completed"
+      : "failed";
+
   await input.writer
     .from("projects")
     .update({
       status: legacyProjectStatus(lifecycle),
-      build_status: fileCount >= MIN_RENDERABLE_FILES ? "completed" : "failed",
+      build_status: nextBuildStatus,
       ...(previewWasReady && nextPreviewUrl ? { preview_url: nextPreviewUrl } : {}),
       metadata: {
         ...prevMeta,
@@ -152,7 +163,12 @@ export async function completeBuildWithValidation(input: {
           ui_polish_quoted_credits: polishPlan.quoted ? polishPlan.estimatedCredits : null,
           ui_polish_included: polishPlan.includedInReservation && uiReview.needsPolish,
           repair_action: repairAction,
-          build_status: fileCount >= MIN_RENDERABLE_FILES ? "completed" : "needs_repair",
+          build_status: previewFailedPersisted
+            ? "preview_failed"
+            : fileCount >= MIN_RENDERABLE_FILES
+              ? "completed"
+              : "needs_repair",
+          ...(previewFailedPersisted ? { files_ready_preview_failed: true } : {}),
           file_count: fileCount,
           ...(previewWasReady
             ? { preview_ready: true, preview_honest: true }

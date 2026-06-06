@@ -49,16 +49,25 @@ export async function runPaymentCertificationChecks(
   }
 
   const avg = paymentWeight ? Math.round((paymentScore / paymentWeight) * 100) : 0;
+  const paymentsRequired = ctx.published;
   checks.push({
     id: "payment_readiness_score",
     section: "payments",
     title: "Payment readiness score",
-    status: anyConnected ? (avg >= 70 ? "passed" : "warning") : "warning",
+    status: anyConnected
+      ? avg >= 70
+        ? "passed"
+        : "warning"
+      : paymentsRequired
+        ? "blocker"
+        : "warning",
     weight: 6,
     detail: anyConnected
       ? `Weighted payment readiness: ${avg}/100.`
-      : "No payment provider connected — optional unless you charge customers.",
-    fix: anyConnected ? undefined : "Connect Stripe sandbox or mark payments as not required.",
+      : paymentsRequired
+        ? "No payment provider connected — score 0/100 until Stripe, Paddle, or another provider is connected."
+        : "No payment provider connected — optional until you charge customers.",
+    fix: anyConnected ? undefined : "Connect Stripe sandbox or configure payments in the Payments dashboard.",
   });
 
   return checks;

@@ -165,8 +165,8 @@ function MobileBottomNav() {
           <Link
             key={item.href}
             href={item.href}
-            className={cn(
-              "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-0.5 py-2.5 text-[9px] font-medium leading-none transition-colors sm:gap-1.5 sm:py-3 sm:text-[10px]",
+              className={cn(
+              "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-0.5 py-2 text-[9px] font-medium leading-none transition-colors sm:gap-1 sm:py-2.5 sm:text-[10px]",
               active ? "text-accent" : "text-muted-foreground",
             )}
           >
@@ -274,10 +274,10 @@ export function PlatformShell({
         <main
           className={
             isHomeShellScroll
-              ? "relative flex min-h-0 flex-1 min-w-0 flex-col overflow-y-auto overflow-x-hidden pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom,0px)+12px)] lg:pb-0"
+              ? "relative flex min-h-0 flex-1 min-w-0 flex-col overflow-y-auto overflow-x-hidden vodex-scroll-panel vodex-mobile-content-pad lg:pb-0"
               : isFullBleed
                 ? "relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-                : "vodex-shell-main relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden bg-atmosphere px-[var(--page-padding-x)] pt-[var(--page-padding-y)] pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom,0px)+12px)] lg:pb-0"
+                : "vodex-shell-main relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden bg-atmosphere px-[var(--page-padding-x)] pt-[var(--page-padding-y)] vodex-scroll-panel vodex-mobile-content-pad lg:pb-0"
           }
           style={
             isHomeShellScroll || !isFullBleed ? { scrollBehavior: "smooth" } : undefined

@@ -22,25 +22,37 @@ export function PublishTemplateModal({
   onClose,
   projectId,
   defaultTitle,
+  initialDescription,
+  initialCategory,
+  initialVisibility,
 }: {
   open: boolean;
   onClose: () => void;
   projectId: string;
   defaultTitle?: string;
+  initialDescription?: string;
+  initialCategory?: string;
+  initialVisibility?: "public" | "unlisted" | "private";
 }) {
   const [title, setTitle] = React.useState(defaultTitle ?? "");
-  const [description, setDescription] = React.useState("");
-  const [category, setCategory] = React.useState<string>(CATEGORIES[0]);
+  const [description, setDescription] = React.useState(initialDescription ?? "");
+  const [category, setCategory] = React.useState<string>(initialCategory ?? CATEGORIES[0]);
   const [tags, setTags] = React.useState("");
   const [previewUrl, setPreviewUrl] = React.useState("");
-  const [visibility, setVisibility] = React.useState<"public" | "unlisted" | "private">("public");
+  const [visibility, setVisibility] = React.useState<"public" | "unlisted" | "private">(
+    initialVisibility ?? "public",
+  );
   const [busy, setBusy] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
 
   React.useEffect(() => setMounted(true), []);
   React.useEffect(() => {
-    if (open && defaultTitle) setTitle(defaultTitle);
-  }, [open, defaultTitle]);
+    if (!open) return;
+    if (defaultTitle) setTitle(defaultTitle);
+    if (initialDescription != null) setDescription(initialDescription);
+    if (initialCategory) setCategory(initialCategory);
+    if (initialVisibility) setVisibility(initialVisibility);
+  }, [open, defaultTitle, initialDescription, initialCategory, initialVisibility]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

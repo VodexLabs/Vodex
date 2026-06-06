@@ -23,9 +23,12 @@ export type BuildStatusFacts = {
   failureKind:
     | "failed_before_generation"
     | "failed_after_generation"
+    | "preview_failed"
     | "repair_needed"
     | "repair_failed"
     | null;
+  previewFailed: boolean;
+  previewFailureCode?: string | null;
 };
 
 export type WorkflowRunStatus =
@@ -38,6 +41,7 @@ export type WorkflowRunStatus =
   | "insufficient_credits_before_start"
   | "failed_before_generation"
   | "failed_after_generation"
+  | "preview_failed"
   | "repair_needed"
   | "repair_failed"
   | "completed";
@@ -96,6 +100,14 @@ export function deriveBuildStatusFacts(input: {
   const terminal = input.terminal;
   const events = terminal?.events ?? [];
   const failureKindMeta = terminal?.latest?.metadata?.failure_kind;
+  const previewFailedMeta =
+    terminal?.latest?.metadata?.preview_failed === true ||
+    events.some((e) => e.metadata?.preview_failed === true);
+  const previewFailureCode =
+    typeof terminal?.latest?.metadata?.preview_failure_code === "string"
+      ? terminal.latest.metadata.preview_failure_code
+      : events.find((e) => typeof e.metadata?.preview_failure_code === "string")?.metadata
+          ?.preview_failure_code ?? null;
   const metaFileCount = eventFileCount(events);
   const terminalMetaCount =
     typeof terminal?.latest?.metadata?.file_count === "number"
@@ -141,8 +153,13 @@ export function deriveBuildStatusFacts(input: {
   ) || events.some((e) => typeof e.metadata?.output_tokens === "number" && e.metadata.output_tokens > 0);
 
   let resolvedFailureKind = failureKind;
+  if (previewFailedMeta && hasFiles) {
+    resolvedFailureKind = "preview_failed";
+  }
   if (failed && !partialBuild) {
-    if (!hasFiles && repairAttemptCount === 0) {
+    if (previewFailedMeta && hasFiles) {
+      resolvedFailureKind = "preview_failed";
+    } else if (!hasFiles && repairAttemptCount === 0) {
       resolvedFailureKind = "failed_before_generation";
     } else if (
       resolvedFailureKind === "repair_needed" ||
@@ -178,6 +195,8 @@ export function deriveBuildStatusFacts(input: {
       ["preparing_preview", "validating_preview", "completed"].includes(e.type),
     ),
     failureKind: resolvedFailureKind,
+    previewFailed: previewFailedMeta,
+    previewFailureCode: typeof previewFailureCode === "string" ? previewFailureCode : null,
   };
 }
 
@@ -195,6 +214,7 @@ export function resolveWorkflowRunStatus(facts: BuildStatusFacts): WorkflowRunSt
     return facts.hasFiles ? "repair_needed" : "failed_before_generation";
   }
   if (facts.failureKind === "failed_before_generation") return "failed_before_generation";
+  if (facts.failureKind === "preview_failed" && facts.hasFiles) return "preview_failed";
   if (facts.failureKind === "repair_failed") return "repair_failed";
   if (facts.failureKind === "repair_needed" && facts.hasFiles) return "repair_needed";
   if (facts.terminalStatus === "failed" && facts.hasFiles) return "failed_after_generation";
@@ -252,7 +272,7 @@ export function resolveBuildRunSummary(input: {
       bodyLines: ["Add credits or upgrade to keep building."],
     },
     failed_before_generation: {
-      headline: input.facts.hasFiles ? "Build saved — preview is still preparing" : "Couldn't start the build",
+      headline: input.facts.hasFiles ? "App files were created, but preview needs attention" : "Couldn't start the build",
       bodyLines: input.facts.hasFiles
         ? [
             input.errorDetail && !REPAIR_DETAIL_RE.test(input.errorDetail)
@@ -268,17 +288,24 @@ export function resolveBuildRunSummary(input: {
           ],
     },
     failed_after_generation: {
-      headline: input.facts.hasFiles
-        ? input.previewReady === false
-          ? "Build saved — preview needs a fix"
-          : "Build saved — preview is still preparing"
-        : "Build needs attention",
+      headline: input.facts.hasFiles ? "Source files saved — needs attention" : "Build needs attention",
       bodyLines: [
         input.errorDetail && !REPAIR_DETAIL_RE.test(input.errorDetail)
           ? input.errorDetail
           : input.facts.hasFiles
-            ? "Files are saved. Preview is not ready yet — use retry preview or repair for details."
+            ? "App files were created. Run repair if source integrity checks failed."
             : "Generation did not complete successfully.",
+        input.facts.creditsRefunded ? "Credits were returned for this attempt." : "",
+      ].filter(Boolean),
+    },
+    preview_failed: {
+      headline: "App files were created, but preview needs attention",
+      bodyLines: [
+        input.errorDetail && !REPAIR_DETAIL_RE.test(input.errorDetail)
+          ? input.errorDetail
+          : input.facts.previewFailureCode
+            ? `Preview issue: ${String(input.facts.previewFailureCode).replace(/_/g, " ")}`
+            : "Your source files are saved. Preview rendering failed — retry preview or run repair.",
         input.facts.creditsRefunded ? "Credits were returned for this attempt." : "",
       ].filter(Boolean),
     },
@@ -329,8 +356,10 @@ export function resolveBuildRunSummary(input: {
   if (input.previewReady && (status === "failed_before_generation" || status === "failed_after_generation")) {
     status = input.facts.failureKind === "repair_needed" && !firstPass ? "repair_needed" : "completed";
   }
-  if (input.facts.hasFiles && status === "failed_before_generation") {
-    status = firstPass && savedFilesOk ? "completed" : "failed_after_generation";
+  if (input.facts.previewFailed && savedFilesOk && input.previewReady !== true) {
+    status = "preview_failed";
+  } else if (input.facts.hasFiles && status === "failed_before_generation") {
+    status = firstPass && savedFilesOk ? "failed_after_generation" : "failed_after_generation";
   }
 
   const integrityOk = input.sourceIntegrityOk !== false;
@@ -353,15 +382,23 @@ export function resolveBuildRunSummary(input: {
   }
 
   if (status === "completed" && !canShowSuccess) {
-    status = savedFilesOk ? "failed_after_generation" : "failed_before_generation";
+    status = input.facts.previewFailed && savedFilesOk
+      ? "preview_failed"
+      : savedFilesOk
+        ? "failed_after_generation"
+        : "failed_before_generation";
   }
 
-  const block = copy[status];
+  if (input.facts.previewFailed && savedFilesOk && !input.previewReady) {
+    status = "preview_failed";
+  }
   let showRefundLine = input.facts.creditsRefunded;
   let showRepairActions =
     status === "repair_failed" ||
+    status === "preview_failed" ||
     (status === "repair_needed" && input.facts.repairAttemptCount > 1);
-  let showPreviewActions = status === "completed" || status === "preview_ready";
+  let showPreviewActions =
+    status === "completed" || status === "preview_ready" || status === "preview_failed";
 
   if (savedFilesOk && firstPass && status === "completed") {
     showRepairActions = false;
@@ -372,13 +409,15 @@ export function resolveBuildRunSummary(input: {
     showRefundLine = false;
   }
   if (input.facts.generationCompleted || input.facts.generationStarted) {
-    if (status === "failed_before_generation") {
-      status = savedFilesOk ? "repair_needed" : status;
+    if (status === "failed_before_generation" && savedFilesOk) {
+      status = input.facts.previewFailed ? "preview_failed" : "repair_needed";
     }
   }
   if (!input.facts.creditsRefunded) {
     showRefundLine = false;
   }
+
+  const block = copy[status] ?? copy.preview_failed;
   const variant: BuildRunSummaryResolved["variant"] =
     status === "completed" || status === "preview_ready"
       ? "completed"
@@ -419,7 +458,7 @@ export function failureKindForPersist(input: {
   technicalOnly?: boolean;
 }): NonNullable<BuildStatusFacts["failureKind"]> {
   if (input.fileCount <= 0) return "failed_before_generation";
-  if (input.previewFailedWithFiles && input.technicalOnly !== false) return "failed_after_generation";
+  if (input.previewFailedWithFiles) return "preview_failed";
   if (input.repairAttempted && input.technicalOnly) return "repair_needed";
   return "failed_after_generation";
 }
@@ -429,7 +468,9 @@ export function userSafeFailureTitle(kind: NonNullable<BuildStatusFacts["failure
     case "failed_before_generation":
       return "Couldn't start the build";
     case "failed_after_generation":
-      return "Build needs attention";
+      return "Source files saved — needs attention";
+    case "preview_failed":
+      return "App files were created, but preview needs attention";
     case "repair_needed":
       return "Build needs attention";
     case "repair_failed":
@@ -447,8 +488,11 @@ export function userSafeFailureDetail(
     return "I couldn't generate files for this request. Try again or simplify your prompt.";
   }
   if (raw && !REPAIR_DETAIL_RE.test(raw)) return raw;
+  if (kind === "preview_failed") {
+    return "Your source files are saved. Preview rendering failed — use retry preview or repair for the exact issue.";
+  }
   if (kind === "repair_needed" || kind === "failed_after_generation") {
-    return "The files were saved, but preview could not render because of a technical issue.";
+    return "Source files were saved, but additional repair is required before preview can run.";
   }
   return raw ?? "Something went wrong during the build.";
 }

@@ -21,10 +21,9 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { PlaceholderRepairCard, type PlaceholderFindingUi } from "@/components/publish/placeholder-repair-card";
-import {
-  PublishReadinessCards,
-  type PublishReadinessCard,
-} from "@/components/publish/publish-readiness-cards";
+import type { PublishReadinessCard } from "@/components/publish/publish-readiness-cards";
+import { PublishReadinessCompact } from "@/components/publish/publish-readiness-compact";
+import { MobileSigningConfigDrawer } from "@/components/mobile/mobile-signing-config-drawer";
 import { PublishSuccessOverlay } from "@/components/publish/publish-success-overlay";
 import { fetchDedupe, getCached, invalidateCache } from "@/lib/cache/fetch-dedupe";
 import { toast } from "@/lib/toast";
@@ -121,6 +120,7 @@ export function PublishModal({
   const [successOverlayOpen, setSuccessOverlayOpen] = React.useState(false);
   const [mobileGatePassed, setMobileGatePassed] = React.useState(false);
   const [mobileScanning, setMobileScanning] = React.useState(false);
+  const [signingDrawerOpen, setSigningDrawerOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (open && initialDraft) setLocal(initialDraft);
@@ -405,9 +405,11 @@ export function PublishModal({
       card("database", "Database", dbOk, !dbOk),
       card("domains", "Domains", domainOk, !domainOk),
       card("integrations", "Integrations", integrationsOk, !integrationsOk),
-      card("payments", "Payments", paymentsOk, true),
+      card("payments", "Payments", paymentsOk, !paymentsOk),
+      card("security", "Security", !hasBlocker(/security/i), true),
+      card("mobile", "Mobile", mobileGatePassed, !mobileGatePassed),
     ];
-  }, [loading, readiness]);
+  }, [loading, readiness, mobileGatePassed]);
 
   return (
     <>
@@ -435,7 +437,7 @@ export function PublishModal({
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 16 }}
         transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-        className="relative flex max-h-[min(92dvh,860px)] w-full max-w-2xl flex-col overflow-hidden rounded-[var(--radius-xl)] bg-background shadow-2xl ring-1 ring-border"
+        className="relative flex max-h-[min(92dvh,860px)] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-background shadow-2xl ring-1 ring-border sm:rounded-[var(--radius-xl)]"
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -533,14 +535,7 @@ export function PublishModal({
           className="relative min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4"
           data-testid="publish-modal-body"
         >
-          {projectId ? (
-            <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Publish readiness
-              </p>
-              <PublishReadinessCards cards={readinessCards} />
-            </div>
-          ) : null}
+          {projectId ? <PublishReadinessCompact cards={readinessCards} /> : null}
           {posting && (
             <div
               className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background/92 px-6 backdrop-blur-sm"
@@ -600,6 +595,25 @@ export function PublishModal({
                   <span className="font-medium text-foreground">{publishInfo?.platformBaseDomain ?? "vodex.app"}</span>.
                   Updates to your generated UI roll forward here when you rebuild.
                 </p>
+
+                {publishInfo?.subdomain ? (
+                  <div className="mt-3">
+                    <label className="text-[11px] font-semibold text-foreground">Public slug</label>
+                    <input
+                      readOnly
+                      value={publishInfo.subdomain}
+                      className="mt-1.5 w-full rounded-xl bg-background px-3 py-2.5 font-mono text-[12px] ring-1 ring-border"
+                    />
+                    <p className="mt-1.5 text-[11px] text-muted-foreground">
+                      This becomes your public app URL. Example:{" "}
+                      <span className="font-medium text-foreground">
+                        {publishInfo.platformBaseDomain
+                          ? `${publishInfo.platformBaseDomain.replace(/^https?:\/\//, "")}/p/${publishInfo.subdomain}`
+                          : `vodex.dev/p/${publishInfo.subdomain}`}
+                      </span>
+                    </p>
+                  </div>
+                ) : null}
 
                 {publicUrl ? (
                   <div className="mt-3 break-all rounded-xl bg-background px-3 py-2.5 font-mono text-[12px] text-foreground ring-1 ring-border">
@@ -727,16 +741,30 @@ export function PublishModal({
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                     Step 1 · Eligibility scan
                   </p>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    disabled={!projectId || mobileScanning}
-                    onClick={() => void runMobileEligibilityScan()}
-                  >
-                    {mobileScanning ? <Loader2 className="size-3.5 animate-spin" /> : "Run full app scan"}
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      disabled={!projectId || mobileScanning}
+                      onClick={() => void runMobileEligibilityScan()}
+                    >
+                      {mobileScanning ? <Loader2 className="size-3.5 animate-spin" /> : "Run readiness scan"}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={!projectId}
+                      onClick={() => setSigningDrawerOpen(true)}
+                    >
+                      Fix setup
+                    </Button>
+                  </div>
                 </div>
+                <p className="mt-2 rounded-lg bg-accent/8 px-3 py-2 text-[11px] text-accent">
+                  You can leave this page. We&apos;ll notify you when the scan finishes.
+                </p>
                 {!mobileGatePassed ? (
                   <p className="mt-2 text-[11px] text-amber-800 dark:text-amber-200">
                     Run the scan and pass all blockers before Android / iOS packaging unlocks.
@@ -922,7 +950,7 @@ export function PublishModal({
 
         </motion.div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
+        <div className="sticky bottom-0 flex items-center justify-end gap-2 border-t border-border bg-background/95 px-5 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] backdrop-blur-sm">
           <Button type="button" variant="ghost" size="sm" onClick={onClose}>
             Close
           </Button>
@@ -930,7 +958,15 @@ export function PublishModal({
       </motion.div>
     </div>,
     document.body,
-      )}
+  )}
+      {projectId ? (
+        <MobileSigningConfigDrawer
+          open={signingDrawerOpen}
+          onClose={() => setSigningDrawerOpen(false)}
+          projectId={projectId}
+          onSaved={() => refreshReadiness()}
+        />
+      ) : null}
     </>
   );
 }

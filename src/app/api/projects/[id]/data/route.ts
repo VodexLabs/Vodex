@@ -42,8 +42,17 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 
   const collections = detectAppDataCollections({ files, metadata: meta });
 
+  const stacks: string[] = [];
+  const paths = files.map((f) => f.path.toLowerCase());
+  if (paths.some((p) => p.includes("supabase") || p.includes("migrations"))) stacks.push("Supabase");
+  if (paths.some((p) => p.includes("prisma/schema"))) stacks.push("Prisma");
+  if (paths.some((p) => p.includes("drizzle"))) stacks.push("Drizzle");
+  if (paths.some((p) => p.includes("firebase"))) stacks.push("Firebase");
+  if (paths.some((p) => p.includes("mongodb") || p.includes("mongoose"))) stacks.push("MongoDB");
+
   return NextResponse.json({
     collections,
+    stacks,
     totalCollections: collections.length,
     totalRecords: collections.reduce((s, c) => s + (c.recordCount ?? 0), 0),
   });

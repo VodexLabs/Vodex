@@ -398,17 +398,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         void useCreditsStore.getState().syncFromDB({ reason: "manual", force: false });
       }
 
-      if (event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") {
-        void supabase.auth.getUser().then(({ data: { user: u } }) => {
-          if (!u) {
-            setProfile(null);
-            try {
-              void useAuthStore.persist.clearStorage();
-            } catch {
-              /* ignore */
-            }
-          }
+      if (event === "TOKEN_REFRESHED" && session?.user) {
+        setUser(session.user);
+        void supabase.auth.getUser().then(({ data: { user: u }, error }) => {
+          if (error || !u) return;
+          setUser(u);
         });
+      }
+
+      if (event === "INITIAL_SESSION" && !session?.user) {
+        const persisted = useAuthStore.getState().profile;
+        if (isStalePersistedProfile(session, persisted, null)) {
+          setProfile(null);
+        }
       }
     });
 

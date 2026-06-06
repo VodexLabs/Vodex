@@ -75,6 +75,9 @@ import { getEntitlements } from "@/lib/billing/plan-entitlements";
 import { AppAuthCenter } from "@/components/settings/app-auth-center";
 import { PublishVisibilitySettings } from "@/components/settings/publish-visibility-settings";
 import { DashboardSectionNav, type DashboardPanelSection } from "@/components/dashboard/dashboard-section-nav";
+import { OverviewDashboardPanel } from "@/components/dashboard/overview-dashboard-panel";
+import { CodeDashboardPanel } from "@/components/dashboard/code-dashboard-panel";
+import { AppSettingsDashboardPanel } from "@/components/dashboard/app-settings-dashboard-panel";
 import { AppTemplateSettingsPanel } from "@/components/templates/app-template-settings-panel";
 import {
   DashboardApiSection,
@@ -82,7 +85,6 @@ import {
   DashboardDomainsSection,
   DashboardLogsSection,
   DashboardSecuritySection,
-  DashboardSettingsWatermark,
 } from "@/components/create/workspace/app-dashboard-live-sections";
 import {
   InsightsDashboardPanel,
@@ -484,6 +486,14 @@ export function AppDashboardPanel({
 
   const overviewContent = (
     <div className="space-y-4" data-testid="overview-app-editing">
+      <OverviewDashboardPanel
+        projectId={projectId}
+        previewReady={previewReady}
+        publishReady={publishReady}
+        buildOk={buildOk}
+        onNavigate={(s) => setSection(s as DashSection)}
+      />
+
       <SectionCard title="App details">
         <AppSettingsInlineForm
           projectId={projectId}
@@ -776,63 +786,37 @@ export function AppDashboardPanel({
         );
       case "settings":
         return (
-          <div className="space-y-4">
-            <SectionCard title="App settings">
-              <AppSettingsInlineForm
-                projectId={projectId}
-                initialName={displayName}
-                initialDescription={displayDesc ?? ""}
-                iconSrc={iconSrc}
-                onSaved={() => setSettingsRefresh((k) => k + 1)}
-              />
-            </SectionCard>
-            <DashboardSettingsWatermark
-              planId={planId ?? "free"}
-              disabled={false}
-              onToggle={() => {
-                /* wired via watermark API in follow-up save */
-              }}
-            />
-            <div className="rounded-2xl border border-border/70 bg-white/80 ring-1 ring-border/50 dark:bg-background/80">
-              <button
-                type="button"
-                onClick={() => setAdvancedOpen((v) => !v)}
-                className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left"
-                data-testid="developer-diagnostics-toggle"
-              >
-                <div>
-                  <p className="text-[12px] font-semibold text-foreground">Developer diagnostics</p>
-                  <p className="text-[11px] text-muted-foreground">Routes, schema, and build checks — for advanced setup</p>
+          <AppSettingsDashboardPanel
+            projectId={projectId}
+            planId={planId ?? "free"}
+            displayName={displayName}
+            displayDesc={displayDesc ?? ""}
+            iconSrc={iconSrc}
+            onSaved={() => setSettingsRefresh((k) => k + 1)}
+            advancedContent={
+              <>
+                <div className="mb-3 flex gap-1 overflow-x-auto pt-1">
+                  {ADVANCED_TECH.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setAdvancedTech(s.id)}
+                      className={cn(
+                        "flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition",
+                        advancedTech === s.id
+                          ? "bg-accent/10 text-accent ring-1 ring-accent/20"
+                          : "text-muted-foreground hover:bg-surface",
+                      )}
+                    >
+                      <s.icon className="size-3" strokeWidth={1.75} />
+                      {s.label}
+                    </button>
+                  ))}
                 </div>
-                <ChevronDown
-                  className={cn("size-4 shrink-0 text-muted-foreground transition", advancedOpen && "rotate-180")}
-                />
-              </button>
-              {advancedOpen ? (
-                <div className="border-t border-border/60 px-3 pb-4" data-testid="developer-diagnostics">
-                  <div className="mb-3 flex gap-1 overflow-x-auto pt-3">
-                    {ADVANCED_TECH.map((s) => (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => setAdvancedTech(s.id)}
-                        className={cn(
-                          "flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition",
-                          advancedTech === s.id
-                            ? "bg-accent/10 text-accent ring-1 ring-accent/20"
-                            : "text-muted-foreground hover:bg-surface",
-                        )}
-                      >
-                        <s.icon className="size-3" strokeWidth={1.75} />
-                        {s.label}
-                      </button>
-                    ))}
-                  </div>
-                  {advancedContent}
-                </div>
-              ) : null}
-            </div>
-          </div>
+                {advancedContent}
+              </>
+            }
+          />
         );
       case "mobile":
         return (
@@ -868,29 +852,9 @@ export function AppDashboardPanel({
         );
       case "code":
         return (
-          <div className="mx-auto w-full max-w-2xl space-y-3">
-            <SectionCard title="Generated code">
-              <EmptyHint text={`${fileCount} file${fileCount === 1 ? "" : "s"} in your project.`} />
-              <Link
-                href={`/apps/${projectId}/builder?tab=code`}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-accent px-3.5 py-2 text-[12px] font-semibold text-white"
-              >
-                <Code2 className="size-3.5" />
-                Open code editor
-              </Link>
-            </SectionCard>
-            {pageRoutes.length > 0 ? (
-              <SectionCard title="Routes">
-                <ul className="space-y-1 font-mono text-[11px]">
-                  {pageRoutes.slice(0, 16).map((p) => (
-                    <li key={p} className="truncate rounded-lg bg-background/80 px-2 py-1 ring-1 ring-border/60">
-                      {p}
-                    </li>
-                  ))}
-                </ul>
-              </SectionCard>
-            ) : null}
-          </div>
+          <SectionCard title="Code">
+            <CodeDashboardPanel projectId={projectId} fileCount={fileCount} filePaths={filePaths} />
+          </SectionCard>
         );
       case "publish":
         return (
@@ -900,7 +864,7 @@ export function AppDashboardPanel({
               initialPublic={Boolean(dashProject.is_public)}
               published={published}
             />
-            <ProductionCertificationCenter projectId={projectId} />
+            <ProductionCertificationCenter projectId={projectId} planId={planId} />
             {publishSetupGaps.length > 0 ? (
               <PublishSetupChecklist projectId={projectId} gaps={publishSetupGaps} />
             ) : null}
@@ -928,6 +892,7 @@ export function AppDashboardPanel({
             <AppProjectSecretsPanel
               projectId={projectId}
               appPrompt={typeof meta.template_prompt === "string" ? meta.template_prompt : displayDesc ?? ""}
+              onInsertChatPrompt={onInsertChatPrompt}
             />
             {isZipImport ? (
               <div className="mt-4 border-t border-border/60 pt-4">

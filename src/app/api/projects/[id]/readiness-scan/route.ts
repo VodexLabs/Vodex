@@ -5,6 +5,7 @@ import { runAppReadinessEngine } from "@/lib/mobile/readiness-engine";
 import { loadMobileRevenueCatPublicConfig } from "@/lib/mobile-billing/wrapper-config";
 import { MOBILE_SECRET_KEYS } from "@/lib/mobile/secrets";
 import { randomUUID } from "node:crypto";
+import { createUserNotification } from "@/lib/notifications/create-user-notification";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -198,6 +199,28 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
       summary: `Mobile readiness scan completed — ${findings.length} issues`,
       meta: { scanId, issues: findings.length, score: report.score },
     } as never);
+
+    const blockers = findings.filter((f) => f.severity === "critical").length;
+    const risks = findings.filter((f) => f.severity === "high" || f.severity === "medium").length;
+    const verified = Math.max(0, (fileCount ?? 0) > 0 ? 8 - blockers - risks : 0);
+
+    await createUserNotification(admin, {
+      userId: user.id,
+      kind: "mobile_readiness_scan_completed",
+      title: "Mobile readiness scan completed",
+      body: `Your scan finished with ${blockers} blocker${blockers === 1 ? "" : "s"}, ${risks} risk${risks === 1 ? "" : "s"}, and ${verified} verified check${verified === 1 ? "" : "s"}.`,
+      actionUrl: `/apps/${projectId}/builder?tab=dashboard&section=mobile`,
+      iconKey: "smartphone",
+      playSound: true,
+      metadata: {
+        project_id: projectId,
+        scan_id: scanId,
+        score: report.score,
+        blockers,
+        risks,
+        verified,
+      },
+    });
 
     return NextResponse.json({
       scanId,

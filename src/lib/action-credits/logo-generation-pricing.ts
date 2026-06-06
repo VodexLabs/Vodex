@@ -4,7 +4,7 @@ import { quoteActionCredits } from "@/lib/action-credits/action-credit-pricing";
 export const STANDARD_LOGO_ACTION_CREDITS = 4;
 
 /** User-facing Action Credit floor for manual logo regeneration. */
-export const REGENERATE_LOGO_ACTION_CREDITS = 4;
+export const REGENERATE_LOGO_ACTION_CREDITS = 5;
 
 export function quoteLogoGenerationCredits(providerCostUsd?: number | null) {
   return quoteActionCredits({

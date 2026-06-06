@@ -352,7 +352,7 @@ export function AgentWorkflowStream({
       {failed ? (
         <div className="mr-6 space-y-2 sm:mr-10">
           <p className="rounded-lg bg-destructive/10 px-2 py-1.5 text-[10.5px] text-destructive">
-            {progress.error ?? "Files saved — preview render failed."}
+            {progress.error ?? "App files were created, but preview needs attention."}
           </p>
           {adminDiagnostics ? (
             <button

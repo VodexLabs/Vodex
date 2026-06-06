@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
+import { fetchDedupe } from "@/lib/cache/fetch-dedupe";
 
 function MetricCard({
   label,
@@ -37,6 +38,64 @@ function MetricCard({
       {delta ? <p className="mt-0.5 text-[10px] text-emerald-600">{delta}</p> : null}
     </motion.div>
   );
+}
+
+function AnimatedLineChart({ data }: { data: Array<{ date: string; views: number }> }) {
+  if (!data.length) {
+    return <p className="text-[11px] text-muted-foreground">No traffic yet</p>;
+  }
+  const max = Math.max(1, ...data.map((d) => d.views));
+  const w = 320;
+  const h = 80;
+  const points = data.map((d, i) => {
+    const x = (i / Math.max(1, data.length - 1)) * w;
+    const y = h - (d.views / max) * (h - 8) - 4;
+    return `${x},${y}`;
+  });
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="h-20 w-full" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="analyticsFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="currentColor" stopOpacity="0.25" />
+          <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polyline
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        className="text-accent"
+        points={points.join(" ")}
+      />
+      <polygon
+        fill="url(#analyticsFill)"
+        className="text-accent"
+        points={`0,${h} ${points.join(" ")} ${w},${h}`}
+      />
+    </svg>
+  );
+}
+
+function buildInsights(data: AnalyticsPayload | null): string[] {
+  if (!data || data.empty) return ["Share your live app link to start collecting analytics."];
+  const insights: string[] = [];
+  const mobile = data.devices.find((d) => /mobile|phone|android|ios/i.test(d.name));
+  const desktop = data.devices.find((d) => /desktop|web/i.test(d.name));
+  if (mobile && desktop && mobile.count > desktop.count) {
+    insights.push("Most users arrive from mobile — prioritize responsive layouts.");
+  }
+  if (data.conversionRate >= 5) {
+    insights.push(`Conversion is healthy at ${data.conversionRate}% for this period.`);
+  } else if (data.signups > 0 && data.conversionRate > 0) {
+    insights.push(`Conversion is ${data.conversionRate}% — test clearer signup CTAs on top pages.`);
+  }
+  if ((data.bounceRate ?? 0) > 55) {
+    insights.push(`Bounce rate is ${data.bounceRate}% — review landing page load time and first screen.`);
+  }
+  if (data.realtimeVisitors > 0) {
+    insights.push(`${data.realtimeVisitors} visitor(s) active in the last 5 minutes.`);
+  }
+  return insights.slice(0, 4);
 }
 
 function MiniBarChart({ data }: { data: Array<{ name: string; count: number }> }) {
@@ -75,6 +134,8 @@ type AnalyticsPayload = {
   authViews?: number;
   activeUsers: number;
   conversionRate: number;
+  bounceRate?: number;
+  avgSessionSeconds?: number;
   realtimeVisitors: number;
   topPages: Array<{ name: string; count: number }>;
   referrers: Array<{ name: string; count: number }>;
@@ -105,10 +166,13 @@ export function InsightsDashboardPanel({
     let interval: ReturnType<typeof setInterval> | null = null;
     const load = () => {
       setLoading(true);
-      void fetch(`/api/projects/${projectId}/analytics?period=${period}`, { credentials: "include" })
-        .then((r) => r.json())
+      void fetchDedupe(`analytics:${projectId}:${period}`, (signal) =>
+        fetch(`/api/projects/${projectId}/analytics?period=${period}`, { credentials: "include", signal }).then(
+          (r) => r.json(),
+        ),
+      )
         .then((json) => {
-          if (!cancelled) setData(json);
+          if (!cancelled) setData(json as AnalyticsPayload);
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
@@ -160,8 +224,35 @@ export function InsightsDashboardPanel({
             <MetricCard label="Signups" value={data?.signups ?? 0} />
             <MetricCard label="Logins" value={data?.logins ?? 0} />
             <MetricCard label="Conversion" value={`${data?.conversionRate ?? 0}%`} />
+            <MetricCard label="Bounce rate" value={`${data?.bounceRate ?? 0}%`} />
+            <MetricCard
+              label="Avg session"
+              value={data?.avgSessionSeconds ? `${Math.round((data.avgSessionSeconds ?? 0) / 60)}m` : "—"}
+            />
             <MetricCard label="Live now" value={data?.realtimeVisitors ?? 0} />
           </div>
+
+          {(data?.timeseries?.length ?? 0) > 0 ? (
+            <div className="rounded-xl bg-surface p-3 ring-1 ring-border">
+              <p className="mb-2 flex items-center gap-1 text-[11px] font-semibold">
+                <Sparkles className="size-3 text-accent" /> Traffic trend
+              </p>
+              <AnimatedLineChart data={data?.timeseries ?? []} />
+            </div>
+          ) : null}
+
+          {buildInsights(data).length > 0 ? (
+            <div className="rounded-xl border border-accent/20 bg-accent/5 p-3 ring-1 ring-accent/15">
+              <p className="text-[11px] font-semibold text-foreground">Insights</p>
+              <ul className="mt-2 space-y-1.5">
+                {buildInsights(data).map((line) => (
+                  <li key={line} className="text-[11px] text-muted-foreground">
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           {data?.revenue?.connected ? (
             <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3 py-3 ring-1 ring-emerald-500/20">
@@ -337,22 +428,52 @@ export function GrowthDashboardPanel({
 
 export function DataDashboardPanel({ projectId }: { projectId: string }) {
   const [collections, setCollections] = React.useState<
-    Array<{ name: string; source: string; fieldCount: number; permissionStatus: string; fields: string[] }>
+    Array<{ name: string; source: string; fieldCount: number; permissionStatus: string; fields: string[]; recordCount?: number | null }>
   >([]);
+  const [stacks, setStacks] = React.useState<string[]>([]);
+  const [totals, setTotals] = React.useState({ collections: 0, records: 0 });
   const [filter, setFilter] = React.useState("");
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    void fetch(`/api/projects/${projectId}/data`, { credentials: "include" })
-      .then((r) => r.json())
-      .then((json) => setCollections(json.collections ?? []))
+    void fetchDedupe(`data:${projectId}`, (signal) =>
+      fetch(`/api/projects/${projectId}/data`, { credentials: "include", signal }).then((r) => r.json()),
+    )
+      .then((json) => {
+        const body = json as {
+          collections?: typeof collections;
+          stacks?: string[];
+          totalCollections?: number;
+          totalRecords?: number;
+        };
+        setCollections(body.collections ?? []);
+        setStacks(body.stacks ?? []);
+        setTotals({
+          collections: body.totalCollections ?? body.collections?.length ?? 0,
+          records: body.totalRecords ?? 0,
+        });
+      })
       .finally(() => setLoading(false));
   }, [projectId]);
 
   const filtered = collections.filter((c) => c.name.toLowerCase().includes(filter.toLowerCase()));
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" data-testid="data-dashboard-panel">
+      <div className="grid grid-cols-3 gap-2">
+        <MetricCard label="Collections" value={totals.collections} />
+        <MetricCard label="Records" value={totals.records} />
+        <MetricCard label="Stacks" value={stacks.length || "—"} />
+      </div>
+      {stacks.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {stacks.map((s) => (
+            <span key={s} className="rounded-full bg-accent/10 px-2.5 py-0.5 text-[10px] font-semibold text-accent ring-1 ring-accent/20">
+              {s}
+            </span>
+          ))}
+        </div>
+      ) : null}
       <input
         type="search"
         placeholder="Search collections…"
@@ -363,9 +484,12 @@ export function DataDashboardPanel({ projectId }: { projectId: string }) {
       {loading ? (
         <div className="h-24 animate-pulse rounded-xl bg-muted/40" />
       ) : filtered.length === 0 ? (
-        <p className="rounded-xl bg-muted/30 px-3 py-4 text-center text-[12px] text-muted-foreground">
-          No data collections detected yet. Import a ZIP or generate a backend schema.
-        </p>
+        <div className="rounded-xl bg-muted/30 px-3 py-4 text-center">
+          <p className="text-[12px] font-semibold text-foreground">No data collections detected</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Import a ZIP with Supabase/Prisma/Drizzle, or ask the AI to generate a schema.
+          </p>
+        </div>
       ) : (
         <ul className="space-y-2">
           {filtered.map((c) => (
@@ -373,7 +497,10 @@ export function DataDashboardPanel({ projectId }: { projectId: string }) {
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="text-[13px] font-semibold">{c.name}</p>
-                  <p className="text-[10px] text-muted-foreground">{c.source} · {c.fieldCount} fields</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {c.source} · {c.fieldCount} fields
+                    {c.recordCount != null ? ` · ${c.recordCount} records` : ""}
+                  </p>
                 </div>
                 <span
                   className={cn(
@@ -414,8 +541,9 @@ export function UsersDashboardPanel({
   } | null>(null);
 
   const loadUsers = React.useCallback(() => {
-    void fetch(`/api/projects/${projectId}/users`, { credentials: "include" })
-      .then((r) => r.json())
+    void fetchDedupe(`users:${projectId}`, (signal) =>
+      fetch(`/api/projects/${projectId}/users`, { credentials: "include", signal }).then((r) => r.json()),
+    )
       .then(setData)
       .catch(() => setData(null));
   }, [projectId]);

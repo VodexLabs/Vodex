@@ -142,6 +142,34 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       .map(([name, count]) => ({ name, count }));
   };
 
+  const sessionEvents = new Map<string, Array<{ at: number; type: string }>>();
+  for (const r of rows) {
+    const sid = String(r.session_id ?? "");
+    if (!sid) continue;
+    const at = new Date(String(r.created_at ?? "")).getTime();
+    if (Number.isNaN(at)) continue;
+    const list = sessionEvents.get(sid) ?? [];
+    list.push({ at, type: String(r.event_type) });
+    sessionEvents.set(sid, list);
+  }
+  let bounceSessions = 0;
+  let totalDurationSec = 0;
+  let durationSessions = 0;
+  for (const events of sessionEvents.values()) {
+    const pageViewsInSession = events.filter((e) => e.type === "page_view").length;
+    if (pageViewsInSession <= 1) bounceSessions += 1;
+    if (events.length >= 2) {
+      const sorted = [...events].sort((a, b) => a.at - b.at);
+      const duration = (sorted[sorted.length - 1]!.at - sorted[0]!.at) / 1000;
+      if (duration > 0 && duration < 60 * 60) {
+        totalDurationSec += duration;
+        durationSessions += 1;
+      }
+    }
+  }
+  const bounceRate = sessions.size ? Math.round((bounceSessions / sessions.size) * 1000) / 10 : 0;
+  const avgSessionSeconds = durationSessions ? Math.round(totalDurationSec / durationSessions) : 0;
+
   const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
   const realtimeVisitors = new Set(
     rows
@@ -168,6 +196,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     authViews,
     activeUsers: Math.max(visitors.size, logins),
     conversionRate: visitors.size ? Math.round((signups / visitors.size) * 1000) / 10 : 0,
+    bounceRate,
+    avgSessionSeconds,
     topPages: countBy("path"),
     referrers: countBy("referrer"),
     countries: countBy("country"),
