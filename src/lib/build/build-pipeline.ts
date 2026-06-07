@@ -756,7 +756,9 @@ export async function runStagedBuildPipeline(input: {
     }
   }
 
+  /** Smoke builds may skip the model; production always runs frontend_implementation for premium UI. */
   const scaffoldSufficient =
+    smokeBuild &&
     hasFullScaffoldTree(archetype.id) &&
     filterRenderableBuildFiles(allFiles).length >= MIN_FULL_SCAFFOLD_FILES &&
     rootPageContentOk(allFiles);
@@ -764,9 +766,24 @@ export async function runStagedBuildPipeline(input: {
   if (!scaffoldSufficient) {
     track(events, "writing", "Generating source files");
     track(events, "writing", "Generating frontend files");
-    const fePrompt = smokeBuild
+    let fePrompt = smokeBuild
       ? minimalFrontendPrompt(executionPrompt, planJson!, contextSlices, designBrief)
       : frontendPrompt(executionPrompt, planJson!, uiJson, effectiveMaxFiles, contextSlices, designBrief);
+    if (allFiles.length > 0) {
+      const paths = filterRenderableBuildFiles(allFiles)
+        .map((f) => f.path)
+        .slice(0, 36)
+        .join(", ");
+      fePrompt += [
+        "",
+        "SCAFFOLD ENHANCEMENT: Starter files already exist — you MUST replace page and component source with premium, polished UI.",
+        "Keep the route structure but ship beautiful dashboards: gradients, cards, charts, tables with realistic mock data, empty states, and responsive spacing.",
+        "Do not leave placeholder shells or bare tables. Every screen should look like a funded SaaS product.",
+        paths ? `Existing paths to upgrade: ${paths}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+    }
     heavyBudget.record([fePrompt, BUILD_SYSTEM]);
     heavyBudget.assertWithinBudget(true);
     const feCall = await callProviderWithBuildTimeout(

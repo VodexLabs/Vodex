@@ -88,27 +88,46 @@ export function OverviewPreviewThumbnailControl({
         </div>
 
         <div className="min-w-[200px] flex-1 space-y-2">
-          {(["auto", "route", "upload"] as const).map((m) => (
-            <label
-              key={m}
-              className={cn(
-                "flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-[12px] transition hover:bg-accent/5",
-                mode === m && "bg-accent/8 font-semibold text-accent",
-              )}
-            >
-              <input
-                type="radio"
-                name="thumb-mode"
-                checked={mode === m}
-                onChange={() => {
-                  setMode(m);
-                  void save({ mode: m });
-                }}
-                className="accent-accent"
-              />
-              {m === "auto" ? "Auto home page screenshot" : m === "route" ? "Select route" : "Upload custom thumbnail"}
-            </label>
-          ))}
+          {(["auto", "route", "upload"] as const).map((m) => {
+            const isUpload = m === "upload";
+            return (
+              <label
+                key={m}
+                className={cn(
+                  "flex items-center gap-2 rounded-lg px-2 py-1.5 text-[12px] transition",
+                  isUpload
+                    ? "cursor-not-allowed opacity-70"
+                    : "cursor-pointer hover:bg-accent/5",
+                  mode === m && !isUpload && "bg-accent/8 font-semibold text-accent",
+                )}
+              >
+                <input
+                  type="radio"
+                  name="thumb-mode"
+                  checked={mode === m && !isUpload}
+                  disabled={isUpload}
+                  onChange={() => {
+                    if (isUpload) return;
+                    setMode(m);
+                    void save({ mode: m });
+                  }}
+                  className="accent-accent"
+                />
+                <span className="flex flex-wrap items-center gap-2">
+                  {m === "auto"
+                    ? "Auto home page screenshot"
+                    : m === "route"
+                      ? "Select route"
+                      : "Upload custom thumbnail"}
+                  {isUpload ? (
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Coming soon
+                    </span>
+                  ) : null}
+                </span>
+              </label>
+            );
+          })}
 
           {mode === "route" ? (
             <select
@@ -128,22 +147,9 @@ export function OverviewPreviewThumbnailControl({
           ) : null}
 
           {mode === "upload" ? (
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-background px-3 py-1.5 text-[12px] font-semibold ring-1 ring-border hover:ring-accent/30">
-              <Upload className="size-3.5" />
-              Upload image
-              <input
-                type="file"
-                accept="image/*"
-                className="sr-only"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  const url = URL.createObjectURL(file);
-                  setThumbUrl(url);
-                  void save({ url, mode: "upload" });
-                }}
-              />
-            </label>
+            <p className="text-[11px] text-muted-foreground">
+              Custom thumbnail uploads are coming soon. Use auto screenshot or route capture for now.
+            </p>
           ) : null}
         </div>
       </div>

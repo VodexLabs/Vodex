@@ -3,50 +3,70 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { History, X, RotateCcw, Loader2, GitCompare } from "lucide-react";
+import {
+  History,
+  X,
+  Loader2,
+  MessageSquareText,
+  Layers,
+  Globe,
+  Eye,
+  Rocket,
+  Sparkles,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import { VodexConfirmModal } from "@/components/ui/vodex-confirm-modal";
 
-type VersionRow = {
+type TimelineEntry = {
   id: string;
-  version_number: number;
-  summary: string | null;
-  mode: string | null;
-  credit_cost: number | null;
-  changed_paths: string[] | null;
+  kind: "prompt" | "snapshot" | "published";
   created_at: string;
-  published_at?: string | null;
+  title: string;
+  subtitle?: string;
+  prompt?: string;
+  version_id?: string;
+  version_number?: number;
+  publish_version?: number;
+  is_current_preview?: boolean;
+  is_live_published?: boolean;
+  changed_paths?: string[] | null;
 };
 
-function versionLabel(v: VersionRow, index: number, total: number): string {
-  if (index === 0) return "Current version";
-  if (v.published_at) return "Published version";
-  if (v.mode === "restore") return "Restored version";
-  if (index === total - 1) return "Previous version";
-  return `Version ${v.version_number}`;
-}
+type SwitchAction = "preview" | "publish";
 
 export function VersionHistoryDrawer({
   projectId,
   open,
   onClose,
+  onOpenPublish,
 }: {
   projectId: string;
   open: boolean;
   onClose: () => void;
+  onOpenPublish?: () => void;
 }) {
-  const [versions, setVersions] = React.useState<VersionRow[]>([]);
+  const [entries, setEntries] = React.useState<TimelineEntry[]>([]);
+  const [livePublishedVersion, setLivePublishedVersion] = React.useState<number | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [restoring, setRestoring] = React.useState<string | null>(null);
-  const [confirmId, setConfirmId] = React.useState<string | null>(null);
+  const [confirm, setConfirm] = React.useState<{
+    versionId: string;
+    action: SwitchAction;
+  } | null>(null);
 
   const load = React.useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/projects/${projectId}/versions`, { credentials: "include" });
-      const body = (await res.json()) as { versions?: VersionRow[] };
-      setVersions(body.versions ?? []);
+      const body = (await res.json()) as {
+        timeline?: TimelineEntry[];
+        live_published_version?: number | null;
+      };
+      setEntries(body.timeline ?? []);
+      setLivePublishedVersion(
+        typeof body.live_published_version === "number" ? body.live_published_version : null,
+      );
     } catch {
       toast.error("Could not load version history.");
     } finally {
@@ -68,7 +88,7 @@ export function VersionHistoryDrawer({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  async function restore(versionId: string) {
+  async function switchVersion(versionId: string, action: SwitchAction) {
     setRestoring(versionId);
     try {
       const res = await fetch(`/api/projects/${projectId}/versions`, {
@@ -78,15 +98,26 @@ export function VersionHistoryDrawer({
         body: JSON.stringify({ action: "restore", versionId }),
       });
       if (!res.ok) {
-        toast.error("Restore failed.");
+        toast.error("Could not switch version.");
         return;
       }
-      toast.success("Version restored — credits are not refunded.");
+      if (action === "preview") {
+        toast.success("Preview updated — your workspace now shows this version.");
+      } else {
+        toast.success("Version loaded — open Publish when you are ready to go live.");
+        onOpenPublish?.();
+      }
       await load();
     } finally {
       setRestoring(null);
-      setConfirmId(null);
+      setConfirm(null);
     }
+  }
+
+  function entryIcon(kind: TimelineEntry["kind"]) {
+    if (kind === "prompt") return MessageSquareText;
+    if (kind === "published") return Globe;
+    return Layers;
   }
 
   if (typeof document === "undefined") return null;
@@ -112,103 +143,180 @@ export function VersionHistoryDrawer({
             role="dialog"
             aria-label="Version history"
           >
-            <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <div className="flex items-center gap-2">
-                <History className="size-5 text-accent" />
-                <h2 className="text-[15px] font-semibold">Version history</h2>
+            <div className="border-b border-border px-4 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <History className="size-5 text-accent" />
+                  <div>
+                    <h2 className="text-[15px] font-semibold">Version history</h2>
+                    <p className="text-[11px] text-muted-foreground">
+                      Every prompt, preview snapshot, and published release
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Close"
+                  className="cursor-pointer rounded-lg p-1.5 text-muted-foreground hover:bg-surface hover:text-foreground"
+                >
+                  <X className="size-4" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Close"
-                className="cursor-pointer rounded-lg p-1.5 text-muted-foreground hover:bg-surface hover:text-foreground"
-              >
-                <X className="size-4" />
-              </button>
+              {livePublishedVersion != null ? (
+                <div className="mt-3 flex items-center gap-2 rounded-xl bg-emerald-500/10 px-3 py-2 ring-1 ring-emerald-500/20">
+                  <Globe className="size-3.5 text-emerald-600" />
+                  <span className="text-[11px] font-medium text-emerald-800 dark:text-emerald-300">
+                    Live published version: v{livePublishedVersion}
+                  </span>
+                </div>
+              ) : (
+                <div className="mt-3 rounded-xl bg-surface/80 px-3 py-2 text-[11px] text-muted-foreground ring-1 ring-border/70">
+                  Not published yet — preview builds stay in your workspace until you publish.
+                </div>
+              )}
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
               {loading ? (
                 <div className="flex items-center justify-center gap-2 py-12 text-[13px] text-muted-foreground">
                   <Loader2 className="size-4 animate-spin" />
-                  Loading versions…
+                  Loading history…
                 </div>
-              ) : versions.length === 0 ? (
+              ) : entries.length === 0 ? (
                 <p className="py-8 text-center text-[13px] text-muted-foreground">
-                  No saved versions yet. Builds create snapshots automatically.
+                  No history yet. Send a build prompt to create your first snapshot.
                 </p>
               ) : (
                 <ul className="space-y-3">
-                  {versions.map((v, i) => (
-                    <li
-                      key={v.id}
-                      className="rounded-xl bg-surface/80 p-3.5 ring-1 ring-border/70"
-                      data-testid={`version-row-${v.version_number}`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-[13px] font-semibold text-foreground">
-                            {versionLabel(v, i, versions.length)}
-                          </p>
-                          <p className="mt-0.5 text-[11px] text-muted-foreground">
-                            v{v.version_number} · {new Date(v.created_at).toLocaleString()}
-                          </p>
-                          {v.published_at ? (
-                            <span className="mt-1 inline-flex rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                              Published
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-                      {v.summary ? (
-                        <p className="mt-2 text-[12px] text-muted-foreground">{v.summary}</p>
-                      ) : null}
-                      {v.changed_paths?.length ? (
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                          {v.changed_paths.length} file{v.changed_paths.length === 1 ? "" : "s"} changed
-                        </p>
-                      ) : null}
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {i > 0 ? (
-                          <button
-                            type="button"
-                            disabled={restoring === v.id}
-                            onClick={() => setConfirmId(v.id)}
-                            className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-accent/10 px-2.5 py-1.5 text-[11px] font-semibold text-accent ring-1 ring-accent/20 hover:bg-accent hover:text-white"
-                          >
-                            {restoring === v.id ? (
-                              <Loader2 className="size-3 animate-spin" />
-                            ) : (
-                              <RotateCcw className="size-3" />
+                  {entries.map((entry) => {
+                    const Icon = entryIcon(entry.kind);
+                    const isSnapshot = entry.kind === "snapshot";
+                    const isPrompt = entry.kind === "prompt";
+                    return (
+                      <li
+                        key={entry.id}
+                        className={cn(
+                          "rounded-xl p-3.5 ring-1",
+                          entry.is_current_preview
+                            ? "bg-accent/5 ring-accent/30"
+                            : entry.is_live_published
+                              ? "bg-emerald-500/5 ring-emerald-500/25"
+                              : "bg-surface/80 ring-border/70",
+                        )}
+                        data-testid={`version-timeline-${entry.kind}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={cn(
+                              "flex size-9 shrink-0 items-center justify-center rounded-xl ring-1",
+                              entry.kind === "prompt"
+                                ? "bg-violet-500/10 ring-violet-500/20 text-violet-600"
+                                : entry.kind === "published"
+                                  ? "bg-emerald-500/10 ring-emerald-500/20 text-emerald-600"
+                                  : "bg-accent/10 ring-accent/20 text-accent",
                             )}
-                            Restore
-                          </button>
+                          >
+                            <Icon className="size-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-[13px] font-semibold text-foreground">{entry.title}</p>
+                              {entry.is_current_preview ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-semibold text-accent">
+                                  <Eye className="size-3" />
+                                  Current preview
+                                </span>
+                              ) : null}
+                              {entry.is_live_published ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                                  <Globe className="size-3" />
+                                  Live
+                                </span>
+                              ) : null}
+                            </div>
+                            <p className="mt-0.5 text-[11px] text-muted-foreground">
+                              {new Date(entry.created_at).toLocaleString()}
+                            </p>
+                            {entry.prompt ? (
+                              <p className="mt-2 line-clamp-4 text-[12px] leading-relaxed text-foreground/90">
+                                “{entry.prompt}”
+                              </p>
+                            ) : null}
+                            {entry.subtitle && !entry.prompt ? (
+                              <p className="mt-2 text-[12px] text-muted-foreground">{entry.subtitle}</p>
+                            ) : null}
+                            {entry.changed_paths?.length ? (
+                              <p className="mt-1 text-[11px] text-muted-foreground">
+                                {entry.changed_paths.length} file
+                                {entry.changed_paths.length === 1 ? "" : "s"} changed
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        {isSnapshot && entry.version_id && !entry.is_current_preview ? (
+                          <div className="mt-3 flex flex-wrap gap-2 border-t border-border/60 pt-3">
+                            <button
+                              type="button"
+                              disabled={restoring === entry.version_id}
+                              onClick={() =>
+                                setConfirm({ versionId: entry.version_id!, action: "preview" })
+                              }
+                              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-accent px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-accent/90"
+                            >
+                              {restoring === entry.version_id ? (
+                                <Loader2 className="size-3 animate-spin" />
+                              ) : (
+                                <Eye className="size-3" />
+                              )}
+                              Use for preview
+                            </button>
+                            <button
+                              type="button"
+                              disabled={restoring === entry.version_id}
+                              onClick={() =>
+                                setConfirm({ versionId: entry.version_id!, action: "publish" })
+                              }
+                              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-surface px-2.5 py-1.5 text-[11px] font-semibold text-foreground ring-1 ring-border hover:ring-accent/40"
+                            >
+                              <Rocket className="size-3" />
+                              Prepare to publish
+                            </button>
+                          </div>
                         ) : null}
-                        <button
-                          type="button"
-                          disabled
-                          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground ring-1 ring-border opacity-60"
-                        >
-                          <GitCompare className="size-3" />
-                          Compare
-                        </button>
-                      </div>
-                    </li>
-                  ))}
+
+                        {isPrompt ? (
+                          <div className="mt-2 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                            <Sparkles className="size-3 text-accent/80" />
+                            Saved before publish — switch preview snapshots above to revisit this build.
+                          </div>
+                        ) : null}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>
           </motion.aside>
 
           <VodexConfirmModal
-            open={Boolean(confirmId)}
-            title="Restore this version?"
-            description="Your project files will be replaced with this snapshot. Credits are not refunded."
-            confirmLabel="Restore version"
+            open={Boolean(confirm)}
+            title={
+              confirm?.action === "publish"
+                ? "Load this version for publishing?"
+                : "Switch preview to this version?"
+            }
+            description={
+              confirm?.action === "publish"
+                ? "Your workspace files will be replaced with this snapshot. Open Publish when you are ready to push it live — this does not auto-publish."
+                : "Your preview workspace will load this snapshot. Credits are not refunded."
+            }
+            confirmLabel={confirm?.action === "publish" ? "Load for publish" : "Use for preview"}
             loading={Boolean(restoring)}
-            onCancel={() => setConfirmId(null)}
+            onCancel={() => setConfirm(null)}
             onConfirm={() => {
-              if (confirmId) void restore(confirmId);
+              if (confirm) void switchVersion(confirm.versionId, confirm.action);
             }}
           />
         </>

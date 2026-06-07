@@ -74,6 +74,8 @@
     "verify:clickable-affordances": "node scripts/verify-p139-production.mjs clickable-affordances",
     "verify:zip-import-production-flow": "node scripts/verify-p139-production.mjs zip-import-production-flow",
     "verify:generated-preview-autostart": "node scripts/verify-p139-production.mjs generated-preview-autostart",
+    "verify:build-terminal-truth": "node scripts/verify-build-terminal-truth.mjs",
+    "verify:files-in-memory-not-catastrophic": "node scripts/verify-files-in-memory-not-catastrophic.mjs",
     "verify:p139-production": "node scripts/verify-p139-production.mjs",
     "verify:workflow-events-live": "node scripts/verify-p0-workflow-diagnostics.mjs workflow-events-live",
     "verify:build-diagnostics-center": "node scripts/verify-p0-workflow-diagnostics.mjs build-diagnostics-center",

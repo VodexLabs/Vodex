@@ -7,6 +7,11 @@ import type {
 } from "@/lib/build/workflow-stream-types";
 import { mapActivePhaseFromJobType } from "@/lib/build/workflow-status-guards";
 import { mapUserFacingWorkflowEvent } from "@/lib/workflow/user-facing-workflow-events";
+import {
+  extractWorkflowFileSignals,
+  hasRecoverableBuildFiles,
+  resolveBuildTerminalTruth,
+} from "@/lib/build/build-terminal-truth";
 
 const GENERIC_TITLES = new Set([
   "Understanding your app",
@@ -197,9 +202,37 @@ export function coalesceWorkflowStreamEvents(
 ): AgentWorkflowEvent[] {
   const terminal = options?.terminal ?? false;
   const byKey = new Map<string, AgentWorkflowEvent>();
+  const signals = extractWorkflowFileSignals(rows);
+  const suppressRefundBubble = hasRecoverableBuildFiles({ signals });
 
   for (const row of rows) {
-    const ev = rowToStreamEvent(row, terminal);
+    if (row.type === "refunded" && suppressRefundBubble) continue;
+    let ev = rowToStreamEvent(row, terminal);
+    if (
+      ev &&
+      row.type === "failed" &&
+      hasRecoverableBuildFiles({ signals })
+    ) {
+      const truth = resolveBuildTerminalTruth({
+        workflowEvents: rows,
+        failureKind:
+          typeof row.metadata?.failure_kind === "string"
+            ? row.metadata.failure_kind
+            : "failed_before_generation",
+      });
+      if (!truth.mayShowCatastrophicFailure) {
+        ev = {
+          ...ev,
+          title: truth.headline,
+          subtitle: truth.bodyLines[0],
+          status: truth.state === "build_complete_preview_ready" ? "done" : ev.status,
+          category:
+            truth.state === "build_complete_preview_ready"
+              ? "completed"
+              : ev.category,
+        };
+      }
+    }
     if (!ev) continue;
     const prev = byKey.get(ev.stableKey);
     if (!prev) {

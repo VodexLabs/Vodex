@@ -31,6 +31,10 @@ import {
   userSafeFailureDetail,
   userSafeFailureTitle,
 } from "@/lib/build/workflow-status-guards";
+import {
+  resolveBuildTerminalTruth,
+  truthFailureKindForPersist,
+} from "@/lib/build/build-terminal-truth";
 import { logServerOperation } from "@/lib/ops/server-ops-log";
 import { normalizeBuildError } from "@/lib/build/build-error";
 import {
@@ -752,8 +756,23 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
       metadata: {
         source_integrity_ok: true,
         file_count: postPersist.visibleFileCount,
+        files_persisted: postPersist.visibleFileCount,
+        files_persist_confirmed: true,
       },
     });
+
+    await input.writer
+      .from("projects")
+      .update({
+        metadata: {
+          ...projMeta,
+          files_persist_confirmed: true,
+          source_integrity_ok: true,
+          file_count: postPersist.visibleFileCount,
+        } as Json,
+      } as never)
+      .eq("id", input.projectId)
+      .eq("owner_id", input.userId);
 
     if (postPersist.persistenceFailure) {
       const failDetail = "technical_persistence_failure:files_without_readable_content";
@@ -783,28 +802,85 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
       return;
     }
 
-    const persistHardFail = !persist.persistOk || persist.savedCount < MIN_RENDERABLE_FILES;
-    const gateBlocksCompletion =
-      !fileGate.ok &&
-      !canCompleteWithSavedFiles(fileGate.fileCount, fileGate.failures);
+    let persistResult = persist;
+    let fileGateResult = fileGate;
+    let persistHardFail =
+      !persistResult.persistOk || persistResult.savedCount < MIN_RENDERABLE_FILES;
 
-    if (persistHardFail || gateBlocksCompletion) {
-      const savedCount = persistHardFail
-        ? 0
-        : Math.max(persist.savedCount, fileGate.fileCount);
+    if (persistHardFail && pr.files.length >= MIN_RENDERABLE_FILES) {
+      const { result: retryPersist } = await tracePersistGeneratedFiles({
+        writer: input.writer,
+        projectId: input.projectId,
+        ownerId: input.userId,
+        files: pr.files,
+        operationId: input.operationId,
+        executionInstanceId: workerCtx.executionInstanceId,
+        workflowEmit: {
+          writer: input.writer,
+          ctx: eventCtx,
+        },
+      });
+      if (retryPersist.persistOk && retryPersist.savedCount >= MIN_RENDERABLE_FILES) {
+        persistResult = retryPersist;
+        persistHardFail = false;
+        fileGateResult = await assertBuildFilesPersisted({
+          writer: input.writer,
+          projectId: input.projectId,
+          archetypeId: pr.appArchetype,
+        });
+      }
+    }
+
+    let gateBlocksCompletion =
+      !fileGateResult.ok &&
+      !canCompleteWithSavedFiles(fileGateResult.fileCount, fileGateResult.failures);
+
+    if (
+      gateBlocksCompletion &&
+      (persistResult.savedCount >= MIN_RENDERABLE_FILES || pr.files.length >= MIN_RENDERABLE_FILES)
+    ) {
+      const relaxedGate = await assertBuildFilesPersisted({
+        writer: input.writer,
+        projectId: input.projectId,
+        archetypeId: pr.appArchetype,
+        minComponents: 1,
+        minFiles: MIN_RENDERABLE_FILES,
+      });
+      if (relaxedGate.ok || canCompleteWithSavedFiles(relaxedGate.fileCount, relaxedGate.failures)) {
+        fileGateResult = relaxedGate;
+        gateBlocksCompletion = false;
+      }
+    }
+
+    const canProceedToPreview =
+      !persistHardFail &&
+      (fileGateResult.ok ||
+        canCompleteWithSavedFiles(fileGateResult.fileCount, fileGateResult.failures));
+
+    if (!canProceedToPreview) {
+      const savedCount = Math.max(persistResult.savedCount, fileGateResult.fileCount, pr.files.length);
+      const terminalTruth = resolveBuildTerminalTruth({
+        memoryFileCount: pr.files.length,
+        persistedFileCount: persistResult.savedCount,
+        failureKind: "failed_before_generation",
+        sourceIntegrityOk: false,
+        creditsRefunded: true,
+      });
+
       if (process.env.NODE_ENV !== "production") {
         console.warn("[execute-staged-build] files_persistence_failed", {
           projectId: input.projectId,
-          persistOk: persist.persistOk,
-          savedCount: persist.savedCount,
-          renderableCount: persist.renderableCount,
-          persistError: persist.error,
-          fileGateFailures: fileGate.failures,
+          persistOk: persistResult.persistOk,
+          savedCount: persistResult.savedCount,
+          persistError: persistResult.error,
+          fileGateFailures: fileGateResult.failures,
           persistHardFail,
           gateBlocksCompletion,
+          terminalState: terminalTruth.state,
         });
       }
-      if (savedCount < MIN_RENDERABLE_FILES) {
+
+      if (!terminalTruth.hasRecoverableFiles) {
         await clearGeneratedBuildFiles({
           writer: input.writer,
           projectId: input.projectId,
@@ -826,8 +902,8 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
       });
 
       const failDetail =
-        fileGate.failures.join("; ") ||
-        persist.error ||
+        fileGateResult.failures.join("; ") ||
+        persistResult.error ||
         "files_persistence_failed";
 
       await transitionBuildJobStatus(input.writer, {
@@ -846,25 +922,21 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
         skipJobStatusUpdate: true,
       });
 
-      const persistFailKind = failureKindForPersist({
-        fileCount: savedCount,
-        repairAttempted: false,
-      });
+      const truthKind = truthFailureKindForPersist(terminalTruth);
       await persistBuildJobEvent(input.writer, {
         ...eventCtx,
-        type: "failed",
-        title: userSafeFailureTitle(persistFailKind, savedCount > 0),
-        detail: userSafeFailureDetail(
-          persistFailKind,
-          fileGate.code ?? "files_persistence_failed",
-        ),
+        type: terminalTruth.hasRecoverableFiles ? "fixing_error" : "failed",
+        title: terminalTruth.headline,
+        detail: terminalTruth.bodyLines.join(" "),
         progressPercent: 100,
         metadata: {
-          failures: fileGate.failures,
-          persist_error: persist.error,
-          failure_kind: persistFailKind,
+          failures: fileGateResult.failures,
+          persist_error: persistResult.error,
+          failure_kind: truthKind,
           file_count: savedCount,
-          files_persisted: savedCount,
+          files_persisted: persistResult.savedCount,
+          memory_file_count: pr.files.length,
+          show_retry_save: terminalTruth.showRetrySave,
         },
       });
       return;

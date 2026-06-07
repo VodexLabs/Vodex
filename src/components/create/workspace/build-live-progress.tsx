@@ -14,6 +14,8 @@ export function BuildLiveProgress({
   userPrompt,
   projectId,
   ownerDiagnostics,
+  previewSucceeded,
+  savedFileCount,
 }: {
   progress: BuildJobPollState | null;
   className?: string;
@@ -25,6 +27,8 @@ export function BuildLiveProgress({
     open: boolean;
     onOpen: () => void;
   };
+  previewSucceeded?: boolean;
+  savedFileCount?: number;
 }) {
   if (!progress) return null;
   return (
@@ -36,6 +40,8 @@ export function BuildLiveProgress({
       userPrompt={userPrompt}
       projectId={projectId}
       ownerDiagnostics={ownerDiagnostics}
+      previewSucceeded={previewSucceeded}
+      savedFileCount={savedFileCount}
     />
   );
 }

@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { getProjectAccess } from "@/lib/projects/project-access";
-import { listAppVersions, restoreAppVersion } from "@/lib/projects/app-version-history";
+import { restoreAppVersion } from "@/lib/projects/app-version-history";
+import { buildProjectVersionTimeline } from "@/lib/projects/project-version-timeline";
 
 export const dynamic = "force-dynamic";
 
@@ -22,8 +23,16 @@ export async function GET(_req: Request, ctx: RouteCtx) {
   const admin = createSupabaseAdmin();
   if (!admin) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
 
-  const versions = await listAppVersions(admin, projectId);
-  return NextResponse.json({ versions });
+  const timeline = await buildProjectVersionTimeline(admin, projectId, user.id);
+  return NextResponse.json({
+    versions: timeline.versions,
+    timeline: timeline.entries,
+    prompts: timeline.prompts,
+    published_versions: timeline.published_versions,
+    current_preview_version_id: timeline.current_preview_version_id,
+    live_published_version: timeline.live_published_version,
+    project_published_at: timeline.project_published_at,
+  });
 }
 
 export async function POST(req: Request, ctx: RouteCtx) {

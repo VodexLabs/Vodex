@@ -1091,6 +1091,7 @@ export function ImmersiveWorkspace({
         facts,
         appName: project?.name ?? undefined,
         filesCount: facts.fileCount,
+        workflowEvents: terminal.events ?? [],
         creditsUsed:
           typeof terminal.latest?.metadata?.credits_used === "number"
             ? terminal.latest.metadata.credits_used
@@ -1099,6 +1100,10 @@ export function ImmersiveWorkspace({
         previewReady,
         uiRichnessPasses,
         sourceIntegrityOk,
+        persistenceConfirmed:
+          facts.fileCount >= 4 ||
+          meta.files_persist_confirmed === true ||
+          meta.source_integrity_ok === true,
       });
       const summary = resolved;
       setBuildRunSummary({
@@ -1147,12 +1152,18 @@ export function ImmersiveWorkspace({
         setProjectDataRefresh((n) => n + 1);
         const pid = projectIdRef.current;
         if (pid) invalidateProjectFilesCache(pid);
-        const terminalFiles =
+        const eventWritten = (terminal.events ?? []).filter((e) => e.type === "writing_file").length;
+        let terminalFiles =
           typeof terminal.latest?.metadata?.file_count === "number"
             ? terminal.latest.metadata.file_count
             : typeof terminal.latest?.metadata?.files_persisted === "number"
               ? terminal.latest.metadata.files_persisted
               : projectFiles.length;
+        terminalFiles = Math.max(terminalFiles, eventWritten, projectFiles.length);
+        for (const e of terminal.events ?? []) {
+          const m = e.detail?.match(/(\d+)\s+files in memory/i);
+          if (m) terminalFiles = Math.max(terminalFiles, Number(m[1]));
+        }
         applyTerminalBuildSummary(terminal, terminalFiles);
         setLastMessageCost({ state: "final", credits: 0 });
         if (uid) {
@@ -2626,7 +2637,42 @@ export function ImmersiveWorkspace({
   }, [effectiveProjectId]);
 
   React.useEffect(() => {
-    if (!effectiveProjectId || projectFiles.length < 4) return;
+    if (!previewSrcRenderable || projectFiles.length < 4) return;
+    setBuildRunSummary((prev) => {
+      if (!prev) return prev;
+      if (prev.variant === "completed" && prev.status === "completed") return prev;
+      return {
+        variant: "completed",
+        status: "completed",
+        headline: "Done — preview is ready",
+        bodyLines: [
+          `${projectFiles.length} file${projectFiles.length === 1 ? "" : "s"} in your project`,
+          "Preview is live — open the Preview tab to explore your app.",
+        ],
+        showRefundLine: false,
+        showRepairActions: false,
+        showPreviewActions: true,
+        refunded: false,
+      };
+    });
+    setSubmitStatusLabel("Done");
+  }, [previewSrcRenderable, projectFiles.length]);
+
+  const persistenceConfirmed = React.useMemo(() => {
+    if (projectFiles.length < 4) return false;
+    const meta =
+      project?.metadata && typeof project.metadata === "object" && !Array.isArray(project.metadata)
+        ? (project.metadata as Record<string, unknown>)
+        : {};
+    return (
+      meta.files_persist_confirmed === true ||
+      meta.source_integrity_ok === true ||
+      projectFiles.length >= 4
+    );
+  }, [project?.metadata, projectFiles.length]);
+
+  React.useEffect(() => {
+    if (!effectiveProjectId || !persistenceConfirmed) return;
     if (buildJobActive || buildStarting || previewStarting) return;
     if (previewSrcRenderable) return;
     if (!previewRuntime) return;
@@ -2645,7 +2691,7 @@ export function ImmersiveWorkspace({
     void startPreviewSession();
   }, [
     effectiveProjectId,
-    projectFiles.length,
+    persistenceConfirmed,
     buildJobActive,
     buildStarting,
     previewStarting,
@@ -3136,15 +3182,19 @@ export function ImmersiveWorkspace({
                     open: ownerDiagOpen,
                     onOpen: () => setOwnerDiagOpen(true),
                   }}
+                  previewSucceeded={previewSrcRenderable}
+                  savedFileCount={projectFiles.length}
                 />
               )}
-              {buildRunSummary && !buildJobActive && (
+              {buildRunSummary && !buildJobActive && !previewSrcRenderable && (
                 <BuildRunSummaryCard
                   variant={buildRunSummary.variant}
                   status={buildRunSummary.status}
                   headline={buildRunSummary.headline}
                   bodyLines={buildRunSummary.bodyLines}
                   appName={project?.name ?? undefined}
+                  filesCount={projectFiles.length}
+                  previewReady={previewSrcRenderable}
                   creditsUsed={buildRunSummary.creditsUsed}
                   remainingSummary={buildRunSummary.remainingSummary}
                   errorMessage={buildRunSummary.errorMessage}
@@ -3665,6 +3715,11 @@ export function ImmersiveWorkspace({
           projectId={effectiveProjectId}
           open={versionDrawerOpen}
           onClose={() => setVersionDrawerOpen(false)}
+          onOpenPublish={() => {
+            setRightTab("dashboard");
+            setDashboardSection("publish");
+            setVersionDrawerOpen(false);
+          }}
         />
       ) : null}
 

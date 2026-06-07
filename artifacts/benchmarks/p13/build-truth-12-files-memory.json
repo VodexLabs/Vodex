@@ -1,0 +1,30 @@
+{
+  "scenario": "12_files_in_memory_failed_before_generation",
+  "captured_at": "2026-06-07T16:00:00.000Z",
+  "prompt": "Build an Airbnb-style booking dashboard with listings, reservations, guest messages, revenue metrics, and calendar management.",
+  "workflow_signals": {
+    "memoryFileCount": 12,
+    "writingFileEvents": 12,
+    "failedEventFailureKind": "failed_before_generation",
+    "failedEventFileCount": 0,
+    "persistedFileCount": 0,
+    "refunded": true
+  },
+  "hasRecoverableFiles": true,
+  "mayShowCatastrophicFailure": false,
+  "expectedHeadline": "Files were generated but not saved yet",
+  "expectedHeadlineAlternates": [
+    "Build saved — preparing preview…",
+    "Build files generated — saving project…",
+    "Build needs attention — files are available"
+  ],
+  "forbiddenHeadlines": [
+    "Couldn't start the build"
+  ],
+  "forbiddenBodyLinesWhenRecoverable": [
+    "No credits were charged."
+  ],
+  "fix_version": "P1.3.11",
+  "resolver": "resolveBuildTerminalTruth",
+  "notes": "Stale failed_before_generation with file_count:0 must be overridden when memory/writing_file signals exist."
+}

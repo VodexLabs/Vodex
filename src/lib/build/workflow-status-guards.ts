@@ -6,6 +6,12 @@ import {
   mustNotShowBuildFailedHeadline,
   resolveCanonicalBuildState,
 } from "@/lib/build/build-state-truth";
+import {
+  extractWorkflowFileSignals,
+  guardCatastrophicHeadline,
+  hasRecoverableBuildFiles,
+  resolveBuildTerminalTruth,
+} from "@/lib/build/build-terminal-truth";
 
 /** Facts computed before showing any terminal status card. */
 export type BuildStatusFacts = {
@@ -66,6 +72,7 @@ const REPAIR_DETAIL_RE =
 
 function eventFileCount(events: BuildJobEventRow[]): number {
   let max = 0;
+  let writtenPaths = 0;
   for (const e of events) {
     const meta = e.metadata ?? {};
     const n =
@@ -78,10 +85,15 @@ function eventFileCount(events: BuildJobEventRow[]): number {
             : 0;
     if (n > max) max = n;
     if (e.type === "writing_file" || e.type === "editing_file") {
-      if (e.file_path) max = Math.max(max, 1);
+      if (e.file_path) writtenPaths += 1;
     }
+    const detail = e.detail ?? "";
+    const memoryMatch = detail.match(/(\d+)\s+files in memory/i);
+    if (memoryMatch) max = Math.max(max, Number(memoryMatch[1]));
+    const savedMatch = detail.match(/(\d+)\s+files (?:written|saved|verified)/i);
+    if (savedMatch) max = Math.max(max, Number(savedMatch[1]));
   }
-  return max;
+  return Math.max(max, writtenPaths);
 }
 
 function hasRefundedEvent(events: BuildJobEventRow[]): boolean {
@@ -130,7 +142,14 @@ export function deriveBuildStatusFacts(input: {
   if (failureKindMeta === "failed_before_generation") {
     fileCount = Math.max(fromProject, metaFileCount, terminalMetaCount ?? 0);
   }
-  const hasFiles = fileCount >= MIN_RENDERABLE_FILES || fileCount > 0;
+  const signals = extractWorkflowFileSignals(events);
+  fileCount = Math.max(fileCount, signals.workflowFileCount, signals.memoryFileCount);
+  const hasFiles =
+    hasRecoverableBuildFiles({
+      persistedFileCount: fileCount,
+      memoryFileCount: signals.memoryFileCount,
+      signals,
+    }) || fileCount >= MIN_RENDERABLE_FILES;
   const partialBuild =
     terminal?.latest?.type === "partial_credit_stop" ||
     events.some((e) => e.type === "partial_credit_stop");
@@ -164,6 +183,13 @@ export function deriveBuildStatusFacts(input: {
   if (failed && !partialBuild) {
     if (previewFailedMeta && hasFiles) {
       resolvedFailureKind = "preview_failed";
+    } else if (
+      hasFiles &&
+      (failureKindMeta === "failed_before_generation" || resolvedFailureKind === "failed_before_generation")
+    ) {
+      resolvedFailureKind = signals.memoryFileCount >= MIN_RENDERABLE_FILES && fileCount < MIN_RENDERABLE_FILES
+        ? "repair_needed"
+        : "failed_after_generation";
     } else if (!hasFiles && repairAttemptCount === 0) {
       resolvedFailureKind = "failed_before_generation";
     } else if (
@@ -239,8 +265,26 @@ export function resolveBuildRunSummary(input: {
   sourceIntegrityOk?: boolean;
   creditsUsed?: number;
   errorDetail?: string;
+  workflowEvents?: BuildJobEventRow[];
+  previewStatus?: string | null;
+  persistenceConfirmed?: boolean;
 }): BuildRunSummaryResolved {
   const filesCount = input.filesCount ?? input.facts.fileCount;
+  const terminalTruth = resolveBuildTerminalTruth({
+    workflowEvents: input.workflowEvents,
+    persistedFileCount: filesCount,
+    memoryFileCount: input.workflowEvents
+      ? extractWorkflowFileSignals(input.workflowEvents).memoryFileCount
+      : 0,
+    previewRenderable: input.previewReady,
+    previewStatus: input.previewStatus,
+    failureKind: input.facts.failureKind,
+    sourceIntegrityOk: input.sourceIntegrityOk,
+    previewFailed: input.facts.previewFailed,
+    creditsRefunded: input.facts.creditsRefunded,
+    persistenceConfirmed:
+      input.persistenceConfirmed === true || filesCount >= MIN_RENDERABLE_FILES,
+  });
 
   const copy: Record<WorkflowRunStatus, { headline: string; bodyLines: string[] }> = {
     waiting_for_prompt: {
@@ -426,10 +470,28 @@ export function resolveBuildRunSummary(input: {
     fileCount: filesCount,
   });
 
-  let headline = mustNotShowBuildFailedHeadline(savedFilesOk, block.headline);
+  let headline = guardCatastrophicHeadline(
+    mustNotShowBuildFailedHeadline(savedFilesOk, block.headline),
+    terminalTruth.hasRecoverableFiles,
+  );
   let bodyLines = block.bodyLines;
 
-  if (savedFilesOk && status !== "completed" && status !== "preview_ready") {
+  if (terminalTruth.hasRecoverableFiles) {
+    headline = terminalTruth.headline;
+    bodyLines = terminalTruth.bodyLines;
+    if (terminalTruth.state === "build_complete_preview_ready") {
+      status = "completed";
+    } else if (terminalTruth.state === "files_generated_preview_repair") {
+      status = "preview_failed";
+    } else if (terminalTruth.state === "files_generated_not_saved") {
+      status = "repair_needed";
+    } else if (terminalTruth.state !== "build_failed_no_files") {
+      status = savedFilesOk ? "failed_after_generation" : "repair_needed";
+    }
+    showRefundLine = terminalTruth.showRefundLine;
+    showRepairActions = terminalTruth.showRepairActions || showRepairActions;
+    showPreviewActions = terminalTruth.showPreviewActions || showPreviewActions;
+  } else if (savedFilesOk && status !== "completed" && status !== "preview_ready") {
     headline = canonicalCopy.headline;
     bodyLines = canonicalCopy.bodyLines;
   }
@@ -490,11 +552,11 @@ export function userSafeFailureTitle(
   hasFiles = false,
 ): string {
   if (hasFiles && kind === "failed_before_generation") {
-    return "Build saved — preview is being prepared";
+    return "Build saved — preparing preview…";
   }
   switch (kind) {
     case "failed_before_generation":
-      return "Couldn't start the build";
+      return guardCatastrophicHeadline("Couldn't start the build", hasFiles);
     case "failed_after_generation":
       return "Source files saved — needs attention";
     case "preview_failed":

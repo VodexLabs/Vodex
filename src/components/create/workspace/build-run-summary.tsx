@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import type { WorkflowRunStatus } from "@/lib/build/workflow-status-guards";
-import { mustNotShowBuildFailedHeadline } from "@/lib/build/build-state-truth";
+import { MIN_RENDERABLE_FILES } from "@/lib/build/build-success-contract";
+import {
+  guardCatastrophicHeadline,
+  resolveBuildTerminalTruth,
+} from "@/lib/build/build-terminal-truth";
 
 export type BuildRunSummaryVariant = "completed" | "partial" | "failed";
 
@@ -53,19 +57,28 @@ export function BuildRunSummaryCard({
   const partial = variant === "partial" || status === "partial_credit_stop";
   const failed = variant === "failed";
 
-  const hasFiles = typeof filesCount === "number" && filesCount > 0;
-  const title = mustNotShowBuildFailedHeadline(
-    hasFiles,
-    headline ??
-      (failed
-        ? status === "preview_failed"
-          ? "Files were saved. Preview needs repair."
-          : status === "failed_before_generation"
-            ? "Couldn't start the build"
-            : "Build needs attention"
-        : partial
-          ? "Build saved — next steps queued"
-          : "Build complete"),
+  const count = typeof filesCount === "number" ? filesCount : 0;
+  const truth = resolveBuildTerminalTruth({
+    persistedFileCount: count,
+    memoryFileCount: count,
+    previewRenderable: previewReady,
+    failureKind: status === "failed_before_generation" ? "failed_before_generation" : null,
+    persistenceConfirmed: count >= MIN_RENDERABLE_FILES,
+  });
+  const title = guardCatastrophicHeadline(
+    truth.hasRecoverableFiles
+      ? truth.headline
+      : headline ??
+          (failed
+            ? status === "preview_failed"
+              ? "Build saved — preview needs repair"
+              : status === "failed_before_generation"
+                ? "Couldn't start the build"
+                : "Build needs attention"
+            : partial
+              ? "Build saved — next steps queued"
+              : "Build complete"),
+    truth.hasRecoverableFiles || count >= MIN_RENDERABLE_FILES,
   );
 
   const lines =

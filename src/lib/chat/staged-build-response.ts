@@ -13,6 +13,7 @@ import { assertBuildFilesPersisted } from "@/lib/build/assert-build-files-persis
 import { startPreviewSession } from "@/lib/preview/preview-build-service";
 import { MIN_RENDERABLE_FILES } from "@/lib/build/build-success-contract";
 import { canCompleteWithSavedFiles } from "@/lib/build/post-build-contract";
+import { resolveBuildTerminalTruth } from "@/lib/build/build-terminal-truth";
 import { lifecyclePatch } from "@/lib/projects/project-lifecycle";
 
 type Writer = SupabaseClient<Database>;
@@ -122,23 +123,52 @@ export function createStagedBuildStreamResponse(input: {
           });
         }
 
-        const persist = await persistGeneratedBuildFiles({
+        let persist = await persistGeneratedBuildFiles({
           writer: input.writer,
           projectId: input.projectId,
           ownerId: input.userId,
           files: pr.files,
         });
 
-        const fileGate = await assertBuildFilesPersisted({
+        if (
+          (!persist.ok || persist.savedCount < MIN_RENDERABLE_FILES) &&
+          pr.files.length >= MIN_RENDERABLE_FILES
+        ) {
+          persist = await persistGeneratedBuildFiles({
+            writer: input.writer,
+            projectId: input.projectId,
+            ownerId: input.userId,
+            files: pr.files,
+          });
+        }
+
+        let fileGate = await assertBuildFilesPersisted({
           writer: input.writer,
           projectId: input.projectId,
           archetypeId: pr.appArchetype,
         });
 
+        if (
+          !fileGate.ok &&
+          !canCompleteWithSavedFiles(fileGate.fileCount, fileGate.failures) &&
+          (persist.savedCount >= MIN_RENDERABLE_FILES || pr.files.length >= MIN_RENDERABLE_FILES)
+        ) {
+          const relaxedGate = await assertBuildFilesPersisted({
+            writer: input.writer,
+            projectId: input.projectId,
+            archetypeId: pr.appArchetype,
+            minComponents: 1,
+            minFiles: MIN_RENDERABLE_FILES,
+          });
+          if (relaxedGate.ok || canCompleteWithSavedFiles(relaxedGate.fileCount, relaxedGate.failures)) {
+            fileGate = relaxedGate;
+          }
+        }
+
         const filesSavable =
           persist.ok &&
           persist.savedCount >= MIN_RENDERABLE_FILES &&
-          canCompleteWithSavedFiles(fileGate.fileCount, fileGate.failures);
+          (fileGate.ok || canCompleteWithSavedFiles(fileGate.fileCount, fileGate.failures));
 
         const previewResult = filesSavable
           ? await startPreviewSession({
@@ -153,6 +183,19 @@ export function createStagedBuildStreamResponse(input: {
           pr.buildContract.passed &&
           filesSavable &&
           previewResult.ok;
+
+        const terminalTruth = resolveBuildTerminalTruth({
+          memoryFileCount: pr.files.length,
+          persistedFileCount: persist.savedCount,
+          failureKind: buildSucceeded ? null : "failed_before_generation",
+          persistenceConfirmed: filesSavable,
+        });
+        if (!buildSucceeded && terminalTruth.hasRecoverableFiles) {
+          pr.buildContract = {
+            ...pr.buildContract,
+            userMessage: terminalTruth.headline,
+          };
+        }
 
         if (!buildSucceeded) {
           await refundBuildReservation({

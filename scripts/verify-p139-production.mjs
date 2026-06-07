@@ -22,8 +22,10 @@ const suites = {
   "build-state-truth": () => {
     const errors = [];
     must(read("src/lib/build/build-state-truth.ts"), "build_failed_no_files", "canonical states", errors);
+    must(read("src/lib/build/build-terminal-truth.ts"), "resolveBuildTerminalTruth", "P1.3.11 terminal truth", errors);
     must(read("src/lib/build/workflow-status-guards.ts"), "resolveCanonicalBuildState", "wired to guards", errors);
-    must(read("src/components/create/workspace/build-run-summary.tsx"), "mustNotShowBuildFailedHeadline", "summary guard", errors);
+    must(read("src/lib/build/workflow-status-guards.ts"), "resolveBuildTerminalTruth", "guards use terminal truth", errors);
+    must(read("src/components/create/workspace/build-run-summary.tsx"), "resolveBuildTerminalTruth", "summary guard", errors);
     mustNot(read("src/lib/build/workflow-status-guards.ts"), "Draft saved — additional generation needed", "no draft saved copy", errors);
     return errors;
   },

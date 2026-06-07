@@ -174,16 +174,36 @@ export async function persistGeneratedBuildFiles(input: {
         .eq("id", input.projectId)
         .maybeSingle();
       if (projectRow?.owner_id) {
-        await saveAppVersionSnapshot({
+        const saved = await saveAppVersionSnapshot({
           admin: writer,
           projectId: input.projectId,
           ownerId: projectRow.owner_id,
           workspaceId: projectRow.workspace_id,
           createdBy: projectRow.owner_id,
           mode: "build",
-          summary: `Build persist — ${renderable.length} files`,
+          summary: `Preview snapshot — ${renderable.length} files`,
           files: renderable.map((f) => ({ path: f.path, content: f.content })),
         });
+        if (saved?.versionId) {
+          const { data: cur } = await writer
+            .from("projects")
+            .select("metadata")
+            .eq("id", input.projectId)
+            .maybeSingle();
+          const prevMeta =
+            cur?.metadata && typeof cur.metadata === "object" && !Array.isArray(cur.metadata)
+              ? (cur.metadata as Record<string, unknown>)
+              : {};
+          await writer
+            .from("projects")
+            .update({
+              metadata: {
+                ...prevMeta,
+                current_preview_version_id: saved.versionId,
+              } as never,
+            } as never)
+            .eq("id", input.projectId);
+        }
       }
     } catch {
       /* version history is best-effort */

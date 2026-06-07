@@ -24,8 +24,8 @@ import { shouldAutoOpenOwnerDiagnostics } from "@/lib/build/owner-diagnostics-au
 import { isDreamosOwnerEmail } from "@/lib/admin-owner";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { userMessageForPreviewFailure, isPreviewFailureCode } from "@/lib/preview/preview-failure-codes";
-import { mustNotShowBuildFailedHeadline } from "@/lib/build/build-state-truth";
 import { MIN_RENDERABLE_FILES } from "@/lib/build/build-success-contract";
+import { resolveBuildTerminalTruth } from "@/lib/build/build-terminal-truth";
 import { AnimatedLineDelta } from "@/components/create/workspace/animated-line-delta";
 
 function isFileEvent(ev: AgentWorkflowEvent): boolean {
@@ -183,16 +183,45 @@ function workflowEventSavedFileCount(event: AgentWorkflowEvent): number {
   return 0;
 }
 
-function ProgressRow({ event, reducedMotion }: { event: AgentWorkflowEvent; reducedMotion: boolean }) {
+function ProgressRow({
+  event,
+  reducedMotion,
+  streamFileCount,
+  previewSucceeded,
+  workflowEvents,
+}: {
+  event: AgentWorkflowEvent;
+  reducedMotion: boolean;
+  streamFileCount: number;
+  previewSucceeded: boolean;
+  workflowEvents: BuildJobPollState["events"];
+}) {
   const code = event.metadata?.preview_failure_code;
   const friendlyFailure =
     typeof code === "string" && isPreviewFailureCode(code)
       ? userMessageForPreviewFailure(code)
       : event.subtitle;
-  const hasSavedFiles = workflowEventSavedFileCount(event) >= MIN_RENDERABLE_FILES;
-  const label =
-    event.status === "failed"
-      ? mustNotShowBuildFailedHeadline(hasSavedFiles, event.title)
+  const truth = resolveBuildTerminalTruth({
+    workflowEvents: workflowEvents ?? [],
+    persistedFileCount: streamFileCount,
+    memoryFileCount: streamFileCount,
+    previewRenderable: previewSucceeded,
+    failureKind:
+      event.status === "failed" && typeof event.metadata?.failure_kind === "string"
+        ? event.metadata.failure_kind
+        : event.status === "failed"
+          ? "failed_before_generation"
+          : null,
+    persistenceConfirmed: streamFileCount >= MIN_RENDERABLE_FILES,
+  });
+  const recovered =
+    (previewSucceeded || truth.hasRecoverableFiles) &&
+    event.status === "failed" &&
+    !truth.mayShowCatastrophicFailure;
+  const label = recovered
+    ? truth.headline
+    : event.status === "failed" && truth.hasRecoverableFiles
+      ? truth.headline
       : event.title;
 
   return (
@@ -203,22 +232,50 @@ function ProgressRow({ event, reducedMotion }: { event: AgentWorkflowEvent; redu
       data-testid={`workflow-event-${event.category}`}
     >
       <WorkflowStepCard
-        status={mapStepStatus(event)}
+        status={recovered ? "completed" : mapStepStatus(event)}
         label={label}
-        sublabel={event.status === "failed" ? friendlyFailure : event.subtitle}
+        sublabel={
+          recovered
+            ? truth.bodyLines[0] ?? "Preview is live in the workspace."
+            : event.status === "failed" && truth.hasRecoverableFiles
+              ? truth.bodyLines[0] ?? friendlyFailure
+              : event.status === "failed"
+                ? friendlyFailure
+                : event.subtitle
+        }
         progress={event.progress}
-        error={event.status === "failed" ? friendlyFailure : undefined}
+        error={recovered ? undefined : event.status === "failed" ? friendlyFailure : undefined}
       />
     </motion.div>
   );
 }
 
-function TimelineRow({ event, reducedMotion }: { event: AgentWorkflowEvent; reducedMotion: boolean }) {
+function TimelineRow({
+  event,
+  reducedMotion,
+  streamFileCount,
+  previewSucceeded,
+  workflowEvents,
+}: {
+  event: AgentWorkflowEvent;
+  reducedMotion: boolean;
+  streamFileCount: number;
+  previewSucceeded: boolean;
+  workflowEvents: BuildJobPollState["events"];
+}) {
   if (isFileEvent(event)) return <FileChangeCard event={event} />;
   if (event.category === "assistant_message") {
     return <AssistantBubble>{event.subtitle ?? event.title}</AssistantBubble>;
   }
-  return <ProgressRow event={event} reducedMotion={reducedMotion} />;
+  return (
+    <ProgressRow
+      event={event}
+      reducedMotion={reducedMotion}
+      streamFileCount={streamFileCount}
+      previewSucceeded={previewSucceeded}
+      workflowEvents={workflowEvents}
+    />
+  );
 }
 
 /** Build activity as chat rows — parent chat column owns scrolling. */
@@ -230,6 +287,8 @@ export function AgentWorkflowStream({
   userPrompt,
   projectId,
   ownerDiagnostics,
+  previewSucceeded = false,
+  savedFileCount = 0,
 }: {
   progress: BuildJobPollState | null;
   className?: string;
@@ -242,6 +301,8 @@ export function AgentWorkflowStream({
     open: boolean;
     onOpen: () => void;
   };
+  previewSucceeded?: boolean;
+  savedFileCount?: number;
 }) {
   const reducedMotion = useReducedMotion();
   const email = useAuthStore((s) => s.user?.email);
@@ -330,6 +391,11 @@ export function AgentWorkflowStream({
       : [];
   const merged = mergeEphemeralWithServerEvents(ephemeral, serverSequential);
   const grouped = groupFileEvents(merged);
+  const streamFileCount = Math.max(
+    savedFileCount,
+    grouped.filter((e) => isFileEvent(e)).length,
+    (progress.events ?? []).filter((e) => e.type === "writing_file").length,
+  );
   const timelineRaw = applySingleActiveWorkflowStep(grouped, working).slice(-24);
   const batchPersistStagger = timelineRaw.some((e) => e.metadata?.batch_persist === true);
   const timeline = useStaggeredWorkflowEvents(timelineRaw, batchPersistStagger);
@@ -373,13 +439,25 @@ export function AgentWorkflowStream({
         <AnimatePresence initial={false}>
           {completedTimeline.map((ev) => (
             <li key={ev.stableKey}>
-              <TimelineRow event={ev} reducedMotion={Boolean(reducedMotion)} />
+              <TimelineRow
+                event={ev}
+                reducedMotion={Boolean(reducedMotion)}
+                streamFileCount={streamFileCount}
+                previewSucceeded={previewSucceeded}
+                workflowEvents={progress.events}
+              />
             </li>
           ))}
         </AnimatePresence>
         {active ? (
           <li data-testid="workflow-active-step">
-            <TimelineRow event={active} reducedMotion={Boolean(reducedMotion)} />
+            <TimelineRow
+              event={active}
+              reducedMotion={Boolean(reducedMotion)}
+              streamFileCount={streamFileCount}
+              previewSucceeded={previewSucceeded}
+              workflowEvents={progress.events}
+            />
           </li>
         ) : null}
       </ul>
@@ -394,10 +472,12 @@ export function AgentWorkflowStream({
         </p>
       ) : null}
 
-      {failed ? (
+      {failed && !previewSucceeded ? (
         <div className="mr-6 space-y-2 sm:mr-10">
           <p className="rounded-lg bg-destructive/10 px-2 py-1.5 text-[10.5px] text-destructive">
-            {progress.error ?? "App files were created, but preview needs attention."}
+            {streamFileCount >= MIN_RENDERABLE_FILES
+              ? "Files were saved — preview may still be loading. Open the Preview tab or retry preview."
+              : progress.error ?? "App files were created, but preview needs attention."}
           </p>
           {adminDiagnostics ? (
             <button
