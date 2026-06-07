@@ -37,6 +37,7 @@ import {
 } from "@/components/create/workspace/plan-first-control";
 import { DEFAULT_MODEL_ID } from "@/lib/creation/models";
 import {
+  freshPageLoadSeed,
   pickRandomAppIdeas,
   pickComposerChipIdeas,
   SSR_HOME_IDEAS_SEED,
@@ -100,7 +101,7 @@ function useSessionAppIdeas(count: number): AppIdeaPrompt[] {
   );
   React.useEffect(() => {
     if (!hydrated) return;
-    setIdeas(pickRandomAppIdeas(count));
+    setIdeas(pickRandomAppIdeas(count, freshPageLoadSeed()));
   }, [hydrated, count]);
   return ideas;
 }
@@ -112,7 +113,7 @@ function useSessionComposerIdeas(count: number) {
   );
   React.useEffect(() => {
     if (!hydrated) return;
-    setIdeas(pickComposerChipIdeas(count));
+    setIdeas(pickComposerChipIdeas(count, freshPageLoadSeed()));
   }, [hydrated, count]);
   return ideas;
 }

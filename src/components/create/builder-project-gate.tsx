@@ -80,10 +80,14 @@ export function BuilderProjectGate({
   }, [appId, supabase, userId]);
 
   React.useEffect(() => {
+    setProject(initialProject);
+    setFailureReason(loadError);
     if (initialProject) {
       setPhase("ready");
       return;
     }
+    setPhase("loading");
+    attemptsRef.current = 0;
 
     let cancelled = false;
     const started = Date.now();
@@ -113,7 +117,7 @@ export function BuilderProjectGate({
     return () => {
       cancelled = true;
     };
-  }, [appId, failureReason, fetchProject, initialProject, userId]);
+  }, [appId, failureReason, fetchProject, initialProject, loadError, userId]);
 
   if (phase === "loading") {
     return (
@@ -189,6 +193,7 @@ export function BuilderProjectGate({
 
   return (
     <ImmersiveWorkspace
+      key={appId}
       initialPrompt={initialPrompt}
       initialMode={initialMode}
       initialAutoStart={initialAutoStart}

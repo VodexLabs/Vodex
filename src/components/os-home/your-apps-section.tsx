@@ -75,7 +75,20 @@ export function YourAppsSection({
             const iconSrc = projectIconSrc(p.id, p.icon_svg, p.icon_url, p.updated_at);
             const importedPending = isImportedAppWithoutPreview(p);
             const cardStatus = resolveProjectCardStatus(p);
-            const showPreview = cardStatus === "ready" && Boolean(p.preview_url);
+            const meta =
+              p.metadata && typeof p.metadata === "object" && !Array.isArray(p.metadata)
+                ? (p.metadata as Record<string, unknown>)
+                : {};
+            const previewRenderable = meta.preview_renderable === true;
+            const cardFramePreviewUrl = `/api/projects/${p.id}/preview-html?format=frame&route=${encodeURIComponent("/")}`;
+            const showPreview =
+              cardStatus === "ready" && (Boolean(p.preview_url) || previewRenderable);
+            const bannerPreviewUrl =
+              showPreview && !importedPending
+                ? p.preview_url?.includes("/preview-html")
+                  ? p.preview_url
+                  : cardFramePreviewUrl
+                : null;
             const showStatusCtas =
               cardStatus === "preview_failed" || cardStatus === "failed" || isAdmin;
             return (
@@ -94,7 +107,7 @@ export function YourAppsSection({
                   <ProjectBanner
                     projectId={p.id}
                     bannerSvg={p.banner_svg}
-                    previewUrl={showPreview ? p.preview_url : null}
+                    previewUrl={bannerPreviewUrl}
                     title={p.name}
                     heightClass="h-[108px]"
                     previewOnly={!showPreview}
@@ -105,6 +118,7 @@ export function YourAppsSection({
                     <div className="flex items-start gap-2.5 p-3">
                       <ProjectIcon
                         projectId={p.id}
+                        name={p.name}
                         iconSvg={p.icon_svg}
                         iconUrl={p.icon_url}
                         cacheKey={p.updated_at}

@@ -53,7 +53,7 @@ export function routeBuilderTask(
 ): TaskRouteResult {
   const text = prompt.trim();
   const hasProject = Boolean(opts?.projectId);
-  const hasFiles = opts?.hasFiles !== false;
+  const hasFiles = Boolean(opts?.hasFiles);
 
   if (!text || text.length < 2) {
     return {
@@ -174,13 +174,14 @@ export function routeBuilderTask(
   }
 
   if (create.intent === "app_edit_request") {
+    const canEdit = hasProject && hasFiles;
     return {
-      route: "project_edit",
+      route: canEdit ? "project_edit" : "project_build",
       confidence: create.confidence,
-      reason: "create_intent_edit",
+      reason: canEdit ? "create_intent_edit" : "edit_requires_files_first_build",
       shouldCreateProject: hasProject,
-      shouldStartBuildPipeline: hasProject,
-      shouldChargeBuildCredits: false,
+      shouldStartBuildPipeline: true,
+      shouldChargeBuildCredits: !canEdit,
       needsClarification: create.needsClarification,
       clarificationPrompt: create.clarificationPrompt,
     };

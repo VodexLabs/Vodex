@@ -1,5 +1,6 @@
 import type { ZipImportFile } from "@/lib/import/zip-file-validator";
 import { buildInitialsIconSvg } from "@/lib/projects/build-initials-icon-svg";
+import { isWeakIconSvg } from "@/lib/projects/ensure-project-icon";
 
 const ICON_PATH_PREFS = [
   "public/favicon.svg",
@@ -35,7 +36,7 @@ function iconFromManifest(files: ZipImportFile[]): DetectedAppIcon | null {
       const hit = files.find((f) => f.path === src || f.path.endsWith(`/${src}`));
       if (hit && hit.path.endsWith(".svg")) {
         const svg = normalizeSvg(hit.content);
-        if (svg) return { svg, source: "manifest", path: hit.path };
+        if (svg && !isWeakIconSvg(svg)) return { svg, source: "manifest", path: hit.path };
       }
     }
   } catch {
@@ -50,7 +51,7 @@ export function detectAppIconFromImport(files: ZipImportFile[], appName: string)
     const hit = files.find((f) => f.path.toLowerCase() === pref);
     if (hit) {
       const svg = normalizeSvg(hit.content);
-      if (svg) return { svg, source: "imported_svg", path: hit.path };
+      if (svg && !isWeakIconSvg(svg)) return { svg, source: "imported_svg", path: hit.path };
     }
   }
 
@@ -62,7 +63,7 @@ export function detectAppIconFromImport(files: ZipImportFile[], appName: string)
   );
   if (svgHit) {
     const svg = normalizeSvg(svgHit.content);
-    if (svg) return { svg, source: "imported_svg", path: svgHit.path };
+    if (svg && !isWeakIconSvg(svg)) return { svg, source: "imported_svg", path: svgHit.path };
   }
 
   const fromManifest = iconFromManifest(files);

@@ -181,17 +181,12 @@ export function consumeAutostartHandoff(
 
   if (!chosen) return null;
 
-  if (chosen.consumed && wasOperationSubmitted(chosen.id)) {
+  if (chosen.consumed) {
     pushRuntimeDiagnostic("prompt_submit_skipped_duplicate", {
-      reason: "already_submitted",
+      reason: wasOperationSubmitted(chosen.id) ? "already_submitted" : "handoff_already_consumed",
       id: chosen.id,
     });
     return null;
-  }
-
-  if (chosen.consumed && !wasOperationSubmitted(chosen.id)) {
-    pushRuntimeDiagnostic("handoff_consumed", { id: chosen.id, recovered: true });
-    chosen = { ...chosen, consumed: false };
   }
 
   if (wasOperationSubmitted(chosen.id)) {

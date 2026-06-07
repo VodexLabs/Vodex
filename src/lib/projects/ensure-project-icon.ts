@@ -13,6 +13,15 @@ export function isWeakIconSvg(svg: string | null | undefined): boolean {
   const hasSolidCircle = /<circle[^>]+fill=(?!["']none["'])/i.test(svg);
   const hasSolidPath = /<path[^>]+fill=(?!["']none["'])/i.test(svg);
   if (!hasSolidRect && !hasSolidCircle && !hasSolidPath) return true;
+  const whiteFill =
+    /fill=["'](#fff(?:fff)?|white)["']/i.test(svg) ||
+    /fill:\s*(#fff(?:fff)?|white)\b/i.test(svg) ||
+    /fill=["']rgba?\(\s*255\s*,\s*255\s*,\s*255/i.test(svg);
+  const hasDarkBackdrop =
+    /fill=["'](#(?:0{3}|[0-9a-f]{6}))["']/i.test(svg) ||
+    /fill:\s*hsl\(/i.test(svg) ||
+    /linearGradient/i.test(svg);
+  if (whiteFill && !hasDarkBackdrop) return true;
   return false;
 }
 

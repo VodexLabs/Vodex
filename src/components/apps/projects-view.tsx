@@ -123,7 +123,17 @@ function ProjectCard({
       : null;
   const bannerSvg = project.banner_svg ?? null;
   const ls = project.lifecycle_status ?? readLifecycleFromMetadata(project.metadata).lifecycle_status;
-  const canPreview = cardStatus === "ready" && Boolean(project.preview_url);
+  const importedPending = isImportedAppWithoutPreview(project);
+  const previewRenderable = meta.preview_renderable === true;
+  const canPreview =
+    cardStatus === "ready" && (Boolean(project.preview_url) || previewRenderable);
+  const cardFramePreviewUrl = `/api/projects/${project.id}/preview-html?format=frame&route=${encodeURIComponent("/")}`;
+  const resolvedBannerPreviewUrl =
+    canPreview && !importedPending
+      ? project.preview_url?.includes("/preview-html")
+        ? project.preview_url
+        : cardFramePreviewUrl
+      : null;
   const canPublish =
     cardStatus === "ready" &&
     (ls === "preview_ready" || ls === "publish_ready" || ls === "published" || ls === "imported_preview_ready");
@@ -137,8 +147,6 @@ function ProjectCard({
     project.icon_url,
     project.updated_at,
   );
-  const importedPending = isImportedAppWithoutPreview(project);
-
   return (
     <motion.div
       layout
@@ -154,7 +162,7 @@ function ProjectCard({
         <ProjectBanner
           projectId={project.id}
           bannerSvg={bannerSvg}
-          previewUrl={canPreview ? project.preview_url : null}
+          previewUrl={resolvedBannerPreviewUrl}
           title={appName}
           className="pointer-events-none"
           previewOnly={!canPreview}
@@ -168,6 +176,7 @@ function ProjectCard({
           <Link href={`/projects/${project.id}`} className="flex min-w-0 items-start gap-2.5">
             <ProjectIcon
               projectId={project.id}
+              name={appName}
               iconSvg={iconSvg}
               iconUrl={project.icon_url}
               cacheKey={project.updated_at}

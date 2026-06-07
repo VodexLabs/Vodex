@@ -1,11 +1,7 @@
 /** Deterministic solid-gradient initials icon (no transparency). */
 export function buildInitialsIconSvg(title: string): string {
-  const words = title.trim().split(/\s+/).filter(Boolean);
-  const initials =
-    words.length >= 2
-      ? (words[0]!.charAt(0) + words[1]!.charAt(0)).toUpperCase()
-      : (title.trim().charAt(0) || "A").toUpperCase();
-  const ch = escapeXml(initials.slice(0, 2));
+  const initial = (title.trim().charAt(0) || "A").toUpperCase();
+  const ch = escapeXml(initial);
   const hue = hashHue(title.trim() || "App");
   const c1 = `hsl(${hue}, 72%, 48%)`;
   const c2 = `hsl(${(hue + 36) % 360}, 68%, 38%)`;
@@ -18,7 +14,7 @@ export function buildInitialsIconSvg(title: string): string {
     </linearGradient>
   </defs>
   <circle cx="64" cy="64" r="64" fill="url(#g)"/>
-  <text x="64" y="78" text-anchor="middle" font-family="system-ui,Segoe UI,sans-serif" font-size="${initials.length > 1 ? 44 : 52}" font-weight="700" fill="#ffffff">${ch}</text>
+  <text x="64" y="78" text-anchor="middle" font-family="system-ui,Segoe UI,sans-serif" font-size="52" font-weight="700" fill="#ffffff">${ch}</text>
 </svg>`;
 }
 

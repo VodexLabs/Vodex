@@ -129,7 +129,6 @@ import { MobileWrapperStudio } from "@/components/mobile/mobile-wrapper-studio";
 import type { AppBlueprint } from "@/lib/build/blueprint-schema";
 import { findProjectConversationId } from "@/lib/projects/project-conversation";
 import {
-  clearAutostartDone,
   clearOperationSubmitted,
   consumeAutostartHandoff,
   storeAutostartHandoff,
@@ -138,7 +137,6 @@ import {
   markOperationSubmitted,
   seedPendingFromUrl,
   shouldSkipDuplicateClientSubmit,
-  wasAutostartDone,
   wasOperationSubmitted,
 } from "@/lib/create/autostart-handoff";
 import { pushRuntimeDiagnostic } from "@/lib/dev/runtime-diagnostics";
@@ -1923,6 +1921,7 @@ export function ImmersiveWorkspace({
         setBuildStarting(false);
       } else if (
         activeProjectId &&
+        (codeFiles.length > 0 || projectFiles.length > 0) &&
         (taskRoute.route === "project_edit" || taskRoute.route === "project_repair")
       ) {
         submitMode = "edit";
@@ -2298,29 +2297,7 @@ export function ImmersiveWorkspace({
     if (pending && wasOperationSubmitted(pending.id)) return;
 
     const handoff = consumeAutostartHandoff(urlPrompt || peeked!.text, mode);
-    if (!handoff) {
-      if (pending && wasAutostartDone(pending.id) && !wasOperationSubmitted(pending.id)) {
-        clearAutostartDone(pending.id);
-        clearOperationSubmitted(pending.id);
-        const retry = consumeAutostartHandoff(urlPrompt || peeked!.text, mode);
-        if (!retry) return;
-        handoffProjectKeyRef.current = retry.idempotencyKey;
-        autostartConsumedRef.current = true;
-        autoStartedRef.current = true;
-        setChatEngaged(true);
-        setPendingUserBubble(retry.text);
-        setMobilePanel("chat");
-        applyComposerText("");
-        if (retry.buildStrategy) {
-          setBuildStrategy(retry.buildStrategy);
-          buildStrategyRef.current = retry.buildStrategy;
-        }
-        if (retry.modelId) setModelId(retry.modelId);
-        cleanAutostartUrl();
-        invokeAutostartSubmit("url-auto", retry.text);
-      }
-      return;
-    }
+    if (!handoff) return;
 
     autostartConsumedRef.current = true;
     autoStartedRef.current = true;
@@ -2335,7 +2312,9 @@ export function ImmersiveWorkspace({
     }
 
     setChatEngaged(true);
-    setPendingUserBubble(handoff.text);
+    if (!safeInitialConversationId) {
+      setPendingUserBubble(handoff.text);
+    }
     setMobilePanel("chat");
     applyComposerText("");
     if (handoff.buildStrategy) {
@@ -2507,20 +2486,17 @@ export function ImmersiveWorkspace({
     if (buildJobActiveRef.current || activeBuildJob) return;
     if (autostartConsumedRef.current || autoStartedRef.current || submitInFlightRef.current) return;
     if (projectFiles.length > 0 || parsedSourceFiles.length > 0) return;
-    const handoff = peekPendingAutostartHandoff();
+    const handoff = consumeAutostartHandoff("", mode);
     if (!handoff?.text?.trim()) return;
-    if (wasOperationSubmitted(handoff.id)) return;
 
     autostartConsumedRef.current = true;
     autoStartedRef.current = true;
+    handoffProjectKeyRef.current = handoff.idempotencyKey;
     setChatEngaged(true);
     setPendingUserBubble(handoff.text);
-    void runSubmitRef.current("url-auto", handoff.text).catch(() => {
-      autostartConsumedRef.current = false;
-      autoStartedRef.current = false;
-    });
+    invokeAutostartSubmit("url-auto", handoff.text);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- resume once per project mount
-  }, [hydrated, effectiveProjectId, activeBuildJob, projectFiles.length, parsedSourceFiles.length, initialAutoStart]);
+  }, [hydrated, effectiveProjectId, activeBuildJob, projectFiles.length, parsedSourceFiles.length, initialAutoStart, mode]);
 
   const codeFiles = React.useMemo((): CodeExplorerFile[] => {
     if (projectFiles.length > 0) return projectFiles;
@@ -2627,7 +2603,7 @@ export function ImmersiveWorkspace({
     };
 
     void poll();
-    const t = window.setInterval(() => void poll(), 6000);
+    const t = window.setInterval(() => void poll(), 3000);
     return () => {
       cancelled = true;
       window.clearInterval(t);
@@ -3519,6 +3495,9 @@ export function ImmersiveWorkspace({
               />
               {previewIssue &&
               !previewDismissed &&
+              importedPreviewClassification.state !== "preview_loading" &&
+              importedPreviewClassification.state !== "preview_not_started" &&
+              importedPreviewClassification.state !== "preview_artifact_missing" &&
               (importedPreviewClassification.state === "preview_blocked_iframe" ||
                 importedPreviewClassification.state === "preview_runtime_failed") ? (
                 <PreviewBlockedPopup

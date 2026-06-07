@@ -131,6 +131,19 @@ const CORE_APP_IDEA_POOL: AppIdeaPrompt[] = [
 
 export const APP_IDEA_POOL: AppIdeaPrompt[] = [...CORE_APP_IDEA_POOL, ...ALL_EXPANDED_APP_IDEAS];
 
+/** Curated home feed pool — up to 150 rotating ideas. */
+export const HOME_APP_IDEA_POOL: AppIdeaPrompt[] = APP_IDEA_POOL.slice(
+  0,
+  Math.min(150, APP_IDEA_POOL.length),
+);
+
+export function freshPageLoadSeed(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `page-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function hashSeed(input: string): number {
   let h = 2166136261;
   for (let i = 0; i < input.length; i++) {
@@ -143,20 +156,14 @@ function hashSeed(input: string): number {
 /** Stable seed for SSR + first client paint (avoids hydration mismatch). */
 export const SSR_HOME_IDEAS_SEED = "vodex-home-ideas-v1";
 
-/** Pick `count` unique ideas — stable per page load via session seed, different each refresh. */
-export function pickRandomAppIdeas(count: number, seed?: string): AppIdeaPrompt[] {
-  const sessionSeed =
-    seed ??
-    (typeof sessionStorage !== "undefined"
-      ? sessionStorage.getItem("vodex.ideaSeed")
-      : null) ??
-    SSR_HOME_IDEAS_SEED;
-
-  if (typeof sessionStorage !== "undefined" && !seed) {
-    sessionStorage.setItem("vodex.ideaSeed", sessionSeed);
-  }
-
-  const pool = [...APP_IDEA_POOL];
+/** Pick `count` unique ideas — seeded shuffle (pass `freshPageLoadSeed()` for a new set each refresh). */
+export function pickRandomAppIdeas(
+  count: number,
+  seed?: string,
+  poolSource: AppIdeaPrompt[] = HOME_APP_IDEA_POOL,
+): AppIdeaPrompt[] {
+  const sessionSeed = seed ?? SSR_HOME_IDEAS_SEED;
+  const pool = [...poolSource];
   let state = hashSeed(sessionSeed);
   const rand = () => {
     state = (state * 1664525 + 1013904223) >>> 0;

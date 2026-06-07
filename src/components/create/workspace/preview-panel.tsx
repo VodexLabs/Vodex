@@ -134,27 +134,41 @@ export function PreviewPanel({
     if (url || srcDoc) setIframeLoading(true);
   }, [url, srcDoc, reloadKey]);
 
+  const hasInline = !!srcDoc?.trim() && !isUnrenderableSrcDoc(srcDoc);
+  const iframeRenderable = runtimeStatus?.previewRenderable === true;
+  const previewPreparing = Boolean(runtimeStatus && !iframeRenderable);
+  const isArtifactUrl = Boolean(url && isArtifactPreviewUrl(url));
+
   React.useEffect(() => {
     if (!iframeLoading) return;
+    if (previewPreparing) return;
+    const timeoutMs = isArtifactUrl ? 120_000 : 45_000;
     const t = window.setTimeout(() => {
       setIframeLoading(false);
       setIframeError(true);
-    }, 14_000);
+    }, timeoutMs);
     return () => window.clearTimeout(t);
-  }, [iframeLoading, reloadKey, url, srcDoc]);
+  }, [iframeLoading, reloadKey, url, srcDoc, previewPreparing, isArtifactUrl]);
 
-  const hasInline = !!srcDoc?.trim() && !isUnrenderableSrcDoc(srcDoc);
   const hasPreviewArtifact = !!url || hasInline;
-  const artifactUrlOk = hasInline || !url || isArtifactPreviewUrl(url);
+  const artifactUrlOk = hasInline || !url || isArtifactUrl;
   const embedBlocked = Boolean(url && !hasInline && !artifactUrlOk);
-  const iframeRenderable = runtimeStatus?.previewRenderable === true;
   const showBuildShell = buildActive || thinking;
   const showArtifact = hasPreviewArtifact && !showBuildShell;
-  const showEmbedFallback = showArtifact && (embedBlocked || iframeError) && !hasInline;
+  const awaitingRuntimeStatus = Boolean(url && isArtifactUrl && !hasInline && !runtimeStatus);
   const showRuntimeOverlay =
-    showArtifact && !iframeRenderable && Boolean(runtimeStatus) && !showEmbedFallback;
+    showArtifact &&
+    !embedBlocked &&
+    (awaitingRuntimeStatus ||
+      (Boolean(runtimeStatus) && (!iframeRenderable || previewPreparing)));
+  const showEmbedFallback = showArtifact && embedBlocked && !hasInline;
   const showIframe =
-    showArtifact && !showEmbedFallback && !showRuntimeOverlay && (iframeRenderable || artifactUrlOk || hasInline);
+    showArtifact &&
+    !showEmbedFallback &&
+    !showRuntimeOverlay &&
+    (hasInline || iframeRenderable);
+  const showSlowLoadHint =
+    showArtifact && iframeError && !embedBlocked && !previewPreparing && !hasInline;
   const shellState =
     buildActive || thinking
       ? previewState === "compiling"
@@ -292,6 +306,7 @@ export function PreviewPanel({
         )}
 
         {!showArtifact &&
+        !showRuntimeOverlay &&
         importedPreviewState &&
         importedPreviewState.state !== "preview_ready" ? (
           <ImportedPreviewEmptyState
@@ -312,14 +327,71 @@ export function PreviewPanel({
 
         {showRuntimeOverlay && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-atmosphere p-6">
-            <PreviewRuntimeStatusPanel
-              status={runtimeStatus!}
-              onRebuild={onRebuildPreview}
-              onStartPreview={onStartPreview}
-              rebuilding={previewRebuilding}
-              startingPreview={previewStarting}
-              className="max-w-lg w-full shadow-lg"
-            />
+            {runtimeStatus ? (
+              <PreviewRuntimeStatusPanel
+                status={runtimeStatus}
+                onRebuild={onRebuildPreview}
+                onStartPreview={onStartPreview}
+                rebuilding={previewRebuilding}
+                startingPreview={previewStarting}
+                className="max-w-lg w-full shadow-lg"
+              />
+            ) : (
+              <div className="flex max-w-md flex-col items-center gap-3 rounded-2xl bg-background p-8 text-center shadow-lg ring-1 ring-border">
+                <Loader2 className="size-6 animate-spin text-accent" strokeWidth={1.75} />
+                <p className="text-[13px] font-semibold text-foreground">Preparing preview</p>
+                <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+                  Loading preview status for your app…
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {showSlowLoadHint && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-atmosphere p-6">
+            <div className="flex max-w-md flex-col items-center gap-3 rounded-2xl bg-background p-8 text-center shadow-lg ring-1 ring-border">
+              <Loader2 className="size-6 animate-spin text-accent" strokeWidth={1.75} />
+              <p className="text-[13px] font-semibold text-foreground">Preview is still loading</p>
+              <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+                Large imported apps can take a minute to compile. You can wait, open in a new tab, or run
+                preview repair.
+              </p>
+              <div className="flex flex-wrap justify-center gap-2">
+                {url ? (
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[12px] font-semibold text-white"
+                  >
+                    Open preview in new tab
+                    <ExternalLink className="size-3.5" strokeWidth={2} />
+                  </a>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIframeError(false);
+                    setIframeLoading(true);
+                    setReloadKey((k) => k + 1);
+                  }}
+                  className="rounded-lg bg-surface px-3 py-1.5 text-[12px] font-semibold ring-1 ring-border"
+                >
+                  Retry load
+                </button>
+                {onRebuildPreview ? (
+                  <button
+                    type="button"
+                    onClick={() => onRebuildPreview()}
+                    disabled={previewRebuilding}
+                    className="rounded-lg bg-surface px-3 py-1.5 text-[12px] font-semibold ring-1 ring-border"
+                  >
+                    {previewRebuilding ? "Repairing…" : "Run preview repair"}
+                  </button>
+                ) : null}
+              </div>
+            </div>
           </div>
         )}
 
@@ -331,9 +403,7 @@ export function PreviewPanel({
               </div>
               <p className="text-[13px] font-semibold text-foreground">Preview embed blocked</p>
               <p className="text-[11.5px] leading-relaxed text-muted-foreground">
-                {embedBlocked
-                  ? "This route blocks iframe embedding. Open the preview in a new tab or run embed repair."
-                  : "The preview timed out while loading. Try opening in a new tab or preparing the imported app preview."}
+                This route blocks iframe embedding. Open the preview in a new tab or run embed repair.
               </p>
               <div className="flex flex-wrap justify-center gap-2">
                 {url ? (

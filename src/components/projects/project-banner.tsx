@@ -96,7 +96,7 @@ export function ProjectBanner({
           tabIndex={-1}
           loading="lazy"
           sandbox="allow-scripts allow-same-origin"
-          className="pointer-events-none absolute left-1/2 top-0 h-[520px] w-[200%] max-w-none -translate-x-1/2 origin-top scale-[0.22] border-0"
+          className="pointer-events-none absolute left-1/2 top-1/2 h-[720px] w-[1280px] max-w-none -translate-x-1/2 -translate-y-1/2 origin-center scale-[0.17] border-0"
         />
       </div>
     );
@@ -107,7 +107,7 @@ export function ProjectBanner({
     return (
       <div className={cn("relative w-full overflow-hidden bg-muted/20", heightClass, className)}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={src} alt="" className="size-full object-cover object-top" loading="lazy" />
+        <img src={src} alt="" className="size-full object-cover object-center" loading="lazy" />
       </div>
     );
   }
@@ -130,7 +130,7 @@ export function ProjectBanner({
       <img
         src={`/api/projects/${projectId}/banner`}
         alt=""
-        className="size-full object-cover object-top"
+        className="size-full object-cover object-center"
         loading="lazy"
         onError={(e) => {
           (e.target as HTMLImageElement).style.display = "none";

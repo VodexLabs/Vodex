@@ -18,6 +18,7 @@ type Props = {
 
 export function ProjectIcon({
   projectId,
+  name,
   iconSvg,
   iconUrl,
   cacheKey,
@@ -28,10 +29,13 @@ export function ProjectIcon({
   const primarySrc = projectIconSrc(projectId, iconSvg, iconUrl, cacheKey);
   const fallbackSrc = projectIconSrc(projectId, null, null, cacheKey);
   const [src, setSrc] = React.useState(primarySrc);
+  const [imgFailed, setImgFailed] = React.useState(false);
   const px = `${size}px`;
+  const initial = (name?.trim().charAt(0) || "A").toUpperCase();
 
   React.useEffect(() => {
     setSrc(primarySrc);
+    setImgFailed(false);
   }, [primarySrc]);
 
   return (
@@ -43,16 +47,23 @@ export function ProjectIcon({
       )}
       style={{ width: px, height: px }}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={src}
-        alt=""
-        className="size-full object-cover"
-        loading="lazy"
-        onError={() => {
-          if (src !== fallbackSrc) setSrc(fallbackSrc);
-        }}
-      />
+      {imgFailed ? (
+        <div className="flex size-full items-center justify-center bg-gradient-to-br from-accent/20 to-accent/5 text-[13px] font-bold text-accent">
+          {initial}
+        </div>
+      ) : (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={src}
+          alt=""
+          className="size-full object-cover"
+          loading="lazy"
+          onError={() => {
+            if (src !== fallbackSrc) setSrc(fallbackSrc);
+            else setImgFailed(true);
+          }}
+        />
+      )}
     </div>
   );
 }
