@@ -2,16 +2,12 @@
   "executed": true,
   "status": "EXECUTED",
   "pass": true,
-  "timestamp": "2026-06-06T18:13:45.000Z",
+  "timestamp": "2026-06-06T22:03:55.820Z",
   "environment": {
     "baseUrl": "http://localhost:3000",
-    "e2eRunLive": true,
-    "userEmail": "e2e-live@dreamos86.test"
+    "e2eRunLive": true
   },
+  "projectId": "9c534acf-1299-4d89-b2a1-bbfc88555ca1",
   "route": "/api/projects/import-zip",
-  "projectId": "141ecb9b-b730-442e-9c5e-648dba314e0c",
-  "actionCreditsBefore": 500,
-  "httpStatus": 200,
-  "failureReason": null,
-  "note": "verify:zip-import-live-route passed after E2E credit provisioning + hold schema fix"
+  "failureReason": null
 }

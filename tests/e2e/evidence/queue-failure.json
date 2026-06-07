@@ -1,23 +1,18 @@
 {
-  "capturedAt": "2026-05-29T08:42:52.981Z",
-  "project_id": "a876813c-e165-4171-bcb1-6c193e36c785",
-  "active_project_id": "a876813c-e165-4171-bcb1-6c193e36c785",
-  "queue_ready": "false",
-  "queue_count_attr": "1",
+  "capturedAt": "2026-06-06T19:47:16.526Z",
+  "project_id": "e1c889ae-ee71-4d6d-b19b-ec3e567000ac",
+  "active_project_id": "e1c889ae-ee71-4d6d-b19b-ec3e567000ac",
+  "queue_ready": "true",
+  "queue_count_attr": "0",
   "queue_disabled_reason": "empty",
   "composer_selector": "[data-testid=\"builder-shell\"] [data-testid=\"workspace-composer-textarea\"]",
   "button_text": "Build",
   "disabled_reason": "empty",
-  "current_queue_count": 1,
-  "queue_card_texts": [
-    "Queue item 1 for inventory app#1 · Queued"
-  ],
-  "url": "http://localhost:3000/apps/a876813c-e165-4171-bcb1-6c193e36c785/builder?mode=build",
-  "screenshot": "C:\\Users\\XenoD\\Desktop\\DreamOS86\\dreamos-platform\\tests\\e2e\\evidence\\queue-fail-1780044172848.png",
-  "attempted_9th_blocked": false,
-  "empty_prompt_blocked": true,
-  "whitespace_prompt_blocked": true,
-  "duplicate_prompt_blocked": false,
-  "same_project_preserved": true,
-  "ninth_count": 0
+  "current_queue_count": 0,
+  "queue_card_texts": [],
+  "url": "http://localhost:3000/apps/e1c889ae-ee71-4d6d-b19b-ec3e567000ac/builder?mode=build",
+  "screenshot": "C:\\Users\\XenoD\\Desktop\\DreamOS86\\dreamos-platform\\tests\\e2e\\evidence\\queue-fail-1780775236336.png",
+  "stage": "queue_composer_not_ready",
+  "reason": "button_not_queue_mode",
+  "buttonText": "Build"
 }

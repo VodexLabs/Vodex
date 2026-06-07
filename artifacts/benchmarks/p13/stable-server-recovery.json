@@ -1,0 +1,17 @@
+{
+  "capturedAt": "2026-06-06T21:53:56.588Z",
+  "pass": true,
+  "recovery": {
+    "after_step": "simulated:post-live-generated-app",
+    "reason": "health: fetch failed; ping: fetch failed",
+    "old_pid": "4484",
+    "new_pid": "5200",
+    "downtime_ms": 48016,
+    "success": true,
+    "ownership_mode": "runner_started",
+    "last_health_error": null
+  },
+  "zip_exit_code": 0,
+  "old_pid": "4484",
+  "new_pid": "5200"
+}

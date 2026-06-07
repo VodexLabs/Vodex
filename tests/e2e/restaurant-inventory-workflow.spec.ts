@@ -15,6 +15,7 @@ import {
 } from "./helpers/restaurant-qa";
 import { writeBuildFailureSnapshot } from "./helpers/build-failure-snapshot";
 import { writeBuildEventsFailureSnapshot } from "./helpers/build-events-failure-snapshot";
+import { writeLiveGeneratedAppArtifact } from "./helpers/live-generated-app-artifact";
 import { writeFinalBuildPipelineSnapshot } from "./helpers/final-build-pipeline-snapshot";
 import { waitForBuildJobStarted } from "./helpers/wait-for-build-job";
 import { classifyE2eFailureStage } from "./helpers/e2e-stage-classifier";
@@ -310,6 +311,13 @@ test.describe("Restaurant inventory — @live workflow", () => {
         );
         await writeBuildEventsFailureSnapshot(request, projectId, buildPoll.jobId).catch(() => undefined);
         await writeBuildFailureSnapshot(request, projectId, buildPoll.jobId).catch(() => undefined);
+        await writeLiveGeneratedAppArtifact(request, {
+          projectId,
+          buildJobId: buildPoll.jobId ?? null,
+          pass: false,
+          failureKind: "build_timeout",
+          failureDetail: buildPoll.events.slice(-5).join(" "),
+        }).catch(() => undefined);
         const diag = await diagnoseBuildTimeout(
           request,
           projectId,
@@ -415,6 +423,14 @@ test.describe("Restaurant inventory — @live workflow", () => {
         },
       );
       report.previewOk = previewCheck.ok;
+      if (previewCheck.ok) {
+        await writeLiveGeneratedAppArtifact(request, {
+          projectId,
+          buildJobId: buildPoll.jobId ?? report.buildJobId ?? null,
+          pass: true,
+          previewSessionId: previewCheck.previewSessionId ?? null,
+        }).catch(() => undefined);
+      }
       if (!previewCheck.ok) {
         failStage(report, "preview", previewCheck.rootCause);
         writeFinalRestaurantE2eFailure({
@@ -439,6 +455,21 @@ test.describe("Restaurant inventory — @live workflow", () => {
       }
       watchdog.tick();
       await page.screenshot({ path: testInfo.outputPath("02-preview.png"), fullPage: true }).catch(() => undefined);
+
+      if (process.env.E2E_GENERATED_APP_PROOF_ONLY === "1") {
+        report.passed = report.errors.length === 0;
+        report.finishedAt = new Date().toISOString();
+        report.timings.totalMs = Date.now() - t0;
+        writeQaReport(report);
+        await writeLiveGeneratedAppArtifact(request, {
+          projectId,
+          buildJobId: buildPoll.jobId ?? report.buildJobId ?? null,
+          pass: true,
+          previewSessionId: previewCheck.previewSessionId ?? null,
+        }).catch(() => undefined);
+        expect(report.errors).toHaveLength(0);
+        return;
+      }
 
       watchdog.enter("queue");
       if (process.env.E2E_SKIP_INLINE_QUEUE === "1") {
@@ -521,6 +552,14 @@ test.describe("Restaurant inventory — @live workflow", () => {
       report.finishedAt = new Date().toISOString();
       report.timings.totalMs = Date.now() - t0;
       writeQaReport(report);
+
+      await writeLiveGeneratedAppArtifact(request, {
+        projectId,
+        buildJobId: buildPoll.jobId ?? report.buildJobId ?? null,
+        pass: report.passed,
+        previewSessionId: previewCheck.previewSessionId ?? null,
+        publishUrl: report.publishUrl ?? null,
+      }).catch(() => undefined);
 
       if (!report.passed) {
         writeFinalRestaurantE2eFailure({

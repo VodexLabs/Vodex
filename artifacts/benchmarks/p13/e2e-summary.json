@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-06T18:50:49.235Z",
+  "generatedAt": "2026-06-06T22:05:43.448Z",
   "playwrightReportPresent": true,
   "liveBenchmarkPresent": true,
   "verifySuites": {
@@ -36,8 +36,8 @@
       "status": 0
     },
     "publicRendering": {
-      "ok": false,
-      "status": 1
+      "ok": true,
+      "status": 0
     },
     "mutation": {
       "ok": true,

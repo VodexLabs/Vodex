@@ -9,6 +9,18 @@ export type BuildFailureSnapshot = {
   project_id: string;
   build_job_id: string | null;
   operation_id: string | null;
+  prompt: string | null;
+  selected_archetype: string | null;
+  selected_scaffold: string | null;
+  scaffold_applied: boolean;
+  file_count_before_normalization: number | null;
+  file_count_after_normalization: number | null;
+  persist_result: { reached: boolean; ok: boolean; count: number };
+  source_integrity: { ok: boolean | null; reason: string | null };
+  failure_kind: string | null;
+  failure_detail: string | null;
+  provider_model: { provider: string | null; model: string | null; status: string | null };
+  refund_status: string | null;
   build_jobs: Record<string, unknown> | null;
   app_files: {
     total: number;
@@ -80,7 +92,14 @@ export async function collectBuildFailureSnapshot(
   const summaryRes = await request.get(`/api/projects/${projectId}/summary`).catch(() => null);
   const summary = summaryRes?.ok() ? await summaryRes.json() : {};
   const proj = summary.project ?? summary;
-  const meta = proj.metadata ?? {};
+  const meta = (proj.metadata ?? {}) as Record<string, unknown>;
+  const jobMeta =
+    buildJob?.meta && typeof buildJob.meta === "object"
+      ? (buildJob.meta as Record<string, unknown>)
+      : buildJob?.metadata && typeof buildJob.metadata === "object"
+        ? (buildJob.metadata as Record<string, unknown>)
+        : {};
+  const mergedMeta = { ...meta, ...jobMeta };
 
   const logPaths = [
     path.join(process.cwd(), ".next/dev/logs/next-development.log"),
@@ -98,11 +117,65 @@ export async function collectBuildFailureSnapshot(
   const laterSuccess =
     terminalStatus === "failed" && logHasPipelineSuccess(logTail);
 
+  const archetype = String(mergedMeta.app_archetype ?? "unknown");
+  const scaffoldUsed = Boolean(mergedMeta.scaffold_fallback_used);
+  const beforeNorm = Number(mergedMeta.files_before_scaffold_fallback ?? NaN);
+  const afterNorm = Number(mergedMeta.files_after_scaffold_fallback ?? NaN);
+  const persistReached = events.some((e) => {
+    const t = String((e as { type?: string }).type ?? "").toLowerCase();
+    return t === "saving_files" || t === "completed";
+  });
+  const refunded = events.some((e) => String((e as { type?: string }).type ?? "") === "refunded");
+  const failureKind =
+    contractFailures.includes("no_source_files_generated") ||
+    String(buildJob?.error_message ?? "").includes("no source files")
+      ? "no_source_files_generated"
+      : !scaffoldUsed && filesApiCount === 0
+        ? "scaffold_not_applied"
+        : contractFailures[0] ?? null;
+  const failureDetail =
+    typeof buildJob?.error_message === "string"
+      ? buildJob.error_message
+      : contractFailures.slice(0, 8).join("; ") || null;
+
   const snapshot: BuildFailureSnapshot = {
     capturedAt: new Date().toISOString(),
     project_id: projectId,
     build_job_id: resolvedJobId ? String(resolvedJobId) : null,
-    operation_id: operationId ?? (meta.operation_id as string | undefined) ?? null,
+    operation_id: operationId ?? (mergedMeta.operation_id as string | undefined) ?? null,
+    prompt:
+      (typeof mergedMeta.user_prompt === "string" ? mergedMeta.user_prompt : null) ??
+      (typeof jobMeta.prompt === "string" ? jobMeta.prompt : null),
+    selected_archetype: archetype,
+    selected_scaffold: archetype,
+    scaffold_applied: scaffoldUsed,
+    file_count_before_normalization: Number.isFinite(beforeNorm) ? beforeNorm : null,
+    file_count_after_normalization: Number.isFinite(afterNorm) ? afterNorm : filesApiCount,
+    persist_result: {
+      reached: persistReached,
+      ok: filesApiCount > 0,
+      count: filesApiCount,
+    },
+    source_integrity: {
+      ok:
+        typeof mergedMeta.source_integrity_ok === "boolean"
+          ? mergedMeta.source_integrity_ok
+          : filesApiCount > 0
+            ? null
+            : false,
+      reason:
+        typeof mergedMeta.source_integrity_blocked_reason === "string"
+          ? mergedMeta.source_integrity_blocked_reason
+          : null,
+    },
+    failure_kind: failureKind,
+    failure_detail: failureDetail,
+    provider_model: {
+      provider: (mergedMeta.actual_provider as string) ?? null,
+      model: (mergedMeta.actual_model_id as string) ?? null,
+      status: (mergedMeta.primary_model_id as string) ?? null,
+    },
+    refund_status: refunded ? "refunded" : terminalStatus === "failed" ? "unknown" : "not_refunded",
     build_jobs: buildJob
       ? {
           status: buildJob.status,

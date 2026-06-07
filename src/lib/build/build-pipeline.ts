@@ -45,7 +45,6 @@ import {
 } from "@/lib/build/deterministic-archetype-plan";
 import { callProviderWithBuildTimeout, withTimeout } from "@/lib/build/timed-build-operations";
 import { normalizeAppRouterBuildFiles } from "@/lib/build/app-router-route-normalizer";
-import { countThinFiles } from "@/lib/build/meaningful-file-guard";
 import {
   evaluateSourceIntegrity,
   isPortfolioBuildPrompt,
@@ -924,9 +923,6 @@ export async function runStagedBuildPipeline(input: {
   }
 
   let scaffoldFallback = applyArchetypeScaffoldFallback(archetype.id, allFiles, appName);
-  if (countThinFiles(filterRenderableBuildFiles(allFiles)) > 3) {
-    scaffoldFallback = applyArchetypeScaffoldFallback(archetype.id, allFiles, appName);
-  }
   if (scaffoldFallback.usedFallback) {
     track(events, "validating", "Strengthening the app structure…");
     track(events, "writing", "Adding the required app structure");
@@ -1004,7 +1000,13 @@ export async function runStagedBuildPipeline(input: {
     routeMap: designBrief.routes,
   });
 
+  const deterministicScaffoldReady =
+    scaffoldSufficient &&
+    evaluateSourceIntegrity(allFiles).sourceIntegrityOk &&
+    filterRenderableBuildFiles(allFiles).length >= MIN_FULL_SCAFFOLD_FILES;
+
   while (
+    !deterministicScaffoldReady &&
     (!quality.ok || !uiQuality.passesPreview) &&
     repairAttempts < 3 &&
     accumulatedCost < FULL_BUILD_CAP_USD
@@ -1103,41 +1105,15 @@ export async function runStagedBuildPipeline(input: {
     complexity <= 2 ? "small" : complexity >= 7 ? "advanced" : "standard";
 
   if (
-    knownArchetypeFastPath &&
-    archetype.id === "restaurant_inventory" &&
+    hasFullScaffoldTree(archetype.id) &&
     filterRenderableBuildFiles(allFiles).length < MIN_FULL_SCAFFOLD_FILES
   ) {
-    return {
-      ok: false,
-      visibleText: "We could not assemble the restaurant app structure. Please retry.",
-      meta: null,
-      iconSvg: iconSvg || null,
-      iconUrl: identityResult.iconUrl,
-      appName,
-      files: [],
-      events,
-      totalProviderCostUsd: accumulatedCost,
-      totalInputTokens: totalIn,
-      totalOutputTokens: totalOut,
-      primaryModelId,
-      complexity,
-      uiQualityScore: 0,
-      dashboardQualityScore: 0,
-      uiRichnessPasses: false,
-      buildContract: {
-        passed: false,
-        allowed: false,
-        failures: ["restaurant_scaffold_not_applied"],
-        renderableCount: filterRenderableBuildFiles(allFiles).length,
-        pageCount: 0,
-        uiQualityScore: 0,
-        previewReady: false,
-        userMessage: "Build needs repair — credits were returned.",
-      },
-      errorMessage: "restaurant_scaffold_not_applied",
-      appArchetype: archetype.id,
-      postBuildFailures: ["restaurant_scaffold_not_applied"],
-    };
+    const forcedScaffold = applyArchetypeScaffoldFallback(archetype.id, [], resolvedAppName);
+    if (forcedScaffold.afterCount >= MIN_FULL_SCAFFOLD_FILES) {
+      allFiles = forcedScaffold.files;
+      scaffoldFallback = forcedScaffold;
+      track(events, "writing", "Adding the required pages…", `${forcedScaffold.afterCount} files`);
+    }
   }
 
   if (hasFullScaffoldTree(archetype.id)) {
@@ -1217,6 +1193,66 @@ export async function runStagedBuildPipeline(input: {
   const postContract = enforced.contract;
   const buildContract: BuildSuccessContractResult = postContract.buildContract;
   uiQuality = postContract.uiQuality;
+
+  const renderableFinalCount = filterRenderableBuildFiles(allFiles).length;
+  if (renderableFinalCount === 0) {
+    if (hasFullScaffoldTree(archetype.id)) {
+      const lastResort = applyArchetypeScaffoldFallback(archetype.id, [], resolvedAppName);
+      if (lastResort.afterCount > 0) {
+        allFiles = lastResort.files;
+        scaffoldFallback = lastResort;
+        sourceIntegrity = evaluateSourceIntegrity(allFiles);
+      }
+    }
+    if (filterRenderableBuildFiles(allFiles).length === 0) {
+      const failureDetail = [
+        `archetype=${archetype.id}`,
+        `scaffold_used=${scaffoldFallback.usedFallback}`,
+        `scaffold_reason=${scaffoldFallback.reason}`,
+        `before_fallback=${scaffoldFallback.beforeCount}`,
+        `after_fallback=${scaffoldFallback.afterCount}`,
+        `contract_failures=${postContract.failures.slice(0, 6).join(",")}`,
+      ].join("; ");
+      track(events, "failed", "No source files were generated");
+      return {
+        ok: false,
+        visibleText:
+          "We could not generate any app source files for this build. Your credits were returned — please try again.",
+        meta: null,
+        iconSvg: iconSvg || null,
+        iconUrl: identityResult.iconUrl,
+        appName: resolvedAppName,
+        files: [],
+        events,
+        totalProviderCostUsd: accumulatedCost,
+        totalInputTokens: totalIn,
+        totalOutputTokens: totalOut,
+        primaryModelId,
+        complexity,
+        uiQualityScore: 0,
+        dashboardQualityScore: 0,
+        uiRichnessPasses: false,
+        buildContract: {
+          passed: false,
+          allowed: false,
+          failures: ["no_source_files_generated"],
+          renderableCount: 0,
+          pageCount: 0,
+          uiQualityScore: 0,
+          previewReady: false,
+          userMessage:
+            "We could not generate any app source files for this build. Your credits were returned — please try again.",
+        },
+        errorMessage: `no_source_files_generated:${failureDetail}`,
+        appArchetype: archetype.id,
+        postBuildFailures: ["no_source_files_generated", ...postContract.failures],
+        scaffoldFallbackUsed: scaffoldFallback.usedFallback,
+        scaffoldFallbackReason: scaffoldFallback.reason,
+        filesBeforeScaffoldFallback: scaffoldFallback.beforeCount,
+        filesAfterScaffoldFallback: scaffoldFallback.afterCount,
+      };
+    }
+  }
 
   const ok = postContract.passed && sourceIntegrity.sourceIntegrityOk;
   const summaryText = postContract.userMessage;

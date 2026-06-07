@@ -22,6 +22,19 @@ export function genericSaaSScaffoldFiles(archetypeId: AppArchetypeId, appName: s
 
   const files: BuildFile[] = [
     {
+      path: "package.json",
+      content: JSON.stringify(
+        {
+          name: name.toLowerCase().replace(/[^a-z0-9-]+/g, "-").slice(0, 48) || "dream-app",
+          private: true,
+          scripts: { dev: "next dev", build: "next build", start: "next start" },
+          dependencies: { next: "^15.0.0", react: "^19.0.0", "react-dom": "^19.0.0" },
+        },
+        null,
+        2,
+      ),
+    },
+    {
       path: "app/layout.tsx",
       content: `import "./globals.css";
 import Link from "next/link";

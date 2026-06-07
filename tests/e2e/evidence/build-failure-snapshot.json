@@ -1,91 +1,254 @@
 {
-  "capturedAt": "2026-05-27T14:36:39.112Z",
-  "project_id": "3096182f-ed88-4ab9-9c7c-32be2b693e0b",
-  "build_job_id": null,
+  "capturedAt": "2026-06-06T19:34:50.987Z",
+  "project_id": "c6b21b95-13e7-4dbe-b2ca-cad09ab95cc9",
+  "build_job_id": "fc5aadf6-605e-4b60-842c-28b14563ab29",
   "operation_id": null,
-  "build_jobs": null,
+  "prompt": null,
+  "selected_archetype": "restaurant_inventory",
+  "selected_scaffold": "restaurant_inventory",
+  "scaffold_applied": false,
+  "file_count_before_normalization": null,
+  "file_count_after_normalization": 0,
+  "persist_result": {
+    "reached": false,
+    "ok": false,
+    "count": 0
+  },
+  "source_integrity": {
+    "ok": false,
+    "reason": null
+  },
+  "failure_kind": "scaffold_not_applied",
+  "failure_detail": "Files saved — preview render failed. Use repair or retry preview.",
+  "provider_model": {
+    "provider": null,
+    "model": null,
+    "status": null
+  },
+  "refund_status": "refunded",
+  "build_jobs": {
+    "status": "failed",
+    "progress": 100,
+    "error_message": "Files saved — preview render failed. Use repair or retry preview.",
+    "current_stage": "Couldn't start the build",
+    "updated_at": "2026-06-06T19:34:15.222275+00:00"
+  },
   "app_files": {
     "total": 0,
     "generated": 0,
     "zip_import": 0,
     "files_api_count": 0
   },
-  "build_job_events": [],
+  "build_job_events": [
+    {
+      "id": "5bab2cb0-0725-469f-b527-a302b39c8326",
+      "created_at": "2026-06-06T19:32:07.182163+00:00",
+      "type": "understanding_request",
+      "title": "I'm writing the core screens and components for Pantry Pro now.",
+      "detail": "I'm writing the core screens and components for Pantry Pro now.",
+      "file_path": null,
+      "progress_percent": 5,
+      "metadata": {
+        "display_title": "I'm writing the core screens and components for Pantry Pro now.",
+        "stream_category": "assistant_message"
+      }
+    },
+    {
+      "id": "c1016ad5-e9fa-4289-90f2-f8fc1ccfdac5",
+      "created_at": "2026-06-06T19:32:07.605585+00:00",
+      "type": "understanding_request",
+      "title": "Checking imports, routes, and preview readiness across 22 files.",
+      "detail": "Checking imports, routes, and preview readiness across 22 files.",
+      "file_path": null,
+      "progress_percent": 5,
+      "metadata": {
+        "display_title": "Checking imports, routes, and preview readiness across 22 files.",
+        "stream_category": "assistant_message"
+      }
+    },
+    {
+      "id": "1ad781c5-ac9b-4c78-beac-3113344e37ea",
+      "created_at": "2026-06-06T19:32:07.6056+00:00",
+      "type": "understanding_request",
+      "title": "Data model and routes are set (inventory_items, suppliers, stock_alerts) — I'll generate screens and components next.",
+      "detail": "Data model and routes are set (inventory_items, suppliers, stock_alerts) — I'll generate screens and components next.",
+      "file_path": null,
+      "progress_percent": 5,
+      "metadata": {
+        "display_title": "Data model and routes are set (inventory_items, suppliers, stock_alerts) — I'll generate screens and components next.",
+        "stream_category": "assistant_message"
+      }
+    },
+    {
+      "id": "070dc7f7-fde6-4192-9e50-46555ac7fd91",
+      "created_at": "2026-06-06T19:32:07.606076+00:00",
+      "type": "checking_file",
+      "title": "Checking the interface…",
+      "detail": "Checking the interface…",
+      "file_path": null,
+      "progress_percent": 45,
+      "metadata": {
+        "display_title": "Checking the interface…",
+        "stream_category": "task_started"
+      }
+    },
+    {
+      "id": "9e3f7283-fb09-48d1-b66c-f6826c7a78c8",
+      "created_at": "2026-06-06T19:32:07.926318+00:00",
+      "type": "writing_file",
+      "title": "Adding the required app structure",
+      "detail": "Adding the required pages…",
+      "file_path": null,
+      "progress_percent": 25,
+      "metadata": {
+        "display_title": "Adding the required app structure",
+        "stream_category": "task_started"
+      }
+    },
+    {
+      "id": "6659eead-f9b2-4d62-ae4d-f5ade33022ba",
+      "created_at": "2026-06-06T19:32:07.926543+00:00",
+      "type": "checking_file",
+      "title": "Checking files",
+      "detail": "Validating 22 files",
+      "file_path": null,
+      "progress_percent": 45,
+      "metadata": {
+        "display_title": "Checking files",
+        "stream_category": "task_started"
+      }
+    },
+    {
+      "id": "d5ac279e-e50a-452d-8af0-20e335fe2b13",
+      "created_at": "2026-06-06T19:32:11.502078+00:00",
+      "type": "refunded",
+      "title": "Credits returned",
+      "detail": "Reserved credits were returned for this attempt.",
+      "file_path": null,
+      "progress_percent": 100,
+      "metadata": {
+        "stream_category": "assistant_message"
+      }
+    },
+    {
+      "id": "19c58f2b-2342-4c42-8caf-c68b453e301e",
+      "created_at": "2026-06-06T19:32:14.465019+00:00",
+      "type": "understanding_request",
+      "title": "Still working",
+      "detail": "Still working on Files saved — preview render failed. Use repair or retry preview.…",
+      "file_path": null,
+      "progress_percent": null,
+      "metadata": {
+        "heartbeat": true,
+        "trace_stage": "contract_completed",
+        "operation_id": "caf200b4-a910-45ba-9b62-81b960cad1c2",
+        "execution_instance_id": "caf200b4-a910-45ba-9b62-81b960cad1c2:c99fa691-ba6c-4489-a2b1-be7bd00b4674"
+      }
+    },
+    {
+      "id": "8f543157-689b-4529-b69d-f01c4e28efd9",
+      "created_at": "2026-06-06T19:32:15.638904+00:00",
+      "type": "failed",
+      "title": "Couldn't start the build",
+      "detail": "I couldn't generate files for this request. Try again or simplify your prompt.",
+      "file_path": null,
+      "progress_percent": 100,
+      "metadata": {
+        "failures": [],
+        "file_count": 0,
+        "failure_kind": "failed_before_generation",
+        "execution_instance_id": "caf200b4-a910-45ba-9b62-81b960cad1c2:c99fa691-ba6c-4489-a2b1-be7bd00b4674"
+      }
+    },
+    {
+      "id": "9301b190-5c6d-46e7-b485-142c5608fab0",
+      "created_at": "2026-06-06T19:32:17.804689+00:00",
+      "type": "generating_app_identity",
+      "title": "Saving brand assets",
+      "detail": "Saving brand assets",
+      "file_path": null,
+      "progress_percent": 18,
+      "metadata": {
+        "display_title": "Saving brand assets",
+        "stream_category": "task_started"
+      }
+    }
+  ],
   "model_decision_logs": [],
   "credit_reservation": null,
   "credit_events": [],
   "preview_session": null,
   "contract_failures": [
-    "app_name_untitled",
-    "app_icon_missing",
     "renderable_files_0_lt_4",
     "missing_app_layout",
     "missing_app_page",
     "route_pages_0_lt_3",
-    "ui_quality_0_lt_85",
+    "ui_quality_7_lt_85",
     "ui_too_basic",
     "no_files",
     "no_page_route",
     "missing_package_json",
-    "route_pages_0_lt_5"
+    "missing_blueprint_routes:/dashboard,/inventory,/ingredients,/shopping-list,/recipes",
+    "route_pages_0_lt_5",
+    "components_0_lt_5"
   ],
   "server_log_tail": [
-    "{\"timestamp\":\"00:05:01.664\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold\"}",
-    "{\"timestamp\":\"00:05:02.003\",\"source\":\"Browser\",\"level\":\"LOG\",\"message\":\"%c[Vercel Speed Insights]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit\"}",
-    "{\"timestamp\":\"00:05:02.406\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-pipeline] ImmersiveWorkspace loaded — submit pipeline active\"}",
-    "{\"timestamp\":\"00:05:02.406\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-pipeline] Create composer mounted\"}",
-    "{\"timestamp\":\"00:05:02.406\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-pipeline] Build button found — native listeners attached\"}",
-    "{\"timestamp\":\"00:05:02.716\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-pipeline] [create-ui] enter submit\"}",
-    "{\"timestamp\":\"00:05:02.716\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-ui] enter submit\"}",
-    "{\"timestamp\":\"00:05:02.716\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-pipeline] [create-ui] form submit fired\"}",
-    "{\"timestamp\":\"00:05:02.716\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-ui] form submit fired\"}",
-    "{\"timestamp\":\"00:05:02.716\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-pipeline] [create] handleSubmit start {\\\"source\\\":\\\"form\\\"}\"}",
-    "{\"timestamp\":\"00:05:02.716\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create] handleSubmit start {\\\"source\\\":\\\"form\\\"}\"}",
-    "{\"timestamp\":\"00:05:02.716\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[dreamos:general] prompt submit started {\\\"mode\\\":\\\"build\\\",\\\"operationId\\\":\\\"407eca9f-ebee-4beb-8af4-746e51f1d01c\\\",\\\"source\\\":\\\"form\\\"}\"}",
-    "{\"timestamp\":\"00:05:08.092\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold\"}",
-    "{\"timestamp\":\"00:05:08.723\",\"source\":\"Browser\",\"level\":\"LOG\",\"message\":\"%c[Vercel Speed Insights]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit\"}",
-    "{\"timestamp\":\"00:05:16.914\",\"source\":\"Server\",\"level\":\"LOG\",\"message\":\"○ Compiling /api/projects ...\"}",
-    "{\"timestamp\":\"00:05:23.970\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold\"}",
-    "{\"timestamp\":\"00:05:24.066\",\"source\":\"Browser\",\"level\":\"LOG\",\"message\":\"%c[Vercel Speed Insights]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit\"}",
-    "{\"timestamp\":\"00:05:24.589\",\"source\":\"Browser\",\"level\":\"ERROR\",\"message\":\"A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\\n\\n- A server/client branch `if (typeof window !== 'undefined')`.\\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\\n- Date formatting in a user's locale which doesn't match the server.\\n- External changing data without sending a snapshot of it along with the HTML.\\n- Invalid HTML tag nesting.\\n\\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\\n\\n%s%s https://react.dev/link/hydration-mismatch \\n\\n  ...\\n    <SegmentViewNode type=\\\"page\\\" pagePath=\\\"(workspace...\\\">\\n      <SegmentTrieNode>\\n      <WorkspaceCreatePage>\\n        <CreatePageBody initialPrompt=\\\"\\\" initialProjectId={null} initialMode=\\\"build\\\" initialAutoStart={false} ...>\\n          <div className=\\\"relative h...\\\" data-testid=\\\"create-pag...\\\">\\n            <CreateOnboardingBanner>\\n            <CreateServerComposerIsland>\\n            <div className=\\\"hidden\\\" aria-hidden={true} data-testid=\\\"create-wor...\\\">\\n              <CreateWorkspaceEntry initialPrompt=\\\"\\\" initialProjectId={null} initialMode=\\\"build\\\" initialAutoStart={false} ...>\\n                <CreateComposerReadyBridge>\\n                <ImmersiveWorkspace initialPrompt=\\\"\\\" initialMode=\\\"build\\\" initialAutoStart={false} ...>\\n                  <DropZone onFiles={function ImmersiveWorkspace.useCallback[onFiles]} disabled={false} ...>\\n                    <div onDragEnter={function DropZone.useCallback[onDragEnter]} ...>\\n                      <span>\\n                      <WorkspaceLauncher>\\n                      <div className=\\\"flex min-h...\\\">\\n                        <div>\\n                        <div className=\\\"flex min-h...\\\">\\n                          <div>\\n                          <div>\\n                          <div ref={{current:null}} className=\\\"relative z...\\\">\\n                            <AttachmentRail>\\n                            <div>\\n                            <ComposerPromptQueue>\\n                            <form ref={{current:null}} data-testid=\\\"create-com...\\\" className=\\\"relative z...\\\" ...>\\n                              <div>\\n                              <textarea>\\n                              <div className=\\\"flex items...\\\">\\n                                <button>\\n                                <input>\\n                                <button\\n                                  type=\\\"button\\\"\\n                                  data-create-build-btn={true}\\n                                  data-testid=\\\"create-submit-button\\\"\\n+                                 data-has-text=\\\"true\\\"\\n-                                 data-has-text=\\\"false\\\"\\n+                                 data-disabled-reason=\\\"none\\\"\\n-                                 data-disabled-reason=\\\"empty\\\"\\n+                                 data-dom-len={346}\\n-                                 data-dom-len=\\\"0\\\"\\n                                  data-state-len={0}\\n+                                 data-live-len={346}\\n-                                 data-live-len=\\\"0\\\"\\n+                                 disabled={false}\\n-                                 disabled=\\\"\\\"\\n                                  onPointerDownCapture={function onPointerDownCapture}\\n                                  onClickCapture={function onClickCapture}\\n                                  onClick={function onClick}\\n+                                 className=\\\"relative z-[60] ml-auto flex min-h-[36px] items-center gap-1.5 rounded-lg...\\\"\\n-                                 className=\\\"relative z-[60] ml-auto flex min-h-[36px] items-center gap-1.5 rounded-lg...\\\"\\n                                >\\n                        ...\\n                      ...\\n                      ...\\n    ...\\n\"}",
-    "{\"timestamp\":\"00:05:24.589\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-pipeline] ImmersiveWorkspace loaded — submit pipeline active\"}",
-    "{\"timestamp\":\"00:05:24.589\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-pipeline] Create composer mounted\"}",
-    "{\"timestamp\":\"00:05:24.589\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-pipeline] Build button found — native listeners attached\"}",
-    "{\"timestamp\":\"00:05:24.619\",\"source\":\"Server\",\"level\":\"ERROR\",\"message\":\"[browser] \\\"A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\\\\n\\\\n- A server/client branch `if (typeof window !== 'undefined')`.\\\\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\\\\n- Date formatting in a user's locale which doesn't match the server.\\\\n- External changing data without sending a snapshot of it along with the HTML.\\\\n- Invalid HTML tag nesting.\\\\n\\\\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\\\\n\\\\nhttps://react.dev/link/hydration-mismatch\\\\n\\\\n  ...\\\\n    <SegmentViewNode type=\\\\\\\"page\\\\\\\" pagePath=\\\\\\\"(workspace...\\\\\\\">\\\\n      <SegmentTrieNode>\\\\n      <WorkspaceCreatePage>\\\\n        <CreatePageBody initialPrompt=\\\\\\\"\\\\\\\" initialProjectId={null} initialMode=\\\\\\\"build\\\\\\\" initialAutoStart={false} ...>\\\\n          <div className=\\\\\\\"relative h...\\\\\\\" data-testid=\\\\\\\"create-pag...\\\\\\\">\\\\n            <CreateOnboardingBanner>\\\\n            <CreateServerComposerIsland>\\\\n            <div className=\\\\\\\"hidden\\\\\\\" aria-hidden={true} data-testid=\\\\\\\"create-wor...\\\\\\\">\\\\n              <CreateWorkspaceEntry initialPrompt=\\\\\\\"\\\\\\\" initialProjectId={null} initialMode=\\\\\\\"build\\\\\\\" initialAutoStart={false} ...>\\\\n                <CreateComposerReadyBridge>\\\\n                <ImmersiveWorkspace initialPrompt=\\\\\\\"\\\\\\\" initialMode=\\\\\\\"build\\\\\\\" initialAutoStart={false} ...>\\\\n                  <DropZone onFiles={function ImmersiveWorkspace.useCallback[onFiles]} disabled={false} ...>\\\\n                    <div onDragEnter={function DropZone.useCallback[onDragEnter]} ...>\\\\n                      <span>\\\\n                      <WorkspaceLauncher>\\\\n                      <div className=\\\\\\\"flex min-h...\\\\\\\">\\\\n                        <div>\\\\n                        <div className=\\\\\\\"flex min-h...\\\\\\\">\\\\n                          <div>\\\\n                          <div>\\\\n                          <div ref={{current:null}} className=\\\\\\\"relative z...\\\\\\\">\\\\n                            <AttachmentRail>\\\\n                            <div>\\\\n                            <ComposerPromptQueue>\\\\n                            <form ref={{current:null}} data-testid=\\\\\\\"create-com...\\\\\\\" className=\\\\\\\"relative z...\\\\\\\" ...>\\\\n                              <div>\\\\n                              <textarea>\\\\n                              <div className=\\\\\\\"flex items...\\\\\\\">\\\\n                                <button>\\\\n                                <input>\\\\n                                <button\\\\n                                  type=\\\\\\\"button\\\\\\\"\\\\n                                  data-create-build-btn={true}\\\\n                                  data-testid=\\\\\\\"create-submit-button\\\\\\\"\\\\n+                                 data-has-text=\\\\\\\"true\\\\\\\"\\\\n-                                 data-has-text=\\\\\\\"false\\\\\\\"\\\\n+                                 data-disabled-reason=\\\\\\\"none\\\\\\\"\\\\n-                                 data-disabled-reason=\\\\\\\"empty\\\\\\\"\\\\n+                                 data-dom-len={346}\\\\n-                                 data-dom-len=\\\\\\\"0\\\\\\\"\\\\n                                  data-state-len={0}\\\\n+                                 data-live-len={346}\\\\n-                                 data-live-len=\\\\\\\"0\\\\\\\"\\\\n+                                 disabled={false}\\\\n-                                 disabled=\\\\\\\"\\\\\\\"\\\\n                                  onPointerDownCapture={function onPointerDownCapture}\\\\n                                  onClickCapture={function onClickCapture}\\\\n                                  onClick={function onClick}\\\\n+                                 className=\\\\\\\"relative z-[60] ml-auto flex min-h-[36px] items-center gap-1.5 rounded-lg...\\\\\\\"\\\\n-                                 className=\\\\\\\"relative z-[60] ml-auto flex min-h-[36px] items-center gap-1.5 rounded-lg...\\\\\\\"\\\\n                                >\\\\n                        ...\\\\n                      ...\\\\n                      ...\\\\n    ...\\\\n\\\" \\\"\\\"\"}",
-    "{\"timestamp\":\"00:05:24.619\",\"source\":\"Browser\",\"level\":\"ERROR\",\"message\":\"A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\\n\\n- A server/client branch `if (typeof window !== 'undefined')`.\\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\\n- Date formatting in a user's locale which doesn't match the server.\\n- External changing data without sending a snapshot of it along with the HTML.\\n- Invalid HTML tag nesting.\\n\\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\\n\\nhttps://react.dev/link/hydration-mismatch\\n\\n  ...\\n    <SegmentViewNode type=\\\"page\\\" pagePath=\\\"(workspace...\\\">\\n      <SegmentTrieNode>\\n      <WorkspaceCreatePage>\\n        <CreatePageBody initialPrompt=\\\"\\\" initialProjectId={null} initialMode=\\\"build\\\" initialAutoStart={false} ...>\\n          <div className=\\\"relative h...\\\" data-testid=\\\"create-pag...\\\">\\n            <CreateOnboardingBanner>\\n            <CreateServerComposerIsland>\\n            <div className=\\\"hidden\\\" aria-hidden={true} data-testid=\\\"create-wor...\\\">\\n              <CreateWorkspaceEntry initialPrompt=\\\"\\\" initialProjectId={null} initialMode=\\\"build\\\" initialAutoStart={false} ...>\\n                <CreateComposerReadyBridge>\\n                <ImmersiveWorkspace initialPrompt=\\\"\\\" initialMode=\\\"build\\\" initialAutoStart={false} ...>\\n                  <DropZone onFiles={function ImmersiveWorkspace.useCallback[onFiles]} disabled={false} ...>\\n                    <div onDragEnter={function DropZone.useCallback[onDragEnter]} ...>\\n                      <span>\\n                      <WorkspaceLauncher>\\n                      <div className=\\\"flex min-h...\\\">\\n                        <div>\\n                        <div className=\\\"flex min-h...\\\">\\n                          <div>\\n                          <div>\\n                          <div ref={{current:null}} className=\\\"relative z...\\\">\\n                            <AttachmentRail>\\n                            <div>\\n                            <ComposerPromptQueue>\\n                            <form ref={{current:null}} data-testid=\\\"create-com...\\\" className=\\\"relative z...\\\" ...>\\n                              <div>\\n                              <textarea>\\n                              <div className=\\\"flex items...\\\">\\n                                <button>\\n                                <input>\\n                                <button\\n                                  type=\\\"button\\\"\\n                                  data-create-build-btn={true}\\n                                  data-testid=\\\"create-submit-button\\\"\\n+                                 data-has-text=\\\"true\\\"\\n-                                 data-has-text=\\\"false\\\"\\n+                                 data-disabled-reason=\\\"none\\\"\\n-                                 data-disabled-reason=\\\"empty\\\"\\n+                                 data-dom-len={346}\\n-                                 data-dom-len=\\\"0\\\"\\n                                  data-state-len={0}\\n+                                 data-live-len={346}\\n-                                 data-live-len=\\\"0\\\"\\n+                                 disabled={false}\\n-                                 disabled=\\\"\\\"\\n                                  onPointerDownCapture={function onPointerDownCapture}\\n                                  onClickCapture={function onClickCapture}\\n                                  onClick={function onClick}\\n+                                 className=\\\"relative z-[60] ml-auto flex min-h-[36px] items-center gap-1.5 rounded-lg...\\\"\\n-                                 className=\\\"relative z-[60] ml-auto flex min-h-[36px] items-center gap-1.5 rounded-lg...\\\"\\n                                >\\n                        ...\\n                      ...\\n                      ...\\n    ...\\n \\\"\\\"\"}",
-    "{\"timestamp\":\"00:05:25.004\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-pipeline] [create-ui] build pointer down\"}",
-    "{\"timestamp\":\"00:05:25.005\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-ui] build pointer down\"}",
-    "{\"timestamp\":\"00:05:25.005\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-pipeline] [create-ui] build pointer down\"}",
-    "{\"timestamp\":\"00:05:25.005\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-ui] build pointer down\"}",
-    "{\"timestamp\":\"00:05:25.005\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-pipeline] [create-ui] build click (native)\"}",
-    "{\"timestamp\":\"00:05:25.005\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-ui] build click (native)\"}",
-    "{\"timestamp\":\"00:05:25.005\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-pipeline] [create] handleSubmit start {\\\"source\\\":\\\"button\\\"}\"}",
-    "{\"timestamp\":\"00:05:25.005\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create] handleSubmit start {\\\"source\\\":\\\"button\\\"}\"}",
-    "{\"timestamp\":\"00:05:25.005\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[dreamos:general] prompt submit started {\\\"mode\\\":\\\"build\\\",\\\"operationId\\\":\\\"ac101bbd-49a5-43a2-941d-7273fddd5157\\\",\\\"source\\\":\\\"button\\\"}\"}",
-    "{\"timestamp\":\"00:05:29.393\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[dreamos:general] project created {\\\"operationId\\\":\\\"ac101bbd-49a5-43a2-941d-7273fddd5157\\\",\\\"projectId\\\":\\\"3096182f-ed88-4ab9-9c7c-32be2b693e0b\\\",\\\"source\\\":\\\"button\\\"}\"}",
-    "{\"timestamp\":\"00:05:29.393\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-pipeline] [create] preflight fetch start\"}",
-    "{\"timestamp\":\"00:05:29.393\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create] preflight fetch start\"}",
-    "{\"timestamp\":\"00:05:34.393\",\"source\":\"Server\",\"level\":\"LOG\",\"message\":\"○ Compiling /api/projects/[id]/files ...\"}",
-    "{\"timestamp\":\"00:05:37.860\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[api/ai/preflight] POST\"}",
-    "{\"timestamp\":\"00:05:41.863\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[credits] preflight ok — charge_tokens callable\"}",
-    "{\"timestamp\":\"00:05:42.998\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[api/ai/preflight] ok {}\"}",
-    "{\"timestamp\":\"00:05:44.906\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold\"}",
-    "{\"timestamp\":\"00:05:45.580\",\"source\":\"Browser\",\"level\":\"LOG\",\"message\":\"%c[Vercel Speed Insights]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit\"}",
-    "{\"timestamp\":\"00:05:58.610\",\"source\":\"Server\",\"level\":\"LOG\",\"message\":\"○ Compiling /apps/[appId]/builder ...\"}",
-    "{\"timestamp\":\"00:06:22.456\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold\"}",
-    "{\"timestamp\":\"00:06:22.690\",\"source\":\"Browser\",\"level\":\"LOG\",\"message\":\"%c[Vercel Speed Insights]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit\"}",
-    "{\"timestamp\":\"00:06:23.511\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-pipeline] ImmersiveWorkspace loaded — submit pipeline active\"}",
-    "{\"timestamp\":\"00:06:23.511\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-pipeline] Create composer mounted\"}",
-    "{\"timestamp\":\"00:06:23.512\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-pipeline] Build button found — native listeners attached\"}",
-    "{\"timestamp\":\"00:06:26.529\",\"source\":\"Server\",\"level\":\"LOG\",\"message\":\"○ Compiling /api/projects/[id]/status ...\"}",
-    "{\"timestamp\":\"00:06:32.867\",\"source\":\"Server\",\"level\":\"LOG\",\"message\":\"○ Compiling /api/projects/[id]/preview-errors ...\"}"
+    "{\"timestamp\":\"00:04:33.715\",\"source\":\"Server\",\"level\":\"LOG\",\"message\":\"○ Compiling /api/home/recent-projects ...\"}",
+    "{\"timestamp\":\"00:04:35.135\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-pipeline] ImmersiveWorkspace loaded — submit pipeline active\"}",
+    "{\"timestamp\":\"00:04:35.135\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-pipeline] Create composer mounted\"}",
+    "{\"timestamp\":\"00:04:35.135\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-pipeline] Build button found — native listeners attached\"}",
+    "{\"timestamp\":\"00:04:35.135\",\"source\":\"Browser\",\"level\":\"LOG\",\"message\":\"%c[Vercel Speed Insights]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit\"}",
+    "{\"timestamp\":\"00:04:36.809\",\"source\":\"Server\",\"level\":\"WARN\",\"message\":\"[dreamos-proxy] Supabase auth refresh failed: {}\"}",
+    "{\"timestamp\":\"00:04:39.941\",\"source\":\"Server\",\"level\":\"LOG\",\"message\":\"○ Compiling /api/projects/[id]/status ...\"}",
+    "{\"timestamp\":\"00:04:45.416\",\"source\":\"Server\",\"level\":\"LOG\",\"message\":\"○ Compiling /api/projects/[id]/publish/readiness ...\"}",
+    "{\"timestamp\":\"00:04:50.204\",\"source\":\"Server\",\"level\":\"LOG\",\"message\":\"○ Compiling /api/user/presence/me ...\"}",
+    "{\"timestamp\":\"00:04:54.440\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-pipeline] [create] handleSubmit start {\\\"source\\\":\\\"url-auto\\\"}\"}",
+    "{\"timestamp\":\"00:04:54.441\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create] handleSubmit start {\\\"source\\\":\\\"url-auto\\\"}\"}",
+    "{\"timestamp\":\"00:04:54.441\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[dreamos:general] prompt submit started {\\\"mode\\\":\\\"build\\\",\\\"operationId\\\":\\\"7bc25e25-f3e3-410f-ac6b-9fc385e91dc3\\\",\\\"source\\\":\\\"[omitted 17 chars]\\\"}\"}",
+    "{\"timestamp\":\"00:04:54.441\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[dreamos:general] project reused {\\\"projectId\\\":\\\"c6b21b95-13e7-4dbe-b2ca-cad09ab95cc9\\\",\\\"source\\\":\\\"[omitted 17 chars]\\\"}\"}",
+    "{\"timestamp\":\"00:04:54.441\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-pipeline] [create] preflight fetch start\"}",
+    "{\"timestamp\":\"00:04:54.441\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create] preflight fetch start\"}",
+    "{\"timestamp\":\"00:04:57.578\",\"source\":\"Server\",\"level\":\"LOG\",\"message\":\"○ Compiling /api/credits ...\"}",
+    "{\"timestamp\":\"00:04:59.762\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[credits] credits_lite_ms=672\"}",
+    "{\"timestamp\":\"00:05:02.927\",\"source\":\"Server\",\"level\":\"LOG\",\"message\":\"○ Compiling /api/projects/[id]/summary ...\"}",
+    "{\"timestamp\":\"00:05:06.692\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[api/ai/preflight] POST\"}",
+    "{\"timestamp\":\"00:05:10.207\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[credits] preflight ok — charge_tokens callable\"}",
+    "{\"timestamp\":\"00:05:10.677\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[api/ai/preflight] ok {}\"}",
+    "{\"timestamp\":\"00:05:10.790\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-pipeline] [create] preflight status ok {}\"}",
+    "{\"timestamp\":\"00:05:10.791\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create] preflight status ok {}\"}",
+    "{\"timestamp\":\"00:05:10.791\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[create-pipeline] Preflight OK — starting chat\"}",
+    "{\"timestamp\":\"00:05:13.989\",\"source\":\"Server\",\"level\":\"LOG\",\"message\":\"○ Compiling /api/chat ...\"}",
+    "{\"timestamp\":\"00:05:15.675\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[api/chat] POST\"}",
+    "{\"timestamp\":\"00:05:18.770\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[build-intent] {}\"}",
+    "{\"timestamp\":\"00:05:19.095\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[route-decision] \\\"ui_generation\\\" \\\"user_selected_model\\\"\"}",
+    "{\"timestamp\":\"00:05:19.095\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[ai-route] {}\"}",
+    "{\"timestamp\":\"00:05:23.631\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[credits] reserve economics (admin) {}\"}",
+    "{\"timestamp\":\"00:05:24.898\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[build-worker-trace] {}\"}",
+    "{\"timestamp\":\"00:05:25.142\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[build-worker-trace] {}\"}",
+    "{\"timestamp\":\"00:05:25.366\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[build-worker-trace] {}\"}",
+    "{\"timestamp\":\"00:05:25.366\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[build-worker-trace] {}\"}",
+    "{\"timestamp\":\"00:05:26.102\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[build-worker-trace] {}\"}",
+    "{\"timestamp\":\"00:05:26.621\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[build-worker-trace] {}\"}",
+    "{\"timestamp\":\"00:05:26.628\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[build-worker-trace] {}\"}",
+    "{\"timestamp\":\"00:05:28.232\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[build-worker-trace] {}\"}",
+    "{\"timestamp\":\"00:05:30.039\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[build-worker-trace] {}\"}",
+    "{\"timestamp\":\"00:05:31.802\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[build-worker-trace] {}\"}",
+    "{\"timestamp\":\"00:05:31.991\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[build] scaffold_fallback_used {}\"}",
+    "{\"timestamp\":\"00:05:31.992\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[build-worker-trace] {}\"}",
+    "{\"timestamp\":\"00:05:31.993\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[build-worker-trace] {}\"}",
+    "{\"timestamp\":\"00:05:33.506\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[build-worker-trace] {}\"}",
+    "{\"timestamp\":\"00:05:33.521\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[build-worker-trace] {}\"}",
+    "{\"timestamp\":\"00:05:35.471\",\"source\":\"Server\",\"level\":\"WARN\",\"message\":\"[ops] build/build_pipeline_failed error {}\"}",
+    "{\"timestamp\":\"00:05:39.935\",\"source\":\"Server\",\"level\":\"WARN\",\"message\":\"[ops] build/async_build_failed error {}\"}",
+    "{\"timestamp\":\"00:05:40.676\",\"source\":\"Server\",\"level\":\"INFO\",\"message\":\"[credits] credits_lite_ms=538\"}",
+    "{\"timestamp\":\"00:05:40.740\",\"source\":\"Browser\",\"level\":\"INFO\",\"message\":\"[credits] credits_lite_ms=837\"}"
   ],
   "build_pipeline_success_after_failed": false,
   "summary": {
-    "terminal_status": "unknown",
+    "terminal_status": "failed",
     "file_count": 0,
-    "last_event": null,
-    "failure_reason": "app_name_untitled",
+    "last_event": "generating_app_identity",
+    "failure_reason": "Files saved — preview render failed. Use repair or retry preview.",
     "later_success_log": false
   }
 }

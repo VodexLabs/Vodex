@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-06-06T18:50:49.237Z",
+  "generatedAt": "2026-06-06T22:05:43.449Z",
   "honest": true,
   "finalizationPresent": true,
   "liveProof": {
-    "publicRendering": false,
+    "publicRendering": true,
     "generatedApp": false,
     "zipImport": true,
     "publish": false,
@@ -49,14 +49,14 @@
     {
       "category": "Public /p/[slug] app rendering",
       "previousScore": 50,
-      "newScore": 50,
-      "evidencePath": "artifacts/benchmarks/p13/public-rendering.json",
+      "newScore": 92,
+      "evidencePath": "artifacts/benchmarks/p13/live-public-rendering.json",
       "verificationCommand": "npm run verify:public-rendering + live slug",
-      "pass": false,
-      "capped": true,
-      "capReason": "verify:public-rendering failed",
-      "blocker": "✗ verify:public-rendering failed\n\n  - live /p/[slug] fetch failed or returned stub/empty body",
-      "recommendedNextFix": "PUBLISHED_TEST_SLUG=... E2E_BASE_URL=... npm run verify:public-rendering"
+      "pass": true,
+      "capped": false,
+      "capReason": null,
+      "blocker": null,
+      "recommendedNextFix": null
     },
     {
       "category": "Mobile responsiveness",
@@ -133,11 +133,10 @@
   ],
   "summary": {
     "total": 10,
-    "atOrAbove85": 8,
-    "below85": 2,
-    "capped": 1,
+    "atOrAbove85": 9,
+    "below85": 1,
+    "capped": 0,
     "liveJourneysNotExecuted": [
-      "public_rendering",
       "generated_app",
       "publish",
       "live_e2e"

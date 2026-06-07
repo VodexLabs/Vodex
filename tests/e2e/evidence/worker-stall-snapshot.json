@@ -1,73 +1,73 @@
 {
-  "capturedAt": "2026-06-06T18:21:16.788Z",
-  "project_id": "e00a8f80-adaf-447f-85f4-22f66817279d",
-  "build_job_id": "b77218e2-e7c7-4e7c-95a9-69756d941db8",
-  "operation_id": "7d4786f5-a6f4-4b49-944e-79268c974846",
+  "capturedAt": "2026-06-06T19:05:33.076Z",
+  "project_id": "4b0635b2-de0d-4f6b-92c8-eae32c8c99bb",
+  "build_job_id": "b8e8c5f3-fa3b-4585-a8ce-debc1a717710",
+  "operation_id": "7acb2762-eabc-469c-a5dc-783eca111693",
   "last_persisted_event": "scaffold_fallback_applied",
   "in_memory_trace": {
-    "buildJobId": "b77218e2-e7c7-4e7c-95a9-69756d941db8",
-    "operationId": "7d4786f5-a6f4-4b49-944e-79268c974846",
-    "executionInstanceId": "7d4786f5-a6f4-4b49-944e-79268c974846:c27f5f49-ddc3-42bf-bd67-781592f894f4",
-    "projectId": "e00a8f80-adaf-447f-85f4-22f66817279d",
-    "startedAt": "2026-06-06T18:20:52.694Z",
+    "buildJobId": "b8e8c5f3-fa3b-4585-a8ce-debc1a717710",
+    "operationId": "7acb2762-eabc-469c-a5dc-783eca111693",
+    "executionInstanceId": "7acb2762-eabc-469c-a5dc-783eca111693:b64c5cc0-0fbb-4878-b042-8d0bcbbb9a52",
+    "projectId": "4b0635b2-de0d-4f6b-92c8-eae32c8c99bb",
+    "startedAt": "2026-06-06T19:05:29.251Z",
     "lastStage": "scaffold_fallback_applied",
-    "lastAt": "2026-06-06T18:21:16.784Z",
+    "lastAt": "2026-06-06T19:05:33.071Z",
     "rows": [
       {
         "stage": "worker_claim_attempt",
-        "at": "2026-06-06T18:20:52.695Z"
+        "at": "2026-06-06T19:05:29.252Z"
       },
       {
         "stage": "worker_claimed",
-        "at": "2026-06-06T18:20:53.541Z"
+        "at": "2026-06-06T19:05:29.535Z"
       },
       {
         "stage": "build_pipeline_entered",
-        "at": "2026-06-06T18:20:53.809Z"
+        "at": "2026-06-06T19:05:29.802Z"
       },
       {
         "stage": "planning_app_started",
-        "at": "2026-06-06T18:20:53.809Z",
+        "at": "2026-06-06T19:05:29.803Z",
         "detail": "Organizing screens and features"
       },
       {
         "stage": "preflight_started",
-        "at": "2026-06-06T18:20:55.071Z"
+        "at": "2026-06-06T19:05:30.573Z"
       },
       {
         "stage": "preflight_completed",
-        "at": "2026-06-06T18:20:55.653Z"
+        "at": "2026-06-06T19:05:31.057Z"
       },
       {
         "stage": "deterministic_plan_fallback_used",
-        "at": "2026-06-06T18:20:55.679Z",
+        "at": "2026-06-06T19:05:31.065Z",
         "detail": "restaurant_inventory"
       },
       {
         "stage": "identity_started",
-        "at": "2026-06-06T18:20:56.197Z"
+        "at": "2026-06-06T19:05:31.572Z"
       },
       {
-        "stage": "identity_failed",
-        "at": "2026-06-06T18:21:16.212Z"
+        "stage": "identity_completed",
+        "at": "2026-06-06T19:05:32.567Z"
       },
       {
         "stage": "file_generation_started",
-        "at": "2026-06-06T18:21:16.774Z"
+        "at": "2026-06-06T19:05:33.059Z"
       },
       {
         "stage": "scaffold_fallback_applied",
-        "at": "2026-06-06T18:21:16.780Z",
+        "at": "2026-06-06T19:05:33.066Z",
         "detail": "16"
       },
       {
         "stage": "scaffold_fallback_applied",
-        "at": "2026-06-06T18:21:16.781Z",
+        "at": "2026-06-06T19:05:33.066Z",
         "detail": "16"
       },
       {
         "stage": "scaffold_fallback_applied",
-        "at": "2026-06-06T18:21:16.784Z",
+        "at": "2026-06-06T19:05:33.071Z",
         "detail": "root_page:true"
       }
     ],

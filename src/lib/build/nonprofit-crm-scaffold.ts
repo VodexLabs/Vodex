@@ -8,6 +8,46 @@ export function nonprofitCrmScaffoldFiles(appName: string): BuildFile[] {
 
   const files: BuildFile[] = [
     {
+      path: "package.json",
+      content: JSON.stringify(
+        {
+          name: "nonprofit-donor-crm",
+          private: true,
+          scripts: { dev: "next dev", build: "next build", start: "next start" },
+          dependencies: { next: "^15.0.0", react: "^19.0.0", "react-dom": "^19.0.0" },
+        },
+        null,
+        2,
+      ),
+    },
+    {
+      path: "app/globals.css",
+      content: `@tailwind base;
+@tailwind components;
+@tailwind utilities;
+body { @apply bg-slate-50 text-slate-900 antialiased; }
+`,
+    },
+    {
+      path: "app/layout.tsx",
+      content: `import "./globals.css";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "${esc(name)} — Donor CRM",
+  description: "Nonprofit donor CRM with campaigns, recurring gifts, and thank-you automation.",
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body className="min-h-dvh bg-slate-50 text-slate-900 antialiased">{children}</body>
+    </html>
+  );
+}
+`,
+    },
+    {
       path: "components/AppShell.tsx",
       content: `import Link from "next/link";
 
@@ -106,21 +146,49 @@ export const campaigns = [
       content: `import { AppShell } from "@/components/AppShell";
 import { MetricCard } from "@/components/MetricCard";
 import { DataTable } from "@/components/DataTable";
-import { donorMetrics, donors } from "@/lib/mock-data";
+import { donorMetrics, donors, campaigns } from "@/lib/mock-data";
 
 export default function DonorDashboardPage() {
   return (
     <AppShell title="Donor dashboard">
-      <header className="mb-6 space-y-1">
+      <header className="mb-6 space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">Nonprofit CRM</p>
         <h1 className="text-2xl font-bold tracking-tight">Donor CRM dashboard</h1>
-        <p className="text-sm text-slate-600">Campaign tracking, donation history, recurring gifts, and thank-you email automation.</p>
+        <p className="max-w-2xl text-sm text-slate-600">
+          Campaign tracking, donation history, recurring gifts, and thank-you email automation in one workspace.
+        </p>
       </header>
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {donorMetrics.map((m) => (
           <MetricCard key={m.label} label={m.label} value={m.value} hint={m.hint} />
         ))}
       </div>
-      <DataTable rows={donors} />
+      <div className="mb-6 grid gap-4 lg:grid-cols-2">
+        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h2 className="text-sm font-semibold text-slate-900">Top donors this month</h2>
+          <p className="mt-1 text-xs text-slate-500">Engagement and pledge status at a glance.</p>
+          <div className="mt-4">
+            <DataTable rows={donors} />
+          </div>
+        </section>
+        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h2 className="text-sm font-semibold text-slate-900">Active campaigns</h2>
+          <ul className="mt-4 space-y-3 text-sm">
+            {campaigns.map((c) => (
+              <li key={c.name} className="flex items-center justify-between rounded-lg bg-violet-50 px-3 py-2">
+                <div>
+                  <p className="font-medium text-violet-900">{c.name}</p>
+                  <p className="text-xs text-violet-700">{c.detail}</p>
+                </div>
+                <span className="text-xs font-semibold uppercase text-violet-800">{c.status}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
+      <section className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
+        Automations are healthy — 96% of thank-you emails sent within 24 hours of gift receipt.
+      </section>
     </AppShell>
   );
 }

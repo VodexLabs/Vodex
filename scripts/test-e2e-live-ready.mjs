@@ -83,7 +83,7 @@ if (authCheck.status !== 0) {
 
 console.log("\n--- Running @live Playwright tests ---\n");
 
-const r = spawnSync("npx", ["playwright", "test", "--grep", "@live"], {
+const r = spawnSync("npx", ["playwright", "test", "--grep", "@live", "--workers=1", "--retries=0"], {
   cwd: root,
   shell: true,
   stdio: "inherit",

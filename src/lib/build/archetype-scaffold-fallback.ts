@@ -63,6 +63,7 @@ const KNOWN_SCAFFOLD_ARCHETYPES = new Set<AppArchetypeId>([
   "admin_panel",
   "ai_tool",
   "project_management",
+  "health_wellness",
   "generic_app",
 ]);
 
@@ -78,6 +79,7 @@ const FULL_SCAFFOLD_ARCHETYPES = new Set<AppArchetypeId>([
   "marketplace",
   "admin_panel",
   "ai_tool",
+  "health_wellness",
   "generic_app",
 ]);
 
@@ -243,6 +245,31 @@ export function applyArchetypeScaffoldFallback(
     integrityAfter && !integrityBefore;
 
   if (!improved) {
+    // Scaffold already merged — a second pass cannot add more files but the tree may still be valid.
+    if (
+      merged.length >= STANDARD_MIN_RENDERABLE_FILES &&
+      integrityAfter &&
+      rootPageContentOk(merged)
+    ) {
+      return {
+        files: merged,
+        usedFallback: beforeCount === 0 || weak,
+        reason: beforeCount === 0 ? reason : "not_needed",
+        beforeCount,
+        afterCount: merged.length,
+        componentCount: countComponentFiles(merged),
+        pageCount: countRenderablePages(merged),
+        archetypeId: id,
+        filesAdded,
+        filesReplaced,
+        stubsReplaced: stubRepair.replaced,
+        rootPageReplaced,
+        sourceBytesBefore: bytesBefore,
+        sourceBytesAfter: bytesAfter,
+        integrityBefore,
+        integrityAfter,
+      };
+    }
     if (process.env.NODE_ENV !== "production" || process.env.DREAMOS_STRICT_FALLBACK === "1") {
       throw new Error("fallback_noop_error");
     }

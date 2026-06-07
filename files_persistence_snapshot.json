@@ -1,33 +1,33 @@
 {
-  "operationId": "830caf40-e7ef-4028-88b6-f63a61230b4d",
-  "executionInstanceId": "830caf40-e7ef-4028-88b6-f63a61230b4d:d7a4c284-31fb-46ca-9a7c-cd4d9cedd47d",
-  "projectId": "45c75b29-2c01-48fa-8e3e-d5e3aaf082ad",
-  "ownerId": "d026ba49-4de5-489d-ace7-12ec78d98e70",
+  "operationId": "d1b706d0-5cb2-4c54-a142-0ad7bf7a7904",
+  "executionInstanceId": "d1b706d0-5cb2-4c54-a142-0ad7bf7a7904:2df883ed-e4d9-4e80-a1e6-94e4d6435860",
+  "projectId": "5603b030-b66c-4432-9c70-edaba03d8d2d",
+  "ownerId": "3c08502e-9771-413e-b9bd-4446b179c962",
   "before": {
-    "generatedCount": 23,
-    "routeCount": 10,
-    "componentCount": 8,
-    "totalBytes": 24473,
+    "generatedCount": 22,
+    "routeCount": 8,
+    "componentCount": 10,
+    "totalBytes": 24514,
     "samplePaths": [
-      "app/layout.tsx",
-      "app/login/page.tsx",
+      "package.json",
       "app/globals.css",
-      "app/page.tsx",
-      "app/dashboard/page.tsx",
-      "app/check-ins/page.tsx",
-      "app/journal/page.tsx",
-      "app/prompts/page.tsx",
-      "app/insights/page.tsx",
-      "app/private-messages/page.tsx"
+      "lib/mock-data.ts",
+      "components/AppShell.tsx",
+      "components/MetricCard.tsx",
+      "components/InventoryTable.tsx",
+      "components/LowStockAlerts.tsx",
+      "components/SupplierList.tsx",
+      "components/ExpiryTimeline.tsx",
+      "components/CostInsights.tsx"
     ]
   },
   "upsert": {
     "ok": true,
-    "rowCount": 23
+    "rowCount": 26
   },
   "after": {
-    "serviceRoleCount": 23,
-    "generatedSourceCount": 23,
-    "visibleCount": 23
+    "serviceRoleCount": 26,
+    "generatedSourceCount": 26,
+    "visibleCount": 26
   }
 }

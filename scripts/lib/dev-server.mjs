@@ -14,7 +14,11 @@ export function devServerBaseUrl() {
   return process.env.E2E_BASE_URL ?? process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
 }
 
-const PROBE_PATHS = ["/api/dev/ping", "/explore", "/"];
+const PROBE_PATHS = ["/api/health", "/api/dev/ping", "/explore", "/"];
+
+export function shouldReuseDevServer() {
+  return process.env.VODEX_REUSE_DEV_SERVER === "1";
+}
 
 function probeUrls(baseUrl) {
   const base = baseUrl.replace(/\/$/, "");
@@ -111,6 +115,134 @@ export function isLikelyNodeDevServer(pid) {
   }
 }
 
+/** Full command line for a PID (best-effort). */
+export function getProcessCommandLine(pid) {
+  if (!pid) return null;
+  try {
+    if (process.platform === "win32") {
+      const out = execSync(`wmic process where processid=${pid} get commandline /format:list`, {
+        encoding: "utf8",
+        stdio: ["pipe", "pipe", "ignore"],
+      });
+      const match = out.match(/CommandLine=(.+)/i);
+      return match?.[1]?.trim() ?? null;
+    }
+    return execSync(`ps -p ${pid} -o args=`, {
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
+/** Working set memory in bytes (best-effort). */
+export function getProcessMemoryBytes(pid) {
+  if (!pid) return null;
+  try {
+    if (process.platform === "win32") {
+      const out = execSync(`wmic process where processid=${pid} get workingsetsize /format:list`, {
+        encoding: "utf8",
+        stdio: ["pipe", "pipe", "ignore"],
+      });
+      const match = out.match(/WorkingSetSize=(\d+)/i);
+      return match ? Number(match[1]) : null;
+    }
+    const out = execSync(`ps -p ${pid} -o rss=`, {
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "ignore"],
+    }).trim();
+    const kb = Number(out);
+    return Number.isFinite(kb) ? kb * 1024 : null;
+  } catch {
+    return null;
+  }
+}
+
+const VODEX_DEV_CMD_RE = /next(\.js)?\s+dev|npm\s+run\s+dev|vodex|dreamos/i;
+
+/** Node process whose command line looks like a Vodex/Next dev server. */
+export function isLikelyVodexDevProcess(pid) {
+  if (!isLikelyNodeDevServer(pid)) return false;
+  const cmd = getProcessCommandLine(pid);
+  if (!cmd) return true;
+  return VODEX_DEV_CMD_RE.test(cmd);
+}
+
+/** Probe /api/health and /api/dev/ping independently. */
+export async function probeHealthEndpoints(baseUrl = devServerBaseUrl(), timeoutMs = PROBE_TIMEOUT_MS) {
+  const base = baseUrl.replace(/\/$/, "");
+  const healthUrl = `${base}/api/health`;
+  const pingUrl = `${base}/api/dev/ping`;
+
+  const healthProbe = await probeOnce(healthUrl, timeoutMs);
+  let healthOk = false;
+  let healthBody = null;
+  if (healthProbe.ok) {
+    try {
+      const res = await fetch(healthUrl, {
+        signal: AbortSignal.timeout(timeoutMs),
+        headers: { Accept: "application/json" },
+      });
+      healthBody = await res.json().catch(() => null);
+      healthOk = res.ok && healthBody?.ok === true && healthBody?.app === "vodex";
+    } catch {
+      healthOk = false;
+    }
+  }
+
+  const pingProbe = await probeOnce(pingUrl, timeoutMs);
+  let pingOk = false;
+  if (pingProbe.ok) {
+    try {
+      const res = await fetch(pingUrl, {
+        signal: AbortSignal.timeout(timeoutMs),
+        headers: { Accept: "application/json" },
+      });
+      const body = await res.json().catch(() => null);
+      pingOk = res.ok && body?.ok === true;
+    } catch {
+      pingOk = false;
+    }
+  }
+
+  return {
+    healthy: healthOk || pingOk,
+    health: {
+      ok: healthOk,
+      status: healthProbe.status,
+      error: healthProbe.error ?? null,
+      body: healthBody,
+    },
+    ping: {
+      ok: pingOk,
+      status: pingProbe.status,
+      error: pingProbe.error ?? null,
+    },
+  };
+}
+
+export function formatMemory(bytes) {
+  if (bytes == null || !Number.isFinite(bytes)) return "n/a";
+  const mb = bytes / (1024 * 1024);
+  return `${mb.toFixed(1)} MB`;
+}
+
+export function assessDevServerRestartSafety(pid) {
+  if (!pid) {
+    return { safe: true, reason: "no_listener_can_start", command: null, memoryBytes: null };
+  }
+  const command = getProcessCommandLine(pid);
+  const memoryBytes = getProcessMemoryBytes(pid);
+  if (!isLikelyNodeDevServer(pid)) {
+    return { safe: false, reason: "blocked_unknown_process", command, memoryBytes };
+  }
+  if (command && !VODEX_DEV_CMD_RE.test(command)) {
+    return { safe: false, reason: "node_not_vodex_dev", command, memoryBytes };
+  }
+  return { safe: true, reason: "vodex_dev_node", command, memoryBytes };
+}
+
 /**
  * Kill process holding port — only when it looks like Node (verify recovery).
  * @returns {{ killed: boolean; pid: string | null; reason?: string }}
@@ -123,7 +255,7 @@ export function killPortProcessSafely(port = 3000) {
   }
   try {
     if (process.platform === "win32") {
-      execSync(`taskkill /PID ${pid} /F`, { stdio: ["ignore", "ignore", "ignore"] });
+      execSync(`taskkill /PID ${pid} /T /F`, { stdio: ["ignore", "ignore", "ignore"] });
     } else {
       process.kill(Number(pid), "SIGTERM");
     }
@@ -247,6 +379,17 @@ export async function ensureDevServerReady({
   killIfBroken = true,
   root,
 } = {}) {
+  if (shouldReuseDevServer()) {
+    const diag = await diagnoseDevServer(baseUrl);
+    if (diag.state === "healthy") return diag;
+    return {
+      ...diag,
+      message:
+        diag.message +
+        " (VODEX_REUSE_DEV_SERVER=1 — will not start or kill dev server; run npm run test:live:stable)",
+    };
+  }
+
   let diag = await diagnoseDevServer(baseUrl);
   if (diag.state === "healthy") return diag;
 

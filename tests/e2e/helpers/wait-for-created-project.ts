@@ -19,13 +19,29 @@ export type WaitForCreatedProjectResult = {
 
 type ProjectListRow = { id?: string; metadata?: Record<string, unknown> | null };
 
+function isTransientRequestError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /ECONNRESET|ECONNREFUSED|ETIMEDOUT|socket hang up|network/i.test(msg);
+}
+
 async function readProjectSummary(request: APIRequestContext, projectId: string) {
-  const res = await request.get(`/api/projects/${projectId}/summary`, { timeout: 30_000 });
-  if (!res.ok()) return { ok: false as const, status: res.status() };
-  const body = (await res.json().catch(() => ({}))) as {
-    project?: { id?: string; owner_id?: string; metadata?: Record<string, unknown> | null };
-  };
-  return { ok: true as const, body };
+  const deadline = Date.now() + 90_000;
+  let lastErr: unknown;
+  while (Date.now() < deadline) {
+    try {
+      const res = await request.get(`/api/projects/${projectId}/summary`, { timeout: 30_000 });
+      if (!res.ok()) return { ok: false as const, status: res.status() };
+      const body = (await res.json().catch(() => ({}))) as {
+        project?: { id?: string; owner_id?: string; metadata?: Record<string, unknown> | null };
+      };
+      return { ok: true as const, body };
+    } catch (err) {
+      lastErr = err;
+      if (!isTransientRequestError(err)) throw err;
+      await new Promise((r) => setTimeout(r, 1_500));
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr ?? "project_summary_timeout"));
 }
 
 export async function fetchVisibleProjects(

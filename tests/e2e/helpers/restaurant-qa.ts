@@ -92,8 +92,28 @@ export function hasPlaceholderBlocker(files: { path: string; content: string }[]
   return files.some((f) => PLACEHOLDER_RE.test(f.content));
 }
 
+function isTransientRequestError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /ECONNRESET|ECONNREFUSED|ETIMEDOUT|socket hang up|network/i.test(msg);
+}
+
 export async function fetchProjectFiles(request: APIRequestContext, projectId: string) {
-  const res = await request.get(`/api/projects/${projectId}/files`);
+  const deadline = Date.now() + 90_000;
+  let lastErr: unknown;
+  let res: Awaited<ReturnType<APIRequestContext["get"]>> | null = null;
+  while (Date.now() < deadline) {
+    try {
+      res = await request.get(`/api/projects/${projectId}/files`, { timeout: 45_000 });
+      break;
+    } catch (err) {
+      lastErr = err;
+      if (!isTransientRequestError(err)) throw err;
+      await new Promise((r) => setTimeout(r, 1_500));
+    }
+  }
+  if (!res) {
+    throw lastErr instanceof Error ? lastErr : new Error(String(lastErr ?? "files_fetch_timeout"));
+  }
   if (!res.ok()) return { ok: false as const, files: [] as { path: string; content: string }[] };
   const body = await res.json();
 

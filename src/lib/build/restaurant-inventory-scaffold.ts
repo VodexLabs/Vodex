@@ -76,6 +76,63 @@ export const costInsights = {
   topCategory: "Protein",
   savingsOpportunity: 340,
 };
+
+export type Recipe = {
+  id: string;
+  name: string;
+  cuisine: string;
+  prepMinutes: number;
+  servings: number;
+  usesOnHand: string[];
+  missing: string[];
+};
+
+export const recipes: Recipe[] = [
+  {
+    id: "r1",
+    name: "Pan-Seared Salmon with Herb Butter",
+    cuisine: "Modern American",
+    prepMinutes: 35,
+    servings: 4,
+    usesOnHand: ["Atlantic Salmon", "Olive Oil — Extra Virgin", "Heavy Cream"],
+    missing: ["Fresh dill", "Lemon"],
+  },
+  {
+    id: "r2",
+    name: "Heirloom Tomato Caprese Salad",
+    cuisine: "Italian",
+    prepMinutes: 15,
+    servings: 6,
+    usesOnHand: ["Heirloom Tomatoes", "Olive Oil — Extra Virgin"],
+    missing: ["Fresh mozzarella", "Basil"],
+  },
+  {
+    id: "r3",
+    name: "Creamy Mushroom Risotto",
+    cuisine: "Comfort",
+    prepMinutes: 45,
+    servings: 4,
+    usesOnHand: ["Basmati Rice", "Heavy Cream"],
+    missing: ["Arborio rice", "Mushrooms", "Parmesan"],
+  },
+];
+
+export type ShoppingItem = {
+  id: string;
+  name: string;
+  quantity: string;
+  supplier: string;
+  priority: "high" | "medium" | "low";
+  aisle?: string;
+};
+
+export const shoppingList: ShoppingItem[] = [
+  { id: "sh1", name: "Heavy Cream", quantity: "8 L", supplier: "Dairy Fresh", priority: "high", aisle: "Dairy" },
+  { id: "sh2", name: "Heirloom Tomatoes", quantity: "12 kg", supplier: "Green Valley Farms", priority: "high", aisle: "Produce" },
+  { id: "sh3", name: "Atlantic Salmon", quantity: "15 kg", supplier: "Harbor Fish Co.", priority: "medium", aisle: "Protein" },
+  { id: "sh4", name: "Fresh dill", quantity: "3 bunches", supplier: "Green Valley Farms", priority: "low", aisle: "Produce" },
+  { id: "sh5", name: "Lemon", quantity: "2 kg", supplier: "Green Valley Farms", priority: "low", aisle: "Produce" },
+];
 `,
     },
     {
@@ -88,6 +145,9 @@ import { usePathname } from "next/navigation";
 const NAV = [
   { href: "/", label: "Dashboard" },
   { href: "/inventory", label: "Inventory" },
+  { href: "/ingredients", label: "Ingredients" },
+  { href: "/shopping-list", label: "Shopping list" },
+  { href: "/recipes", label: "Recipes" },
   { href: "/suppliers", label: "Suppliers" },
   { href: "/alerts", label: "Alerts" },
   { href: "/settings", label: "Settings" },
@@ -339,14 +399,18 @@ export function CostInsights() {
     {
       path: "app/layout.tsx",
       content: `import "./globals.css";
+import type { Metadata } from "next";
 import { AppShell } from "@/components/AppShell";
 
-export const metadata = { title: "Pantry Pro — Restaurant Inventory" };
+export const metadata: Metadata = {
+  title: "Pantry Pro — Restaurant Inventory",
+  description: "Track ingredients, suppliers, expiry dates, shopping lists, and recipe ideas.",
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>
+      <body className="min-h-screen bg-stone-50 text-stone-900 antialiased">
         <AppShell>{children}</AppShell>
       </body>
     </html>
@@ -449,6 +513,209 @@ export default function AlertsPage() {
 `,
     },
     {
+      path: "components/RecipeGrid.tsx",
+      content: `"use client";
+
+import { recipes } from "@/lib/mock-data";
+
+export function RecipeGrid() {
+  return (
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" data-testid="recipe-grid">
+      {recipes.map((recipe) => (
+        <article key={recipe.id} className="card flex flex-col p-4">
+          <header className="mb-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-orange-600">{recipe.cuisine}</p>
+            <h3 className="mt-1 text-base font-semibold text-stone-900">{recipe.name}</h3>
+            <p className="mt-1 text-xs text-stone-500">
+              {recipe.prepMinutes} min · Serves {recipe.servings}
+            </p>
+          </header>
+          <div className="flex-1 space-y-3 text-sm">
+            <div>
+              <p className="font-medium text-stone-700">Uses on hand</p>
+              <ul className="mt-1 list-inside list-disc text-stone-600">
+                {recipe.usesOnHand.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+            {recipe.missing.length ? (
+              <div>
+                <p className="font-medium text-amber-800">Need to buy</p>
+                <ul className="mt-1 list-inside list-disc text-amber-700">
+                  {recipe.missing.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            className="mt-4 rounded-lg bg-orange-600 px-3 py-2 text-sm font-semibold text-white hover:bg-orange-700"
+          >
+            Add missing to shopping list
+          </button>
+        </article>
+      ))}
+    </div>
+  );
+}
+`,
+    },
+    {
+      path: "components/ShoppingListPanel.tsx",
+      content: `"use client";
+
+import React from "react";
+import { shoppingList } from "@/lib/mock-data";
+
+export function ShoppingListPanel() {
+  const [checked, setChecked] = React.useState<Record<string, boolean>>({});
+  const pending = shoppingList.filter((item) => !checked[item.id]);
+  return (
+    <div className="card overflow-hidden" data-testid="shopping-list">
+      <div className="border-b border-stone-200 px-4 py-3">
+        <h2 className="text-sm font-semibold text-stone-900">Reorder queue</h2>
+        <p className="text-xs text-stone-500">{pending.length} items remaining</p>
+      </div>
+      <ul className="divide-y divide-stone-100">
+        {shoppingList.map((item) => (
+          <li key={item.id} className="flex items-start gap-3 px-4 py-3 text-sm">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={Boolean(checked[item.id])}
+              onChange={() => setChecked((c) => ({ ...c, [item.id]: !c[item.id] }))}
+            />
+            <div className="flex-1">
+              <p className={checked[item.id] ? "text-stone-400 line-through" : "font-medium text-stone-900"}>
+                {item.name}
+              </p>
+              <p className="text-xs text-stone-500">
+                {item.quantity} · {item.supplier}
+                {item.aisle ? " · " + item.aisle : ""}
+              </p>
+            </div>
+            <span
+              className={
+                item.priority === "high"
+                  ? "rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800"
+                  : item.priority === "medium"
+                    ? "rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
+                    : "rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-600"
+              }
+            >
+              {item.priority}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+`,
+    },
+    {
+      path: "components/IngredientParBoard.tsx",
+      content: `"use client";
+
+import { inventory } from "@/lib/mock-data";
+
+export function IngredientParBoard() {
+  const belowPar = inventory.filter((i) => i.quantity < i.par);
+  const healthy = inventory.filter((i) => i.quantity >= i.par);
+  return (
+    <div className="grid gap-4 lg:grid-cols-2" data-testid="ingredient-par-board">
+      <section className="card p-4">
+        <h2 className="text-sm font-semibold text-stone-900">Below par ({belowPar.length})</h2>
+        <ul className="mt-3 space-y-2 text-sm">
+          {belowPar.map((item) => (
+            <li key={item.id} className="flex justify-between rounded-lg bg-red-50 px-3 py-2">
+              <span className="font-medium text-red-900">{item.name}</span>
+              <span className="tabular-nums text-red-700">
+                {item.quantity}/{item.par} {item.unit}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+      <section className="card p-4">
+        <h2 className="text-sm font-semibold text-stone-900">Healthy stock ({healthy.length})</h2>
+        <ul className="mt-3 space-y-2 text-sm">
+          {healthy.slice(0, 6).map((item) => (
+            <li key={item.id} className="flex justify-between rounded-lg bg-green-50 px-3 py-2">
+              <span className="font-medium text-green-900">{item.name}</span>
+              <span className="tabular-nums text-green-700">
+                {item.quantity}/{item.par} {item.unit}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
+  );
+}
+`,
+    },
+    {
+      path: "app/ingredients/page.tsx",
+      content: `import { IngredientParBoard } from "@/components/IngredientParBoard";
+import { InventoryTable } from "@/components/InventoryTable";
+
+export default function IngredientsPage() {
+  return (
+    <div className="space-y-6 p-6">
+      <header>
+        <h1 className="text-2xl font-semibold text-stone-900">Ingredients</h1>
+        <p className="text-sm text-stone-600">Par levels, categories, and reorder signals for every SKU.</p>
+      </header>
+      <IngredientParBoard />
+      <InventoryTable />
+    </div>
+  );
+}
+`,
+    },
+    {
+      path: "app/shopping-list/page.tsx",
+      content: `import { ShoppingListPanel } from "@/components/ShoppingListPanel";
+import { LowStockAlerts } from "@/components/LowStockAlerts";
+
+export default function ShoppingListPage() {
+  return (
+    <div className="grid gap-6 p-6 lg:grid-cols-3">
+      <header className="lg:col-span-3">
+        <h1 className="text-2xl font-semibold text-stone-900">Shopping list</h1>
+        <p className="text-sm text-stone-600">Consolidated reorder queue from low stock and recipe gaps.</p>
+      </header>
+      <div className="lg:col-span-2">
+        <ShoppingListPanel />
+      </div>
+      <LowStockAlerts />
+    </div>
+  );
+}
+`,
+    },
+    {
+      path: "app/recipes/page.tsx",
+      content: `import { RecipeGrid } from "@/components/RecipeGrid";
+
+export default function RecipesPage() {
+  return (
+    <div className="space-y-6 p-6">
+      <header>
+        <h1 className="text-2xl font-semibold text-stone-900">Recipe suggestions</h1>
+        <p className="text-sm text-stone-600">Ideas based on ingredients currently on hand — with missing-item hints.</p>
+      </header>
+      <RecipeGrid />
+    </div>
+  );
+}
+`,
+    },
+    {
       path: "app/settings/page.tsx",
       content: `export default function SettingsPage() {
   return (
@@ -490,7 +757,13 @@ const SCAFFOLD_LOCKED_PATHS = new Set(
     "components/SupplierList.tsx",
     "components/ExpiryTimeline.tsx",
     "components/CostInsights.tsx",
+    "components/RecipeGrid.tsx",
+    "components/ShoppingListPanel.tsx",
+    "components/IngredientParBoard.tsx",
     "app/inventory/page.tsx",
+    "app/ingredients/page.tsx",
+    "app/shopping-list/page.tsx",
+    "app/recipes/page.tsx",
     "app/suppliers/page.tsx",
     "app/alerts/page.tsx",
     "app/settings/page.tsx",

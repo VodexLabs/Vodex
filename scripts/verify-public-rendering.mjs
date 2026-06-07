@@ -8,6 +8,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { CHECKS } from "./lib/p42-verify-checks.mjs";
+import { probeVodexHealth } from "./lib/stable-live-server.mjs";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = path.join(root, "artifacts", "benchmarks", "p13");
@@ -65,6 +66,14 @@ async function main() {
   if (testSlug) {
     live.attempted = true;
     live.skipped = false;
+
+    const health = await probeVodexHealth(baseUrl);
+    if (!health.vodex) {
+      errors.push(
+        `live /p/[slug] blocked — dev server unhealthy at ${baseUrl} (start via npm run test:live:stable)`,
+      );
+      live.pass = false;
+    } else {
     const routes = [`/p/${testSlug}`, `/p/${testSlug}/`];
     const tested = [];
     let liveOk = true;
@@ -112,6 +121,7 @@ async function main() {
     live.pass = liveOk;
     live.routes_tested = tested;
     if (!liveOk) errors.push("live /p/[slug] fetch failed or returned stub/empty body");
+    }
   }
 
   const pass = errors.length === 0;

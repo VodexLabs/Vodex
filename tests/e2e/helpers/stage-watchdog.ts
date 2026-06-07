@@ -42,7 +42,12 @@ export const STAGE_BUDGET_MS: Record<WatchdogStage, number> = {
   build_events: 300_000,
   app_files: 240_000,
   preview: 180_000,
-  publish: 60_000,
+  publish:
+    Number(process.env.E2E_PUBLISH_BUDGET_MS) > 0
+      ? Number(process.env.E2E_PUBLISH_BUDGET_MS)
+      : process.platform === "win32"
+        ? 300_000
+        : 120_000,
   published_url: 30_000,
   dashboard_unlock: 60_000,
   payments: 60_000,

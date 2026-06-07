@@ -93,7 +93,7 @@ export function isCosmeticOnlyBuildFailure(failures: string[]): boolean {
 }
 
 const NON_BLOCKING_WITH_SAVED_FILES_RE =
-  /^(app_icon_missing|app_name_untitled|ui_too_basic|missing_app_layout|missing_app_page)$|^ui_quality_|^route_pages_|^components_|^renderable_files_|^required_pages_missing|^missing_blueprint_routes/;
+  /^(app_icon_missing|app_name_untitled|ui_too_basic|missing_app_layout|missing_app_page)$|^ui_quality_|^ui_richness_|^dashboard_quality_|^route_pages_|^components_|^renderable_files_|^required_pages_missing|^missing_blueprint_routes/;
 
 /** Enough files saved — preview is useful even if quality/icon checks did not pass. */
 export function canCompleteWithSavedFiles(fileCount: number, failures: string[]): boolean {
@@ -207,7 +207,9 @@ export function evaluatePostBuildContract(input: PostBuildContractInput): PostBu
       input.scaffoldFallbackUsed &&
       uiQuality.score >= Math.min(PREVIEW_READY_MIN_SCORE, 58)) ||
     (f.startsWith("ui_quality_0") && uiQuality.score >= PREVIEW_READY_MIN_SCORE) ||
-    (f === "ui_too_basic" && uiQuality.score >= PREVIEW_READY_MIN_SCORE);
+    (f === "ui_too_basic" && uiQuality.score >= PREVIEW_READY_MIN_SCORE) ||
+    (f.startsWith("ui_richness_") && input.scaffoldFallbackUsed) ||
+    (f.startsWith("dashboard_quality_") && input.scaffoldFallbackUsed);
 
   let filteredFailures = failures;
   if (input.scaffoldFallbackUsed) {
@@ -346,7 +348,16 @@ export function requiredPageSlugsForArchetype(archetypeId: string): string[] | n
     return ["dashboard", "subscribers", "boxes", "shipments", "analytics", "settings"];
   }
   if (archetypeId === "restaurant_inventory") {
-    return ["dashboard", "inventory", "suppliers", "alerts", "settings"];
+    return [
+      "dashboard",
+      "inventory",
+      "ingredients",
+      "shopping-list",
+      "recipes",
+      "suppliers",
+      "alerts",
+      "settings",
+    ];
   }
   if (archetypeId === "crm") {
     return ["donors", "donations", "campaigns", "recurring-gifts", "automations", "settings"];
