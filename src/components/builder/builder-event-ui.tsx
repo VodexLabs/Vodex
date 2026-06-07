@@ -394,6 +394,7 @@ export function BuilderAssistantMessage({
   creditsUsed,
   buildFinalized,
   previewReady = false,
+  workflowStreamOwnsFiles = false,
 }: {
   text: string;
   streaming?: boolean;
@@ -403,6 +404,8 @@ export function BuilderAssistantMessage({
   creditsUsed?: number | null;
   buildFinalized?: boolean;
   previewReady?: boolean;
+  /** When the live workflow stream is visible, hide static file rows and terminal summary here. */
+  workflowStreamOwnsFiles?: boolean;
 }) {
   const appName = meta?.app?.name ? stripMarkdownNoise(meta.app.name) : plan.summary?.slice(0, 48);
   const fileRows =
@@ -412,6 +415,10 @@ export function BuilderAssistantMessage({
 
   const showThinking = streaming && fileRows.length === 0;
   const showDone = !streaming && buildFinalized !== false;
+
+  if (workflowStreamOwnsFiles) {
+    return null;
+  }
 
   return (
     <div className="space-y-2.5">
@@ -434,7 +441,7 @@ export function BuilderAssistantMessage({
         </div>
       )}
 
-      {fileRows.length > 0 && (
+      {!workflowStreamOwnsFiles && fileRows.length > 0 && (
         <div className="space-y-1 rounded-xl bg-white/60 px-2 py-2 ring-1 ring-border/70 dark:bg-surface/40">
           {fileRows.map((f) => (
             <BuilderActionRow
@@ -448,10 +455,10 @@ export function BuilderAssistantMessage({
         </div>
       )}
 
-      {showDone && (
+      {!workflowStreamOwnsFiles && showDone && (
         <BuilderResultSummary meta={meta} creditsUsed={creditsUsed} previewReady={previewReady} />
       )}
-      {streaming && !showDone && fileRows.length > 0 && (
+      {!workflowStreamOwnsFiles && streaming && !showDone && fileRows.length > 0 && (
         <p className="text-[10.5px] text-muted-foreground">Saving files and preparing preview…</p>
       )}
     </div>

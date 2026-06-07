@@ -35,42 +35,8 @@ function isFileEvent(ev: AgentWorkflowEvent): boolean {
   );
 }
 
-function groupFileEvents(
-  events: AgentWorkflowEvent[],
-  options?: { terminal?: boolean },
-): AgentWorkflowEvent[] {
-  const terminal = options?.terminal ?? false;
-  const out: AgentWorkflowEvent[] = [];
-  let i = 0;
-  while (i < events.length) {
-    const ev = events[i];
-    if (!isFileEvent(ev)) {
-      out.push(ev);
-      i += 1;
-      continue;
-    }
-    const batch: AgentWorkflowEvent[] = [ev];
-    let j = i + 1;
-    while (j < events.length && isFileEvent(events[j])) {
-      batch.push(events[j]);
-      j += 1;
-    }
-    if (terminal && batch.length >= 4) {
-      out.push({
-        id: `group-${batch[0].id}`,
-        category: "file_created",
-        title: `Created ${batch.length} files`,
-        status: batch.some((b) => b.status === "active") ? "active" : "done",
-        at: batch[batch.length - 1].at,
-        stableKey: `file-group:${batch[0].stableKey}`,
-        metadata: { file_group: batch.map((b) => b.filePath).filter(Boolean) },
-      });
-    } else {
-      out.push(...batch);
-    }
-    i = j;
-  }
-  return out;
+function groupFileEvents(events: AgentWorkflowEvent[]): AgentWorkflowEvent[] {
+  return events;
 }
 
 function FileChangeCard({ event }: { event: AgentWorkflowEvent }) {
@@ -381,12 +347,8 @@ export function AgentWorkflowStream({
     (openerText?.toLowerCase().startsWith("analyzing") ?? false) &&
     serverSequential.length < 1;
 
-  const hasServerActivity = serverSequential.some(
-    (e) => e.status === "active" || e.category === "file_created" || e.category === "file_edited",
-  );
-  const hasLiveFileEvents = serverSequential.some((e) => isFileEvent(e));
   const ephemeral =
-    working && !hasLiveFileEvents && (!hasServerActivity || serverSequential.length < 2)
+    working && serverSequential.length === 0
       ? buildEphemeralWorkflowEvents(
           startedAt,
           now,
@@ -395,7 +357,7 @@ export function AgentWorkflowStream({
         )
       : [];
   const merged = mergeEphemeralWithServerEvents(ephemeral, serverSequential);
-  const grouped = groupFileEvents(merged, { terminal: !working });
+  const grouped = groupFileEvents(merged);
   const streamFileCount = Math.max(
     savedFileCount,
     grouped.filter((e) => isFileEvent(e)).length,
