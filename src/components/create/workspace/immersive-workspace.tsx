@@ -2965,7 +2965,7 @@ export function ImmersiveWorkspace({
         <div
           className={cn(
             "flex min-h-0 flex-col overflow-hidden border-border/50 max-lg:flex-1 max-lg:w-full max-lg:max-w-none",
-            "lg:w-[38%] lg:min-w-[300px] lg:max-w-[480px] lg:border-r",
+            "lg:w-[34%] lg:min-w-[280px] lg:max-w-[420px] lg:border-r",
             mobilePanel !== "chat" && "max-lg:hidden",
           )}
         >

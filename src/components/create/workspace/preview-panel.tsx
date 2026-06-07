@@ -29,9 +29,9 @@ import { ImportedPreviewEmptyState } from "@/components/preview/imported-preview
 type Viewport = "desktop" | "tablet" | "mobile";
 
 const VIEWPORT_CONFIG: Record<Viewport, { width: string; label: string; icon: React.ElementType }> = {
-  desktop: { width: "w-full max-w-[1440px]", label: "Desktop (1440)", icon: Monitor },
-  tablet: { width: "w-[768px] max-w-full", label: "Tablet (768)", icon: Tablet },
-  mobile: { width: "w-[390px] max-w-full", label: "Phone (390)", icon: Smartphone },
+  desktop: { width: "w-full max-w-[1480px]", label: "Desktop (1480)", icon: Monitor },
+  tablet: { width: "w-[820px] max-w-full", label: "Tablet (820)", icon: Tablet },
+  mobile: { width: "w-[393px] max-w-full", label: "Phone (393)", icon: Smartphone },
 };
 
 export interface PreviewPanelProps {
@@ -194,7 +194,7 @@ export function PreviewPanel({
       )}
     >
       {/* Browser chrome topbar */}
-      <div className="flex shrink-0 items-center gap-2 border-b border-border bg-surface/80 px-3 py-1.5 backdrop-blur">
+      <div className="flex shrink-0 items-center gap-2.5 border-b border-border bg-surface/80 px-3.5 py-2 backdrop-blur">
         {/* Traffic lights */}
         <div className="flex items-center gap-1.5">
           <span className="size-2.5 rounded-full bg-red-400/70" />
@@ -210,9 +210,9 @@ export function PreviewPanel({
             disabled={!hasPreviewArtifact}
           />
         ) : (
-          <div className="flex flex-1 items-center gap-1.5 rounded-md bg-background/80 px-2.5 py-1 ring-1 ring-border/60">
-            <Globe className="size-3 shrink-0 text-muted-foreground/60" strokeWidth={1.75} />
-            <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-muted-foreground">
+          <div className="flex flex-1 items-center gap-1.5 rounded-md bg-background/80 px-3 py-1.5 ring-1 ring-border/60">
+            <Globe className="size-3.5 shrink-0 text-muted-foreground/60" strokeWidth={1.75} />
+            <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-muted-foreground">
               {displayHost}
             </span>
             {(hasPreviewArtifact && iframeLoading) && (
@@ -464,11 +464,11 @@ export function PreviewPanel({
                 className={cn(
                   "relative flex flex-col overflow-hidden bg-white",
                   viewport === "desktop" &&
-                    "absolute inset-0 h-full w-full rounded-none shadow-none ring-0",
+                    "absolute inset-x-0 top-2 bottom-1 mx-auto h-[calc(100%-12px)] w-[min(100%,102%)] rounded-sm shadow-[0_2px_24px_-6px_rgba(0,0,0,0.12)] ring-1 ring-border/50",
                   viewport === "tablet" &&
-                    "max-h-full w-[min(768px,calc(100%-24px))] rounded-[var(--radius-lg)] shadow-[0_8px_32px_-8px_rgba(0,0,0,0.18)] ring-1 ring-border",
+                    "max-h-[min(88vh,1024px)] w-[min(820px,calc(100%-20px))] rounded-[var(--radius-lg)] shadow-[0_8px_32px_-8px_rgba(0,0,0,0.18)] ring-1 ring-border",
                   viewport === "mobile" &&
-                    "z-10 max-h-[90vh] w-[min(390px,calc(100%-24px))] rounded-[var(--radius-lg)] shadow-[0_0_40px_rgba(0,0,0,0.5)] ring-1 ring-border",
+                    "z-10 max-h-[min(86vh,852px)] w-[min(393px,calc(100%-20px))] rounded-[var(--radius-lg)] shadow-[0_0_40px_rgba(0,0,0,0.5)] ring-1 ring-border",
                 )}
               >
                 {viewport === "mobile" && (

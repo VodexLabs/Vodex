@@ -35,7 +35,11 @@ function isFileEvent(ev: AgentWorkflowEvent): boolean {
   );
 }
 
-function groupFileEvents(events: AgentWorkflowEvent[]): AgentWorkflowEvent[] {
+function groupFileEvents(
+  events: AgentWorkflowEvent[],
+  options?: { terminal?: boolean },
+): AgentWorkflowEvent[] {
+  const terminal = options?.terminal ?? false;
   const out: AgentWorkflowEvent[] = [];
   let i = 0;
   while (i < events.length) {
@@ -51,7 +55,7 @@ function groupFileEvents(events: AgentWorkflowEvent[]): AgentWorkflowEvent[] {
       batch.push(events[j]);
       j += 1;
     }
-    if (batch.length >= 4) {
+    if (terminal && batch.length >= 4) {
       out.push({
         id: `group-${batch[0].id}`,
         category: "file_created",
@@ -390,20 +394,20 @@ export function AgentWorkflowStream({
         )
       : [];
   const merged = mergeEphemeralWithServerEvents(ephemeral, serverSequential);
-  const grouped = groupFileEvents(merged);
+  const grouped = groupFileEvents(merged, { terminal: !working });
   const streamFileCount = Math.max(
     savedFileCount,
     grouped.filter((e) => isFileEvent(e)).length,
     (progress.events ?? []).filter((e) => e.type === "writing_file").length,
   );
-  const timelineRaw = applySingleActiveWorkflowStep(grouped, working).slice(-24);
+  const timelineRaw = applySingleActiveWorkflowStep(grouped, working).slice(-32);
   const batchPersistStagger = timelineRaw.some((e) => e.metadata?.batch_persist === true);
   const timeline = useStaggeredWorkflowEvents(timelineRaw, batchPersistStagger);
 
   const active = [...timeline].reverse().find((e) => e.status === "active");
-  const completedTimeline = active
-    ? timeline.filter((ev) => ev.stableKey !== active.stableKey)
-    : timeline;
+  const completedTimeline = (active ? timeline.filter((ev) => ev.stableKey !== active.stableKey) : timeline).filter(
+    (ev) => !(working && isFileEvent(ev)),
+  );
 
   const fileDiffSummary = React.useMemo(() => {
     let files = 0;
@@ -462,7 +466,7 @@ export function AgentWorkflowStream({
         ) : null}
       </ul>
 
-      {fileDiffSummary ? (
+      {!working && fileDiffSummary ? (
         <p
           className="mr-6 px-1 text-[10.5px] font-medium text-muted-foreground sm:mr-10"
           data-testid="workflow-file-diff-summary"

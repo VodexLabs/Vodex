@@ -45,7 +45,8 @@ const suites = {
   "preview-fit": () => {
     const errors = [];
     must(read("src/components/create/workspace/preview-panel.tsx"), "data-testid=\"preview-fit-canvas\"", "fit canvas", errors);
-    must(read("src/components/create/workspace/preview-panel.tsx"), "absolute inset-0 h-full w-full", "desktop full bleed", errors);
+    must(read("src/components/create/workspace/preview-panel.tsx"), "h-[calc(100%-12px)]", "desktop framed height", errors);
+    must(read("src/components/create/workspace/preview-panel.tsx"), "w-[min(100%,102%)]", "desktop slight width expansion", errors);
     return errors;
   },
   "live-diff-counts": () => {

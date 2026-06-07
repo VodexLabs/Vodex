@@ -76,7 +76,14 @@ const ARCHETYPE_HINTS: Array<{ id: AppArchetypeId; patterns: RegExp[]; weight?: 
     patterns: [/event ticketing|ticket(s)?\s+app|qr code ticket|organizer check-in|stripe payment|check-in dashboard/i],
   },
   { id: "crm", patterns: [/crm|dentist|patient|clinic|sales pipeline|contacts|leads/i] },
-  { id: "booking", patterns: [/booking|appointment|schedule|calendar|salon|reservation/i] },
+  {
+    id: "booking",
+    patterns: [
+      /airbnb|host ops|host operations|turnover|cleaner scheduling|guest message|revenue calendar/i,
+      /booking|appointment|schedule|calendar|salon|reservation/i,
+    ],
+    weight: 2,
+  },
   { id: "ecommerce", patterns: [/e-?commerce|online store|shop|cart|product catalog/i] },
   { id: "finance_tracker", patterns: [/finance|budget|expense|ledger|invoice|transaction/i] },
   { id: "social_community", patterns: [/community|forum|social|feed|posts|members/i] },

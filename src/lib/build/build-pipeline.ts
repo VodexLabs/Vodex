@@ -34,8 +34,19 @@ import {
 import {
   applyArchetypeScaffoldFallback,
   hasFullScaffoldTree,
+  isModelOutputSufficient,
   replaceStubFilesWithArchetypeScaffold,
 } from "@/lib/build/archetype-scaffold-fallback";
+import {
+  thinkingForArchetypeRoutes,
+  thinkingForDesignBrief,
+  thinkingForFilePath,
+  thinkingForFrontendFailed,
+  thinkingForFrontendRetry,
+  thinkingForFrontendStart,
+  thinkingForIconStatus,
+  thinkingForQualityCheck,
+} from "@/lib/build/build-thinking-messages";
 import { expandBuildPromptIfShallow } from "@/lib/build/build-feature-expansion";
 import { expandProductIntelligence } from "@/lib/build/product-intelligence-expansion";
 import {
@@ -203,6 +214,7 @@ function mergeIncomingBuildFiles(
     meta?: WorkflowEventMeta,
   ) => void,
   maxFiles: number,
+  onFileThinking?: (path: string) => void,
 ): BuildFile[] {
   const merged = new Map(existing.map((f) => [f.path, f]));
   for (const f of filterRenderableBuildFiles(incoming)) {
@@ -219,6 +231,7 @@ function mergeIncomingBuildFiles(
     if (prev) {
       trackFn(events, "editing", `Modified ${path}`, countDetail, meta);
     } else {
+      onFileThinking?.(path);
       trackFn(events, "writing", `Created ${path}`, countDetail, meta);
     }
     merged.set(f.path, f);
@@ -340,6 +353,7 @@ export async function runStagedBuildPipeline(input: {
   }
 
   const events: WorkflowEvent[] = [];
+  const onFileThinking = (path: string) => trackAssistant(events, thinkingForFilePath(path), emit);
   let accumulatedCost = 0;
   let totalIn = 0;
   let totalOut = 0;
@@ -580,8 +594,13 @@ export async function runStagedBuildPipeline(input: {
   if (identityResult.userNotice) {
     track(events, "icon", identityResult.userNotice);
   }
+  const iconThinking = thinkingForIconStatus(identityResult.logoGenerationStatus, appName);
+  if (iconThinking) {
+    trackAssistant(events, iconThinking, emit);
+  }
 
   track(events, "classified", `Archetype: ${archetype.label}`);
+  trackAssistant(events, thinkingForArchetypeRoutes(archetype.id), emit);
   const designBrief: DesignBrief = buildDesignBrief({
     buildIntent: executionPrompt,
     archetype,
@@ -736,25 +755,18 @@ export async function runStagedBuildPipeline(input: {
     };
   }
 
+  trackAssistant(events, thinkingForFrontendStart(appName), emit);
   trackAssistant(
     events,
-    `I'm writing the core screens and components for ${appName} now.`,
+    thinkingForDesignBrief(designBrief.routes ?? archetype.coreRoutes),
     emit,
   );
-  track(events, "writing", "Adding the required pages…");
+  track(events, "writing", "Generating frontend files");
   if (input.buildTrace) traceBuildWorkerStage(input.buildTrace, "file_generation_started");
 
   const smokeBuild = process.env.DREAMOS_SMOKE_BUILD === "1";
   const MIN_FULL_SCAFFOLD_FILES = 14;
   let allFiles: BuildFile[] = [];
-
-  if (hasFullScaffoldTree(archetype.id)) {
-    const preScaffold = applyArchetypeScaffoldFallback(archetype.id, [], appName);
-    allFiles = preScaffold.files;
-    if (input.buildTrace) {
-      traceBuildWorkerStage(input.buildTrace, "scaffold_fallback_applied", String(preScaffold.afterCount));
-    }
-  }
 
   /** Smoke builds may skip the model; production always runs frontend_implementation for premium UI. */
   const scaffoldSufficient =
@@ -765,25 +777,9 @@ export async function runStagedBuildPipeline(input: {
 
   if (!scaffoldSufficient) {
     track(events, "writing", "Generating source files");
-    track(events, "writing", "Generating frontend files");
-    let fePrompt = smokeBuild
+    const fePrompt = smokeBuild
       ? minimalFrontendPrompt(executionPrompt, planJson!, contextSlices, designBrief)
       : frontendPrompt(executionPrompt, planJson!, uiJson, effectiveMaxFiles, contextSlices, designBrief);
-    if (allFiles.length > 0) {
-      const paths = filterRenderableBuildFiles(allFiles)
-        .map((f) => f.path)
-        .slice(0, 36)
-        .join(", ");
-      fePrompt += [
-        "",
-        "SCAFFOLD ENHANCEMENT: Starter files already exist — you MUST replace page and component source with premium, polished UI.",
-        "Keep the route structure but ship beautiful dashboards: gradients, cards, charts, tables with realistic mock data, empty states, and responsive spacing.",
-        "Do not leave placeholder shells or bare tables. Every screen should look like a funded SaaS product.",
-        paths ? `Existing paths to upgrade: ${paths}` : "",
-      ]
-        .filter(Boolean)
-        .join("\n");
-    }
     heavyBudget.record([fePrompt, BUILD_SYSTEM]);
     heavyBudget.assertWithinBudget(true);
     const feCall = await callProviderWithBuildTimeout(
@@ -798,7 +794,7 @@ export async function runStagedBuildPipeline(input: {
         complexity: smokeBuild ? 3 : complexity,
         accumulatedCostUsd: accumulatedCost,
         userSelectedModelId: input.userSelectedModelId,
-        timeoutMs: scaffoldSufficient ? 8_000 : PROVIDER_TIMEOUT_MS.frontend_implementation,
+        timeoutMs: PROVIDER_TIMEOUT_MS.frontend_implementation,
       },
       input.buildTrace,
     );
@@ -816,12 +812,53 @@ export async function runStagedBuildPipeline(input: {
           events,
           track,
           effectiveMaxFiles,
+          onFileThinking,
         );
         if (allFiles.length > beforeCount) {
           trackAssistant(
             events,
             `Generated ${allFiles.length - beforeCount} file${allFiles.length - beforeCount === 1 ? "" : "s"} — checking quality next.`,
             emit,
+          );
+        }
+      } else {
+        trackAssistant(events, thinkingForFrontendRetry(), emit);
+      }
+    } else {
+      trackAssistant(events, thinkingForFrontendRetry(), emit);
+    }
+
+    if (!isModelOutputSufficient(allFiles) && accumulatedCost < FULL_BUILD_CAP_USD * 0.92) {
+      const retryCall = await callProviderWithBuildTimeout(
+        {
+          writer: input.writer,
+          userId: input.userId,
+          userEmail: input.userEmail,
+          operationId: `${input.operationId}:frontend-retry`,
+          operationType: "frontend_implementation",
+          system: BUILD_SYSTEM,
+          prompt: minimalFrontendPrompt(executionPrompt, planJson, contextSlices, designBrief),
+          complexity: Math.max(4, complexity),
+          accumulatedCostUsd: accumulatedCost,
+          userSelectedModelId: input.userSelectedModelId,
+          timeoutMs: PROVIDER_TIMEOUT_MS.frontend_implementation,
+        },
+        input.buildTrace,
+      );
+      if (retryCall.ok) {
+        accumulatedCost += retryCall.result.providerCostUsd;
+        totalIn += retryCall.result.inputTokens ?? 0;
+        totalOut += retryCall.result.outputTokens ?? 0;
+        primaryModelId = retryCall.result.spec.modelId;
+        const retryPayload = parseFilePayload(retryCall.result.text);
+        if (retryPayload.files.length) {
+          allFiles = mergeIncomingBuildFiles(
+            allFiles,
+            retryPayload.files,
+            events,
+            track,
+            effectiveMaxFiles,
+            onFileThinking,
           );
         }
       }
@@ -864,6 +901,7 @@ export async function runStagedBuildPipeline(input: {
         events,
         track,
         effectiveMaxFiles,
+        onFileThinking,
       );
     }
     }
@@ -944,8 +982,14 @@ export async function runStagedBuildPipeline(input: {
 
   let scaffoldFallback = applyArchetypeScaffoldFallback(archetype.id, allFiles, appName);
   if (scaffoldFallback.usedFallback) {
+    trackAssistant(
+      events,
+      scaffoldFallback.beforeCount > 0
+        ? thinkingForFrontendFailed()
+        : "Model didn't return files — applying a minimal starter structure.",
+      emit,
+    );
     track(events, "validating", "Strengthening the app structure…");
-    track(events, "writing", "Adding the required app structure");
     allFiles = scaffoldFallback.files;
     if (process.env.NODE_ENV !== "production") {
       console.info("[build] scaffold_fallback_used", {
@@ -997,6 +1041,7 @@ export async function runStagedBuildPipeline(input: {
           events,
           track,
           effectiveMaxFiles,
+          onFileThinking,
         );
       }
       }
@@ -1083,7 +1128,7 @@ export async function runStagedBuildPipeline(input: {
     const repaired = parseFilePayload(repairCall.result.text);
     if (repaired.files.length) {
       allFiles = filterRenderableBuildFiles(
-        mergeIncomingBuildFiles(allFiles, repaired.files, events, track, effectiveMaxFiles),
+        mergeIncomingBuildFiles(allFiles, repaired.files, events, track, effectiveMaxFiles, onFileThinking),
       );
     }
     quality = assessBuildQuality(allFiles);
@@ -1098,8 +1143,8 @@ export async function runStagedBuildPipeline(input: {
   track(events, "validating", "Checking the interface…");
 
   scaffoldFallback = applyArchetypeScaffoldFallback(archetype.id, allFiles, appName);
-  if (scaffoldFallback.usedFallback) {
-    track(events, "writing", "Adding the required pages…", `${scaffoldFallback.afterCount} files`);
+  if (scaffoldFallback.usedFallback && !isModelOutputSufficient(allFiles)) {
+    trackAssistant(events, thinkingForQualityCheck(), emit);
     allFiles = scaffoldFallback.files;
   }
 
@@ -1126,13 +1171,14 @@ export async function runStagedBuildPipeline(input: {
 
   if (
     hasFullScaffoldTree(archetype.id) &&
+    !isModelOutputSufficient(allFiles) &&
     filterRenderableBuildFiles(allFiles).length < MIN_FULL_SCAFFOLD_FILES
   ) {
-    const forcedScaffold = applyArchetypeScaffoldFallback(archetype.id, [], resolvedAppName);
+    const forcedScaffold = applyArchetypeScaffoldFallback(archetype.id, allFiles, resolvedAppName);
     if (forcedScaffold.afterCount >= MIN_FULL_SCAFFOLD_FILES) {
       allFiles = forcedScaffold.files;
       scaffoldFallback = forcedScaffold;
-      track(events, "writing", "Adding the required pages…", `${forcedScaffold.afterCount} files`);
+      track(events, "writing", "Filling missing pages…", `${forcedScaffold.afterCount} files`);
     }
   }
 
@@ -1162,7 +1208,11 @@ export async function runStagedBuildPipeline(input: {
     3,
   );
 
-  if (!enforced.contract.passed && hasFullScaffoldTree(archetype.id)) {
+  if (
+    !enforced.contract.passed &&
+    hasFullScaffoldTree(archetype.id) &&
+    !isModelOutputSufficient(enforced.files)
+  ) {
     scaffoldFallback = applyArchetypeScaffoldFallback(archetype.id, enforced.files, resolvedAppName);
     if (scaffoldFallback.usedFallback) {
       track(events, "repairing", "Strengthening the app structure…");

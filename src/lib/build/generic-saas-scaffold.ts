@@ -259,3 +259,22 @@ export function mergeGenericSaaSScaffold(
   }
   return [...byPath.values()];
 }
+
+/** Add scaffold files only for paths the model did not produce — never overwrite model output. */
+export function mergeGenericSaaSScaffoldGapFill(
+  archetypeId: AppArchetypeId,
+  files: BuildFile[],
+  appName: string,
+): BuildFile[] {
+  const scaffold = genericSaaSScaffoldFiles(archetypeId, appName);
+  const byPath = new Map<string, BuildFile>();
+  for (const f of files) {
+    const path = normalizeBuildFilePath(f.path);
+    if (path && f.content?.trim()) byPath.set(path, { path, content: f.content });
+  }
+  for (const f of scaffold) {
+    const path = normalizeBuildFilePath(f.path);
+    if (!byPath.has(path)) byPath.set(path, f);
+  }
+  return [...byPath.values()];
+}

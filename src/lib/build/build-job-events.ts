@@ -215,15 +215,17 @@ export async function persistWorkflowEvent(
   );
   const lineMeta = ev.meta?.fileLineMeta;
   const streamCategory =
-    mapped.streamCategory ??
-    ev.meta?.streamCategory ??
-    (ev.type === "repairing"
-      ? "repair_started"
-      : ev.type === "writing"
-        ? "file_created"
-        : ev.type === "editing"
-          ? "file_edited"
-          : undefined);
+    ev.type === "thinking" || ev.meta?.streamCategory === "assistant_message"
+      ? "assistant_message"
+      : mapped.streamCategory ??
+        ev.meta?.streamCategory ??
+        (ev.type === "repairing"
+          ? "repair_started"
+          : ev.type === "writing"
+            ? "file_created"
+            : ev.type === "editing"
+              ? "file_edited"
+              : undefined);
 
   await persistBuildJobEvent(writer, {
     jobId: ctx.jobId,

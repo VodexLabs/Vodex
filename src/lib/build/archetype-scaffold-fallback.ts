@@ -10,7 +10,14 @@ import { mergeRestaurantInventoryScaffold } from "@/lib/build/restaurant-invento
 import { mergeSubscriptionBoxScaffold } from "@/lib/build/subscription-box-scaffold";
 import { mergeMentalWellnessScaffold } from "@/lib/build/mental-wellness-scaffold";
 import { isGeneratedFileStub } from "@/lib/build/generated-file-stub";
-import { mergeGenericSaaSScaffold } from "@/lib/build/generic-saas-scaffold";
+import {
+  mergeGenericSaaSScaffold,
+  mergeGenericSaaSScaffoldGapFill,
+} from "@/lib/build/generic-saas-scaffold";
+import {
+  MIN_RENDERABLE_FILES,
+  MIN_ROUTE_PAGES,
+} from "@/lib/build/build-success-contract";
 import {
   evaluateSourceIntegrity,
   fileMeetsMeaningfulThreshold,
@@ -112,6 +119,29 @@ function sourceBytes(files: BuildFile[]): number {
   return files.reduce((n, f) => n + (f.content?.length ?? 0), 0);
 }
 
+export function gapFillScaffoldForArchetype(
+  archetypeId: AppArchetypeId,
+  files: BuildFile[],
+  appName = "Dream App",
+): BuildFile[] {
+  if (archetypeId === "mental_wellness_journal") {
+    return mergeMentalWellnessScaffold(files, appName);
+  }
+  if (archetypeId === "subscription_box_manager") {
+    return mergeSubscriptionBoxScaffold(files, appName);
+  }
+  if (archetypeId === "restaurant_inventory") {
+    return mergeRestaurantInventoryScaffold(files);
+  }
+  if (archetypeId === "crm") {
+    return mergeNonprofitCrmScaffold(files, appName);
+  }
+  if (FULL_SCAFFOLD_ARCHETYPES.has(archetypeId)) {
+    return mergeGenericSaaSScaffoldGapFill(archetypeId, files, appName);
+  }
+  return files;
+}
+
 export function mergeScaffoldForArchetype(
   archetypeId: AppArchetypeId,
   files: BuildFile[],
@@ -135,9 +165,19 @@ export function mergeScaffoldForArchetype(
   return files;
 }
 
+export function isModelOutputSufficient(files: BuildFile[]): boolean {
+  const renderable = filterRenderableBuildFiles(files);
+  if (renderable.length < MIN_RENDERABLE_FILES) return false;
+  if (!rootPageContentOk(renderable)) return false;
+  if (!evaluateSourceIntegrity(renderable).sourceIntegrityOk) return false;
+  if (countRenderablePages(renderable) < MIN_ROUTE_PAGES) return false;
+  return true;
+}
+
 export function isWeakBuildOutput(files: BuildFile[], archetypeId: string): boolean {
   const renderable = filterRenderableBuildFiles(files);
   if (renderable.length === 0) return true;
+  if (isModelOutputSufficient(renderable)) return false;
   if (!hasFullScaffoldTree(archetypeId)) {
     return renderable.length < STANDARD_MIN_RENDERABLE_FILES;
   }
@@ -193,6 +233,10 @@ export function applyArchetypeScaffoldFallback(
     return emptyFallbackMetrics(id, before, "not_needed");
   }
 
+  if (isModelOutputSufficient(before)) {
+    return emptyFallbackMetrics(id, before, "not_needed");
+  }
+
   const weak =
     isWeakBuildOutput(files, id) ||
     !rootPageContentOk(before) ||
@@ -211,7 +255,8 @@ export function applyArchetypeScaffoldFallback(
   else reason = "llm_output_too_weak";
 
   const beforePaths = new Set(before.map((f) => normalizeBuildFilePath(f.path)));
-  let merged = filterRenderableBuildFiles(mergeScaffoldForArchetype(id, files, appName));
+  const mergeFn = beforeCount > 0 ? gapFillScaffoldForArchetype : mergeScaffoldForArchetype;
+  let merged = filterRenderableBuildFiles(mergeFn(id, files, appName));
   const stubRepair = replaceStubFilesWithArchetypeScaffold(id, merged, appName);
   if (stubRepair.replaced > 0) merged = filterRenderableBuildFiles(stubRepair.files);
 
