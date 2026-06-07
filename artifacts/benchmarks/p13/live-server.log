@@ -7503,3 +7503,1153 @@ https://react.dev/link/hydration-mismatch
  GET / 200 in 1111ms (next.js: 109ms, proxy.ts: 43ms, application-code: 960ms)
  GET / 200 in 1113ms (next.js: 72ms, proxy.ts: 881ms, application-code: 160ms)
 [?25h
+[stable-server] Starting fresh dev server at http://localhost:3000…
+[stable-server] waiting for health… 0s
+
+> vodex-platform@0.1.0 predev
+> node scripts/ensure-dev-port.mjs
+
+
+> vodex-platform@0.1.0 dev
+> cross-env NODE_USE_SYSTEM_CA=1 NODE_OPTIONS=--max-old-space-size=8192 next dev --webpack -p 3000
+
+▲ Next.js 16.2.6 (webpack)
+- Local:         http://localhost:3000
+- Network:       http://10.5.0.2:3000
+- Environments: .env.local
+✓ Ready in 803ms
+○ Compiling /instrumentation ...
+[Vodex][url] resolved origin: {
+  NODE_ENV: 'development',
+  mode: 'env-app',
+  resolvedOrigin: 'http://localhost:3000',
+  NEXT_PUBLIC_APP_URL_host: 'localhost',
+  NEXT_PUBLIC_SITE_URL_host: 'vodex.dev'
+}
+[Vodex][supabase-env] {
+  ok: false,
+  hostname: 'auth.vodex.dev',
+  hostBucket: 'vodex.dev',
+  anonKeyConfigured: true,
+  warnings: [
+    'Custom auth domain is configured for local dev. If SSL is not active, use https://wciioegiczwqlmlroley.supabase.co instead.'
+  ],
+  errors: [
+    'NEXT_PUBLIC_SUPABASE_URL must not be the app domain (vodex.dev). Use your Supabase project URL.'
+  ]
+}
+[Vodex][paddle-billing] ⚠️ PRODUCTION PADDLE + LOCALHOST: Production Paddle webhooks are delivered to https://vodex.dev/api/webhooks/paddle — NOT localhost. Plan/credits will NOT update locally unless NEXT_PUBLIC_SUPABASE_URL points at the same project production webhooks write to, or you tunnel webhooks to localhost (ngrok).
+
+[stable-server] waiting for health… 38s
+○ Compiling /api/health ...
+[Vodex][url] resolved origin: {
+  NODE_ENV: 'development',
+  mode: 'env-app',
+  resolvedOrigin: 'http://localhost:3000',
+  NEXT_PUBLIC_APP_URL_host: 'localhost',
+  NEXT_PUBLIC_SITE_URL_host: 'vodex.dev'
+}
+[Vodex][supabase-env] {
+  ok: false,
+  hostname: 'auth.vodex.dev',
+  hostBucket: 'vodex.dev',
+  anonKeyConfigured: true,
+  warnings: [
+  'Custom auth domain is configured for local dev. If SSL is not active, use https://wciioegiczwqlmlroley.supabase.co instead.'
+],
+  errors: [
+  'NEXT_PUBLIC_SUPABASE_URL must not be the app domain (vodex.dev). Use your Supabase project URL.'
+]
+}
+[Vodex][paddle-billing] ⚠️ PRODUCTION PADDLE + LOCALHOST: Production Paddle webhooks are delivered to https://vodex.dev/api/webhooks/paddle — NOT localhost. Plan/credits will NOT update locally unless NEXT_PUBLIC_SUPABASE_URL points at the same project production webhooks write to, or you tunnel webhooks to localhost (ngrok).
+ GET /api/health 200 in 3.3s (proxy.ts: 105ms)
+ GET /api/health 200 in 13ms (proxy.ts: 7ms)
+[Vodex][url] resolved origin: {
+  NODE_ENV: 'development',
+  mode: 'env-app',
+  resolvedOrigin: 'http://localhost:3000',
+  NEXT_PUBLIC_APP_URL_host: 'localhost',
+  NEXT_PUBLIC_SITE_URL_host: 'vodex.dev'
+}
+[Vodex][supabase-env] {
+  ok: false,
+  hostname: 'auth.vodex.dev',
+  hostBucket: 'vodex.dev',
+  anonKeyConfigured: true,
+  warnings: [
+  'Custom auth domain is configured for local dev. If SSL is not active, use https://wciioegiczwqlmlroley.supabase.co instead.'
+],
+  errors: [
+  'NEXT_PUBLIC_SUPABASE_URL must not be the app domain (vodex.dev). Use your Supabase project URL.'
+]
+}
+[Vodex][paddle-billing] ⚠️ PRODUCTION PADDLE + LOCALHOST: Production Paddle webhooks are delivered to https://vodex.dev/api/webhooks/paddle — NOT localhost. Plan/credits will NOT update locally unless NEXT_PUBLIC_SUPABASE_URL points at the same project production webhooks write to, or you tunnel webhooks to localhost (ngrok).
+ GET /api/dev/ping 200 in 773ms (proxy.ts: 6ms)
+ GET /api/dev/ping 200 in 13ms (proxy.ts: 7ms)
+[Vodex][url] resolved origin: {
+  NODE_ENV: 'development',
+  mode: 'env-app',
+  resolvedOrigin: 'http://localhost:3000',
+  NEXT_PUBLIC_APP_URL_host: 'localhost',
+  NEXT_PUBLIC_SITE_URL_host: 'vodex.dev'
+}
+[Vodex][supabase-env] {
+  ok: false,
+  hostname: 'auth.vodex.dev',
+  hostBucket: 'vodex.dev',
+  anonKeyConfigured: true,
+  warnings: [
+  'Custom auth domain is configured for local dev. If SSL is not active, use https://wciioegiczwqlmlroley.supabase.co instead.'
+],
+  errors: [
+  'NEXT_PUBLIC_SUPABASE_URL must not be the app domain (vodex.dev). Use your Supabase project URL.'
+]
+}
+[Vodex][paddle-billing] ⚠️ PRODUCTION PADDLE + LOCALHOST: Production Paddle webhooks are delivered to https://vodex.dev/api/webhooks/paddle — NOT localhost. Plan/credits will NOT update locally unless NEXT_PUBLIC_SUPABASE_URL points at the same project production webhooks write to, or you tunnel webhooks to localhost (ngrok).
+[stable-server] warm /api/health → 200
+ GET /api/health 200 in 199ms (proxy.ts: 6ms)
+ GET /api/dev/ping 200 in 9ms (proxy.ts: 5ms)
+[stable-server] warm /api/dev/ping → 200
+○ Compiling /auth/login ...
+[stable-server] warm /explore → 200
+[stable-server] warm /auth/login → 200
+ GET /auth/login?next=%2Fexplore 200 in 33.7s (next.js: 29.5s, proxy.ts: 6ms, application-code: 4.2s)
+[stable-server] warm /create → 200
+ GET /auth/login 200 in 3.0s (next.js: 12ms, proxy.ts: 1324ms, application-code: 1618ms)
+ GET /auth/login?next=%2Fcreate 200 in 136ms (next.js: 12ms, proxy.ts: 22ms, application-code: 102ms)
+[stable-server] Ready PID 18524 (api/health)
+○ Compiling /apps/[appId]/builder ...
+ GET /apps/59bf67fb-2203-4f3a-82e7-07f31a7dc4ad/builder 200 in 29.7s (next.js: 26.0s, proxy.ts: 918ms, application-code: 2.8s)
+[Vodex][url] resolved origin: {
+  NODE_ENV: 'development',
+  mode: 'env-app',
+  resolvedOrigin: 'http://localhost:3000',
+  NEXT_PUBLIC_APP_URL_host: 'localhost',
+  NEXT_PUBLIC_SITE_URL_host: 'vodex.dev'
+}
+[Vodex][supabase-env] {
+  ok: false,
+  hostname: 'auth.vodex.dev',
+  hostBucket: 'vodex.dev',
+  anonKeyConfigured: true,
+  warnings: [
+  'Custom auth domain is configured for local dev. If SSL is not active, use https://wciioegiczwqlmlroley.supabase.co instead.'
+],
+  errors: [
+  'NEXT_PUBLIC_SUPABASE_URL must not be the app domain (vodex.dev). Use your Supabase project URL.'
+]
+}
+[Vodex][paddle-billing] ⚠️ PRODUCTION PADDLE + LOCALHOST: Production Paddle webhooks are delivered to https://vodex.dev/api/webhooks/paddle — NOT localhost. Plan/credits will NOT update locally unless NEXT_PUBLIC_SUPABASE_URL points at the same project production webhooks write to, or you tunnel webhooks to localhost (ngrok).
+ GET /api/health 200 in 431ms (proxy.ts: 7ms)
+ GET /apps/59bf67fb-2203-4f3a-82e7-07f31a7dc4ad/builder 200 in 2.7s (next.js: 214ms, proxy.ts: 721ms, application-code: 1783ms)
+[browser] Image with src "/intro/nova.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/bite.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/frame-ai.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/apex.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+○ Compiling /api/home/recent-projects ...
+ GET /apps/59bf67fb-2203-4f3a-82e7-07f31a7dc4ad/builder 200 in 2.9s (next.js: 20ms, proxy.ts: 523ms, application-code: 2.4s)
+ GET /api/projects?limit=12 200 in 621ms (next.js: 7ms, proxy.ts: 283ms, application-code: 331ms)
+ GET /apps/59bf67fb-2203-4f3a-82e7-07f31a7dc4ad/builder 200 in 543ms (next.js: 18ms, proxy.ts: 362ms, application-code: 162ms)
+ GET /api/home/recent-projects 200 in 628ms (next.js: 14ms, proxy.ts: 286ms, application-code: 328ms)
+[credits] credits_full_ms=3185
+ GET /api/credits 200 in 5.7s (next.js: 1925ms, proxy.ts: 577ms, application-code: 3.2s)
+ GET /apps/59bf67fb-2203-4f3a-82e7-07f31a7dc4ad/builder 200 in 1675ms (next.js: 110ms, proxy.ts: 529ms, application-code: 1036ms)
+[browser] Image with src "/intro/nova.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/bite.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/frame-ai.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/apex.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+ GET /apps/59bf67fb-2203-4f3a-82e7-07f31a7dc4ad/builder 200 in 1428ms (next.js: 18ms, proxy.ts: 246ms, application-code: 1164ms)
+ GET /api/home/recent-projects 200 in 1730ms (next.js: 12ms, proxy.ts: 237ms, application-code: 1481ms)
+ GET /api/home/recent-projects 200 in 2.1s (next.js: 11ms, proxy.ts: 273ms, application-code: 1853ms)
+○ Compiling /api/user/presence/heartbeat ...
+ GET /api/projects?limit=12 200 in 5.0s (next.js: 35ms, proxy.ts: 240ms, application-code: 4.7s)
+ GET /api/projects?limit=12 200 in 4.6s (next.js: 4ms, proxy.ts: 272ms, application-code: 4.3s)
+ POST /api/user/presence/heartbeat 200 in 5.3s (next.js: 4.1s, proxy.ts: 286ms, application-code: 894ms)
+[browser] [builder-gate] project unavailable {
+  attempts: [33m8[39m,
+  projectId: [32m'59bf67fb-2203-4f3a-82e7-07f31a7dc4ad'[39m,
+  reason: [32m'not_found_or_forbidden'[39m,
+  userId: [32m'3c08502e-9771-413e-b9bd-4446b179c962'[39m
+} (src\components\create\builder-project-gate.tsx:101:19)
+○ Compiling /api/notifications/welcome ...
+ GET /api/notifications 200 in 4.7s (next.js: 3.6s, proxy.ts: 357ms, application-code: 713ms)
+ POST /api/notifications/welcome 200 in 4.6s (next.js: 3.4s, proxy.ts: 241ms, application-code: 949ms)
+ POST /api/notifications/welcome 200 in 5.2s (next.js: 3.5s, proxy.ts: 537ms, application-code: 1207ms)
+ GET /api/user/presence/me 200 in 5.3s (next.js: 3.6s, proxy.ts: 359ms, application-code: 1279ms)
+ GET /api/projects 200 in 3.0s (next.js: 20ms, proxy.ts: 576ms, application-code: 2.4s)
+ GET /api/notification-preferences 200 in 3.5s (next.js: 2.2s, proxy.ts: 579ms, application-code: 723ms)
+ GET /api/notifications 200 in 855ms (next.js: 17ms, proxy.ts: 357ms, application-code: 482ms)
+ GET /api/notifications 200 in 889ms (next.js: 29ms, proxy.ts: 359ms, application-code: 501ms)
+ GET /api/notifications 200 in 904ms (next.js: 2ms, proxy.ts: 442ms, application-code: 460ms)
+ POST /api/user/presence/heartbeat 200 in 932ms (next.js: 6ms, proxy.ts: 228ms, application-code: 698ms)
+ POST /api/user/presence/heartbeat 200 in 921ms (next.js: 3ms, proxy.ts: 227ms, application-code: 691ms)
+ GET /api/projects 200 in 2.4s (next.js: 69ms, proxy.ts: 361ms, application-code: 2.0s)
+ GET /api/notifications 200 in 700ms (next.js: 3ms, proxy.ts: 238ms, application-code: 460ms)
+ GET /api/notifications 200 in 739ms (next.js: 3ms, proxy.ts: 257ms, application-code: 479ms)
+ GET /api/projects?reconcile=1 200 in 13.2s (next.js: 3ms, proxy.ts: 567ms, application-code: 12.6s)
+ GET /api/projects?reconcile=1 200 in 49s (next.js: 3ms, proxy.ts: 1824ms, application-code: 48s)
+○ Compiling /api/projects/[id]/files ...
+ GET /api/projects/f77b966c-7e16-47eb-97c3-210b027a3bcc/files 200 in 24.5s (next.js: 22.6s, proxy.ts: 675ms, application-code: 1177ms)
+ GET /api/projects/15df60bc-370c-413b-8653-cbaa936a2700/files 200 in 1205ms (next.js: 30ms, proxy.ts: 484ms, application-code: 691ms)
+ GET /api/projects/e58fa9a4-76c5-474f-854f-f03bab37c902/files 200 in 1170ms (next.js: 26ms, proxy.ts: 471ms, application-code: 673ms)
+ GET /api/projects/11fa84d0-f686-458e-be4c-796198cd3a90/files 200 in 1577ms (next.js: 16ms, proxy.ts: 875ms, application-code: 686ms)
+ GET /api/projects/5603b030-b66c-4432-9c70-edaba03d8d2d/files 200 in 1216ms (next.js: 19ms, proxy.ts: 482ms, application-code: 716ms)
+ GET /api/projects/5ffac854-a8eb-43db-b1b1-5fa6edc924c7/files 200 in 1232ms (next.js: 15ms, proxy.ts: 461ms, application-code: 756ms)
+ GET /api/projects/a9c98457-09cf-4910-b03b-03d4fe8bda36/files 200 in 1167ms (next.js: 16ms, proxy.ts: 462ms, application-code: 689ms)
+ GET /api/projects/b2924486-1084-4e2c-b452-32ddd511571e/files 200 in 1167ms (next.js: 15ms, proxy.ts: 452ms, application-code: 699ms)
+ GET /api/projects/890efe83-a115-485a-a81b-55fa14c69fdd/files 200 in 1178ms (next.js: 17ms, proxy.ts: 472ms, application-code: 689ms)
+ GET /api/projects/ae10045e-587e-4cfb-9174-615cdb1d83b9/files 200 in 1157ms (next.js: 16ms, proxy.ts: 460ms, application-code: 681ms)
+ GET /api/projects/e1c889ae-ee71-4d6d-b19b-ec3e567000ac/files 200 in 1187ms (next.js: 17ms, proxy.ts: 456ms, application-code: 714ms)
+ GET /api/projects/71f53dac-7c65-4d24-a0b2-11a80443addf/files 200 in 1193ms (next.js: 33ms, proxy.ts: 458ms, application-code: 702ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/files 200 in 1157ms (next.js: 15ms, proxy.ts: 470ms, application-code: 671ms)
+ GET /api/projects/ff240040-9c0b-4aa9-a31f-c0d6951ede35/files 200 in 1184ms (next.js: 17ms, proxy.ts: 458ms, application-code: 710ms)
+ GET /api/projects/95dd5042-abfc-4dcd-bd7b-2189b6e81a10/files 200 in 1163ms (next.js: 16ms, proxy.ts: 458ms, application-code: 689ms)
+○ Compiling /api/profile ...
+ GET /api/profile 405 in 29.3s (next.js: 27.6s, proxy.ts: 1636ms, application-code: 38ms)
+ GET /api/projects?reconcile=1 200 in 12.9s (next.js: 738ms, proxy.ts: 1456ms, application-code: 10.7s)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/files 200 in 2.2s (next.js: 687ms, proxy.ts: 731ms, application-code: 736ms)
+ GET /api/projects/ff240040-9c0b-4aa9-a31f-c0d6951ede35/files 200 in 1162ms (next.js: 18ms, proxy.ts: 458ms, application-code: 687ms)
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 3.6s (next.js: 771ms, proxy.ts: 459ms, application-code: 2.3s)
+○ Compiling /api/projects/[id]/preview-html ...
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 8.2s (next.js: 7.8s, proxy.ts: 247ms, application-code: 192ms)
+[browser] Image with src "/intro/nova.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/bite.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/frame-ai.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/apex.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+○ Compiling /api/notifications/welcome ...
+ GET /api/projects?limit=12 200 in 5.3s (next.js: 26ms, proxy.ts: 893ms, application-code: 4.4s)
+ POST /api/notifications/welcome 200 in 6.0s (next.js: 3.9s, proxy.ts: 895ms, application-code: 1118ms)
+ POST /api/notifications/welcome 200 in 1767ms (next.js: 7ms, proxy.ts: 834ms, application-code: 925ms)
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 6.3s (next.js: 4.0s, proxy.ts: 896ms, application-code: 1450ms)
+ GET /api/home/recent-projects 200 in 6.7s (next.js: 4.0s, proxy.ts: 894ms, application-code: 1826ms)
+○ Compiling /api/notification-preferences ...
+[credits] credits_full_ms=2849
+ GET /api/credits 200 in 5.2s (next.js: 1687ms, proxy.ts: 634ms, application-code: 2.9s)
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 2.1s (next.js: 155ms, proxy.ts: 451ms, application-code: 1502ms)
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 937ms (next.js: 23ms, proxy.ts: 246ms, application-code: 667ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 2.6s (next.js: 266ms, proxy.ts: 240ms, application-code: 2.1s)
+ GET /api/home/recent-projects 200 in 1422ms (next.js: 36ms, proxy.ts: 305ms, application-code: 1081ms)
+[browser] Image with src "/intro/nova.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/bite.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/frame-ai.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/apex.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+ GET /api/projects?limit=12 200 in 3.6s (next.js: 39ms, proxy.ts: 241ms, application-code: 3.3s)
+ GET /api/home/recent-projects 200 in 3.7s (next.js: 15ms, proxy.ts: 322ms, application-code: 3.4s)
+○ Compiling /api/projects/[id]/publish/readiness ...
+ GET /api/projects?limit=12 200 in 5.3s (next.js: 29ms, proxy.ts: 324ms, application-code: 5.0s)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 5.4s (next.js: 119ms, proxy.ts: 328ms, application-code: 4.9s)
+ GET /api/projects 200 in 6.2s (next.js: 38ms, proxy.ts: 310ms, application-code: 5.9s)
+○ Compiling /api/projects/[id]/active-build ...
+ GET /api/ai/provider-status 200 in 6.7s (next.js: 6.1s, proxy.ts: 551ms, application-code: 120ms)
+ POST /api/user/presence/heartbeat 200 in 7.8s (next.js: 6.1s, proxy.ts: 552ms, application-code: 1221ms)
+ GET /api/user/presence/me 200 in 8.1s (next.js: 5.9s, proxy.ts: 714ms, application-code: 1456ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/publish/readiness 200 in 19.4s (next.js: 13.2s, proxy.ts: 291ms, application-code: 6.0s)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/files 200 in 8.1s (next.js: 6.1s, proxy.ts: 558ms, application-code: 1455ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/active-build 200 in 8.7s (next.js: 7.3s, proxy.ts: 556ms, application-code: 851ms)
+ GET /api/notifications 200 in 3.8s (next.js: 2.8s, proxy.ts: 451ms, application-code: 502ms)
+ POST /api/notifications/welcome 200 in 1308ms (next.js: 56ms, proxy.ts: 429ms, application-code: 822ms)
+ POST /api/notifications/welcome 200 in 1315ms (next.js: 35ms, proxy.ts: 427ms, application-code: 852ms)
+ GET /api/notification-preferences 200 in 1320ms (next.js: 13ms, proxy.ts: 495ms, application-code: 812ms)
+ POST /api/user/presence/heartbeat 200 in 1360ms (next.js: 49ms, proxy.ts: 428ms, application-code: 883ms)
+ POST /api/user/presence/heartbeat 200 in 1373ms (next.js: 21ms, proxy.ts: 496ms, application-code: 856ms)
+○ Compiling /api/ai/preflight ...
+[api/ai/preflight] POST
+ GET /api/notifications 200 in 1516ms (next.js: 9ms, proxy.ts: 784ms, application-code: 722ms)
+ POST /api/user/presence/heartbeat 200 in 1780ms (next.js: 20ms, proxy.ts: 785ms, application-code: 974ms)
+○ Compiling /api/diagnostics/ingest ...
+ GET /api/notifications 200 in 4.7s (next.js: 3.1s, proxy.ts: 1079ms, application-code: 509ms)
+ POST /api/diagnostics/ingest 200 in 5.1s (next.js: 3.3s, proxy.ts: 842ms, application-code: 955ms)
+[credits] preflight ok — charge_tokens callable
+ GET /api/notifications 200 in 1068ms (next.js: 3ms, proxy.ts: 373ms, application-code: 693ms)
+[api/ai/preflight] ok {
+  userId: '3c08502e-9771-413e-b9bd-4446b179c962',
+  projectId: '7c385765-2601-43d0-ab43-2f49b47a68e9',
+  conversationId: '06655808-6999-4dea-8b34-59bd432cf68f'
+}
+ POST /api/ai/preflight 200 in 12.9s (next.js: 7.4s, proxy.ts: 223ms, application-code: 5.3s)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/publish/readiness 200 in 6.2s (next.js: 105ms, proxy.ts: 782ms, application-code: 5.3s)
+○ Compiling /api/projects/[id]/preview/import-status ...
+ GET /api/notifications 200 in 911ms (next.js: 9ms, proxy.ts: 434ms, application-code: 468ms)
+ GET /api/notifications 200 in 963ms (next.js: 21ms, proxy.ts: 457ms, application-code: 486ms)
+ GET /api/notifications 200 in 978ms (next.js: 12ms, proxy.ts: 475ms, application-code: 491ms)
+○ Compiling /api/chat ...
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview/import-status 200 in 8.2s (next.js: 4.6s, proxy.ts: 387ms, application-code: 3.2s)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview/import-status 200 in 4.6s (next.js: 903ms, proxy.ts: 473ms, application-code: 3.2s)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview/import-status 200 in 5.0s (next.js: 902ms, proxy.ts: 474ms, application-code: 3.7s)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview/import-status 200 in 4.1s (next.js: 159ms, proxy.ts: 232ms, application-code: 3.7s)
+[api/chat] POST
+ GET /api/notifications 200 in 1670ms (next.js: 14ms, proxy.ts: 1166ms, application-code: 490ms)
+ GET /api/notifications 200 in 705ms (next.js: 4ms, proxy.ts: 230ms, application-code: 471ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview/import-status 200 in 2.9s (next.js: 206ms, proxy.ts: 1165ms, application-code: 1511ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0&artifact=4531c06e-703d-4185-b8aa-2c0e3ebcd824 200 in 3.5s (next.js: 151ms, proxy.ts: 1164ms, application-code: 2.2s)
+[build-intent] {
+  intent: 'n/a',
+  confidence: undefined,
+  reason: undefined,
+  startBuildPipeline: false,
+  chargeMode: 'discuss',
+  createQuestion: false,
+  firstCreateIntent: undefined,
+  wantsAsyncBuild: false
+}
+[route-decision] intent user_selected_model
+[model-orchestration] intent gpt-4o-mini cheap_planner
+[ai-route] {
+  mode: 'discuss',
+  provider: 'openai',
+  modelId: 'gpt-4o-mini',
+  routeReason: 'user_selected_model',
+  isFallback: false,
+  tier: 'fast'
+}
+ POST /api/user/presence/heartbeat 200 in 940ms (next.js: 5ms, proxy.ts: 228ms, application-code: 706ms)
+ POST /api/chat 200 in 13.3s (next.js: 8.5s, proxy.ts: 254ms, application-code: 4.6s)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview/import-status 200 in 1586ms (next.js: 17ms, proxy.ts: 297ms, application-code: 1272ms)
+ GET /api/projects?reconcile=1 200 in 11.2s (next.js: 18ms, proxy.ts: 541ms, application-code: 10.7s)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/files 200 in 1267ms (next.js: 21ms, proxy.ts: 499ms, application-code: 747ms)
+ GET /api/projects/ff240040-9c0b-4aa9-a31f-c0d6951ede35/files 200 in 1333ms (next.js: 16ms, proxy.ts: 627ms, application-code: 690ms)
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 2.2s (next.js: 209ms, proxy.ts: 455ms, application-code: 1552ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 1694ms (next.js: 18ms, proxy.ts: 248ms, application-code: 1427ms)
+[browser] Image with src "/intro/nova.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/bite.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/frame-ai.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/apex.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+ GET /api/home/recent-projects 200 in 1493ms (next.js: 22ms, proxy.ts: 245ms, application-code: 1226ms)
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 1416ms (next.js: 22ms, proxy.ts: 250ms, application-code: 1145ms)
+ GET /api/home/recent-projects 200 in 1707ms (next.js: 44ms, proxy.ts: 449ms, application-code: 1214ms)
+ GET /api/projects?limit=12 200 in 2.9s (next.js: 3ms, proxy.ts: 234ms, application-code: 2.6s)
+ GET /api/ai/provider-status 200 in 439ms (next.js: 16ms, proxy.ts: 401ms, application-code: 22ms)
+ GET /api/projects?limit=12 200 in 2.9s (next.js: 24ms, proxy.ts: 295ms, application-code: 2.6s)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 3.6s (next.js: 56ms, proxy.ts: 304ms, application-code: 3.2s)
+ GET /api/projects 200 in 2.7s (next.js: 9ms, proxy.ts: 299ms, application-code: 2.4s)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/files 200 in 1868ms (next.js: 42ms, proxy.ts: 1037ms, application-code: 789ms)
+ POST /api/user/presence/heartbeat 200 in 972ms (next.js: 9ms, proxy.ts: 254ms, application-code: 709ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/active-build 200 in 2.2s (next.js: 56ms, proxy.ts: 1403ms, application-code: 698ms)
+ GET /api/notifications 200 in 737ms (next.js: 6ms, proxy.ts: 257ms, application-code: 474ms)
+ GET /api/user/presence/me 200 in 1270ms (next.js: 9ms, proxy.ts: 344ms, application-code: 917ms)
+ POST /api/notifications/welcome 200 in 949ms (next.js: 16ms, proxy.ts: 238ms, application-code: 695ms)
+ POST /api/notifications/welcome 200 in 960ms (next.js: 4ms, proxy.ts: 271ms, application-code: 686ms)
+ GET /api/notification-preferences 200 in 919ms (next.js: 12ms, proxy.ts: 232ms, application-code: 675ms)
+ POST /api/user/presence/heartbeat 200 in 955ms (next.js: 27ms, proxy.ts: 229ms, application-code: 699ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/publish/readiness 200 in 4.6s (next.js: 111ms, proxy.ts: 293ms, application-code: 4.2s)
+ GET /api/notifications 200 in 449ms (next.js: 2ms, proxy.ts: 233ms, application-code: 213ms)
+ GET /api/notifications 200 in 629ms (next.js: 4ms, proxy.ts: 236ms, application-code: 389ms)
+ POST /api/user/presence/heartbeat 200 in 775ms (next.js: 4ms, proxy.ts: 251ms, application-code: 520ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview/import-status 200 in 1009ms (next.js: 43ms, proxy.ts: 236ms, application-code: 730ms)
+[credits] credits_full_ms=1205
+ GET /api/credits 200 in 1728ms (next.js: 13ms, proxy.ts: 501ms, application-code: 1215ms)
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 1222ms (next.js: 18ms, proxy.ts: 554ms, application-code: 649ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 1652ms (next.js: 28ms, proxy.ts: 253ms, application-code: 1371ms)
+[browser] Image with src "/intro/nova.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/bite.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/frame-ai.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/apex.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 951ms (next.js: 26ms, proxy.ts: 242ms, application-code: 683ms)
+ GET /api/home/recent-projects 200 in 1212ms (next.js: 4ms, proxy.ts: 250ms, application-code: 958ms)
+ GET /api/ai/provider-status 200 in 312ms (next.js: 7ms, proxy.ts: 301ms, application-code: 5ms)
+ GET /api/home/recent-projects 200 in 1485ms (next.js: 3ms, proxy.ts: 302ms, application-code: 1180ms)
+ GET /api/projects?limit=12 200 in 2.3s (next.js: 3ms, proxy.ts: 226ms, application-code: 2.1s)
+ GET /api/projects?limit=12 200 in 2.2s (next.js: 4ms, proxy.ts: 286ms, application-code: 1878ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/files 200 in 1049ms (next.js: 52ms, proxy.ts: 233ms, application-code: 764ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 2.4s (next.js: 20ms, proxy.ts: 236ms, application-code: 2.2s)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/active-build 200 in 1195ms (next.js: 83ms, proxy.ts: 249ms, application-code: 863ms)
+ POST /api/user/presence/heartbeat 200 in 1094ms (next.js: 34ms, proxy.ts: 303ms, application-code: 757ms)
+ GET /api/notifications 200 in 772ms (next.js: 4ms, proxy.ts: 231ms, application-code: 537ms)
+ GET /api/user/presence/me 200 in 1236ms (next.js: 9ms, proxy.ts: 253ms, application-code: 974ms)
+ POST /api/notifications/welcome 200 in 1080ms (next.js: 4ms, proxy.ts: 234ms, application-code: 842ms)
+ POST /api/notifications/welcome 200 in 1218ms (next.js: 3ms, proxy.ts: 255ms, application-code: 960ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/publish/readiness 200 in 4.0s (next.js: 61ms, proxy.ts: 298ms, application-code: 3.6s)
+ GET /api/notification-preferences 200 in 1305ms (next.js: 3ms, proxy.ts: 354ms, application-code: 948ms)
+ GET /api/projects 200 in 3.0s (next.js: 5ms, proxy.ts: 237ms, application-code: 2.7s)
+ GET /api/projects 200 in 2.9s (next.js: 3ms, proxy.ts: 248ms, application-code: 2.6s)
+ POST /api/user/presence/heartbeat 200 in 2.3s (next.js: 24ms, proxy.ts: 628ms, application-code: 1618ms)
+ POST /api/user/presence/heartbeat 200 in 2.1s (next.js: 337ms, proxy.ts: 457ms, application-code: 1336ms)
+ GET /api/notifications 200 in 1759ms (next.js: 6ms, proxy.ts: 752ms, application-code: 1002ms)
+[api/ai/preflight] POST
+ GET /api/notifications 200 in 1523ms (next.js: 3ms, proxy.ts: 311ms, application-code: 1210ms)
+ POST /api/ai/preflight 200 in 63s (next.js: 27ms, proxy.ts: 308ms, application-code: 63s)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/publish/readiness 200 in 64s (next.js: 18ms, proxy.ts: 776ms, application-code: 63s)
+ POST /api/user/presence/heartbeat 200 in 63s (next.js: 3ms, proxy.ts: 327ms, application-code: 63s)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview/import-status 200 in 65s (next.js: 23ms, proxy.ts: 261ms, application-code: 65s)
+[api/ai/preflight] blocked invalid_body 400
+⨯ Error: aborted
+    at ignore-listed frames {
+  code: 'ECONNRESET'
+}
+○ Compiling /_error ...
+[Vodex][url] resolved origin: {
+  NODE_ENV: 'development',
+  mode: 'env-app',
+  resolvedOrigin: 'http://localhost:3000',
+  NEXT_PUBLIC_APP_URL_host: 'localhost',
+  NEXT_PUBLIC_SITE_URL_host: 'vodex.dev'
+}
+[Vodex][supabase-env] {
+  ok: false,
+  hostname: 'auth.vodex.dev',
+  hostBucket: 'vodex.dev',
+  anonKeyConfigured: true,
+  warnings: [
+  'Custom auth domain is configured for local dev. If SSL is not active, use https://wciioegiczwqlmlroley.supabase.co instead.'
+],
+  errors: [
+  'NEXT_PUBLIC_SUPABASE_URL must not be the app domain (vodex.dev). Use your Supabase project URL.'
+]
+}
+[Vodex][paddle-billing] ⚠️ PRODUCTION PADDLE + LOCALHOST: Production Paddle webhooks are delivered to https://vodex.dev/api/webhooks/paddle — NOT localhost. Plan/credits will NOT update locally unless NEXT_PUBLIC_SUPABASE_URL points at the same project production webhooks write to, or you tunnel webhooks to localhost (ngrok).
+ GET /api/health 200 in 2.2s (proxy.ts: 7ms)
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 9.9s (next.js: 3.1s, proxy.ts: 536ms, application-code: 6.3s)
+○ Compiling /api/projects/[id]/preview-html ...
+[browser] Image with src "/intro/nova.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/bite.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/frame-ai.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/apex.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 15.6s (next.js: 15.1s, proxy.ts: 361ms, application-code: 87ms)
+○ Compiling /api/home/recent-projects ...
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 10.6s (next.js: 5.6s, proxy.ts: 2.3s, application-code: 2.7s)
+ GET /api/home/recent-projects 200 in 11.5s (next.js: 5.6s, proxy.ts: 2.3s, application-code: 3.7s)
+ GET /api/home/recent-projects 200 in 10.3s (next.js: 5.6s, proxy.ts: 1025ms, application-code: 3.7s)
+ GET /api/projects?limit=12 200 in 10.3s (next.js: 5.8s, proxy.ts: 812ms, application-code: 3.7s)
+ GET /api/projects?limit=12 200 in 11.5s (next.js: 5.9s, proxy.ts: 1995ms, application-code: 3.7s)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 10.3s (next.js: 5.8s, proxy.ts: 811ms, application-code: 3.6s)
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 3.3s (next.js: 20ms, proxy.ts: 1032ms, application-code: 2.3s)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 1815ms (next.js: 26ms, proxy.ts: 243ms, application-code: 1546ms)
+[browser] Image with src "/intro/nova.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/bite.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/frame-ai.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/apex.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 1522ms (next.js: 124ms, proxy.ts: 556ms, application-code: 843ms)
+ GET /api/home/recent-projects 200 in 1727ms (next.js: 205ms, proxy.ts: 525ms, application-code: 998ms)
+ GET /api/home/recent-projects 200 in 1752ms (next.js: 4ms, proxy.ts: 486ms, application-code: 1262ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 2.4s (next.js: 21ms, proxy.ts: 266ms, application-code: 2.2s)
+ GET /api/projects?limit=12 200 in 4.2s (next.js: 210ms, proxy.ts: 507ms, application-code: 3.5s)
+○ Compiling /api/projects/[id]/publish/readiness ...
+ GET /api/projects?limit=12 200 in 5.7s (next.js: 4ms, proxy.ts: 662ms, application-code: 5.0s)
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 3.8s (next.js: 361ms, proxy.ts: 1733ms, application-code: 1685ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 2.8s (next.js: 92ms, proxy.ts: 268ms, application-code: 2.5s)
+[browser] Image with src "/intro/nova.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/bite.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/frame-ai.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/apex.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+ GET /api/home/recent-projects 200 in 3.4s (next.js: 73ms, proxy.ts: 380ms, application-code: 2.9s)
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 3.1s (next.js: 117ms, proxy.ts: 369ms, application-code: 2.6s)
+○ Compiling /api/notification-preferences ...
+ GET /api/projects?limit=12 200 in 8.1s (next.js: 141ms, proxy.ts: 381ms, application-code: 7.6s)
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder?tab=preview 200 in 4.0s (next.js: 131ms, proxy.ts: 1277ms, application-code: 2.6s)
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder?tab=preview 200 in 2.1s (next.js: 17ms, proxy.ts: 1042ms, application-code: 1080ms)
+ POST /api/notifications/welcome 200 in 2.4s (next.js: 4ms, proxy.ts: 1322ms, application-code: 1044ms)
+ GET /api/home/recent-projects 200 in 2.8s (next.js: 47ms, proxy.ts: 911ms, application-code: 1844ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 5.8s (next.js: 44ms, proxy.ts: 527ms, application-code: 5.2s)
+ POST /api/notifications/welcome 200 in 1365ms (next.js: 148ms, proxy.ts: 325ms, application-code: 891ms)
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder?tab=preview 200 in 900ms (next.js: 22ms, proxy.ts: 252ms, application-code: 626ms)
+ GET /api/notification-preferences 200 in 1490ms (next.js: 20ms, proxy.ts: 271ms, application-code: 1200ms)
+[browser] Image with src "/intro/nova.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/bite.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/frame-ai.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/apex.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+ GET /api/projects?limit=12 200 in 6.5s (next.js: 38ms, proxy.ts: 910ms, application-code: 5.6s)
+○ Compiling /api/notifications ...
+ GET /api/notifications 200 in 6.0s (next.js: 4.6s, proxy.ts: 638ms, application-code: 769ms)
+ GET /api/notifications 200 in 5.6s (next.js: 41ms, proxy.ts: 4.8s, application-code: 774ms)
+ GET /api/ai/provider-status 200 in 392ms (next.js: 9ms, proxy.ts: 328ms, application-code: 55ms)
+ GET /api/home/recent-projects 200 in 3.9s (next.js: 66ms, proxy.ts: 1085ms, application-code: 2.8s)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 4.6s (next.js: 295ms, proxy.ts: 752ms, application-code: 3.6s)
+○ Compiling /api/projects/[id]/files ...
+ GET /api/projects?limit=12 200 in 8.4s (next.js: 222ms, proxy.ts: 1086ms, application-code: 7.1s)
+ GET /api/projects 200 in 8.7s (next.js: 246ms, proxy.ts: 1088ms, application-code: 7.4s)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/publish/readiness 200 in 7.6s (next.js: 61ms, proxy.ts: 272ms, application-code: 7.3s)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/files 200 in 7.9s (next.js: 6.5s, proxy.ts: 254ms, application-code: 1116ms)
+○ Compiling /api/user/presence/me ...
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 2.1s (next.js: 143ms, proxy.ts: 842ms, application-code: 1069ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 1270ms (next.js: 60ms, proxy.ts: 256ms, application-code: 954ms)
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder?tab=preview 200 in 1150ms (next.js: 17ms, proxy.ts: 483ms, application-code: 650ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 1117ms (next.js: 24ms, proxy.ts: 233ms, application-code: 860ms)
+○ Compiling /dashboard ...
+ GET /dashboard 200 in 12.7s (next.js: 10.8s, proxy.ts: 726ms, application-code: 1173ms)
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder?tab=mobile 200 in 2.2s (next.js: 208ms, proxy.ts: 480ms, application-code: 1528ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 540ms (next.js: 205ms, proxy.ts: 262ms, application-code: 73ms)
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder?tab=code 200 in 1238ms (next.js: 40ms, proxy.ts: 471ms, application-code: 727ms)
+○ Compiling /settings ...
+ GET /settings 200 in 7.4s (next.js: 5.1s, proxy.ts: 1255ms, application-code: 1029ms)
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 1975ms (next.js: 142ms, proxy.ts: 591ms, application-code: 1242ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 1975ms (next.js: 78ms, proxy.ts: 236ms, application-code: 1661ms)
+[browser] Image with src "/intro/nova.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/bite.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/frame-ai.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/apex.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+ GET /api/home/recent-projects 200 in 1380ms (next.js: 68ms, proxy.ts: 301ms, application-code: 1011ms)
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 1322ms (next.js: 20ms, proxy.ts: 247ms, application-code: 1055ms)
+ GET /api/projects?limit=12 200 in 2.5s (next.js: 51ms, proxy.ts: 307ms, application-code: 2.1s)
+ GET /api/home/recent-projects 200 in 1471ms (next.js: 3ms, proxy.ts: 361ms, application-code: 1108ms)
+ GET /api/projects 200 in 680ms (next.js: 8ms, proxy.ts: 311ms, application-code: 361ms)
+ GET /api/projects?limit=12 200 in 1737ms (next.js: 6ms, proxy.ts: 248ms, application-code: 1482ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 1738ms (next.js: 39ms, proxy.ts: 243ms, application-code: 1455ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/publish/readiness 200 in 651ms (next.js: 61ms, proxy.ts: 278ms, application-code: 313ms)
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 1562ms (next.js: 24ms, proxy.ts: 844ms, application-code: 694ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 1561ms (next.js: 48ms, proxy.ts: 246ms, application-code: 1267ms)
+[browser] Image with src "/intro/nova.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/bite.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/frame-ai.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/apex.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 997ms (next.js: 19ms, proxy.ts: 236ms, application-code: 743ms)
+ GET /api/home/recent-projects 200 in 1196ms (next.js: 9ms, proxy.ts: 266ms, application-code: 921ms)
+ GET /api/home/recent-projects 200 in 1273ms (next.js: 3ms, proxy.ts: 288ms, application-code: 982ms)
+ GET /api/projects?limit=12 200 in 2.2s (next.js: 6ms, proxy.ts: 262ms, application-code: 1919ms)
+ GET /api/ai/provider-status 200 in 333ms (next.js: 69ms, proxy.ts: 252ms, application-code: 12ms)
+ GET /api/projects?limit=12 200 in 2.1s (next.js: 3ms, proxy.ts: 274ms, application-code: 1861ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 3.2s (next.js: 19ms, proxy.ts: 238ms, application-code: 2.9s)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/files 200 in 1911ms (next.js: 34ms, proxy.ts: 266ms, application-code: 1610ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/active-build 200 in 1876ms (next.js: 44ms, proxy.ts: 269ms, application-code: 1563ms)
+ GET /api/projects 200 in 3.2s (next.js: 3ms, proxy.ts: 238ms, application-code: 2.9s)
+ POST /api/user/presence/heartbeat 200 in 2.1s (next.js: 529ms, proxy.ts: 849ms, application-code: 745ms)
+ GET /api/notifications 200 in 737ms (next.js: 8ms, proxy.ts: 256ms, application-code: 473ms)
+ POST /api/notifications/welcome 200 in 976ms (next.js: 8ms, proxy.ts: 262ms, application-code: 705ms)
+ POST /api/notifications/welcome 200 in 922ms (next.js: 4ms, proxy.ts: 243ms, application-code: 675ms)
+ GET /api/user/presence/me 200 in 1252ms (next.js: 7ms, proxy.ts: 267ms, application-code: 978ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/publish/readiness 200 in 4.6s (next.js: 21ms, proxy.ts: 242ms, application-code: 4.4s)
+ GET /api/notification-preferences 200 in 1070ms (next.js: 8ms, proxy.ts: 246ms, application-code: 815ms)
+ POST /api/user/presence/heartbeat 200 in 1640ms (next.js: 6ms, proxy.ts: 248ms, application-code: 1386ms)
+○ Compiling /api/projects/[id]/preview/import-status ...
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 2.0s (next.js: 122ms, proxy.ts: 821ms, application-code: 1095ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 1583ms (next.js: 42ms, proxy.ts: 279ms, application-code: 1263ms)
+[browser] Image with src "/intro/nova.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/bite.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/frame-ai.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/apex.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 974ms (next.js: 18ms, proxy.ts: 250ms, application-code: 706ms)
+ GET /api/home/recent-projects 200 in 1316ms (next.js: 9ms, proxy.ts: 264ms, application-code: 1043ms)
+ GET /api/home/recent-projects 200 in 1226ms (next.js: 7ms, proxy.ts: 307ms, application-code: 912ms)
+ GET /api/projects?limit=12 200 in 2.0s (next.js: 25ms, proxy.ts: 233ms, application-code: 1763ms)
+ GET /api/ai/provider-status 200 in 327ms (next.js: 8ms, proxy.ts: 310ms, application-code: 10ms)
+ GET /api/projects?limit=12 200 in 2.4s (next.js: 23ms, proxy.ts: 313ms, application-code: 2.1s)
+ GET /api/projects 200 in 2.2s (next.js: 4ms, proxy.ts: 247ms, application-code: 1939ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/active-build 200 in 1081ms (next.js: 26ms, proxy.ts: 300ms, application-code: 755ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 2.9s (next.js: 57ms, proxy.ts: 373ms, application-code: 2.5s)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/files 200 in 1418ms (next.js: 148ms, proxy.ts: 257ms, application-code: 1013ms)
+ POST /api/user/presence/heartbeat 200 in 1059ms (next.js: 16ms, proxy.ts: 269ms, application-code: 774ms)
+ GET /api/notifications 200 in 746ms (next.js: 48ms, proxy.ts: 250ms, application-code: 447ms)
+ POST /api/notifications/welcome 200 in 970ms (next.js: 49ms, proxy.ts: 244ms, application-code: 677ms)
+ POST /api/notifications/welcome 200 in 990ms (next.js: 22ms, proxy.ts: 257ms, application-code: 711ms)
+ GET /api/user/presence/me 200 in 1270ms (next.js: 14ms, proxy.ts: 300ms, application-code: 956ms)
+ GET /api/notification-preferences 200 in 950ms (next.js: 8ms, proxy.ts: 239ms, application-code: 704ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/publish/readiness 200 in 3.8s (next.js: 38ms, proxy.ts: 246ms, application-code: 3.5s)
+ GET /api/notifications 200 in 773ms (next.js: 7ms, proxy.ts: 225ms, application-code: 541ms)
+ GET /api/notifications 200 in 709ms (next.js: 7ms, proxy.ts: 244ms, application-code: 458ms)
+ POST /api/user/presence/heartbeat 200 in 937ms (next.js: 3ms, proxy.ts: 251ms, application-code: 684ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview/import-status 200 in 1644ms (next.js: 18ms, proxy.ts: 237ms, application-code: 1390ms)
+ POST /api/user/presence/heartbeat 200 in 957ms (next.js: 11ms, proxy.ts: 238ms, application-code: 709ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/publish/readiness 200 in 1752ms (next.js: 35ms, proxy.ts: 232ms, application-code: 1484ms)
+ POST /api/user/presence/heartbeat 200 in 457ms (next.js: 8ms, proxy.ts: 311ms, application-code: 139ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0&artifact=4531c06e-703d-4185-b8aa-2c0e3ebcd824 200 in 1137ms (next.js: 22ms, proxy.ts: 230ms, application-code: 884ms)
+○ Compiling /api/ai/preflight ...
+⚠ Server is approaching the used memory threshold, restarting...
+▲ Next.js 16.2.6 (webpack)
+- Local:         http://localhost:3000
+- Network:       http://10.5.0.2:3000
+- Environments: .env.local
+✓ Ready in 1139ms
+○ Compiling /instrumentation ...
+[Vodex][url] resolved origin: {
+  NODE_ENV: 'development',
+  mode: 'env-app',
+  resolvedOrigin: 'http://localhost:3000',
+  NEXT_PUBLIC_APP_URL_host: 'localhost',
+  NEXT_PUBLIC_SITE_URL_host: 'vodex.dev'
+}
+[Vodex][supabase-env] {
+  ok: false,
+  hostname: 'auth.vodex.dev',
+  hostBucket: 'vodex.dev',
+  anonKeyConfigured: true,
+  warnings: [
+    'Custom auth domain is configured for local dev. If SSL is not active, use https://wciioegiczwqlmlroley.supabase.co instead.'
+  ],
+  errors: [
+    'NEXT_PUBLIC_SUPABASE_URL must not be the app domain (vodex.dev). Use your Supabase project URL.'
+  ]
+}
+[Vodex][paddle-billing] ⚠️ PRODUCTION PADDLE + LOCALHOST: Production Paddle webhooks are delivered to https://vodex.dev/api/webhooks/paddle — NOT localhost. Plan/credits will NOT update locally unless NEXT_PUBLIC_SUPABASE_URL points at the same project production webhooks write to, or you tunnel webhooks to localhost (ngrok).
+
+○ Compiling /api/dev/ping ...
+[Vodex][url] resolved origin: {
+  NODE_ENV: 'development',
+  mode: 'env-app',
+  resolvedOrigin: 'http://localhost:3000',
+  NEXT_PUBLIC_APP_URL_host: 'localhost',
+  NEXT_PUBLIC_SITE_URL_host: 'vodex.dev'
+}
+[Vodex][supabase-env] {
+  ok: false,
+  hostname: 'auth.vodex.dev',
+  hostBucket: 'vodex.dev',
+  anonKeyConfigured: true,
+  warnings: [
+  'Custom auth domain is configured for local dev. If SSL is not active, use https://wciioegiczwqlmlroley.supabase.co instead.'
+],
+  errors: [
+  'NEXT_PUBLIC_SUPABASE_URL must not be the app domain (vodex.dev). Use your Supabase project URL.'
+]
+}
+[Vodex][paddle-billing] ⚠️ PRODUCTION PADDLE + LOCALHOST: Production Paddle webhooks are delivered to https://vodex.dev/api/webhooks/paddle — NOT localhost. Plan/credits will NOT update locally unless NEXT_PUBLIC_SUPABASE_URL points at the same project production webhooks write to, or you tunnel webhooks to localhost (ngrok).
+[Vodex][url] resolved origin: {
+  NODE_ENV: 'development',
+  mode: 'env-app',
+  resolvedOrigin: 'http://localhost:3000',
+  NEXT_PUBLIC_APP_URL_host: 'localhost',
+  NEXT_PUBLIC_SITE_URL_host: 'vodex.dev'
+}
+[Vodex][supabase-env] {
+  ok: false,
+  hostname: 'auth.vodex.dev',
+  hostBucket: 'vodex.dev',
+  anonKeyConfigured: true,
+  warnings: [
+  'Custom auth domain is configured for local dev. If SSL is not active, use https://wciioegiczwqlmlroley.supabase.co instead.'
+],
+  errors: [
+  'NEXT_PUBLIC_SUPABASE_URL must not be the app domain (vodex.dev). Use your Supabase project URL.'
+]
+}
+[Vodex][paddle-billing] ⚠️ PRODUCTION PADDLE + LOCALHOST: Production Paddle webhooks are delivered to https://vodex.dev/api/webhooks/paddle — NOT localhost. Plan/credits will NOT update locally unless NEXT_PUBLIC_SUPABASE_URL points at the same project production webhooks write to, or you tunnel webhooks to localhost (ngrok).
+ GET /api/dev/ping 200 in 7.6s (proxy.ts: 43ms)
+ GET /api/dev/ping 200 in 23ms (proxy.ts: 17ms)
+ GET /api/health 200 in 34ms (proxy.ts: 17ms)
+ GET /api/dev/ping 200 in 41ms (proxy.ts: 17ms)
+ GET /api/dev/ping 200 in 59ms (proxy.ts: 43ms)
+ GET /api/health 200 in 66ms (proxy.ts: 43ms)
+○ Compiling / ...
+○ Compiling /apps/[appId]/builder ...
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 4.0s (next.js: 611ms, proxy.ts: 1613ms, application-code: 1734ms)
+○ Compiling /api/projects/[id]/preview-html ...
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 7.3s (proxy.ts: 237ms)
+[browser] Image with src "/intro/nova.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/bite.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/frame-ai.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/apex.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 2.1s (next.js: 219ms, proxy.ts: 795ms, application-code: 1057ms)
+○ Compiling /api/projects ...
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 2.7s (next.js: 207ms, proxy.ts: 989ms, application-code: 1545ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 1819ms (next.js: 98ms, proxy.ts: 236ms, application-code: 1485ms)
+[browser] Image with src "/intro/nova.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/bite.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/frame-ai.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/apex.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 1074ms (next.js: 51ms, proxy.ts: 334ms, application-code: 689ms)
+ GET /api/home/recent-projects 200 in 1538ms (next.js: 19ms, proxy.ts: 398ms, application-code: 1122ms)
+ GET /api/home/recent-projects 200 in 1934ms (next.js: 8ms, proxy.ts: 273ms, application-code: 1653ms)
+ GET /api/projects?limit=12 200 in 3.1s (next.js: 25ms, proxy.ts: 400ms, application-code: 2.6s)
+ GET /api/projects?limit=12 200 in 2.5s (next.js: 10ms, proxy.ts: 252ms, application-code: 2.3s)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 2.7s (next.js: 50ms, proxy.ts: 255ms, application-code: 2.4s)
+ GET /api/projects 200 in 2.3s (next.js: 8ms, proxy.ts: 251ms, application-code: 2.1s)
+○ Compiling /api/projects/[id]/publish/readiness ...
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/publish/readiness 200 in 5.4s (proxy.ts: 288ms)
+⨯ Error: aborted
+    at ignore-listed frames {
+  code: 'ECONNRESET'
+}
+○ Compiling /_error ...
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 3.2s (next.js: 268ms, proxy.ts: 657ms, application-code: 2.2s)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 2.1s (next.js: 163ms, proxy.ts: 539ms, application-code: 1349ms)
+ GET /api/home/recent-projects 200 in 1283ms (next.js: 28ms, proxy.ts: 251ms, application-code: 1004ms)
+[browser] Image with src "/intro/nova.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/bite.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/frame-ai.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/apex.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 1357ms (next.js: 234ms, proxy.ts: 334ms, application-code: 789ms)
+ GET /api/projects?limit=12 200 in 3.2s (next.js: 28ms, proxy.ts: 237ms, application-code: 2.9s)
+ GET /api/home/recent-projects 200 in 2.3s (next.js: 4ms, proxy.ts: 313ms, application-code: 2.0s)
+ GET /api/projects?limit=12 200 in 2.6s (next.js: 68ms, proxy.ts: 494ms, application-code: 2.1s)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 3.7s (next.js: 31ms, proxy.ts: 314ms, application-code: 3.3s)
+○ Compiling /api/projects/[id]/active-build ...
+ GET /api/projects 200 in 5.6s (next.js: 9ms, proxy.ts: 249ms, application-code: 5.3s)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/publish/readiness 200 in 5.4s (next.js: 67ms, proxy.ts: 1336ms, application-code: 4.0s)
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder?tab=preview 200 in 2.7s (next.js: 231ms, proxy.ts: 928ms, application-code: 1525ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 1637ms (next.js: 87ms, proxy.ts: 233ms, application-code: 1317ms)
+[browser] Image with src "/intro/nova.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/bite.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/frame-ai.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+[browser] Image with src "/intro/apex.png" is using quality "100" which is not configured in images.qualities [75]. Please update your config to [100, 75].
+Read more: https://nextjs.org/docs/messages/next-image-unconfigured-qualities
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder?tab=preview 200 in 1036ms (next.js: 22ms, proxy.ts: 296ms, application-code: 718ms)
+ GET /api/home/recent-projects 200 in 1328ms (next.js: 22ms, proxy.ts: 240ms, application-code: 1066ms)
+ GET /api/home/recent-projects 200 in 1210ms (next.js: 5ms, proxy.ts: 290ms, application-code: 915ms)
+ GET /api/ai/provider-status 200 in 311ms (next.js: 5ms, proxy.ts: 301ms, application-code: 5ms)
+ GET /api/projects?limit=12 200 in 2.3s (next.js: 67ms, proxy.ts: 241ms, application-code: 1965ms)
+ GET /api/projects?limit=12 200 in 2.3s (next.js: 10ms, proxy.ts: 297ms, application-code: 1985ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 2.3s (next.js: 18ms, proxy.ts: 260ms, application-code: 2.1s)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/files 200 in 1050ms (next.js: 23ms, proxy.ts: 227ms, application-code: 800ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/active-build 200 in 1161ms (next.js: 19ms, proxy.ts: 281ms, application-code: 861ms)
+ GET /api/projects 200 in 2.6s (next.js: 6ms, proxy.ts: 255ms, application-code: 2.4s)
+○ Compiling /api/notifications ...
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/publish/readiness 200 in 5.6s (next.js: 56ms, proxy.ts: 252ms, application-code: 5.3s)
+ POST /api/projects/classify-intent 200 in 3.1s (next.js: 1979ms, proxy.ts: 869ms, application-code: 274ms)
+○ Compiling /create ...
+ GET /create 200 in 19.1s (next.js: 3.5s, proxy.ts: 457ms, application-code: 15.1s)
+ POST /api/user/presence/heartbeat 200 in 1994ms (next.js: 31ms, proxy.ts: 387ms, application-code: 1576ms)
+ GET /api/home/recent-projects 200 in 2.8s (next.js: 11ms, proxy.ts: 743ms, application-code: 2.0s)
+ GET /api/home/recent-projects 200 in 2.7s (next.js: 20ms, proxy.ts: 533ms, application-code: 2.1s)
+ GET /api/user/presence/me 200 in 2.2s (next.js: 9ms, proxy.ts: 431ms, application-code: 1786ms)
+ GET /api/projects?limit=12 200 in 3.3s (next.js: 114ms, proxy.ts: 642ms, application-code: 2.6s)
+ GET /api/notifications 200 in 647ms (next.js: 92ms, proxy.ts: 255ms, application-code: 300ms)
+ GET /api/projects?limit=12 200 in 3.1s (next.js: 2ms, proxy.ts: 625ms, application-code: 2.5s)
+ POST /api/projects/classify-intent 200 in 813ms (next.js: 9ms, proxy.ts: 567ms, application-code: 237ms)
+ GET /create 200 in 1105ms (next.js: 6ms, proxy.ts: 492ms, application-code: 608ms)
+ GET /api/home/recent-projects 200 in 1455ms (next.js: 77ms, proxy.ts: 242ms, application-code: 1136ms)
+ POST /api/user/presence/heartbeat 200 in 1050ms (next.js: 3ms, proxy.ts: 288ms, application-code: 759ms)
+ GET /api/user/presence/me 200 in 1388ms (next.js: 3ms, proxy.ts: 316ms, application-code: 1068ms)
+ GET /api/home/recent-projects 200 in 1818ms (next.js: 3ms, proxy.ts: 411ms, application-code: 1403ms)
+ GET /api/projects?limit=12 200 in 4.0s (next.js: 38ms, proxy.ts: 411ms, application-code: 3.6s)
+ GET /api/notifications 200 in 2.5s (next.js: 3ms, proxy.ts: 235ms, application-code: 2.2s)
+ GET /api/ai/provider-status 200 in 2.2s (next.js: 141ms, proxy.ts: 2.1s, application-code: 10ms)
+ GET /api/ai/provider-status 200 in 324ms (next.js: 3ms, proxy.ts: 317ms, application-code: 5ms)
+ GET /create 200 in 2.8s (next.js: 4ms, proxy.ts: 343ms, application-code: 2.5s)
+ GET /api/projects?limit=12 200 in 4.9s (next.js: 3ms, proxy.ts: 337ms, application-code: 4.6s)
+ POST /api/user/presence/heartbeat 200 in 2.4s (next.js: 8ms, proxy.ts: 259ms, application-code: 2.1s)
+○ Compiling /api/notification-preferences ...
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 3.2s (next.js: 226ms, proxy.ts: 1426ms, application-code: 1525ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 1275ms (next.js: 125ms, proxy.ts: 246ms, application-code: 905ms)
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder?tab=preview 200 in 1196ms (next.js: 45ms, proxy.ts: 469ms, application-code: 683ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 604ms (next.js: 31ms, proxy.ts: 247ms, application-code: 326ms)
+ GET /dashboard 200 in 4.3s (next.js: 2.6s, proxy.ts: 736ms, application-code: 969ms)
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder?tab=mobile 200 in 1799ms (next.js: 170ms, proxy.ts: 483ms, application-code: 1147ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 977ms (next.js: 95ms, proxy.ts: 258ms, application-code: 624ms)
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder?tab=code 200 in 1165ms (next.js: 19ms, proxy.ts: 476ms, application-code: 669ms)
+ GET /api/projects/7c385765-2601-43d0-ab43-2f49b47a68e9/preview-html?format=frame&v=0 200 in 1178ms (next.js: 33ms, proxy.ts: 278ms, application-code: 866ms)
+○ Compiling /settings ...
+ GET /settings 200 in 6.0s (next.js: 4.4s, proxy.ts: 726ms, application-code: 884ms)
+ POST /api/projects/classify-intent 200 in 880ms (next.js: 11ms, proxy.ts: 627ms, application-code: 242ms)
+⚠ Server is approaching the used memory threshold, restarting...
+▲ Next.js 16.2.6 (webpack)
+- Local:         http://localhost:3000
+- Network:       http://10.5.0.2:3000
+- Environments: .env.local
+✓ Ready in 1011ms
+○ Compiling /instrumentation ...
+[Vodex][url] resolved origin: {
+  NODE_ENV: 'development',
+  mode: 'env-app',
+  resolvedOrigin: 'http://localhost:3000',
+  NEXT_PUBLIC_APP_URL_host: 'localhost',
+  NEXT_PUBLIC_SITE_URL_host: 'vodex.dev'
+}
+[Vodex][supabase-env] {
+  ok: false,
+  hostname: 'auth.vodex.dev',
+  hostBucket: 'vodex.dev',
+  anonKeyConfigured: true,
+  warnings: [
+    'Custom auth domain is configured for local dev. If SSL is not active, use https://wciioegiczwqlmlroley.supabase.co instead.'
+  ],
+  errors: [
+    'NEXT_PUBLIC_SUPABASE_URL must not be the app domain (vodex.dev). Use your Supabase project URL.'
+  ]
+}
+[Vodex][paddle-billing] ⚠️ PRODUCTION PADDLE + LOCALHOST: Production Paddle webhooks are delivered to https://vodex.dev/api/webhooks/paddle — NOT localhost. Plan/credits will NOT update locally unless NEXT_PUBLIC_SUPABASE_URL points at the same project production webhooks write to, or you tunnel webhooks to localhost (ngrok).
+
+○ Compiling /apps/[appId]/builder ...
+ GET /apps/7c385765-2601-43d0-ab43-2f49b47a68e9/builder 200 in 3.1s (next.js: 981ms, proxy.ts: 1473ms, application-code: 644ms)
+[Vodex][url] resolved origin: {
+  NODE_ENV: 'development',
+  mode: 'env-app',
+  resolvedOrigin: 'http://localhost:3000',
+  NEXT_PUBLIC_APP_URL_host: 'localhost',
+  NEXT_PUBLIC_SITE_URL_host: 'vodex.dev'
+}
+[Vodex][supabase-env] {
+  ok: false,
+  hostname: 'auth.vodex.dev',
+  hostBucket: 'vodex.dev',
+  anonKeyConfigured: true,
+  warnings: [
+  'Custom auth domain is configured for local dev. If SSL is not active, use https://wciioegiczwqlmlroley.supabase.co instead.'
+],
+  errors: [
+  'NEXT_PUBLIC_SUPABASE_URL must not be the app domain (vodex.dev). Use your Supabase project URL.'
+]
+}
+[Vodex][paddle-billing] ⚠️ PRODUCTION PADDLE + LOCALHOST: Production Paddle webhooks are delivered to https://vodex.dev/api/webhooks/paddle — NOT localhost. Plan/credits will NOT update locally unless NEXT_PUBLIC_SUPABASE_URL points at the same project production webhooks write to, or you tunnel webhooks to localhost (ngrok).
+ GET /api/health 200 in 2.1s (proxy.ts: 10ms)
+ GET /api/health 200 in 118ms (proxy.ts: 107ms)
+[Vodex][url] resolved origin: {
+  NODE_ENV: 'development',
+  mode: 'env-app',
+  resolvedOrigin: 'http://localhost:3000',
+  NEXT_PUBLIC_APP_URL_host: 'localhost',
+  NEXT_PUBLIC_SITE_URL_host: 'vodex.dev'
+}
+[Vodex][supabase-env] {
+  ok: false,
+  hostname: 'auth.vodex.dev',
+  hostBucket: 'vodex.dev',
+  anonKeyConfigured: true,
+  warnings: [
+  'Custom auth domain is configured for local dev. If SSL is not active, use https://wciioegiczwqlmlroley.supabase.co instead.'
+],
+  errors: [
+  'NEXT_PUBLIC_SUPABASE_URL must not be the app domain (vodex.dev). Use your Supabase project URL.'
+]
+}
+[Vodex][paddle-billing] ⚠️ PRODUCTION PADDLE + LOCALHOST: Production Paddle webhooks are delivered to https://vodex.dev/api/webhooks/paddle — NOT localhost. Plan/credits will NOT update locally unless NEXT_PUBLIC_SUPABASE_URL points at the same project production webhooks write to, or you tunnel webhooks to localhost (ngrok).
+ GET /api/dev/ping 200 in 1284ms (proxy.ts: 16ms)
+ GET /api/dev/ping 200 in 15ms (proxy.ts: 8ms)
+[Vodex][url] resolved origin: {
+  NODE_ENV: 'development',
+  mode: 'env-app',
+  resolvedOrigin: 'http://localhost:3000',
+  NEXT_PUBLIC_APP_URL_host: 'localhost',
+  NEXT_PUBLIC_SITE_URL_host: 'vodex.dev'
+}
+[Vodex][supabase-env] {
+  ok: false,
+  hostname: 'auth.vodex.dev',
+  hostBucket: 'vodex.dev',
+  anonKeyConfigured: true,
+  warnings: [
+  'Custom auth domain is configured for local dev. If SSL is not active, use https://wciioegiczwqlmlroley.supabase.co instead.'
+],
+  errors: [
+  'NEXT_PUBLIC_SUPABASE_URL must not be the app domain (vodex.dev). Use your Supabase project URL.'
+]
+}
+[Vodex][paddle-billing] ⚠️ PRODUCTION PADDLE + LOCALHOST: Production Paddle webhooks are delivered to https://vodex.dev/api/webhooks/paddle — NOT localhost. Plan/credits will NOT update locally unless NEXT_PUBLIC_SUPABASE_URL points at the same project production webhooks write to, or you tunnel webhooks to localhost (ngrok).
+ GET /api/health 200 in 234ms (proxy.ts: 15ms)
+ GET /api/dev/ping 200 in 239ms (proxy.ts: 15ms)
+ GET /api/health 200 in 257ms (proxy.ts: 245ms)
+ GET /api/dev/ping 200 in 262ms (proxy.ts: 245ms)
+○ Compiling / ...
+[?25h
+[stable-server] Starting fresh dev server at http://localhost:3000…
+[stable-server] waiting for health… 1s
+
+> vodex-platform@0.1.0 predev
+> node scripts/ensure-dev-port.mjs
+
+
+> vodex-platform@0.1.0 dev
+> cross-env NODE_USE_SYSTEM_CA=1 NODE_OPTIONS=--max-old-space-size=8192 next dev --webpack -p 3000
+
+[stable-server] waiting for health… 4s
+▲ Next.js 16.2.6 (webpack)
+- Local:         http://localhost:3000
+- Network:       http://10.5.0.2:3000
+- Environments: .env.local
+✓ Ready in 1479ms
+○ Compiling /instrumentation ...
+[Vodex][url] resolved origin: {
+  NODE_ENV: 'development',
+  mode: 'env-app',
+  resolvedOrigin: 'http://localhost:3000',
+  NEXT_PUBLIC_APP_URL_host: 'localhost',
+  NEXT_PUBLIC_SITE_URL_host: 'vodex.dev'
+}
+[Vodex][supabase-env] {
+  ok: false,
+  hostname: 'auth.vodex.dev',
+  hostBucket: 'vodex.dev',
+  anonKeyConfigured: true,
+  warnings: [
+    'Custom auth domain is configured for local dev. If SSL is not active, use https://wciioegiczwqlmlroley.supabase.co instead.'
+  ],
+  errors: [
+    'NEXT_PUBLIC_SUPABASE_URL must not be the app domain (vodex.dev). Use your Supabase project URL.'
+  ]
+}
+[Vodex][paddle-billing] ⚠️ PRODUCTION PADDLE + LOCALHOST: Production Paddle webhooks are delivered to https://vodex.dev/api/webhooks/paddle — NOT localhost. Plan/credits will NOT update locally unless NEXT_PUBLIC_SUPABASE_URL points at the same project production webhooks write to, or you tunnel webhooks to localhost (ngrok).
+
+[Vodex][url] resolved origin: {
+  NODE_ENV: 'development',
+  mode: 'env-app',
+  resolvedOrigin: 'http://localhost:3000',
+  NEXT_PUBLIC_APP_URL_host: 'localhost',
+  NEXT_PUBLIC_SITE_URL_host: 'vodex.dev'
+}
+[Vodex][supabase-env] {
+  ok: false,
+  hostname: 'auth.vodex.dev',
+  hostBucket: 'vodex.dev',
+  anonKeyConfigured: true,
+  warnings: [
+  'Custom auth domain is configured for local dev. If SSL is not active, use https://wciioegiczwqlmlroley.supabase.co instead.'
+],
+  errors: [
+  'NEXT_PUBLIC_SUPABASE_URL must not be the app domain (vodex.dev). Use your Supabase project URL.'
+]
+}
+[Vodex][paddle-billing] ⚠️ PRODUCTION PADDLE + LOCALHOST: Production Paddle webhooks are delivered to https://vodex.dev/api/webhooks/paddle — NOT localhost. Plan/credits will NOT update locally unless NEXT_PUBLIC_SUPABASE_URL points at the same project production webhooks write to, or you tunnel webhooks to localhost (ngrok).
+ GET /api/health 200 in 546ms (proxy.ts: 44ms)
+ GET /api/health 200 in 14ms (proxy.ts: 8ms)
+[Vodex][url] resolved origin: {
+  NODE_ENV: 'development',
+  mode: 'env-app',
+  resolvedOrigin: 'http://localhost:3000',
+  NEXT_PUBLIC_APP_URL_host: 'localhost',
+  NEXT_PUBLIC_SITE_URL_host: 'vodex.dev'
+}
+[Vodex][supabase-env] {
+  ok: false,
+  hostname: 'auth.vodex.dev',
+  hostBucket: 'vodex.dev',
+  anonKeyConfigured: true,
+  warnings: [
+  'Custom auth domain is configured for local dev. If SSL is not active, use https://wciioegiczwqlmlroley.supabase.co instead.'
+],
+  errors: [
+  'NEXT_PUBLIC_SUPABASE_URL must not be the app domain (vodex.dev). Use your Supabase project URL.'
+]
+}
+[Vodex][paddle-billing] ⚠️ PRODUCTION PADDLE + LOCALHOST: Production Paddle webhooks are delivered to https://vodex.dev/api/webhooks/paddle — NOT localhost. Plan/credits will NOT update locally unless NEXT_PUBLIC_SUPABASE_URL points at the same project production webhooks write to, or you tunnel webhooks to localhost (ngrok).
+ GET /api/dev/ping 200 in 683ms (proxy.ts: 8ms)
+ GET /api/dev/ping 200 in 14ms (proxy.ts: 8ms)
+[Vodex][url] resolved origin: {
+  NODE_ENV: 'development',
+  mode: 'env-app',
+  resolvedOrigin: 'http://localhost:3000',
+  NEXT_PUBLIC_APP_URL_host: 'localhost',
+  NEXT_PUBLIC_SITE_URL_host: 'vodex.dev'
+}
+[Vodex][supabase-env] {
+  ok: false,
+  hostname: 'auth.vodex.dev',
+  hostBucket: 'vodex.dev',
+  anonKeyConfigured: true,
+  warnings: [
+  'Custom auth domain is configured for local dev. If SSL is not active, use https://wciioegiczwqlmlroley.supabase.co instead.'
+],
+  errors: [
+  'NEXT_PUBLIC_SUPABASE_URL must not be the app domain (vodex.dev). Use your Supabase project URL.'
+]
+}
+[Vodex][paddle-billing] ⚠️ PRODUCTION PADDLE + LOCALHOST: Production Paddle webhooks are delivered to https://vodex.dev/api/webhooks/paddle — NOT localhost. Plan/credits will NOT update locally unless NEXT_PUBLIC_SUPABASE_URL points at the same project production webhooks write to, or you tunnel webhooks to localhost (ngrok).
+[stable-server] warm /api/health → 200
+ GET /api/health 200 in 203ms (proxy.ts: 8ms)
+ GET /api/dev/ping 200 in 13ms (proxy.ts: 7ms)
+[stable-server] warm /api/dev/ping → 200
+○ Compiling /auth/login ...
+[stable-server] warm /explore → 200
+[stable-server] warm /auth/login → 200
+ GET /auth/login?next=%2Fexplore 200 in 19.9s (next.js: 10.8s, proxy.ts: 8ms, application-code: 9.1s)
+[stable-server] warm /create → 200
+ GET /auth/login 200 in 3.2s (next.js: 34ms, proxy.ts: 1138ms, application-code: 1987ms)
+ GET /auth/login?next=%2Fcreate 200 in 170ms (next.js: 9ms, proxy.ts: 19ms, application-code: 143ms)
+[stable-server] Ready PID 20840 (api/health)
+[stable-server] recovery check after startup:warm-routes (PID 20840)
+[Vodex][url] resolved origin: {
+  NODE_ENV: 'development',
+  mode: 'env-app',
+  resolvedOrigin: 'http://localhost:3000',
+  NEXT_PUBLIC_APP_URL_host: 'localhost',
+  NEXT_PUBLIC_SITE_URL_host: 'vodex.dev'
+}
+[Vodex][supabase-env] {
+  ok: false,
+  hostname: 'auth.vodex.dev',
+  hostBucket: 'vodex.dev',
+  anonKeyConfigured: true,
+  warnings: [
+  'Custom auth domain is configured for local dev. If SSL is not active, use https://wciioegiczwqlmlroley.supabase.co instead.'
+],
+  errors: [
+  'NEXT_PUBLIC_SUPABASE_URL must not be the app domain (vodex.dev). Use your Supabase project URL.'
+]
+}
+[Vodex][paddle-billing] ⚠️ PRODUCTION PADDLE + LOCALHOST: Production Paddle webhooks are delivered to https://vodex.dev/api/webhooks/paddle — NOT localhost. Plan/credits will NOT update locally unless NEXT_PUBLIC_SUPABASE_URL points at the same project production webhooks write to, or you tunnel webhooks to localhost (ngrok).
+ GET /api/health 200 in 804ms (proxy.ts: 42ms)
+[Vodex][url] resolved origin: {
+  NODE_ENV: 'development',
+  mode: 'env-app',
+  resolvedOrigin: 'http://localhost:3000',
+  NEXT_PUBLIC_APP_URL_host: 'localhost',
+  NEXT_PUBLIC_SITE_URL_host: 'vodex.dev'
+}
+[Vodex][supabase-env] {
+  ok: false,
+  hostname: 'auth.vodex.dev',
+  hostBucket: 'vodex.dev',
+  anonKeyConfigured: true,
+  warnings: [
+  'Custom auth domain is configured for local dev. If SSL is not active, use https://wciioegiczwqlmlroley.supabase.co instead.'
+],
+  errors: [
+  'NEXT_PUBLIC_SUPABASE_URL must not be the app domain (vodex.dev). Use your Supabase project URL.'
+]
+}
+[Vodex][paddle-billing] ⚠️ PRODUCTION PADDLE + LOCALHOST: Production Paddle webhooks are delivered to https://vodex.dev/api/webhooks/paddle — NOT localhost. Plan/credits will NOT update locally unless NEXT_PUBLIC_SUPABASE_URL points at the same project production webhooks write to, or you tunnel webhooks to localhost (ngrok).
+ GET /api/health 200 in 787ms (proxy.ts: 172ms)
+[Vodex][url] resolved origin: {
+  NODE_ENV: 'development',
+  mode: 'env-app',
+  resolvedOrigin: 'http://localhost:3000',
+  NEXT_PUBLIC_APP_URL_host: 'localhost',
+  NEXT_PUBLIC_SITE_URL_host: 'vodex.dev'
+}
+[Vodex][supabase-env] {
+  ok: false,
+  hostname: 'auth.vodex.dev',
+  hostBucket: 'vodex.dev',
+  anonKeyConfigured: true,
+  warnings: [
+  'Custom auth domain is configured for local dev. If SSL is not active, use https://wciioegiczwqlmlroley.supabase.co instead.'
+],
+  errors: [
+  'NEXT_PUBLIC_SUPABASE_URL must not be the app domain (vodex.dev). Use your Supabase project URL.'
+]
+}
+[Vodex][paddle-billing] ⚠️ PRODUCTION PADDLE + LOCALHOST: Production Paddle webhooks are delivered to https://vodex.dev/api/webhooks/paddle — NOT localhost. Plan/credits will NOT update locally unless NEXT_PUBLIC_SUPABASE_URL points at the same project production webhooks write to, or you tunnel webhooks to localhost (ngrok).
+ GET /api/dev/ping 200 in 639ms (proxy.ts: 33ms)
+ GET /api/dev/ping 200 in 80ms (proxy.ts: 37ms)
+[stable-server] recovery skipped — healthy via api/health
+ GET /api/health 200 in 141ms (proxy.ts: 119ms)
+ GET /api/health 200 in 91ms (proxy.ts: 42ms)
+ GET /api/dev/ping 200 in 1666ms (proxy.ts: 1660ms)
+ GET /api/dev/ping 200 in 49ms (proxy.ts: 40ms)
+○ Compiling / ...
+[stable-server] Stopping runner-started PID 20840
+[Error: ENOENT: no such file or directory, open 'C:\Users\XenoD\Desktop\DreamOS86\dreamos-platform\.next\dev\cache\webpack\server-development\13.pack.gz'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'C:\\Users\\XenoD\\Desktop\\DreamOS86\\dreamos-platform\\.next\\dev\\cache\\webpack\\server-development\\13.pack.gz'
+}
+⨯ unhandledRejection: [Error: ENOENT: no such file or directory, open 'C:\Users\XenoD\Desktop\DreamOS86\dreamos-platform\.next\dev\cache\webpack\server-development\13.pack.gz'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'C:\\Users\\XenoD\\Desktop\\DreamOS86\\dreamos-platform\\.next\\dev\\cache\\webpack\\server-development\\13.pack.gz'
+}
+⨯ unhandledRejection:  [Error: ENOENT: no such file or directory, open 'C:\Users\XenoD\Desktop\DreamOS86\dreamos-platform\.next\dev\cache\webpack\server-development\13.pack.gz'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'C:\\Users\\XenoD\\Desktop\\DreamOS86\\dreamos-platform\\.next\\dev\\cache\\webpack\\server-development\\13.pack.gz'
+}
+⨯ Error: ENOENT: no such file or directory, open 'C:\Users\XenoD\Desktop\DreamOS86\dreamos-platform\.next\dev\server\vendor-chunks\next.js'
+    at <unknown> (C:\Users\XenoD\Desktop\DreamOS86\dreamos-platform\.next\dev\server\app\_not-found\page.js:802:47)
+    at Object.<anonymous> (C:\Users\XenoD\Desktop\DreamOS86\dreamos-platform\.next\dev\server\app\_not-found\page.js:805:3) {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'C:\\Users\\XenoD\\Desktop\\DreamOS86\\dreamos-platform\\.next\\dev\\server\\vendor-chunks\\next.js'
+}
+○ Compiling /_error ...
+⨯ Error: ENOENT: no such file or directory, open 'C:\Users\XenoD\Desktop\DreamOS86\dreamos-platform\.next\dev\routes-manifest.json'
+    at ignore-listed frames {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'C:\\Users\\XenoD\\Desktop\\DreamOS86\\dreamos-platform\\.next\\dev\\routes-manifest.json'
+}
+⨯ Error: ENOENT: no such file or directory, open 'C:\Users\XenoD\Desktop\DreamOS86\dreamos-platform\.next\dev\routes-manifest.json'
+    at ignore-listed frames {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'C:\\Users\\XenoD\\Desktop\\DreamOS86\\dreamos-platform\\.next\\dev\\routes-manifest.json'
+}
+Error: ENOENT: no such file or directory, open 'C:\Users\XenoD\Desktop\DreamOS86\dreamos-platform\.next\dev\routes-manifest.json'
+    at ignore-listed frames {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'C:\\Users\\XenoD\\Desktop\\DreamOS86\\dreamos-platform\\.next\\dev\\routes-manifest.json'
+}
+⨯ Error: ENOENT: no such file or directory, open 'C:\Users\XenoD\Desktop\DreamOS86\dreamos-platform\.next\dev\routes-manifest.json'
+    at ignore-listed frames {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'C:\\Users\\XenoD\\Desktop\\DreamOS86\\dreamos-platform\\.next\\dev\\routes-manifest.json'
+}
+Error: ENOENT: no such file or directory, open 'C:\Users\XenoD\Desktop\DreamOS86\dreamos-platform\.next\dev\routes-manifest.json'
+    at ignore-listed frames {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'C:\\Users\\XenoD\\Desktop\\DreamOS86\\dreamos-platform\\.next\\dev\\routes-manifest.json'
+}
+ GET / 500 in 3.8min (next.js: 3.8min, proxy.ts: 40ms, application-code: 28ms)
+ GET / 500 in 3.8min (next.js: 3.8min, proxy.ts: 40ms, application-code: 28ms)
+[Error: ENOENT: no such file or directory, stat 'C:\Users\XenoD\Desktop\DreamOS86\dreamos-platform\.next\dev\cache\webpack\client-development\15.pack.gz'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: 'C:\\Users\\XenoD\\Desktop\\DreamOS86\\dreamos-platform\\.next\\dev\\cache\\webpack\\client-development\\15.pack.gz'
+}
+⨯ unhandledRejection: [Error: ENOENT: no such file or directory, stat 'C:\Users\XenoD\Desktop\DreamOS86\dreamos-platform\.next\dev\cache\webpack\client-development\15.pack.gz'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: 'C:\\Users\\XenoD\\Desktop\\DreamOS86\\dreamos-platform\\.next\\dev\\cache\\webpack\\client-development\\15.pack.gz'
+}
+⨯ unhandledRejection:  [Error: ENOENT: no such file or directory, stat 'C:\Users\XenoD\Desktop\DreamOS86\dreamos-platform\.next\dev\cache\webpack\client-development\15.pack.gz'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: 'C:\\Users\\XenoD\\Desktop\\DreamOS86\\dreamos-platform\\.next\\dev\\cache\\webpack\\client-development\\15.pack.gz'
+}

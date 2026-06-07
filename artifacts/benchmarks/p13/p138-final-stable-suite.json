@@ -1,0 +1,36 @@
+{
+  "executed": true,
+  "pass": false,
+  "timestamp": "2026-06-07T08:46:57.000Z",
+  "project_id": "7c385765-2601-43d0-ab43-2f49b47a68e9",
+  "typecheck": { "pass": true },
+  "build": { "pass": true, "note": "required npm run clean before build (corrupt .next/dev/types)" },
+  "verify_p137": {
+    "pass": true,
+    "scripts": [
+      "verify:intent-router",
+      "verify:repair-flow-no-blueprint",
+      "verify:auth-no-session-flash",
+      "verify:live-diff-ui",
+      "verify:zip-import-production-flow",
+      "verify:imported-preview-state"
+    ]
+  },
+  "manual_qa_playwright": { "pass": true, "artifact": "imported-reciply-manual-qa.json" },
+  "session_flash_playwright": { "pass": true, "artifact": "p137-session-flash-qa.json" },
+  "test_live_stable": {
+    "pass": false,
+    "final_go_no_go": "NO-GO",
+    "failed_step": "setup:e2e-auth:headless",
+    "root_cause": "setup:e2e-auth:headless hung ~181s after password reset; stable runner aborted before generated-app/zip-import steps",
+    "artifact": "live-stable-run.json",
+    "previous_go_reference": {
+      "final_go_no_go": "GO",
+      "generatedAt": "2026-06-06T21:54:18.012Z",
+      "note": "P1.3.6 run; not revalidated in this P1.3.8 session"
+    }
+  },
+  "failed_step": "test:live:stable",
+  "root_cause": "setup:e2e-auth:headless timeout during fresh stable rerun",
+  "total_runtime_ms": 261878
+}

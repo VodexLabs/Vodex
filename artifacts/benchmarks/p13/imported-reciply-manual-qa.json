@@ -1,0 +1,24 @@
+{
+  "executed": true,
+  "pass": true,
+  "timestamp": "2026-06-07T08:40:35.000Z",
+  "project_id": "7c385765-2601-43d0-ab43-2f49b47a68e9",
+  "project_name": "Live Route Fixture",
+  "project_note": "E2E user does not own Reciply id 59bf67fb; zip_import fixture used for imported-app UX QA",
+  "screenshots": [
+    "test-results/imported-reciply-manual-qa-e3b55-en-imported-Reciply-project-chromium/A-open-project.png",
+    "test-results/imported-reciply-manual-qa-dcf8d-view-blocked-question-only--chromium/B-why-preview.png",
+    "test-results/imported-reciply-manual-qa-160d3-repare-imported-app-preview-chromium/D.png"
+  ],
+  "steps": [
+    { "id": "A_open_project", "pass": true, "detail": "no login redirect; Preview needs to be prepared shown; no Preview embed blocked" },
+    { "id": "B_why_preview_blocked", "pass": true, "detail": "question_only path; Thinking/Discuss; no Build this app; no blueprint" },
+    { "id": "C_fix_preview_repair", "pass": true, "detail": "repair prompt accepted; no Build this app; no blueprint card" },
+    { "id": "D_prepare_preview", "pass": true, "detail": "preview_iframe_already_present after honest prepare flow" },
+    { "id": "E_what_is_crm", "pass": true, "detail": "classify-intent shouldCreateProject=false; no builder navigation" },
+    { "id": "F_create_crm", "pass": true, "detail": "classify-intent shouldCreateProject=true (verify:intent-router project_build)" },
+    { "id": "G_zip_scan_classification", "pass": true, "detail": "mobile_packaging deferred from web preview gate" }
+  ],
+  "failed_step": null,
+  "root_cause": null
+}

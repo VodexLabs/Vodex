@@ -1,94 +1,29 @@
 {
   "server_started_by_runner": true,
-  "server_pid": "14140",
+  "server_pid": "20840",
   "server_ownership_mode": "runner_started",
   "base_url": "http://localhost:3000",
-  "total_runtime_ms": 685483,
+  "total_runtime_ms": 241967,
   "tests_run": [
     {
       "id": "setup:e2e-auth:headless",
-      "pass": true,
-      "exitCode": 0,
-      "durationMs": 55423,
-      "category": null
-    },
-    {
-      "id": "setup:e2e-credits",
-      "pass": true,
-      "exitCode": 0,
-      "durationMs": 3646,
-      "category": null
-    },
-    {
-      "id": "verify:preview-metadata-consistency",
-      "pass": true,
-      "exitCode": 0,
-      "durationMs": 3885,
-      "category": "preview"
-    },
-    {
-      "id": "live:generated-app",
       "pass": false,
       "exitCode": 1,
-      "durationMs": 174268,
-      "category": "generated_app"
-    },
-    {
-      "id": "live:generated-app",
-      "pass": true,
-      "exitCode": 0,
-      "durationMs": 231892,
-      "category": "generated_app"
-    },
-    {
-      "id": "live:public-rendering",
-      "pass": true,
-      "exitCode": 0,
-      "durationMs": 14245,
-      "category": "public_rendering"
-    },
-    {
-      "id": "live:zip-import",
-      "pass": true,
-      "exitCode": 0,
-      "durationMs": 34023,
-      "category": "zip_import"
-    },
-    {
-      "id": "live:publish-state",
-      "pass": true,
-      "exitCode": 0,
-      "durationMs": 629,
-      "category": "publish"
-    },
-    {
-      "id": "live:mobile-smoke",
-      "pass": true,
-      "exitCode": 0,
-      "durationMs": 63533,
-      "category": "mobile"
-    },
-    {
-      "id": "benchmark:p13-scoreboard",
-      "pass": true,
-      "exitCode": 0,
-      "durationMs": 25312,
+      "durationMs": 181207,
       "category": null
     }
   ],
-  "tests_passed": 9,
+  "tests_passed": 0,
   "tests_failed": 1,
   "first_failure": {
-    "step": "live:generated-app",
+    "step": "setup:e2e-auth:headless",
     "exitCode": 1,
-    "stderr": "(node:21376) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:21376) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n(Use `node --trace-warnings ...` to show where the warning was created)\n",
-    "stdout": "joiZTJlLWxpdmVAZHJlYW1vczg2LnRlc3QiLCJlbWFpbF9jb25maXJtZWRfYXQiOiIyMDI2LTA2LTA2VDIxOjU0OjU5LjM0NDM3MVoiLCJwaG9uZSI6IiIsImNvbmZpcm1lZF9hdCI6IjIwMjYtMDYtMDZUMjE6NTQ6NTkuMzQ0MzcxWiIsImxhc3Rfc2lnbl9pbl9hdCI6IjIwMjYtMDYtMDZUMjE6NTU6MTIuMTU0NTY0NjI5WiIsImFwcF9tZXRhZGF0YSI6eyJwcm92aWRlciI6ImVtYWlsIiwicHJvdmlkZXJzIjpbImVtYWlsIl19LCJ1c2VyX21ldGFkYXRhIjp7ImVtYWlsX3ZlcmlmaWVkIjp0cnVlfSwiaWRlbnRpdGllcyI6W3siaWRlbnRpdHlfaWQiOiJiOTFlMjA5MC1kYjc5LTQ3ZDAtYjVmMi05M2FlMWM2MGM2NzgiLCJpZCI6IjNjMDg1MDJlLTk3NzEtNDEzZS1iOWJkLTQ0NDZiMTc5Yzk2MiIsInVzZXJfaWQiOiIzYzA4NTAyZS05NzcxLTQxM2UtYjliZC00NDQ2YjE3OWM5NjIiLCJpZGVudGl0eV9kYXRhIjp7ImVtYWlsIjoiZTJlLWxpdmVAZHJlYW1vczg2LnRlc3QiLCJlbWFpbF92ZXJpZmllZCI6ZmFsc2UsInBob25lX3ZlcmlmaWVkIjpmYWxzZSwic3ViIjoiM2MwODUwMmUtOTc3MS00MTNlLWI5YmQtNDQ0NmIxNzljOTYyIn0sInByb3ZpZGVyIjoiZW1haWwiLCJsYXN0X3NpZ25faW5fYXQiOiIyMDI2LTA1LTIyVDIxOjMyOjMyLjc1ODQ2M1oiLCJjcmVhdGVkX2F0IjoiMjAyNi0wNS0yMlQyMTozMjozMi43NTg1MTZaIiwidXBkYXRlZF9hdCI6IjIwMjYtMDUtMjJUMjE6MzI6MzIuNzU4NTE2WiIsImVtYWlsIjoiZTJlLWxpdmVAZHJlYW1vczg2LnRlc3QifV0sImNyZWF0ZWRfYXQiOiIyMDI2LTA1LTIyVDIxOjMyOjMyLjcyODY4OFoiLCJ1cGRhdGVkX2F0IjoiMjAyNi0wNi0wNlQyMTo1NToxMi4xOTE5NjdaIiwiaXNfYW5vbnltb3VzIjpmYWxzZX0sIndlYWtfcGFzc3dvcmQiOm51bGx9\u001b[22m\n\n\n      359 |       }\n      360 |\n    > 361 |       const summaryRes = await request.get(`/api/projects/${projectId}/summary`);\n          |                                        ^\n      362 |       const summary = summaryRes.ok() ? await summaryRes.json() : {};\n      363 |       const proj = summary.project ?? summary;\n      364 |       report.appName = proj.app_name ?? proj.name;\n        at C:\\Users\\XenoD\\Desktop\\DreamOS86\\dreamos-platform\\tests\\e2e\\restaurant-inventory-workflow.spec.ts:361:40\n\n    Error Context: test-results\\restaurant-inventory-workf-d7555-estaurant-inventory-journey-chromium\\error-context.md\n\n  1 failed\n    [chromium] › tests\\e2e\\restaurant-inventory-workflow.spec.ts:114:7 › Restaurant inventory — @live workflow › @live full restaurant inventory journey \n"
+    "stderr": "",
+    "stdout": "\n> vodex-platform@0.1.0 setup:e2e-auth:headless\n> node scripts/setup-e2e-auth-headless.mjs\n\n\n=== setup:e2e-auth (headless) ===\n\n✓ E2E user already exists (e2e-live@dreamos86.test) — resetting password for local proof\n"
   },
   "server_crashed": false,
   "server_recoveries": [],
-  "failed_categories": [
-    "generated_app"
-  ],
-  "final_go_no_go": "GO",
-  "generatedAt": "2026-06-06T21:54:18.012Z"
+  "failed_categories": [],
+  "final_go_no_go": "NO-GO",
+  "generatedAt": "2026-06-07T08:42:41.114Z"
 }

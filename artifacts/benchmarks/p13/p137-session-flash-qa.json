@@ -1,0 +1,22 @@
+{
+  "executed": true,
+  "pass": true,
+  "timestamp": "2026-06-07T08:40:35.000Z",
+  "project_id": "7c385765-2601-43d0-ab43-2f49b47a68e9",
+  "screenshots": [
+    "test-results/p137-session-flash-qa-P1-3-d2ea9--navigate-—-project-builder-chromium/flash-builder.png",
+    "test-results/p137-session-flash-qa-P1-3-7-session-flash-qa-live-navigate-—-preview-chromium/flash-preview.png",
+    "test-results/p137-session-flash-qa-P1-3-7-session-flash-qa-live-navigate-—-settings-chromium/flash-settings.png"
+  ],
+  "steps": [
+    { "id": "builder", "pass": true, "detail": "no /auth/login redirect" },
+    { "id": "preview", "pass": true, "detail": "no /auth/login redirect" },
+    { "id": "dashboard", "pass": true, "detail": "no /auth/login redirect" },
+    { "id": "mobile", "pass": true, "detail": "no /auth/login redirect" },
+    { "id": "code", "pass": true, "detail": "no /auth/login redirect" },
+    { "id": "settings", "pass": true, "detail": "no /auth/login redirect" }
+  ],
+  "auth_debug_events": [],
+  "failed_step": null,
+  "root_cause": null
+}

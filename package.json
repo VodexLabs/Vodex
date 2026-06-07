@@ -694,6 +694,7 @@
     "test:e2e:live": "cross-env E2E_RUN_LIVE=1 playwright test --grep @live",
     "test:e2e:live:ready": "node scripts/test-e2e-live-ready.mjs",
     "test:live:stable": "cross-env NODE_USE_SYSTEM_CA=1 node scripts/test-live-stable.mjs",
+    "test:p138:closure": "cross-env NODE_USE_SYSTEM_CA=1 node scripts/run-p138-closure.mjs",
     "verify:stable-server-recovery": "cross-env NODE_USE_SYSTEM_CA=1 node scripts/verify-stable-server-recovery.mjs",
     "verify:intent-router": "node scripts/verify-intent-router.mjs",
     "verify:repair-flow-no-blueprint": "node scripts/verify-repair-flow-no-blueprint.mjs",

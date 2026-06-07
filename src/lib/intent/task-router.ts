@@ -38,10 +38,11 @@ const COMMAND_PATTERNS =
   /\b(prepare preview|run scan|publish app|deploy app|import zip|start preview|rebuild preview)\b/i;
 
 function isQuestionWithoutRepairIntent(text: string): boolean {
-  const hasRepair = REPAIR_VERBS.test(text) || REPAIR_PREVIEW.test(text);
-  if (hasRepair) return false;
-  if (QUESTION_ONLY.test(text)) return true;
-  if (QUESTION_MARKERS.test(text) && !BUILD_VERBS.test(text)) return true;
+  const hasRepairVerb = REPAIR_VERBS.test(text);
+  // "Why is preview blocked?" is informational — preview phrases alone are not repair intent.
+  if (QUESTION_ONLY.test(text) && !hasRepairVerb) return true;
+  if (QUESTION_MARKERS.test(text) && !BUILD_VERBS.test(text) && !hasRepairVerb) return true;
+  if (hasRepairVerb || REPAIR_PREVIEW.test(text)) return false;
   return false;
 }
 
