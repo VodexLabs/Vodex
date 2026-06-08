@@ -2,7 +2,7 @@
  * P1.3.15 — Precise preview build failure classification.
  */
 import { MIN_RENDERABLE_FILES } from "@/lib/build/build-success-contract";
-import { isSubstantialPreviewApp } from "@/lib/build/todo-stub-detector";
+import { isSubstantialPreviewApp, type TodoStubMatch } from "@/lib/build/todo-stub-detector";
 import {
   normalizePreviewBuildLogs,
   type NormalizedPreviewBuildLog,
@@ -127,7 +127,7 @@ export function classifyPreviewBuildFailure(input: {
   timedOut?: boolean;
   previewBuildJobId?: string | null;
   hasBlockingTodoStub?: boolean;
-  todoStubMatches?: Array<{ blocking: boolean }>;
+  todoStubMatches?: TodoStubMatch[];
 }): PreviewFailureClassification {
   const normalized = normalizePreviewBuildLogs(input.buildLogs);
   const reason = `${input.blockedReason ?? ""} ${input.userMessage ?? ""} ${input.errorCode ?? ""}`.toLowerCase();

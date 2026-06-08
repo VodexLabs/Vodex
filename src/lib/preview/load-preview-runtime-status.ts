@@ -379,8 +379,8 @@ export async function loadPreviewRuntimeStatus(
     payload.userMessage = sessionRow.error;
   }
 
-  const todoStubMatches = Array.isArray(meta.todo_stub_matches)
-    ? (meta.todo_stub_matches as Array<{ blocking: boolean }>)
+  const todoStubMatches: TodoStubMatch[] = Array.isArray(meta.todo_stub_matches)
+    ? (meta.todo_stub_matches as TodoStubMatch[])
     : [];
   const storedFailure = meta.latest_preview_failure;
   const storedFailureKind =

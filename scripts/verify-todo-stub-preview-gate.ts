@@ -3,7 +3,11 @@
  * Verify TODO/stub gate does not false-positive substantial multi-route apps.
  */
 import { validateGeneratedApp } from "../src/lib/build/generated-app-validator";
-import { applyTodoStubGate, detectTodoStubMatches } from "../src/lib/build/todo-stub-detector";
+import {
+  applyTodoStubGate,
+  detectTodoStubMatches,
+  type TodoStubMatch,
+} from "../src/lib/build/todo-stub-detector";
 import { classifyPreviewBuildFailure } from "../src/lib/preview/preview-failure-classifier";
 
 function assert(cond: boolean, msg: string) {
@@ -100,7 +104,7 @@ const classified = classifyPreviewBuildFailure({
       snippet: "// TODO: implement home page",
       severity: "blocking",
       blocking: true,
-    },
+    } satisfies TodoStubMatch,
   ],
 });
 assert(

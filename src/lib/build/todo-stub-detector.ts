@@ -8,12 +8,19 @@ import {
   findPrimaryAppPage,
 } from "@/lib/build/source-integrity-validator";
 
+/** Canonical shape for detector output, metadata persistence, and debug payloads. */
 export type TodoStubMatch = {
-  file_path: string;
-  detector: string;
-  snippet: string;
-  severity: "blocking" | "warning";
+  file_path?: string;
+  detector?: string;
+  snippet?: string;
+  severity?: "blocking" | "warning" | "info";
   blocking: boolean;
+};
+
+/** Blocking stub with a known route path — used when failing validation or repair. */
+export type BlockingTodoStubMatch = TodoStubMatch & {
+  blocking: true;
+  file_path: string;
 };
 
 export type TodoStubScanResult = {
@@ -130,8 +137,8 @@ export function detectTodoStubMatches(files: BuildFile[]): TodoStubScanResult {
 
   const blockingMatches = matches.filter((m) => m.blocking);
   const warningMatches = matches.filter((m) => !m.blocking);
-  const primaryRouteStubbed = blockingMatches.some((m) =>
-    isPrimaryPage(m.file_path, primaryPath),
+  const primaryRouteStubbed = blockingMatches.some(
+    (m) => m.file_path != null && isPrimaryPage(m.file_path, primaryPath),
   );
 
   return {
@@ -242,7 +249,7 @@ export function formatSecondaryStubQualityNote(matches: TodoStubMatch[]): string
 /** Stored failure metadata may be stale when only non-blocking secondary stubs exist. */
 export function storedSourceValidationContradictsTodoStubs(
   storedFailureKind: string | undefined,
-  matches: Array<{ blocking: boolean }>,
+  matches: TodoStubMatch[],
 ): boolean {
   return (
     storedFailureKind === "preview_source_validation_failed" &&
@@ -256,8 +263,8 @@ export function previewStubBlocksValidation(input: {
   todoStubMatches: TodoStubMatch[];
 }): string | null {
   if (hasBlockingTodoStubMatches(input.todoStubMatches)) {
-    const match = input.todoStubMatches.find((m) => m.blocking)!;
-    return `todo_or_stub_page:${match.file_path}`;
+    const match = input.todoStubMatches.find((m) => m.blocking);
+    return match?.file_path ? `todo_or_stub_page:${match.file_path}` : "todo_or_stub_page";
   }
   const hard = input.blockingReasons.filter((r) => !isValidationWarningReason(r));
   if (hard.length === 0) return null;
@@ -265,16 +272,17 @@ export function previewStubBlocksValidation(input: {
 }
 
 export function buildTodoStubRepairPrompt(match: TodoStubMatch, appName?: string): string {
+  const filePath = match.file_path ?? "unknown";
   return [
     "TODO/STUB PAGE REPAIR — replace stub content with real UI for this route only.",
-    `File: ${match.file_path}`,
-    `Detector: ${match.detector}`,
-    `Snippet: ${match.snippet}`,
+    `File: ${filePath}`,
+    `Detector: ${match.detector ?? "unknown"}`,
+    `Snippet: ${match.snippet ?? ""}`,
     "",
     "RULES:",
     "- Do NOT reduce app scope, routes, or file count.",
     "- Do NOT replace the full app with a generic scaffold.",
-    `- Replace stub/TODO content in ${match.file_path} with production-ready UI.`,
+    `- Replace stub/TODO content in ${filePath} with production-ready UI.`,
     "- Keep imports and sibling routes intact.",
     appName ? `App name: ${appName}` : "",
   ]

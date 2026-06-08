@@ -37,12 +37,7 @@ export type PreviewFailureCliDebugObject = {
   generation_quality_score: number | null;
   source_integrity_score: number | null;
   preview_build_status: string | null;
-  todo_stub_matches: Array<{
-    file_path: string;
-    detector: string;
-    snippet: string;
-    blocking: boolean;
-  }>;
+  todo_stub_matches: TodoStubMatch[];
   classification: PreviewFailureClassification;
 };
 
@@ -222,12 +217,7 @@ export async function loadPreviewFailureCliDebug(
     : [];
   const liveMatches =
     filesWithContent.length > 0 ? detectTodoStubMatches(filesWithContent).matches : [];
-  const todoStubMatches = (metaMatches.length ? metaMatches : liveMatches).map((m) => ({
-    file_path: m.file_path,
-    detector: m.detector,
-    snippet: m.snippet,
-    blocking: m.blocking,
-  }));
+  const todoStubMatches: TodoStubMatch[] = metaMatches.length ? metaMatches : liveMatches;
 
   const storedFailure = meta.latest_preview_failure;
   const storedFailureKind =
