@@ -17,11 +17,16 @@ import { resolvePreviewProvider } from "@/lib/preview/preview-provider-registry"
 import { pollVercelPreviewUrl } from "@/lib/preview/vercel-preview-provider";
 import { getVercelServerConfig } from "@/lib/deploy/vercel-config";
 import type { PreviewProviderLevel } from "@/lib/preview/preview-provider-types";
-import { isSubstantialPreviewApp } from "@/lib/build/todo-stub-detector";
+import {
+  formatSecondaryStubQualityNote,
+  hasBlockingTodoStubMatches,
+  isSubstantialPreviewApp,
+  parseTodoStubFilePath,
+  previewStubBlocksValidation,
+} from "@/lib/build/todo-stub-detector";
 import { detectPreviewRoutesFromFiles } from "@/lib/preview/detect-preview-routes";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { runProjectPreviewBuild } from "@/lib/imports/run-project-preview-build";
-import { parseTodoStubFilePath } from "@/lib/build/todo-stub-detector";
 
 type Writer = SupabaseClient;
 
@@ -257,17 +262,18 @@ export async function startPreviewSession(input: {
     routeCount: routes.length,
   });
 
-  const blockingReasons = validation.reasons.filter(
-    (r) => !r.startsWith("placeholder_content_warning") && !r.startsWith("todo_stub_warning"),
-  );
+  const stubBlockError = previewStubBlocksValidation({
+    blockingReasons: validation.blockingReasons,
+    todoStubMatches: validation.todoStubMatches,
+  });
+  const secondaryStubNote = formatSecondaryStubQualityNote(validation.todoStubMatches);
 
-  if (!validation.ok && blockingReasons.length > 0) {
+  if (stubBlockError) {
     status = "failed";
-    const stubPath = blockingReasons.map(parseTodoStubFilePath).find(Boolean);
-    error = stubPath
-      ? `todo_or_stub_page:${stubPath}`
-      : blockingReasons.slice(0, 3).join("; ");
+    error = stubBlockError;
     logs = appendPreviewLog(logs, `Source validation failed: ${error}`);
+  } else if (secondaryStubNote) {
+    logs = appendPreviewLog(logs, `Quality note: ${secondaryStubNote}`);
   } else if (
     uiQualityBlocksGenerated(uiReview) &&
     safeFiles.length < MIN_RENDERABLE_FILES
@@ -340,12 +346,27 @@ export async function startPreviewSession(input: {
     };
   }
 
+  const sourceWarnings = [
+    ...validation.warnings.slice(0, 20),
+    ...(secondaryStubNote ? [secondaryStubNote] : []),
+  ];
   const todoStubMeta =
     validation.todoStubMatches.length > 0
       ? {
           todo_stub_matches: validation.todoStubMatches,
           todo_stub_detector: validation.todoStubMatches[0]?.detector ?? null,
           todo_stub_file_path: validation.todoStubMatches.find((m) => m.blocking)?.file_path ?? null,
+        }
+      : {};
+  const clearedFailureMeta =
+    status !== "failed"
+      ? {
+          files_ready_preview_failed: null,
+          preview_failure_kind: null,
+          preview_failure_detail: null,
+          preview_error: null,
+          preview_build_status: null,
+          latest_preview_failure: null,
         }
       : {};
 
@@ -356,7 +377,9 @@ export async function startPreviewSession(input: {
     prevMeta: {
       ...prevMeta,
       ...todoStubMeta,
+      ...clearedFailureMeta,
       validation_warnings: validation.warnings.slice(0, 20),
+      source_warnings: sourceWarnings,
     },
     sessionId,
     status,
@@ -369,6 +392,7 @@ export async function startPreviewSession(input: {
 
   if (status === "failed") {
     const stubPath = error ? parseTodoStubFilePath(error) : null;
+    const blockingStubFailure = hasBlockingTodoStubMatches(validation.todoStubMatches);
     await input.writer
       .from("projects")
       .update({
@@ -376,13 +400,16 @@ export async function startPreviewSession(input: {
         metadata: {
           ...prevMeta,
           ...todoStubMeta,
-          preview_failure_kind: "preview_source_validation_failed",
+          source_warnings: sourceWarnings,
+          preview_failure_kind: blockingStubFailure
+            ? "preview_source_validation_failed"
+            : "runtime_error",
           preview_failure_detail: error,
           preview_error: stubPath
             ? `Stub/TODO content in ${stubPath}`
             : (error ?? "Preview blocked by source validation"),
           preview_build_status: "failed",
-          files_ready_preview_failed: true,
+          files_ready_preview_failed: blockingStubFailure,
         },
       } as never)
       .eq("id", input.projectId)

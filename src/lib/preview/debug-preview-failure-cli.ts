@@ -11,6 +11,7 @@ import {
 import { normalizePreviewBuildLogs } from "@/lib/preview/preview-build-log-normalizer";
 import {
   detectTodoStubMatches,
+  storedSourceValidationContradictsTodoStubs,
   type TodoStubMatch,
 } from "@/lib/build/todo-stub-detector";
 
@@ -216,14 +217,36 @@ export async function loadPreviewFailureCliDebug(
       (jobRow?.status === "succeeded" && jobRow.preview_renderable === true),
   );
 
-  const storedFailure = meta.latest_preview_failure;
-  let classification: PreviewFailureClassification;
+  const metaMatches = Array.isArray(meta.todo_stub_matches)
+    ? (meta.todo_stub_matches as TodoStubMatch[])
+    : [];
+  const liveMatches =
+    filesWithContent.length > 0 ? detectTodoStubMatches(filesWithContent).matches : [];
+  const todoStubMatches = (metaMatches.length ? metaMatches : liveMatches).map((m) => ({
+    file_path: m.file_path,
+    detector: m.detector,
+    snippet: m.snippet,
+    blocking: m.blocking,
+  }));
 
-  if (
+  const storedFailure = meta.latest_preview_failure;
+  const storedFailureKind =
     storedFailure &&
     typeof storedFailure === "object" &&
     typeof (storedFailure as { failure_kind?: string }).failure_kind === "string"
-  ) {
+      ? (storedFailure as { failure_kind: string }).failure_kind
+      : typeof meta.preview_failure_kind === "string"
+        ? meta.preview_failure_kind
+        : undefined;
+  const useStoredFailure =
+    storedFailure &&
+    typeof storedFailure === "object" &&
+    typeof (storedFailure as { failure_kind?: string }).failure_kind === "string" &&
+    !storedSourceValidationContradictsTodoStubs(storedFailureKind, todoStubMatches);
+
+  let classification: PreviewFailureClassification;
+
+  if (useStoredFailure) {
     classification = storedFailure as PreviewFailureClassification;
   } else {
     classification = classifyPreviewBuildFailure({
@@ -244,20 +267,9 @@ export async function loadPreviewFailureCliDebug(
         typeof meta.meaningful_source_file_count === "number"
           ? meta.meaningful_source_file_count
           : undefined,
+      todoStubMatches,
     });
   }
-
-  const metaMatches = Array.isArray(meta.todo_stub_matches)
-    ? (meta.todo_stub_matches as TodoStubMatch[])
-    : [];
-  const liveMatches =
-    filesWithContent.length > 0 ? detectTodoStubMatches(filesWithContent).matches : [];
-  const todoStubMatches = (metaMatches.length ? metaMatches : liveMatches).map((m) => ({
-    file_path: m.file_path,
-    detector: m.detector,
-    snippet: m.snippet,
-    blocking: m.blocking,
-  }));
 
   const normalized = normalizePreviewBuildLogs(buildLogs);
   const normalizedError =

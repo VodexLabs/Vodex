@@ -7,26 +7,19 @@
  *   npm run debug:preview-failure -- --help
  */
 import { createClient } from "@supabase/supabase-js";
-import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadPreviewFailureCliDebug } from "../src/lib/preview/debug-preview-failure-cli";
+import {
+  buildSupabaseDebugEnvDiagnostic,
+  formatSupabaseDebugEnvDiagnostic,
+  loadCliEnv,
+  resolveSupabaseServiceKey,
+  resolveSupabaseUrl,
+  rejectAnonKey,
+} from "../src/lib/cli/supabase-debug-env";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
-
-function loadEnvLocal(): Record<string, string> {
-  const p = path.join(root, ".env.local");
-  if (!fs.existsSync(p)) return {};
-  const out: Record<string, string> = {};
-  for (const line of fs.readFileSync(p, "utf8").split(/\r?\n/)) {
-    const t = line.trim();
-    if (!t || t.startsWith("#")) continue;
-    const i = t.indexOf("=");
-    if (i < 1) continue;
-    out[t.slice(0, i).trim()] = t.slice(i + 1).trim();
-  }
-  return out;
-}
 
 function arg(name: string): string | null {
   const i = process.argv.indexOf(name);
@@ -44,20 +37,12 @@ Options:
   --project <uuid>   Project ID to inspect
   --help             Show this help
 
-Requires env:
-  NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL)
-  SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SECRET_KEY)
-`);
-}
+Requires env (.env.local or process):
+  SUPABASE_URL (preferred) or NEXT_PUBLIC_SUPABASE_URL
+  SUPABASE_SECRET_KEY (preferred) or SUPABASE_SERVICE_ROLE_KEY
 
-function resolveSupabaseEnv(env: Record<string, string | undefined>): {
-  url: string | null;
-  key: string | null;
-} {
-  return {
-    url: env.NEXT_PUBLIC_SUPABASE_URL ?? env.SUPABASE_URL ?? null,
-    key: env.SUPABASE_SERVICE_ROLE_KEY ?? env.SUPABASE_SECRET_KEY ?? null,
-  };
+Run npm run debug:env to inspect resolved credentials safely.
+`);
 }
 
 async function main() {
@@ -73,15 +58,26 @@ async function main() {
     process.exit(1);
   }
 
-  const env = { ...process.env, ...loadEnvLocal() };
-  const { url, key } = resolveSupabaseEnv(env);
+  const diag = buildSupabaseDebugEnvDiagnostic(root);
 
-  if (!url) {
-    console.error("SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL missing.");
+  if (diag.errors.length > 0) {
+    console.error(formatSupabaseDebugEnvDiagnostic(diag));
     process.exit(1);
   }
-  if (!key) {
-    console.error("SUPABASE_SERVICE_ROLE_KEY missing.");
+
+  const env = loadCliEnv(root);
+  const { url } = resolveSupabaseUrl(env);
+  const { key, source: keySource } = resolveSupabaseServiceKey(env);
+
+  if (!url || !key) {
+    console.error(formatSupabaseDebugEnvDiagnostic(diag));
+    process.exit(1);
+  }
+
+  const anonErr = rejectAnonKey(key, keySource);
+  if (anonErr) {
+    console.error(anonErr);
+    console.error(formatSupabaseDebugEnvDiagnostic(diag));
     process.exit(1);
   }
 
@@ -89,12 +85,63 @@ async function main() {
   const result = await loadPreviewFailureCliDebug(admin, projectId);
 
   if (!result) {
-    console.log(JSON.stringify({ error: "project_not_found", project_id: projectId }, null, 2));
+    const countRes = await admin
+      .from("projects")
+      .select("id", { count: "exact", head: true });
+    const directRes = await admin
+      .from("projects")
+      .select("id, name, app_name")
+      .eq("id", projectId)
+      .maybeSingle();
+
+    const connectionFailed = Boolean(countRes.error || directRes.error);
+    const hint = connectionFailed
+      ? "Supabase query failed — check URL/key (run npm run debug:env). Ensure service role/secret key, not anon."
+      : "Project UUID not in this Supabase project (connection OK).";
+
+    console.log(
+      JSON.stringify(
+        {
+          error: connectionFailed ? "supabase_query_failed" : "project_not_found",
+          project_id: projectId,
+          hint,
+          env: JSON.parse(formatSupabaseDebugEnvDiagnostic(diag)),
+          probe: {
+            projects_table_reachable: !countRes.error,
+            projects_visible_count: countRes.count,
+            projects_count_error: countRes.error
+              ? { message: countRes.error.message, code: countRes.error.code, details: countRes.error.details }
+              : null,
+            direct_lookup: directRes.data ?? null,
+            direct_lookup_error: directRes.error
+              ? { message: directRes.error.message, code: directRes.error.code, details: directRes.error.details }
+              : null,
+          },
+        },
+        null,
+        2,
+      ),
+    );
     process.exit(1);
   }
 
   const { classification: _c, ...output } = result;
-  console.log(JSON.stringify(output, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        env: {
+          supabaseUrl: diag.supabaseUrl,
+          supabaseUrlSource: diag.supabaseUrlSource,
+          keySource: diag.keySource,
+          keyPreview: diag.keyPreview,
+          jwtRole: diag.jwtRole,
+        },
+        ...output,
+      },
+      null,
+      2,
+    ),
+  );
 }
 
 main().catch((err) => {

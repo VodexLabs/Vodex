@@ -38,17 +38,22 @@ export function PreviewRuntimeStatusPanel({
   const classification = status.previewFailureClassification;
   const sourceValidationFailed =
     classification?.failure_kind === "preview_source_validation_failed" ||
-    status.previewFailureKind === "preview_source_validation_failed" ||
-    (status.previewFailureKind === "build_failed" &&
-      !status.jobId &&
-      status.previewSource !== "worker_job");
+    status.previewFailureKind === "preview_source_validation_failed";
+  const gateBugRetry =
+    classification?.failure_kind === "preview_not_started_due_to_gate_bug" ||
+    status.previewFailureKind === "preview_not_started_due_to_gate_bug";
+  const qualityWarnings = status.warnings.filter((w) =>
+    w.includes("secondary pages are still simple placeholders"),
+  );
   const label =
     classification?.human_title ??
     (sourceValidationFailed
       ? "Preview blocked by source validation"
-      : status.previewFailureKind === "true_incomplete_files"
-        ? "Generated files are incomplete"
-        : previewRuntimeStateLabel(status));
+      : gateBugRetry
+        ? "Preview not started — retry"
+        : status.previewFailureKind === "true_incomplete_files"
+          ? "Generated files are incomplete"
+          : previewRuntimeStateLabel(status));
   const pending =
     status.jobStatus === "queued" ||
     status.jobStatus === "running" ||
@@ -120,6 +125,11 @@ export function PreviewRuntimeStatusPanel({
             </div>
           ) : !compact ? (
             <p className="mt-0.5 text-muted-foreground">{subline}</p>
+          ) : null}
+          {!compact && qualityWarnings.length > 0 && !sourceValidationFailed ? (
+            <p className="mt-1 text-[10px] text-amber-600/90 dark:text-amber-400/90">
+              {qualityWarnings[0]}
+            </p>
           ) : null}
           {!compact && status.jobAgeLabel && status.jobStatus === "queued" && (
             <p className="mt-0.5 text-[10px] text-muted-foreground/80">

@@ -3,6 +3,8 @@ import { UI_QUALITY_BANNED } from "@/lib/generation/ui-quality-spec";
 import {
   applyTodoStubGate,
   detectTodoStubMatches,
+  hasBlockingTodoStubMatches,
+  isValidationWarningReason,
   type TodoStubMatch,
 } from "@/lib/build/todo-stub-detector";
 import { normalizeBuildFilePath } from "@/lib/build/generated-file-utils";
@@ -10,6 +12,8 @@ import { findPrimaryAppPage } from "@/lib/build/source-integrity-validator";
 
 export type GeneratedAppValidation = {
   ok: boolean;
+  /** Hard failures only — warnings and non-blocking stubs are excluded. */
+  blockingReasons: string[];
   reasons: string[];
   warnings: string[];
   placeholderDetected: boolean;
@@ -140,13 +144,21 @@ export function validateGeneratedApp(input: {
     }
   }
 
+  const todoStubMatches = stubGate.todoStubMatches.length
+    ? stubGate.todoStubMatches
+    : detectTodoStubMatches(input.files).matches;
+
+  let blockingReasons = reasons.filter((r) => !isValidationWarningReason(r));
+  if (!hasBlockingTodoStubMatches(todoStubMatches)) {
+    blockingReasons = blockingReasons.filter((r) => !r.startsWith("todo_or_stub_page"));
+  }
+
   return {
-    ok: reasons.length === 0,
-    reasons,
+    ok: blockingReasons.length === 0,
+    blockingReasons,
+    reasons: blockingReasons,
     warnings,
     placeholderDetected,
-    todoStubMatches: stubGate.todoStubMatches.length
-      ? stubGate.todoStubMatches
-      : detectTodoStubMatches(input.files).matches,
+    todoStubMatches,
   };
 }

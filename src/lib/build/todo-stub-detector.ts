@@ -219,6 +219,51 @@ export function parseTodoStubFilePath(reason: string): string | null {
   return m?.[1] ?? null;
 }
 
+export function hasBlockingTodoStubMatches(matches: TodoStubMatch[]): boolean {
+  return matches.some((m) => m.blocking);
+}
+
+export function isValidationWarningReason(reason: string): boolean {
+  return (
+    reason.startsWith("todo_stub_warning:") ||
+    reason.startsWith("placeholder_content_warning:")
+  );
+}
+
+/** Human-readable quality note — never a preview blocker. */
+export function formatSecondaryStubQualityNote(matches: TodoStubMatch[]): string | null {
+  const secondary = matches.filter(
+    (m) => !m.blocking && (m.detector === "secondary_route_stub" || m.detector === "inline_todo_in_source"),
+  );
+  if (secondary.length === 0) return null;
+  return `Some secondary pages are still simple placeholders (${secondary.length} routes)`;
+}
+
+/** Stored failure metadata may be stale when only non-blocking secondary stubs exist. */
+export function storedSourceValidationContradictsTodoStubs(
+  storedFailureKind: string | undefined,
+  matches: Array<{ blocking: boolean }>,
+): boolean {
+  return (
+    storedFailureKind === "preview_source_validation_failed" &&
+    matches.length > 0 &&
+    !matches.some((m) => m.blocking)
+  );
+}
+
+export function previewStubBlocksValidation(input: {
+  blockingReasons: string[];
+  todoStubMatches: TodoStubMatch[];
+}): string | null {
+  if (hasBlockingTodoStubMatches(input.todoStubMatches)) {
+    const match = input.todoStubMatches.find((m) => m.blocking)!;
+    return `todo_or_stub_page:${match.file_path}`;
+  }
+  const hard = input.blockingReasons.filter((r) => !isValidationWarningReason(r));
+  if (hard.length === 0) return null;
+  return hard.slice(0, 3).join("; ");
+}
+
 export function buildTodoStubRepairPrompt(match: TodoStubMatch, appName?: string): string {
   return [
     "TODO/STUB PAGE REPAIR — replace stub content with real UI for this route only.",

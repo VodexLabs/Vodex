@@ -82,7 +82,7 @@ const stubGate = applyTodoStubGate({ files: stubPrimary, fileCount: stubPrimary.
 assert(stubGate.scan.shouldBlockPreview, "primary stub must block");
 assert(stubGate.blockingReasons[0]?.includes("app/page.tsx"), "blocking reason must include file path");
 
-// Classifier: no worker job + todo_or_stub => source validation, not generic build failed
+// Classifier: no worker job + blocking primary stub => source validation, not generic build failed
 const classified = classifyPreviewBuildFailure({
   appFilesCount: 62,
   routesCount: 16,
@@ -93,6 +93,15 @@ const classified = classifyPreviewBuildFailure({
   userMessage: "todo_or_stub_page:app/page.tsx",
   previewStatus: "failed",
   previewBuildJobId: null,
+  todoStubMatches: [
+    {
+      file_path: "app/page.tsx",
+      detector: "primary_page_stub",
+      snippet: "// TODO: implement home page",
+      severity: "blocking",
+      blocking: true,
+    },
+  ],
 });
 assert(
   classified.failure_kind === "preview_source_validation_failed",

@@ -2,6 +2,7 @@
  * P1.3.15 — Precise preview build failure classification.
  */
 import { MIN_RENDERABLE_FILES } from "@/lib/build/build-success-contract";
+import { isSubstantialPreviewApp } from "@/lib/build/todo-stub-detector";
 import {
   normalizePreviewBuildLogs,
   type NormalizedPreviewBuildLog,
@@ -21,6 +22,7 @@ export type PreviewBuildFailureKind =
   | "preview_timeout"
   | "true_incomplete_files"
   | "preview_source_validation_failed"
+  | "preview_not_started_due_to_gate_bug"
   | "preview_build_failed";
 
 export type PreviewFailureStage =
@@ -68,6 +70,7 @@ const TITLES: Record<PreviewBuildFailureKind, string> = {
   preview_timeout: "Preview build timed out",
   true_incomplete_files: "Generated files are incomplete",
   preview_source_validation_failed: "Preview blocked by source validation",
+  preview_not_started_due_to_gate_bug: "Preview not started — gate bug",
   preview_build_failed: "Preview build failed",
 };
 
@@ -123,15 +126,40 @@ export function classifyPreviewBuildFailure(input: {
   mainRouteEmpty?: boolean;
   timedOut?: boolean;
   previewBuildJobId?: string | null;
+  hasBlockingTodoStub?: boolean;
+  todoStubMatches?: Array<{ blocking: boolean }>;
 }): PreviewFailureClassification {
   const normalized = normalizePreviewBuildLogs(input.buildLogs);
   const reason = `${input.blockedReason ?? ""} ${input.userMessage ?? ""} ${input.errorCode ?? ""}`.toLowerCase();
   const noWorkerJob = !input.previewBuildJobId;
+  const hasBlockingTodoStub =
+    input.hasBlockingTodoStub ??
+    (input.todoStubMatches?.some((m) => m.blocking) ?? false);
+  const mentionsTodoStub = reason.includes("todo_or_stub");
+  const substantialApp = isSubstantialPreviewApp({
+    fileCount: input.appFilesCount,
+    packageJsonExists: input.packageJsonExists,
+    entrypointExists: input.entrypointExists,
+    routeCount: input.routesCount,
+  });
+  const nonBlockingStubOnly =
+    mentionsTodoStub && !hasBlockingTodoStub && substantialApp;
   const sourceValidationHit =
-    reason.includes("todo_or_stub") ||
-    reason.includes("validation_failed") ||
-    input.errorCode === "validation_failed" ||
-    input.errorCode === "source_validation_failed";
+    (mentionsTodoStub && hasBlockingTodoStub) ||
+    (!mentionsTodoStub &&
+      (reason.includes("validation_failed") ||
+        input.errorCode === "validation_failed" ||
+        input.errorCode === "source_validation_failed"));
+
+  if (noWorkerJob && nonBlockingStubOnly) {
+    return buildClassification("preview_not_started_due_to_gate_bug", "source", {
+      ...normalized,
+      failure_message:
+        "Secondary route placeholders were treated as blocking — retry preview to start the worker build.",
+      suggested_repair: "Retry preview — only the primary route stub should block substantial apps.",
+      auto_repair: false,
+    });
+  }
 
   if (noWorkerJob && sourceValidationHit) {
     const stubPath =
@@ -152,7 +180,14 @@ export function classifyPreviewBuildFailure(input: {
     });
   }
 
-  if (noWorkerJob && (input.previewStatus === "failed" || input.jobStatus === "failed") && !normalized.vite_error && !normalized.typescript_error && !normalized.npm_error) {
+  if (
+    noWorkerJob &&
+    (input.previewStatus === "failed" || input.jobStatus === "failed") &&
+    !normalized.vite_error &&
+    !normalized.typescript_error &&
+    !normalized.npm_error &&
+    !nonBlockingStubOnly
+  ) {
     return buildClassification("preview_source_validation_failed", "source", {
       ...normalized,
       failure_message:

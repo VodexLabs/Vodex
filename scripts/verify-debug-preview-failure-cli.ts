@@ -54,6 +54,12 @@ if (
 if (!scriptSrc.includes("debug-preview-failure-cli")) {
   fail("script must import debug-preview-failure-cli");
 }
+if (!scriptSrc.includes("supabase-debug-env")) {
+  fail("script must import supabase-debug-env");
+}
+if (!read("package.json").includes('"debug:env"')) {
+  fail("package.json missing debug:env script");
+}
 
 if (!cliSrc.includes("classifyPreviewBuildFailure")) {
   fail("CLI loader must use preview-failure-classifier");

@@ -13,6 +13,11 @@ import { loadZipPreviewBillingForProject } from "@/lib/imports/zip-preview-billi
 import { derivePreviewFailure } from "@/lib/preview/derive-preview-failure";
 import { classifyPreviewBuildFailure } from "@/lib/preview/preview-failure-classifier";
 import { detectPreviewRoutesFromFiles } from "@/lib/preview/detect-preview-routes";
+import {
+  formatSecondaryStubQualityNote,
+  storedSourceValidationContradictsTodoStubs,
+  type TodoStubMatch,
+} from "@/lib/build/todo-stub-detector";
 
 const WORKER_STALE_MS = 5 * 60 * 1000;
 const WORKER_QUEUE_GRACE_MS = 8_000;
@@ -314,7 +319,19 @@ export async function loadPreviewRuntimeStatus(
         ? String(diag.entryFiles[0])
         : null) ??
       (typeof importMeta?.entry_file === "string" ? importMeta.entry_file : null),
-    warnings: Array.isArray(diag?.warnings) ? diag.warnings.map(String) : [],
+    warnings: (() => {
+      const fromDiag = Array.isArray(diag?.warnings) ? diag.warnings.map(String) : [];
+      const fromMeta = Array.isArray(meta.source_warnings)
+        ? (meta.source_warnings as string[])
+        : [];
+      const stubMatches = Array.isArray(meta.todo_stub_matches)
+        ? (meta.todo_stub_matches as TodoStubMatch[])
+        : [];
+      const stubNote = formatSecondaryStubQualityNote(stubMatches);
+      const merged = [...fromMeta, ...fromDiag];
+      if (stubNote && !merged.includes(stubNote)) merged.push(stubNote);
+      return merged;
+    })(),
     previewBuildMeta: (() => {
       const raw =
         diag && typeof diag === "object" && "previewBuildMeta" in diag
@@ -362,12 +379,25 @@ export async function loadPreviewRuntimeStatus(
     payload.userMessage = sessionRow.error;
   }
 
+  const todoStubMatches = Array.isArray(meta.todo_stub_matches)
+    ? (meta.todo_stub_matches as Array<{ blocking: boolean }>)
+    : [];
   const storedFailure = meta.latest_preview_failure;
-  if (
+  const storedFailureKind =
     storedFailure &&
     typeof storedFailure === "object" &&
     typeof (storedFailure as { failure_kind?: string }).failure_kind === "string"
-  ) {
+      ? (storedFailure as { failure_kind: string }).failure_kind
+      : typeof meta.preview_failure_kind === "string"
+        ? meta.preview_failure_kind
+        : undefined;
+  const useStoredFailure =
+    storedFailure &&
+    typeof storedFailure === "object" &&
+    typeof (storedFailure as { failure_kind?: string }).failure_kind === "string" &&
+    !storedSourceValidationContradictsTodoStubs(storedFailureKind, todoStubMatches);
+
+  if (useStoredFailure) {
     payload.previewFailureClassification =
       storedFailure as PreviewRuntimeStatusPayload["previewFailureClassification"];
     payload.previewFailureKind = (storedFailure as { failure_kind: string }).failure_kind;
@@ -407,6 +437,7 @@ export async function loadPreviewRuntimeStatus(
         typeof meta.meaningful_source_file_count === "number"
           ? meta.meaningful_source_file_count
           : undefined,
+      todoStubMatches,
     });
     payload.previewFailureKind = payload.previewFailureClassification.failure_kind;
     payload.previewFailureDetail = payload.previewFailureClassification.failure_message;
