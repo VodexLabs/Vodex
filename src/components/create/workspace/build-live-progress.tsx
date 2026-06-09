@@ -16,6 +16,7 @@ export function BuildLiveProgress({
   ownerDiagnostics,
   previewSucceeded,
   savedFileCount,
+  modelLabel,
 }: {
   progress: BuildJobPollState | null;
   className?: string;
@@ -29,6 +30,7 @@ export function BuildLiveProgress({
   };
   previewSucceeded?: boolean;
   savedFileCount?: number;
+  modelLabel?: string | null;
 }) {
   if (!progress) return null;
   return (
@@ -42,6 +44,7 @@ export function BuildLiveProgress({
       ownerDiagnostics={ownerDiagnostics}
       previewSucceeded={previewSucceeded}
       savedFileCount={savedFileCount}
+      modelLabel={modelLabel}
     />
   );
 }

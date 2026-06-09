@@ -223,17 +223,18 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
 
   setTraceHeartbeatRunning(trace, true);
   const heartbeat = setInterval(() => {
-    if (Date.now() - lastActivityAt < 4500) return;
-    if (Date.now() - lastHeartbeatPersist < 4500) return;
+    if (Date.now() - lastActivityAt < 10_000) return;
+    if (Date.now() - lastHeartbeatPersist < 10_000) return;
     lastHeartbeatPersist = Date.now();
     heartbeatTick += 1;
     const snap = getBuildWorkerTrace(input.buildJobId);
     const stageLabel = snap?.lastStage ?? "working";
     const modelPending = snap?.modelCall?.state === "pending";
-    const modelOp = snap?.modelCall?.operationType?.replace(/_/g, " ") ?? "model";
+    const modelOp = snap?.modelCall?.operationType?.replace(/_/g, " ") ?? "model response";
+    const elapsedSec = Math.max(1, Math.floor((Date.now() - lastActivityAt) / 1000));
     const heartbeatTitle = modelPending
-      ? `Still working — waiting on ${modelOp} (up to 90s)…`
-      : currentStepLabel;
+      ? `Still waiting for ${modelOp}… ${elapsedSec}s`
+      : `${currentStepLabel}… ${elapsedSec}s`;
     void persistBuildJobEvent(input.writer, {
       ...eventCtx,
       type: "planning_app",
@@ -246,12 +247,14 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
         hidden: true,
         stream_category: "phase_progress",
         build_stage: stageLabel,
+        build_terminal_phase: modelPending ? "model_generating" : "continuation_running",
         operation_id: input.operationId,
         execution_instance_id: workerCtx.executionInstanceId,
         heartbeat_tick: heartbeatTick,
+        heartbeat_elapsed_sec: elapsedSec,
       },
     }).catch(() => {});
-  }, 4000);
+  }, 10_000);
 
   const PIPELINE_HARD_CAP_MS = 5 * 60 * 1000;
 
@@ -272,10 +275,11 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
     await persistStage("worker_claimed");
     await persistStage("build_pipeline_entered");
     await persistStage("planning_app_started", "Organizing screens and features");
+    const opener = input.userPrompt?.trim()
+      ? `I'll turn this into a production app from your request — mapping systems and screens, generating files, wiring navigation, and preparing preview.`
+      : "I'll map your app architecture, generate screens, save files, and prepare preview.";
     await persistAssistantBuildMessage(input.writer, eventCtx, {
-      message: input.userPrompt?.trim()
-        ? `I'll work through your request — "${input.userPrompt.trim().slice(0, 140)}${input.userPrompt.trim().length > 140 ? "…" : ""}" — mapping screens, then generating and saving files.`
-        : "I'll map your app structure, generate files, and save them to your project.",
+      message: opener,
       progressPercent: 10,
     }).catch(() => undefined);
 

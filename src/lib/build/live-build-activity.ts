@@ -1,7 +1,13 @@
+import type { BuildTerminalPhase } from "@/lib/build/build-terminal-state-machine";
+import { isMajorBuildStage } from "@/lib/build/build-terminal-state-machine";
+
 /** Rotating status lines during silent model-generation gaps. */
 export function modelStageActivityMessages(prompt: string): string[] {
   const p = prompt.toLowerCase();
   const systems: string[] = [];
+  if (/smart home|automation|device|iot|scene/i.test(p)) {
+    systems.push("smart home device model", "automation scenes", "device dashboard");
+  }
   if (/workout|fitness|gym|streak|pr\b|personal record/i.test(p)) {
     systems.push("workout streak engine", "PR tracker", "progress gallery", "achievement badges");
   }
@@ -16,12 +22,14 @@ export function modelStageActivityMessages(prompt: string): string[] {
 
   return [
     intro,
-    "Designing information architecture for primary screens",
+    "Designing route map",
     "Planning data model and entity relationships",
-    "Preparing route map and navigation shell",
-    "Asking the model for core pages and components",
+    "Preparing automation and detail-page UI",
+    "Requesting dashboard and detail pages",
     "Waiting for model response",
-    "Parsing returned files and validating structure",
+    "Parsing generated files",
+    "Checking route coverage",
+    "Continuing missing pages",
   ];
 }
 
@@ -31,12 +39,122 @@ export function pickLiveActivityLine(messages: string[], elapsedMs: number): str
   return messages[idx]!;
 }
 
-export function retryReasonFromMessage(msg: string): string | null {
-  if (/first pass.*thin|only \d+ meaningful routes/i.test(msg)) {
-    return "First pass returned a thin route set — requesting full dashboard, detail pages, settings, and analytics…";
+export function continuationStatusLine(attempt: number, maxAttempts: number, reason?: string): string {
+  const n = Math.min(attempt, maxAttempts);
+  const base = `Retry ${n}/${maxAttempts} · requesting richer dashboard and route pages…`;
+  if (reason?.includes("quality")) return `Retry ${n}/${maxAttempts} · targeted rewrite for weak pages…`;
+  if (reason?.includes("compact")) return `Retry ${n}/${maxAttempts} · compact route set, then full continuation…`;
+  return base;
+}
+
+export function formatWatchdogHeartbeat(input: {
+  modelLabel?: string | null;
+  elapsedSec: number;
+  attempt?: number;
+  maxAttempts?: number;
+  waitingOn?: string;
+  tick?: number;
+}): string {
+  const model = input.modelLabel?.trim() || "the model";
+  const wait = input.waitingOn?.trim() || "model response";
+  if (input.attempt != null && input.maxAttempts != null) {
+    return `Still waiting for ${model} — ${wait}… ${input.elapsedSec}s · attempt ${input.attempt}/${input.maxAttempts}`;
   }
-  if (/compact route retry/i.test(msg)) {
-    return "Compact route retry — generating core pages with a focused route set…";
+  return `Still waiting for ${model} — ${wait}… ${input.elapsedSec}s`;
+}
+
+export function formatCompactQualityLine(score: number, target: number, files: number): string {
+  return `Validating ${files} files · quality ${score}/${target}…`;
+}
+
+export type BuildActivityPresentation = {
+  mode: "card" | "compact";
+  line: string;
+  phase: BuildTerminalPhase;
+};
+
+export function deriveBuildActivityPresentation(input: {
+  phase: BuildTerminalPhase;
+  elapsedMs: number;
+  userPrompt?: string;
+  assistantMessage?: string;
+  isHeartbeat?: boolean;
+  attempt?: number;
+  maxAttempts?: number;
+  qualityScore?: number;
+  qualityTarget?: number;
+  fileCount?: number;
+  modelLabel?: string | null;
+}): BuildActivityPresentation {
+  const messages = modelStageActivityMessages(input.userPrompt ?? "");
+  const elapsedSec = Math.max(0, Math.floor(input.elapsedMs / 1000));
+
+  if (input.isHeartbeat) {
+    return {
+      mode: "compact",
+      phase: input.phase,
+      line: formatWatchdogHeartbeat({
+        modelLabel: input.modelLabel,
+        elapsedSec,
+        attempt: input.attempt,
+        maxAttempts: input.maxAttempts,
+        waitingOn: input.assistantMessage ?? "model response",
+      }),
+    };
   }
-  return null;
+
+  if (
+    input.phase === "continuation_running" &&
+    input.attempt != null &&
+    input.maxAttempts != null
+  ) {
+    return {
+      mode: input.attempt <= 1 && !input.isHeartbeat ? "card" : "compact",
+      phase: input.phase,
+      line: continuationStatusLine(input.attempt, input.maxAttempts, input.assistantMessage ?? undefined),
+    };
+  }
+
+  if (
+    input.qualityScore != null &&
+    input.qualityTarget != null &&
+    input.phase === "validating_quality"
+  ) {
+    return {
+      mode: "compact",
+      phase: input.phase,
+      line: formatCompactQualityLine(
+        input.qualityScore,
+        input.qualityTarget,
+        input.fileCount ?? 0,
+      ),
+    };
+  }
+
+  const msg = input.assistantMessage ?? "";
+  if (/first pass.*thin|compact route|continuing generation|targeted rewrite/i.test(msg)) {
+    return {
+      mode: "compact",
+      phase: "continuation_running",
+      line: continuationStatusLine(
+        input.attempt ?? 2,
+        input.maxAttempts ?? 6,
+        msg,
+      ),
+    };
+  }
+
+  if (isMajorBuildStage(input.phase) && elapsedSec < 8) {
+    return {
+      mode: "card",
+      phase: input.phase,
+      line: pickLiveActivityLine(messages, input.elapsedMs),
+    };
+  }
+
+  return {
+    mode: "compact",
+    phase: input.phase,
+    line: pickLiveActivityLine(messages, input.elapsedMs),
+  };
 }

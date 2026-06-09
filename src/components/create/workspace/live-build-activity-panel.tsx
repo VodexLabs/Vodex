@@ -3,11 +3,29 @@
 import * as React from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  modelStageActivityMessages,
-  pickLiveActivityLine,
-  retryReasonFromMessage,
-} from "@/lib/build/live-build-activity";
+import type { BuildTerminalPhase } from "@/lib/build/build-terminal-state-machine";
+import { deriveBuildActivityPresentation } from "@/lib/build/live-build-activity";
+
+export function CompactLiveActivityLine({
+  line,
+  className,
+}: {
+  line: string;
+  className?: string;
+}) {
+  return (
+    <p
+      className={cn(
+        "mr-6 flex items-center gap-1.5 px-1 text-[11px] leading-snug text-muted-foreground sm:mr-10",
+        className,
+      )}
+      data-testid="compact-live-activity-line"
+    >
+      <Loader2 className="size-3 shrink-0 animate-spin opacity-60" />
+      <span>{line}</span>
+    </p>
+  );
+}
 
 export function LiveBuildActivityPanel({
   active,
@@ -15,9 +33,15 @@ export function LiveBuildActivityPanel({
   userPrompt = "",
   modelLabel,
   assistantMessage,
-  expectedFiles = 40,
-  expectedRoutes = 8,
-  plannedRoutes = [],
+  phase = "model_generating",
+  variant,
+  attempt,
+  maxAttempts,
+  isHeartbeat = false,
+  qualityScore,
+  qualityTarget,
+  fileCount,
+  line,
   className,
 }: {
   active: boolean;
@@ -25,14 +49,18 @@ export function LiveBuildActivityPanel({
   userPrompt?: string;
   modelLabel?: string | null;
   assistantMessage?: string | null;
-  expectedFiles?: number;
-  expectedRoutes?: number;
-  plannedRoutes?: string[];
+  phase?: BuildTerminalPhase;
+  variant?: "card" | "compact";
+  attempt?: number;
+  maxAttempts?: number;
+  isHeartbeat?: boolean;
+  qualityScore?: number;
+  qualityTarget?: number;
+  fileCount?: number;
+  line?: string;
   className?: string;
 }) {
   const [now, setNow] = React.useState(Date.now());
-  const messages = React.useMemo(() => modelStageActivityMessages(userPrompt), [userPrompt]);
-  const retryReason = assistantMessage ? retryReasonFromMessage(assistantMessage) : null;
 
   React.useEffect(() => {
     if (!active) return;
@@ -43,8 +71,27 @@ export function LiveBuildActivityPanel({
   if (!active) return null;
 
   const elapsedMs = startedAtMs ? now - startedAtMs : 0;
+  const presentation = deriveBuildActivityPresentation({
+    phase,
+    elapsedMs,
+    userPrompt,
+    assistantMessage: assistantMessage ?? undefined,
+    isHeartbeat,
+    attempt,
+    maxAttempts,
+    qualityScore,
+    qualityTarget,
+    fileCount,
+    modelLabel: modelLabel ?? undefined,
+  });
+  const statusLine = line ?? presentation.line;
+  const mode = variant ?? presentation.mode;
+
+  if (mode === "compact") {
+    return <CompactLiveActivityLine line={statusLine} className={className} />;
+  }
+
   const elapsedSec = Math.max(0, Math.floor(elapsedMs / 1000));
-  const statusLine = retryReason ?? pickLiveActivityLine(messages, elapsedMs);
 
   return (
     <div
@@ -67,41 +114,39 @@ export function LiveBuildActivityPanel({
       <p className="mt-2 text-[12px] leading-relaxed text-foreground" data-testid="live-build-status-line">
         {statusLine}
       </p>
-      <p className="mt-1 text-[10px] text-muted-foreground">
-        Target: {expectedFiles}+ files · {expectedRoutes}+ routes · components &amp; systems
-      </p>
-      {plannedRoutes.length > 0 ? (
-        <div className="mt-2 flex flex-wrap gap-1">
-          {plannedRoutes.slice(0, 8).map((r) => (
-            <span
-              key={r}
-              className="rounded-md bg-white/80 px-1.5 py-0.5 font-mono text-[9px] text-sky-800 ring-1 ring-sky-200/70"
-            >
-              {r}
-            </span>
-          ))}
-        </div>
+      {attempt != null && maxAttempts != null ? (
+        <p className="mt-1 text-[10px] text-muted-foreground">
+          Attempt {attempt}/{maxAttempts}
+        </p>
       ) : null}
     </div>
   );
 }
 
-export function CurrentWorkItem({
-  label,
-  detail,
-  active,
+export function BuildFinalSummaryBlock({
+  summary,
+  className,
 }: {
-  label: string;
-  detail?: string;
-  active?: boolean;
+  summary: string;
+  className?: string;
 }) {
-  if (!active) return null;
+  if (!summary.trim()) return null;
+  const lines = summary.split("\n").filter(Boolean);
   return (
-    <div className="mr-6 flex items-center gap-2 rounded-xl bg-surface/80 px-2.5 py-1.5 ring-1 ring-border/60 sm:mr-10" data-testid="current-work-item">
-      <Loader2 className="size-3 animate-spin text-accent" />
-      <div>
-        <p className="text-[11px] font-medium text-foreground">{label}</p>
-        {detail ? <p className="text-[10px] text-muted-foreground">{detail}</p> : null}
+    <div
+      className={cn(
+        "mr-6 rounded-xl bg-surface/80 px-3 py-2.5 ring-1 ring-border/60 sm:mr-10",
+        className,
+      )}
+      data-testid="build-final-summary"
+    >
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Build summary</p>
+      <div className="mt-1 space-y-0.5">
+        {lines.map((line) => (
+          <p key={line} className="text-[11px] leading-relaxed text-foreground">
+            {line}
+          </p>
+        ))}
       </div>
     </div>
   );

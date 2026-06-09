@@ -5,6 +5,7 @@ import { getHonestModelDisplayName } from "@/lib/ai/model-catalog";
 export type BuildFinalSummaryInput = {
   modelId: string;
   durationMs?: number;
+  attempts?: number;
   filesGenerated: number;
   filesRewritten: number;
   routes: number;
@@ -101,11 +102,16 @@ export function formatBuildFinalSummary(input: BuildFinalSummaryInput): string {
       .join("\n");
   }
 
+  const attemptsLine =
+    typeof input.attempts === "number" && input.attempts > 0
+      ? `Attempts: ${input.attempts} · `
+      : "";
+
   if (input.qualityPasses) {
-    return `Build saved — ${input.filesGenerated} files · ${input.routes} routes · ${input.components} components · Quality ${input.qualityScore}/${input.qualityTarget} · ${preview} · ${logo}${rewrite}${warnings}`;
+    return `Build complete — ${attemptsLine}${input.filesGenerated} files · ${input.routes} routes · ${input.components} components · Quality ${input.qualityScore}/${input.qualityTarget} · ${preview} · ${logo}${rewrite}${warnings}`;
   }
 
-  return `Build saved — continuing generation needed · ${input.filesGenerated} files · ${input.meaningfulRoutes} meaningful routes · Quality ${input.qualityScore}/${input.qualityTarget} · Model ${model} · ${duration} · ${logo}${warnings}`;
+  return `Build saved — ${attemptsLine}${input.filesGenerated} files · ${input.meaningfulRoutes} meaningful routes · Quality ${input.qualityScore}/${input.qualityTarget} · Model ${model} · ${duration} · ${preview} · ${logo}${warnings} · Next: ${input.nextAction ?? "continue generation"}`;
 }
 
 export function buildSummaryFromQuality(

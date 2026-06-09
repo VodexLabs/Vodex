@@ -54,6 +54,14 @@ import {
   hasDeterministicArchetypePlan,
 } from "@/lib/build/deterministic-archetype-plan";
 import { callProviderWithBuildTimeout, withTimeout } from "@/lib/build/timed-build-operations";
+import {
+  callProviderWithModelHeartbeat,
+  emitBuildHeartbeat,
+} from "@/lib/build/model-call-heartbeat";
+import {
+  MAX_SAFE_CONTINUATION_ATTEMPTS,
+  type BuildTerminalPhase,
+} from "@/lib/build/build-terminal-state-machine";
 import { normalizeAppRouterBuildFiles } from "@/lib/build/app-router-route-normalizer";
 import {
   evaluateSourceIntegrity,
@@ -182,6 +190,9 @@ export type WorkflowEventMeta = {
   actual_operation_id?: string;
   honest?: boolean;
   heartbeat?: boolean;
+  build_terminal_phase?: string;
+  continuation_attempt?: number;
+  continuation_max?: number;
   stream_mode?: "model_stream" | "extraction_stream";
   extraction_stream?: boolean;
   file_rewritten?: boolean;
@@ -444,6 +455,42 @@ export async function runStagedBuildPipeline(input: {
     detail?: string,
     meta?: WorkflowEventMeta,
   ) => appendWorkflowEvent(events, type, label, detail, emit, meta);
+  let continuationAttemptsTotal = 0;
+  let currentBuildPhase: BuildTerminalPhase = "planning";
+  const setBuildPhase = (
+    phase: BuildTerminalPhase,
+    type: WorkflowEventType,
+    label: string,
+    detail?: string,
+    extra?: WorkflowEventMeta,
+  ) => {
+    currentBuildPhase = phase;
+    track(events, type, label, detail, {
+      build_terminal_phase: phase,
+      streamCategory: "phase_progress",
+      ...extra,
+    });
+  };
+  const modelHeartbeat = (
+    callInput: Parameters<typeof callProviderWithModelHeartbeat>[0],
+    waitingOn: string,
+    attempt: number,
+  ) =>
+    callProviderWithModelHeartbeat(callInput, {
+      trace: input.buildTrace,
+      phase: currentBuildPhase,
+      attempt,
+      maxAttempts: MAX_SAFE_CONTINUATION_ATTEMPTS,
+      waitingOn,
+      onHeartbeat: (message, elapsedMs) => {
+        emitBuildHeartbeat(events as Parameters<typeof emitBuildHeartbeat>[0], message, emit as never, {
+          build_terminal_phase: currentBuildPhase,
+          continuation_attempt: attempt,
+          continuation_max: MAX_SAFE_CONTINUATION_ATTEMPTS,
+          heartbeat_elapsed_ms: elapsedMs,
+        });
+      },
+    });
   if (!requireId("projectId", input.projectId, { source: "server", userId: input.userId, buildId: input.buildJobId })) {
     dreamosLog({
       source: "server",
@@ -983,7 +1030,7 @@ export async function runStagedBuildPipeline(input: {
   const frontendComplexity = smokeBuild ? 3 : userPickedPremiumModel ? Math.max(complexity, 7) : complexity;
 
   if (!scaffoldSufficient) {
-    track(events, "writing", "Generating source files");
+    setBuildPhase("model_generating", "writing", "Generating source files");
     const fePrompt = smokeBuild
       ? minimalFrontendPrompt(executionPrompt, planJson!, contextSlices, designBrief)
       : frontendPrompt(executionPrompt, planJson!, uiJson, effectiveMaxFiles, contextSlices, designBrief);
@@ -994,7 +1041,8 @@ export async function runStagedBuildPipeline(input: {
       "Generating source files with the model — this usually takes 30–90 seconds…",
       emit,
     );
-    const feCall = await callProviderWithBuildTimeout(
+    continuationAttemptsTotal += 1;
+    const feCall = await modelHeartbeat(
       {
         writer: input.writer,
         userId: input.userId,
@@ -1008,7 +1056,8 @@ export async function runStagedBuildPipeline(input: {
         userSelectedModelId: input.userSelectedModelId,
         timeoutMs: PROVIDER_TIMEOUT_MS.frontend_implementation,
       },
-      input.buildTrace,
+      "core pages and components",
+      continuationAttemptsTotal,
     );
     if (feCall.ok) {
       accumulatedCost += feCall.result.providerCostUsd;
@@ -1087,10 +1136,14 @@ export async function runStagedBuildPipeline(input: {
   }
 
   if (!hasRouteFiles(allFiles) && accumulatedCost < FULL_BUILD_CAP_USD * 0.92) {
-    track(events, "writing", "Retrying with compact route set");
+    setBuildPhase("continuation_running", "writing", "Retrying with compact route set", undefined, {
+      continuation_attempt: continuationAttemptsTotal + 1,
+      continuation_max: MAX_SAFE_CONTINUATION_ATTEMPTS,
+    });
+    continuationAttemptsTotal += 1;
     trackAssistant(
       events,
-      "Compact route retry — generating core pages with a smaller route set…",
+      `Retry ${continuationAttemptsTotal}/${MAX_SAFE_CONTINUATION_ATTEMPTS} · compact route set, then full continuation…`,
       emit,
     );
     const compactRoutes = uniquePlannedFilePaths(designBrief.routes ?? archetype.coreRoutes, 6);
@@ -1098,7 +1151,7 @@ export async function runStagedBuildPipeline(input: {
       ? minimalFrontendPrompt(executionPrompt, planJson, contextSlices, designBrief)
       : compactRouteRetryPrompt(executionPrompt, planJson!, compactRoutes, designBrief);
     track(events, "writing", "Requesting core pages from model");
-    const miniCall = await callProviderWithBuildTimeout(
+    const miniCall = await modelHeartbeat(
       {
         writer: input.writer,
         userId: input.userId,
@@ -1112,7 +1165,8 @@ export async function runStagedBuildPipeline(input: {
         userSelectedModelId: input.userSelectedModelId,
         timeoutMs: PROVIDER_TIMEOUT_MS.frontend_implementation,
       },
-      input.buildTrace,
+      "core pages from compact route set",
+      continuationAttemptsTotal,
     );
     if (!miniCall.ok) {
       trackAssistant(
@@ -1166,22 +1220,41 @@ export async function runStagedBuildPipeline(input: {
   });
 
   let continuationPass = 0;
-  while (accumulatedCost < FULL_BUILD_CAP_USD * 0.92) {
+  while (
+    accumulatedCost < FULL_BUILD_CAP_USD * 0.92 &&
+    continuationPass < generationBudget.maxContinuationPasses + 2 &&
+    continuationAttemptsTotal < MAX_SAFE_CONTINUATION_ATTEMPTS
+  ) {
     const genericCheck = detectGenericScaffoldBuild(allFiles);
     const continuationDecision = shouldContinueGeneration({
       report: generationQualityReport,
       budget: generationBudget,
       passIndex: continuationPass,
-      maxPasses: generationBudget.maxContinuationPasses,
+      maxPasses: generationBudget.maxContinuationPasses + 2,
       budgetRemainingRatio: 1 - accumulatedCost / FULL_BUILD_CAP_USD,
       genericScaffold: genericCheck.isGeneric,
       meaningfulQualityPasses: meaningfulQualityReport.passes,
     });
-    if (!continuationDecision.shouldContinue) break;
+    if (!continuationDecision.shouldContinue && meaningfulQualityReport.passes && !generationQualityReport.needsContinuation) {
+      break;
+    }
+    if (
+      !continuationDecision.shouldContinue &&
+      (continuationDecision.reason === "budget_exhausted" ||
+        continuationDecision.reason === "max_passes" ||
+        continuationPass >= generationBudget.maxContinuationPasses + 2)
+    ) {
+      break;
+    }
 
+    continuationAttemptsTotal += 1;
+    setBuildPhase("continuation_running", "writing", "Continuing app generation", undefined, {
+      continuation_attempt: continuationAttemptsTotal,
+      continuation_max: MAX_SAFE_CONTINUATION_ATTEMPTS,
+    });
     trackAssistant(
       events,
-      continuationUserMessage(
+      `Retry ${continuationAttemptsTotal}/${MAX_SAFE_CONTINUATION_ATTEMPTS} · ${continuationUserMessage(
         generationQualityReport,
         meaningfulQualityReport.weak_file_paths.length,
         {
@@ -1189,10 +1262,9 @@ export async function runStagedBuildPipeline(input: {
           qualityScore: meaningfulQualityReport.final_quality_score,
           qualityTarget: meaningfulQualityReport.min_required_score,
         },
-      ),
+      ).replace(/^Continuing generation: /i, "")}`,
       emit,
     );
-    track(events, "writing", "Continuing app generation");
     const contPrompt = buildContinuationFrontendPrompt({
       executionBrief: executionPrompt,
       planJson,
@@ -1203,7 +1275,7 @@ export async function runStagedBuildPipeline(input: {
       weakFilePaths: meaningfulQualityReport.weak_file_paths,
     });
     heavyBudget.record([contPrompt, BUILD_SYSTEM]);
-    const contCall = await callProviderWithBuildTimeout(
+    const contCall = await modelHeartbeat(
       {
         writer: input.writer,
         userId: input.userId,
@@ -1217,9 +1289,20 @@ export async function runStagedBuildPipeline(input: {
         userSelectedModelId: input.userSelectedModelId,
         timeoutMs: PROVIDER_TIMEOUT_MS.frontend_implementation,
       },
-      input.buildTrace,
+      "full continuation pass",
+      continuationAttemptsTotal,
     );
-    if (!contCall.ok) break;
+    if (!contCall.ok) {
+      trackAssistant(
+        events,
+        contCall.timedOut
+          ? `Continuation pass ${continuationPass + 1} timed out — running targeted rewrite next…`
+          : `Continuation pass ${continuationPass + 1} returned no output — running targeted rewrite next…`,
+        emit,
+      );
+      continuationPass += 1;
+      continue;
+    }
     accumulatedCost += contCall.result.providerCostUsd;
     totalIn += contCall.result.inputTokens ?? 0;
     totalOut += contCall.result.outputTokens ?? 0;
@@ -1246,9 +1329,16 @@ export async function runStagedBuildPipeline(input: {
         onExtractStart,
       ),
     );
-    const genericMid = detectGenericScaffoldBuild(allFiles);
-    if (!genericMid.isGeneric && allFiles.length <= beforeCont) break;
     continuationPass += 1;
+    const genericMid = detectGenericScaffoldBuild(allFiles);
+    if (
+      !genericMid.isGeneric &&
+      allFiles.length <= beforeCont &&
+      meaningfulQualityReport.passes &&
+      !generationQualityReport.needsContinuation
+    ) {
+      break;
+    }
     generationQualityReport = scoreGeneratedAppQuality({
       files: allFiles,
       budget: generationBudget,
@@ -1277,6 +1367,89 @@ export async function runStagedBuildPipeline(input: {
     ) {
       break;
     }
+  }
+
+  // Targeted rewrite when routes/quality still thin after continuation passes.
+  let targetedRewritePass = 0;
+  while (
+    targetedRewritePass < 2 &&
+    continuationAttemptsTotal < MAX_SAFE_CONTINUATION_ATTEMPTS &&
+    accumulatedCost < FULL_BUILD_CAP_USD * 0.92 &&
+    (generationQualityReport.needsContinuation ||
+      !meaningfulQualityReport.passes ||
+      meaningfulQualityReport.meaningful_routes < generationBudget.minRoutes)
+  ) {
+    continuationAttemptsTotal += 1;
+    targetedRewritePass += 1;
+    setBuildPhase("continuation_running", "writing", "Targeted rewrite pass", undefined, {
+      continuation_attempt: continuationAttemptsTotal,
+      continuation_max: MAX_SAFE_CONTINUATION_ATTEMPTS,
+    });
+    trackAssistant(
+      events,
+      `Retry ${continuationAttemptsTotal}/${MAX_SAFE_CONTINUATION_ATTEMPTS} · rewriting ${meaningfulQualityReport.weak_file_paths.length || "weak"} pages and filling missing routes…`,
+      emit,
+    );
+    const rewritePrompt = buildContinuationFrontendPrompt({
+      executionBrief: executionPrompt,
+      planJson,
+      existingFiles: allFiles,
+      budget: generationBudget,
+      report: generationQualityReport,
+      passIndex: continuationPass + targetedRewritePass,
+      weakFilePaths: meaningfulQualityReport.weak_file_paths,
+    });
+    const rewriteCall = await modelHeartbeat(
+      {
+        writer: input.writer,
+        userId: input.userId,
+        userEmail: input.userEmail,
+        operationId: `${input.operationId}:targeted-rewrite-${targetedRewritePass}`,
+        operationType: "frontend_implementation",
+        system: BUILD_SYSTEM,
+        prompt: rewritePrompt,
+        complexity: Math.max(frontendComplexity, 7),
+        accumulatedCostUsd: accumulatedCost,
+        userSelectedModelId: input.userSelectedModelId,
+        timeoutMs: PROVIDER_TIMEOUT_MS.frontend_implementation,
+      },
+      "targeted page rewrite",
+      continuationAttemptsTotal,
+    );
+    if (!rewriteCall.ok) {
+      trackAssistant(events, "Targeted rewrite did not return output — moving to quality repair…", emit);
+      break;
+    }
+    accumulatedCost += rewriteCall.result.providerCostUsd;
+    primaryModelId = rewriteCall.result.spec.modelId;
+    setBuildPhase("extracting_files", "writing", "Parsing rewritten files");
+    allFiles = filterRenderableBuildFiles(
+      await ingestModelFilesWithExtractionStream(
+        rewriteCall.result.text,
+        allFiles,
+        events,
+        track,
+        effectiveMaxFiles,
+        onFileStreamStart,
+        onFileStreamDelta,
+        onFileStreamComplete,
+        onExtractStart,
+      ),
+    );
+    generationQualityReport = scoreGeneratedAppQuality({
+      files: allFiles,
+      budget: generationBudget,
+      userPrompt: executionPrompt,
+      appType: archetypeToLegacyAppType(archetype.id),
+      routeMap: designBrief.routes,
+    });
+    meaningfulQualityReport = scoreMeaningfulUiQuality({
+      files: allFiles,
+      budget: generationBudget,
+      userPrompt: executionPrompt,
+      routeMap: designBrief.routes,
+    });
+    if (meaningfulQualityReport.passes && !generationQualityReport.needsContinuation) break;
   }
 
   let antiScaffoldPass = 0;
@@ -1381,8 +1554,8 @@ export async function runStagedBuildPipeline(input: {
   }
 
   if (generationQualityReport.score > 0 || meaningfulQualityReport.final_quality_score > 0) {
-    track(
-      events,
+    setBuildPhase(
+      "validating_quality",
       "validating",
       `Quality score ${meaningfulQualityReport.final_quality_score}/${meaningfulQualityReport.min_required_score}`,
       formatMeaningfulQualityForStream(meaningfulQualityReport),
@@ -1884,6 +2057,7 @@ export async function runStagedBuildPipeline(input: {
 
   const finalSummary = buildSummaryFromQuality(primaryModelId, meaningfulQualityReport, {
     durationMs: Date.now() - pipelineStartedAt,
+    attempts: continuationAttemptsTotal,
     filesGenerated: renderableCount,
     filesRewritten,
     routes: meaningfulQualityReport.total_routes,
@@ -1985,8 +2159,24 @@ export async function runStagedBuildPipeline(input: {
   }
 
   const summary = meta.summary ?? "";
-  if (ok) track(events, "done", summary);
-  else track(events, "failed", summaryText || "Build needs another pass before preview.");
+  const terminalPhase: BuildTerminalPhase = ok
+    ? buildContract.previewReady
+      ? "preview_ready"
+      : meaningfulQualityReport.passes
+        ? "blocked_recoverable"
+        : "blocked_recoverable"
+    : genericScaffoldDetection.isGeneric || renderableCount === 0
+      ? "blocked_final"
+      : "failed_final";
+  if (ok) {
+    setBuildPhase("preview_ready", "done", summary, finalSummary, {
+      continuation_attempt: continuationAttemptsTotal,
+    });
+  } else {
+    setBuildPhase(terminalPhase, "failed", summaryText || "Build needs another pass before preview.", finalSummary, {
+      continuation_attempt: continuationAttemptsTotal,
+    });
+  }
 
   if (input.buildJobId) {
     const { data: jobRow } = await input.writer

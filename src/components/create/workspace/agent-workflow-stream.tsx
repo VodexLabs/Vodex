@@ -31,7 +31,15 @@ import { resolveBuildTerminalTruth } from "@/lib/build/build-terminal-truth";
 import { LiveFileLineDelta } from "@/components/create/workspace/live-file-line-delta";
 import { DreamOSMessageShell } from "@/components/create/workspace/dreamos-message-shell";
 import { StreamingNarrationLine } from "@/components/create/workspace/streaming-narration-line";
-import { LiveBuildActivityPanel } from "@/components/create/workspace/live-build-activity-panel";
+import {
+  BuildFinalSummaryBlock,
+  LiveBuildActivityPanel,
+} from "@/components/create/workspace/live-build-activity-panel";
+import {
+  deriveBuildPhaseFromEvents,
+  MAX_SAFE_CONTINUATION_ATTEMPTS,
+} from "@/lib/build/build-terminal-state-machine";
+import { deriveBuildActivityPresentation } from "@/lib/build/live-build-activity";
 
 function isFileEvent(ev: AgentWorkflowEvent): boolean {
   return (
@@ -365,6 +373,7 @@ export function AgentWorkflowStream({
   ownerDiagnostics,
   previewSucceeded = false,
   savedFileCount = 0,
+  modelLabel = null,
 }: {
   progress: BuildJobPollState | null;
   className?: string;
@@ -372,6 +381,7 @@ export function AgentWorkflowStream({
   openerText?: string;
   userPrompt?: string;
   projectId?: string;
+  modelLabel?: string | null;
   /** When set, parent owns diagnostics modal (single launcher). */
   ownerDiagnostics?: {
     open: boolean;
@@ -512,12 +522,37 @@ export function AgentWorkflowStream({
     : "";
 
   const activeAssistantCopy = active ? `${active.title} ${active.subtitle ?? ""}` : "";
-  const showLiveModelActivity =
-    working &&
-    (/generating source files|compact route retry|requesting core pages|first pass/i.test(
-      `${narrationCopy} ${activeAssistantCopy}`,
-    ) ||
-      (serverSequential.length > 0 && streamFileCount < 3));
+  const buildPhase = deriveBuildPhaseFromEvents(progress.events ?? []);
+  const lastEventAt = progress.events?.length
+    ? Date.parse(progress.events[progress.events.length - 1]!.created_at)
+    : startedAt;
+  const staleMs = now - (Number.isFinite(lastEventAt) ? lastEventAt : startedAt);
+  const isStale = working && staleMs > 10_000;
+  const lastMeta = progress.latest?.metadata ?? {};
+  const continuationAttempt =
+    typeof lastMeta.continuation_attempt === "number" ? lastMeta.continuation_attempt : undefined;
+  const isHeartbeat = lastMeta.heartbeat === true || isStale;
+  const finalSummaryLine = !working
+    ? [...(progress.events ?? [])]
+        .reverse()
+        .find((e) => /build complete|build saved|build blocked|attempts:/i.test(e.title ?? ""))
+        ?.title
+    : null;
+
+  const activityPresentation = working
+    ? deriveBuildActivityPresentation({
+        phase: buildPhase,
+        elapsedMs: now - startedAt,
+        userPrompt,
+        assistantMessage: activeAssistantCopy || narrationCopy,
+        isHeartbeat,
+        attempt: continuationAttempt,
+        maxAttempts: MAX_SAFE_CONTINUATION_ATTEMPTS,
+        modelLabel: modelLabel ?? undefined,
+      })
+    : null;
+
+  const showLiveModelActivity = working && Boolean(activityPresentation);
 
   return (
     <DreamOSMessageShell
@@ -534,12 +569,19 @@ export function AgentWorkflowStream({
 
       {showAnalyzing ? <AnalyzingRequestBubble /> : null}
 
-      {showLiveModelActivity ? (
+      {showLiveModelActivity && activityPresentation?.mode === "card" ? (
         <LiveBuildActivityPanel
           active
           startedAtMs={startedAt}
           userPrompt={userPrompt}
           assistantMessage={activeAssistantCopy || narrationCopy}
+          phase={buildPhase}
+          variant="card"
+          attempt={continuationAttempt}
+          maxAttempts={MAX_SAFE_CONTINUATION_ATTEMPTS}
+          isHeartbeat={isHeartbeat}
+          modelLabel={modelLabel}
+          line={activityPresentation.line}
         />
       ) : null}
 
@@ -569,6 +611,24 @@ export function AgentWorkflowStream({
           </li>
         ) : null}
       </ul>
+
+      {showLiveModelActivity && activityPresentation?.mode === "compact" ? (
+        <LiveBuildActivityPanel
+          active
+          startedAtMs={startedAt}
+          userPrompt={userPrompt}
+          assistantMessage={activeAssistantCopy || narrationCopy}
+          phase={buildPhase}
+          variant="compact"
+          attempt={continuationAttempt}
+          maxAttempts={MAX_SAFE_CONTINUATION_ATTEMPTS}
+          isHeartbeat={isHeartbeat}
+          modelLabel={modelLabel}
+          line={activityPresentation.line}
+        />
+      ) : null}
+
+      {!working && finalSummaryLine ? <BuildFinalSummaryBlock summary={finalSummaryLine} /> : null}
 
       {!working && fileDiffSummary ? (
         <p
