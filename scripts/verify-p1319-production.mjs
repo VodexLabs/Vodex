@@ -22,10 +22,10 @@ const suites = {
   },
   "zip-spa-routing": () => {
     const errors = [];
-    must(read("src/lib/preview/inject-preview-router-shim.ts"), "replaceState", "router shim", errors);
-    must(read("src/lib/preview/inject-preview-router-shim.ts"), "PopStateEvent", "router popstate", errors);
+    must(read("src/lib/preview/inject-preview-virtual-history.ts"), "__VODEX_PREVIEW_ACTIVE__", "virtual history", errors);
+    must(read("src/lib/preview/inject-preview-router-shim.ts"), "injectPreviewVirtualHistory", "router shim delegates", errors);
     must(read("src/lib/preview/rewrite-preview-artifact-html.ts"), "injectPreviewRouterShim", "artifact rewrite", errors);
-    must(read("src/lib/preview/rewrite-preview-artifact-html.ts"), "injectPreviewNavigationGuard", "nav guard", errors);
+    must(read("src/lib/preview/rewrite-preview-artifact-html.ts"), "rewriteAbsoluteVodexLinksInHtml", "vodex link rewrite", errors);
     must(read("src/app/api/projects/[id]/preview-assets/[...path]/route.ts"), "index.html", "spa fallback", errors);
     must(read("src/components/create/workspace/immersive-workspace.tsx"), "previewRoute,", "route in frame url", errors);
     return errors;
@@ -33,7 +33,7 @@ const suites = {
   "preview-no-raw-vodex-iframe": () => {
     const errors = [];
     must(read("src/lib/preview/rewrite-preview-artifact-html.ts"), "isBlockedRawAppPreviewUrl", "block raw vodex", errors);
-    must(read("src/lib/preview/inject-preview-navigation-guard.ts"), "vodex", "nav guard script", errors);
+    must(read("src/lib/preview/inject-preview-virtual-history.ts"), "vodex", "virtual history guard", errors);
     must(read("src/components/create/workspace/preview-panel.tsx"), "raw_blocked", "raw blocked diagnostics", errors);
     must(read("src/components/create/workspace/preview-panel.tsx"), "preview-diagnostics", "diagnostics strip", errors);
     return errors;

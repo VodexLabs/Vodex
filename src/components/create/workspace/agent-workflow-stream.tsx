@@ -31,6 +31,7 @@ import { resolveBuildTerminalTruth } from "@/lib/build/build-terminal-truth";
 import { LiveFileLineDelta } from "@/components/create/workspace/live-file-line-delta";
 import { DreamOSMessageShell } from "@/components/create/workspace/dreamos-message-shell";
 import { StreamingNarrationLine } from "@/components/create/workspace/streaming-narration-line";
+import { LiveBuildActivityPanel } from "@/components/create/workspace/live-build-activity-panel";
 
 function isFileEvent(ev: AgentWorkflowEvent): boolean {
   return (
@@ -510,6 +511,14 @@ export function AgentWorkflowStream({
     ? `Generated ${fileDiffSummary.files} files · +${fileDiffSummary.added} −${fileDiffSummary.removed}`
     : "";
 
+  const activeAssistantCopy = active ? `${active.title} ${active.subtitle ?? ""}` : "";
+  const showLiveModelActivity =
+    working &&
+    (/generating source files|compact route retry|requesting core pages|first pass/i.test(
+      `${narrationCopy} ${activeAssistantCopy}`,
+    ) ||
+      (serverSequential.length > 0 && streamFileCount < 3));
+
   return (
     <DreamOSMessageShell
       mode="build"
@@ -524,6 +533,15 @@ export function AgentWorkflowStream({
       ) : null}
 
       {showAnalyzing ? <AnalyzingRequestBubble /> : null}
+
+      {showLiveModelActivity ? (
+        <LiveBuildActivityPanel
+          active
+          startedAtMs={startedAt}
+          userPrompt={userPrompt}
+          assistantMessage={activeAssistantCopy || narrationCopy}
+        />
+      ) : null}
 
       <ul className="space-y-2">
         <AnimatePresence initial={false}>

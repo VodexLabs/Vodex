@@ -21,12 +21,13 @@ const PROVIDER_DOCS: Record<
   { title: string; docsUrl: string; steps: string[] }
 > = {
   google: {
-    title: "Google OAuth",
-    docsUrl: "https://developers.google.com/identity/protocols/oauth2",
+    title: "Custom Google OAuth",
+    docsUrl: "https://console.cloud.google.com/apis/credentials",
     steps: [
       "Open Google Cloud Console → APIs & Services → Credentials",
       "Create an OAuth 2.0 Client ID (Web application)",
-      "Add the Vodex redirect URI below to Authorized redirect URIs",
+      "Under Authorized JavaScript origins, add each web origin below (not callback URLs)",
+      "Under Authorized redirect URIs, paste the Vodex callback URL below",
       "Copy Client ID and Client Secret into the fields below",
       "Save, then run Health check",
     ],
@@ -98,6 +99,8 @@ type Props = {
   provider: OAuthWizardProvider;
   redirectUri: string | null;
   callbackUrl: string | null;
+  /** Published app origins for Google Authorized JavaScript origins */
+  publishedOrigins?: string[];
   initialClientId?: string;
   configured?: boolean;
   onSave: (input: { client_id: string; client_secret: string }) => Promise<void>;
@@ -110,6 +113,7 @@ export function CustomOAuthWizard({
   provider,
   redirectUri,
   callbackUrl,
+  publishedOrigins = [],
   initialClientId = "",
   configured,
   onSave,
@@ -188,12 +192,54 @@ export function CustomOAuthWizard({
                 <ExternalLink className="size-3" />
               </a>
 
-              {redirectUri ? (
-                <UrlCopyBlock label="Redirect URI (add to provider)" url={redirectUri} onCopy={copy} />
-              ) : null}
-              {callbackUrl && callbackUrl !== redirectUri ? (
-                <UrlCopyBlock label="Callback URL" url={callbackUrl} onCopy={copy} />
-              ) : null}
+              {provider === "google" ? (
+                <>
+                  <div className="rounded-xl bg-blue-50/80 p-3 ring-1 ring-blue-200/60">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-800">
+                      Authorized JavaScript origins
+                    </p>
+                    <p className="mt-1 text-[11px] text-blue-900/80">
+                      Authorized JavaScript origins are your app/web origins, not callback URLs.
+                    </p>
+                    <ul className="mt-2 space-y-1.5">
+                      {[
+                        ...publishedOrigins,
+                        "https://vodex.dev",
+                        typeof window !== "undefined" ? window.location.origin : "http://localhost:3000",
+                      ]
+                        .filter((v, i, a) => v && a.indexOf(v) === i)
+                        .map((origin) => (
+                          <UrlCopyBlock key={origin} label="Origin" url={origin} onCopy={copy} compact />
+                        ))}
+                    </ul>
+                  </div>
+                  {(callbackUrl ?? redirectUri) ? (
+                    <div className="rounded-xl bg-emerald-50/80 p-3 ring-1 ring-emerald-200/60">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
+                        Authorized redirect URIs
+                      </p>
+                      <p className="mt-1 text-[11px] text-emerald-900/80">
+                        Paste this under Authorized redirect URIs in Google Cloud.
+                      </p>
+                      <UrlCopyBlock
+                        label="Redirect URI"
+                        url={callbackUrl ?? redirectUri ?? ""}
+                        onCopy={copy}
+                        compact
+                      />
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  {redirectUri ? (
+                    <UrlCopyBlock label="Redirect URI (add to provider)" url={redirectUri} onCopy={copy} />
+                  ) : null}
+                  {callbackUrl && callbackUrl !== redirectUri ? (
+                    <UrlCopyBlock label="Callback URL" url={callbackUrl} onCopy={copy} />
+                  ) : null}
+                </>
+              )}
 
               <div className="space-y-2">
                 <label className="text-[11px] font-medium text-muted-foreground">Client ID</label>
@@ -276,13 +322,15 @@ function UrlCopyBlock({
   label,
   url,
   onCopy,
+  compact = false,
 }: {
   label: string;
   url: string;
   onCopy: (t: string) => void;
+  compact?: boolean;
 }) {
   return (
-    <div className="rounded-xl bg-muted/30 p-3 ring-1 ring-border/60">
+    <div className={cn("rounded-xl bg-muted/30 ring-1 ring-border/60", compact ? "p-2" : "p-3")}>
       <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
       <div className="mt-1.5 flex items-start gap-2">
         <code className="min-w-0 flex-1 break-all rounded-lg bg-background px-2 py-1.5 text-[10px] ring-1 ring-border">

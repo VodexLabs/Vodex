@@ -1,17 +1,15 @@
 import type { AgentWorkflowEvent } from "@/lib/build/workflow-stream-types";
+import { modelStageActivityMessages } from "@/lib/build/live-build-activity";
 
 export const EPHEMERAL_BUILD_STEPS: readonly { title: string; stableKey: string; ms: number }[] = [
-  { title: "I am now going to work on the app structure and data model.", stableKey: "ephemeral:screens", ms: 700 },
-  { title: "I am now going to work on the main layout and navigation.", stableKey: "ephemeral:layout", ms: 800 },
-  { title: "I am now going to work on the core screens and components.", stableKey: "ephemeral:sections", ms: 900 },
-  { title: "I am now going to work on preview readiness and polish.", stableKey: "ephemeral:preview", ms: 1000 },
+  { title: "Mapping screens and navigation architecture", stableKey: "ephemeral:screens", ms: 700 },
+  { title: "Designing data model and core entities", stableKey: "ephemeral:layout", ms: 800 },
+  { title: "Planning route map and component boundaries", stableKey: "ephemeral:sections", ms: 900 },
+  { title: "Preparing preview-ready shell and polish targets", stableKey: "ephemeral:preview", ms: 1000 },
 ] as const;
 
 export function buildWorkOpenerFromPrompt(prompt: string): string {
-  const trimmed = prompt.trim().replace(/\s+/g, " ");
-  const snippet =
-    trimmed.length > 72 ? `${trimmed.slice(0, 72).trim()}…` : trimmed || "your app";
-  return `I am now going to work on ${snippet}`;
+  return modelStageActivityMessages(prompt)[0] ?? "I'll map your app architecture, then generate screens and wire navigation.";
 }
 
 export function buildEphemeralWorkflowEvents(

@@ -89,7 +89,7 @@ const suites = {
     const errors = [];
     must(read("src/components/settings/app-auth-center.tsx"), "auth-provider-row-email", "email row", errors);
     must(read("src/components/settings/app-auth-center.tsx"), "Gmail / Email", "gmail first", errors);
-    must(read("src/components/settings/app-auth-center.tsx"), "Phone number", "phone visible", errors);
+    mustNot(read("src/components/settings/app-auth-center.tsx"), 'id="phone"', "phone hidden", errors);
     must(read("src/components/settings/app-auth-center.tsx"), "Custom OAuth", "custom oauth row", errors);
     mustNot(read("src/components/settings/app-auth-center.tsx"), "Show advanced auth settings", "no advanced toggle", errors);
     return errors;

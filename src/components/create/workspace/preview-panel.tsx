@@ -22,7 +22,6 @@ import { PreviewRuntimeStatusPanel } from "@/components/create/workspace/preview
 import { PreviewPageSwitcher } from "@/components/create/workspace/preview-page-switcher";
 import type { PreviewRuntimeStatusPayload } from "@/lib/preview/preview-runtime-status";
 import type { PreviewRouteEntry } from "@/lib/preview/detect-preview-routes";
-import { navigatePreviewIframe } from "@/lib/preview/preview-route-navigation";
 import type { ImportedPreviewStateResult } from "@/lib/preview/imported-preview-state";
 import { ImportedPreviewEmptyState } from "@/components/preview/imported-preview-empty-state";
 import {
@@ -114,10 +113,7 @@ export function PreviewPanel({
   const [iframeLoaded, setIframeLoaded] = React.useState(false);
   const iframeRef = React.useRef<HTMLIFrameElement>(null);
 
-  React.useEffect(() => {
-    if (!iframeLoaded || !onPreviewRouteChange) return;
-    navigatePreviewIframe(iframeRef.current, previewRoute);
-  }, [previewRoute, iframeLoaded, onPreviewRouteChange]);
+  // Route changes reload iframe via previewFrameUrl ?route= query — no postMessage escape.
 
   React.useEffect(() => {
     setIframeError(false);
@@ -157,6 +153,8 @@ export function PreviewPanel({
       source,
       selected_route: previewRoute,
       artifact_path: artifactPath,
+      fallback: fallbackApplied ? "index.html" : null,
+      rawUrlBlocked: rawBlocked,
       fallback_applied: fallbackApplied,
     };
   }, [url, hasInline, rawBlocked, isArtifactUrl, previewRoute]);

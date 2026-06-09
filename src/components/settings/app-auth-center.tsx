@@ -167,14 +167,15 @@ export function AppAuthCenter({
 
         <AuthProviderRow
           id="google"
+          testId="auth-provider-row-google-managed"
           icon={<AuthProviderIcon provider="google" />}
           title="Google"
           description={
             googleCustomConfigured
-              ? "Custom Google OAuth client configured."
+              ? "Custom Google OAuth is active — managed toggle still available."
               : vodexManagedReady
-                ? "Vodex-managed Google sign-in — enable when ready."
-                : "Setup required — configure custom Google OAuth below or contact support for managed OAuth."
+                ? "Use Vodex-managed Google OAuth — no Google Cloud keys required."
+                : "Vodex-managed Google OAuth is not configured by platform admin."
           }
           enabled={settings.google_enabled}
           active={settings.google_enabled && healthFor(settings.google_enabled) === "ok"}
@@ -184,18 +185,28 @@ export function AppAuthCenter({
               ? "Custom OAuth"
               : vodexManagedReady
                 ? "Managed by Vodex"
-                : "Setup required"
+                : "Not configured"
           }
           toggleDisabled={!googleCanEnable}
           onToggle={(on) => {
             if (!googleCanEnable) {
-              toast.info("Configure Google OAuth first, or enable Vodex-managed auth.");
+              toast.info(
+                vodexManagedReady
+                  ? "Configure custom Google OAuth below, or contact support for managed OAuth."
+                  : "Vodex-managed Google OAuth is not configured by platform admin.",
+              );
               return;
             }
-            void patchSettings({ google_enabled: on });
+            void patchSettings({ google_enabled: on, oauth_mode: googleCustomConfigured ? "custom" : "vodex_managed" });
           }}
-          onConfigure={() => setWizardProvider("google")}
-          configureLabel={settings.customOAuth?.google.configured ? "Manage Google OAuth" : "Connect Google"}
+          onConfigure={() => {
+            if (vodexManagedReady && !googleCustomConfigured) {
+              toast.info("Vodex-managed Google OAuth — just enable the toggle. No API keys needed.");
+              return;
+            }
+            setWizardProvider("google");
+          }}
+          configureLabel={googleCustomConfigured ? "Manage custom client" : "About managed OAuth"}
           docsHref="https://vodex.dev/docs/auth/google"
         />
 
@@ -212,20 +223,6 @@ export function AppAuthCenter({
           showToggle={false}
           onConfigure={() => (starterPlus ? setWizardProvider("google") : toast.info("Upgrade to Starter+ for custom OAuth"))}
           configureLabel="Configure client"
-        />
-
-        <AuthProviderRow
-          id="phone"
-          icon={<AuthProviderIcon provider="phone" />}
-          title="Phone number"
-          description="SMS OTP sign-in. Visible to end users once SMS provider is configured."
-          enabled={settings.phone_enabled ?? false}
-          health={settings.phone_enabled ? "warn" : "off"}
-          statusBadge="Visible"
-          onToggle={(on) => void patchSettings({ phone_enabled: on } as Partial<AuthSettings>)}
-          onConfigure={() => toast.info("Configure Twilio or Supabase phone auth in Integrations")}
-          configureLabel="Setup SMS"
-          docsHref="https://vodex.dev/docs/auth/phone"
         />
 
         {(
@@ -321,7 +318,16 @@ export function AppAuthCenter({
           provider={wizardProvider}
           onClose={() => setWizardProvider(null)}
           redirectUri={redirectUri ?? null}
-          callbackUrl={diagnostics?.publishedAppCallbackUrl ?? null}
+          callbackUrl={diagnostics?.publishedAppCallbackUrl ?? diagnostics?.centralOAuthCallbackUrl ?? null}
+          publishedOrigins={(() => {
+            try {
+              return diagnostics?.publishedLoginUrl
+                ? [new URL(diagnostics.publishedLoginUrl).origin]
+                : [];
+            } catch {
+              return [];
+            }
+          })()}
           configured={
             wizardProvider === "google"
               ? settings.customOAuth?.google.configured

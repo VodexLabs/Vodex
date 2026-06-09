@@ -68,51 +68,63 @@ function MetricCard({
   );
 }
 
+function formatXAxisLabels(
+  data: Array<{ date: string; label?: string; views: number }>,
+  period: string,
+): Array<{ date: string; label?: string; views: number }> {
+  if (period === "24h" && data.length >= 12) return data;
+  if (data.length <= 8) return data;
+  const step = Math.ceil(data.length / 7);
+  return data.filter((_, i) => i === 0 || i === data.length - 1 || i % step === 0);
+}
+
 function TrafficLineChart({
   data,
   expanded,
   metricLabel = "views",
   chartKey,
+  period = "7d",
 }: {
   data: Array<{ date: string; label?: string; views: number }>;
   expanded?: boolean;
   metricLabel?: string;
   chartKey?: string;
+  period?: string;
 }) {
   const [hover, setHover] = React.useState<number | null>(null);
   if (!data.length) {
     return <p className="text-[11px] text-muted-foreground">No traffic yet</p>;
   }
   const max = Math.max(1, ...data.map((d) => d.views));
-  const w = 640;
-  const h = expanded ? 220 : 120;
-  const padX = 12;
+  const w = 1000;
+  const h = expanded ? 320 : 240;
+  const padX = 16;
+  const padY = 20;
   const plotW = w - padX * 2;
+  const plotH = h - padY * 2;
   const points = data.map((d, i) => {
     const x = padX + (i / Math.max(1, data.length - 1)) * plotW;
-    const y = h - (d.views / max) * (h - 20) - 10;
+    const y = padY + plotH - (d.views / max) * plotH;
     return { x, y, ...d };
   });
   const poly = points.map((p) => `${p.x},${p.y}`).join(" ");
   const active = hover != null ? points[hover] : null;
-  const xLabels = [
-    data[0],
-    data[Math.floor((data.length - 1) / 2)],
-    data[data.length - 1],
-  ].filter(Boolean);
+  const xLabels = formatXAxisLabels(data, period);
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((t) => Math.round(max * t));
 
   return (
     <motion.div
       key={chartKey}
-      className="relative"
+      className="relative w-full"
+      data-testid="analytics-main-chart"
       initial={{ opacity: 0.35 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.35 }}
     >
       <svg
         viewBox={`0 0 ${w} ${h}`}
-        className={cn("mx-auto block w-full max-w-4xl text-blue-500", expanded ? "h-56" : "h-36")}
-        preserveAspectRatio="xMidYMid meet"
+        className={cn("block w-full text-blue-500", expanded ? "min-h-[320px] h-[320px]" : "min-h-[240px] h-[240px]")}
+        preserveAspectRatio="none"
         onMouseLeave={() => setHover(null)}
       >
         <defs>
@@ -121,19 +133,16 @@ function TrafficLineChart({
             <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.02" />
           </linearGradient>
         </defs>
-        {Array.from({ length: 4 }).map((_, i) => (
-          <line
-            key={i}
-            x1={0}
-            x2={w}
-            y1={8 + (i * (h - 16)) / 3}
-            y2={8 + (i * (h - 16)) / 3}
-            stroke="currentColor"
-            className="text-border/40"
-            strokeWidth="0.5"
-          />
-        ))}
-        <polygon fill="url(#trafficFillBlue)" points={`0,${h} ${poly} ${w},${h}`} />
+        {yTicks.map((tick, i) => {
+          const y = padY + plotH - (tick / max) * plotH;
+          return (
+            <g key={tick}>
+              <line x1={padX} x2={w - padX} y1={y} y2={y} stroke="currentColor" className="text-border/40" strokeWidth="0.5" />
+              <text x={4} y={y + 3} className="fill-muted-foreground text-[9px]">{tick}</text>
+            </g>
+          );
+        })}
+        <polygon fill="url(#trafficFillBlue)" points={`${padX},${h - padY} ${poly} ${w - padX},${h - padY}`} />
         <polyline fill="none" stroke="#3b82f6" strokeWidth="2.5" points={poly} />
         {points.map((p, i) => (
           <rect
@@ -154,13 +163,17 @@ function TrafficLineChart({
         ) : null}
       </svg>
       {active ? (
-        <div className="pointer-events-none absolute right-2 top-2 rounded-lg bg-blue-600 px-2.5 py-1.5 text-[10px] font-semibold text-white shadow-lg">
-          {active.label ?? active.date} · {active.views} {metricLabel}
+        <div
+          className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-xl bg-blue-600/95 px-3 py-2 text-[11px] font-semibold text-white shadow-lg ring-1 ring-blue-400/30"
+          data-testid="analytics-chart-tooltip"
+        >
+          <span className="block text-[10px] font-medium text-blue-100">{active.label ?? active.date}</span>
+          <span className="tabular-nums">{active.views.toLocaleString()} {metricLabel}</span>
         </div>
       ) : null}
-      <div className="mx-auto mt-1 flex max-w-3xl justify-between px-1 text-[9px] tabular-nums text-muted-foreground">
+      <div className="mt-1 flex w-full justify-between gap-1 px-1 text-[9px] tabular-nums text-muted-foreground" data-testid="analytics-x-axis">
         {xLabels.map((d) => (
-          <span key={d!.date}>{d!.label ?? d!.date}</span>
+          <span key={d!.date} className="truncate">{d!.label ?? d!.date}</span>
         ))}
       </div>
     </motion.div>
@@ -379,28 +392,14 @@ export function InsightsDashboardPanel({
                 )}
               >
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-                <div className="flex items-end justify-between gap-2">
-                  <p className="mt-1 text-[20px] font-bold tabular-nums text-foreground">{value}</p>
-                  {data?.timeseriesByMetric?.[key]?.length ? (
-                    <Sparkline data={data.timeseriesByMetric[key]!} />
-                  ) : null}
-                </div>
+                <p className="mt-1 text-[20px] font-bold tabular-nums text-foreground">{value}</p>
               </button>
             ))}
-            <MetricCard
-              label="Conversion"
-              value={`${data?.conversionRate ?? 0}%`}
-              sparkline={data?.timeseriesByMetric?.signups}
-            />
-            <MetricCard
-              label="Bounce rate"
-              value={`${data?.bounceRate ?? 0}%`}
-              sparkline={data?.timeseriesByMetric?.sessions}
-            />
+            <MetricCard label="Conversion" value={`${data?.conversionRate ?? 0}%`} />
+            <MetricCard label="Bounce rate" value={`${data?.bounceRate ?? 0}%`} />
             <MetricCard
               label="Avg session"
               value={data?.avgSessionSeconds ? `${Math.round((data.avgSessionSeconds ?? 0) / 60)}m` : "—"}
-              sparkline={data?.timeseriesByMetric?.pageViews}
             />
             <MetricCard label="Live now" value={data?.realtimeVisitors ?? 0} />
           </div>
@@ -436,6 +435,7 @@ export function InsightsDashboardPanel({
                 expanded={chartExpanded}
                 metricLabel={chartMetricLabel}
                 chartKey={`${period}-${chartMetric}-${chartSeries.length}`}
+                period={period}
               />
             </div>
           ) : null}

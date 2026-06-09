@@ -103,9 +103,13 @@ export async function verifyCustomDomainDns(
     }
   }
   if (!txtVerified) {
+    const ionosName = dnsRecordLabel(host).startsWith("www") ? `_vodex.www` : `_vodex.${dnsRecordLabel(host)}`;
     errors.push(
-      `TXT not found at ${txtHostFqdn}. In IONOS use Name: ${txtLabel} with value ${txtExpected}`,
+      `TXT verification failed for ${host}. Add TXT Name: ${ionosName} → Value: ${txtExpected}. We check ${txtHostFqdn}.`,
     );
+    if (host.startsWith("www.")) {
+      errors.push(`For www setup, CNAME Name: www → ${CNAME_TARGET} and TXT Name: _vodex.www on the apex zone.`);
+    }
   }
 
   const cnameRecords: string[] = [];
@@ -117,8 +121,13 @@ export async function verifyCustomDomainDns(
   } catch {
     const label = dnsRecordLabel(host);
     errors.push(
-      `CNAME on ${host} should point to ${CNAME_TARGET}. In IONOS use Name: ${label} (not the full domain).`,
+      `CNAME on ${host} should point to ${CNAME_TARGET}. In IONOS use Name: ${label} (subdomain label only — never the full domain).`,
     );
+    if (isApexHostname(host.replace(/^www\./, ""))) {
+      errors.push(
+        `Root/apex domains cannot use CNAME at apex in IONOS. Use recommended www setup: CNAME www → ${CNAME_TARGET}, then redirect apex to www.`,
+      );
+    }
     const zoneParts = host.split(".").filter(Boolean);
     if (zoneParts.length >= 2) {
       const zone = zoneParts.slice(-2).join(".");

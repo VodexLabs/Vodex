@@ -1,0 +1,121 @@
+/**
+ * Keeps the iframe URL on preview-html while SPAs read virtual app routes.
+ * Prevents replaceState("/dashboard") from escaping to platform origin paths.
+ */
+export function buildPreviewVirtualHistoryScript(initialRoute: string): string {
+  const route = initialRoute.startsWith("/") ? initialRoute : `/${initialRoute}`;
+  return `(function(){
+  var LOCK=location.pathname+location.search;
+  var virtualPath=${JSON.stringify(route)};
+  window.__VODEX_PREVIEW_ACTIVE__=true;
+  window.__VODEX_VIRTUAL_PATH__=virtualPath;
+  function normPath(p){
+    if(!p)return"/";
+    p=String(p).split("?")[0].split("#")[0];
+    if(!p.startsWith("/"))p="/"+p;
+    return p;
+  }
+  function setVirtualPath(p){
+    virtualPath=normPath(p);
+    window.__VODEX_VIRTUAL_PATH__=virtualPath;
+    try{
+      history.replaceState({__vodex:virtualPath},"",LOCK);
+      window.dispatchEvent(new PopStateEvent("popstate",{state:{__vodex:virtualPath}}));
+    }catch(e){}
+  }
+  function internalize(url){
+    try{
+      var u=new URL(url,location.href);
+      if(u.origin===location.origin)return normPath(u.pathname);
+      if(/vodex\\.dev$/i.test(u.hostname)||/\\.vodex\\.app$/i.test(u.hostname))return normPath(u.pathname);
+    }catch(e){}
+    return null;
+  }
+  try{
+    var pathDesc=Object.getOwnPropertyDescriptor(Location.prototype,"pathname");
+    if(pathDesc&&pathDesc.get){
+      var origPathGet=pathDesc.get;
+      Object.defineProperty(Location.prototype,"pathname",{
+        get:function(){
+          if(window.__VODEX_PREVIEW_ACTIVE__)return window.__VODEX_VIRTUAL_PATH__||"/";
+          return origPathGet.call(this);
+        },
+        configurable:true
+      });
+    }
+    var hrefDesc=Object.getOwnPropertyDescriptor(Location.prototype,"href");
+    if(hrefDesc&&hrefDesc.get){
+      var origHrefGet=hrefDesc.get;
+      Object.defineProperty(Location.prototype,"href",{
+        get:function(){
+          if(window.__VODEX_PREVIEW_ACTIVE__){
+            var p=window.__VODEX_VIRTUAL_PATH__||"/";
+            return location.origin+p+(location.search||"");
+          }
+          return origHrefGet.call(this);
+        },
+        configurable:true
+      });
+    }
+  }catch(e){}
+  var _push=history.pushState.bind(history);
+  var _replace=history.replaceState.bind(history);
+  history.pushState=function(s,t,u){
+    if(typeof u==="string"){
+      var ip=internalize(u);
+      if(ip){setVirtualPath(ip);return;}
+      if(u.startsWith("/")&&!u.startsWith("//")){setVirtualPath(u);return;}
+    }
+    return _push(s,t,LOCK);
+  };
+  history.replaceState=function(s,t,u){
+    if(typeof u==="string"){
+      var ip=internalize(u);
+      if(ip){setVirtualPath(ip);return;}
+      if(u.startsWith("/")&&!u.startsWith("//")){setVirtualPath(u);return;}
+    }
+    return _replace(s,t,LOCK);
+  };
+  document.addEventListener("click",function(e){
+    var a=e.target&&e.target.closest?e.target.closest("a[href]"):null;
+    if(!a)return;
+    var p=internalize(a.getAttribute("href")||a.href);
+    if(p){e.preventDefault();e.stopPropagation();setVirtualPath(p);}
+  },true);
+  try{
+    var _open=window.open;
+    window.open=function(url,target,features){
+      if(typeof url==="string"){
+        var p=internalize(url);
+        if(p){setVirtualPath(p);return null;}
+      }
+      return _open.apply(window,arguments);
+    };
+    var _assign=location.assign.bind(location);
+    location.assign=function(url){
+      var p=internalize(url);
+      if(p){setVirtualPath(p);return;}
+      _assign(url);
+    };
+    var _locReplace=location.replace.bind(location);
+    location.replace=function(url){
+      var p=internalize(url);
+      if(p){setVirtualPath(p);return;}
+      _locReplace(url);
+    };
+  }catch(e){}
+  window.addEventListener("message",function(e){
+    if(!e.data||e.data.type!=="vodex:navigate")return;
+    setVirtualPath(e.data.path||"/");
+  });
+  setVirtualPath(virtualPath);
+})();`;
+}
+
+export function injectPreviewVirtualHistory(html: string, routePath: string): string {
+  const script = `<script id="vodex-preview-virtual-history">${buildPreviewVirtualHistoryScript(routePath)}</script>`;
+  if (/<head[^>]*>/i.test(html)) {
+    return html.replace(/<head[^>]*>/i, (m) => `${m}${script}`);
+  }
+  return script + html;
+}

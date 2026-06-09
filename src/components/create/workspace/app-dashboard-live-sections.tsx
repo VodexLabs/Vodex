@@ -4,6 +4,7 @@ import * as React from "react";
 import { BarChart3, Shield, Zap } from "lucide-react";
 import { CustomDomainsPanel } from "@/components/publish/custom-domains-panel";
 import { getEntitlements } from "@/lib/billing/plan-entitlements";
+import { cn } from "@/lib/utils";
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
@@ -301,40 +302,43 @@ export function DashboardSecuritySection({ projectId }: { projectId: string }) {
 
   return (
     <div className="space-y-4" data-testid="security-scanner-panel">
-      <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-sky-950 px-4 py-4 text-white ring-1 ring-sky-500/20">
+      <div
+        className="overflow-hidden rounded-2xl bg-gradient-to-br from-sky-50/95 via-white to-indigo-50/80 px-4 py-4 ring-1 ring-sky-200/70 shadow-sm"
+        data-testid="security-ui-blue-premium"
+      >
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-[13px] font-semibold">
-            <Shield className="size-4 text-sky-300" /> Security scanner
+          <div className="flex items-center gap-2 text-[13px] font-semibold text-sky-900">
+            <Shield className="size-4 text-sky-600" /> Security scanner
           </div>
           <button
             type="button"
             disabled={scanning}
             onClick={() => void runScan()}
-            className="rounded-lg bg-sky-500 px-3 py-1.5 text-[11px] font-semibold text-white disabled:opacity-50"
+            className="rounded-lg bg-sky-600 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm disabled:opacity-50"
           >
             {scanning ? "Scanning…" : "Run security scan"}
           </button>
         </div>
         {scanning || progress > 0 ? (
           <div className="mt-3">
-            <div className="h-2 overflow-hidden rounded-full bg-white/10">
-              <div className="h-full bg-sky-400 transition-all duration-300" style={{ width: `${progress}%` }} />
+            <div className="h-2 overflow-hidden rounded-full bg-sky-100">
+              <div className="h-full bg-sky-500 transition-all duration-300" style={{ width: `${progress}%` }} />
             </div>
-            <p className="mt-2 text-[10px] text-sky-100/80">
+            <p className="mt-2 text-[10px] text-sky-800/70">
               Files {stats.files || "…"} · Routes {stats.routes || "…"} · Checks {stats.checks || "…"}
             </p>
           </div>
         ) : null}
         <div className="mt-3 grid grid-cols-4 gap-2 text-center">
           {[
-            { label: "Verified", value: findings.length === 0 && progress === 100 ? "OK" : verified, tone: "text-emerald-300" },
-            { label: "Warning", value: warnings, tone: "text-amber-300" },
-            { label: "Risk", value: warnings, tone: "text-orange-300" },
-            { label: "Critical", value: critical, tone: "text-red-300" },
+            { label: "Verified", value: findings.length === 0 && progress === 100 ? "OK" : verified, pill: "bg-emerald-100 text-emerald-800 ring-emerald-200" },
+            { label: "Warning", value: warnings, pill: "bg-amber-100 text-amber-800 ring-amber-200" },
+            { label: "Risk", value: warnings, pill: "bg-orange-100 text-orange-800 ring-orange-200" },
+            { label: "Critical", value: critical, pill: "bg-red-100 text-red-800 ring-red-200" },
           ].map((c) => (
-            <div key={c.label} className="rounded-lg bg-white/5 px-2 py-2">
-              <p className={`text-[14px] font-bold tabular-nums ${c.tone}`}>{c.value}</p>
-              <p className="text-[9px] uppercase tracking-wide text-white/60">{c.label}</p>
+            <div key={c.label} className={cn("rounded-lg px-2 py-2 ring-1", c.pill)}>
+              <p className="text-[14px] font-bold tabular-nums">{c.value}</p>
+              <p className="text-[9px] uppercase tracking-wide opacity-80">{c.label}</p>
             </div>
           ))}
         </div>

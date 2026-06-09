@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import { SECRETS_HELPER_PROMPT } from "@/lib/secrets/secrets-helper-prompt";
+import { detectSecretGuide } from "@/lib/secrets/secret-guide-content";
 
 type EnvReq = { key: string; required?: boolean; provider?: string };
 
@@ -39,15 +40,6 @@ const PROVIDER_FOR_KEY: Record<string, string> = {
   DATABASE_URL: "Database",
 };
 
-const HOW_TO_GET: Record<string, string> = {
-  SUPABASE_URL: "Supabase Dashboard → Project Settings → API → Project URL",
-  SUPABASE_ANON_KEY: "Supabase Dashboard → Project Settings → API → anon public key",
-  SUPABASE_SERVICE_ROLE_KEY: "Supabase Dashboard → API → service_role (server only)",
-  OPENAI_API_KEY: "platform.openai.com → API keys → Create secret key",
-  STRIPE_SECRET_KEY: "Stripe Dashboard → Developers → API keys → Secret key",
-  RESEND_API_KEY: "resend.com → API Keys",
-};
-
 function providerForKey(key: string): string {
   if (PROVIDER_FOR_KEY[key]) return PROVIDER_FOR_KEY[key];
   if (key.includes("SUPABASE")) return "Supabase";
@@ -56,15 +48,6 @@ function providerForKey(key: string): string {
   if (key.startsWith("VITE_")) return "Vite env";
   if (key.startsWith("NEXT_PUBLIC_")) return "Public env";
   return "Environment";
-}
-
-function reasonForKey(key: string): string {
-  if (key.includes("ANON")) return "Client-side auth / public API access";
-  if (key.includes("SERVICE_ROLE") || key.includes("SECRET")) return "Server-side only — never expose to browser";
-  if (key.includes("STRIPE")) return "Payment processing";
-  if (key.includes("SUPABASE")) return "Database and authentication";
-  if (key.startsWith("NEXT_PUBLIC_")) return "Bundled into the client app";
-  return "Required by your imported app at runtime";
 }
 
 function normalizeEnvReqs(raw: unknown): EnvReq[] {
@@ -120,6 +103,7 @@ export function ImportedSecretsSetupPanel({
   const [expandedGuide, setExpandedGuide] = React.useState<string | null>(null);
 
   const keysSig = reqs.map((r) => r.key).join(",");
+  const envKeyList = reqs.map((r) => r.key);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -221,7 +205,7 @@ export function ImportedSecretsSetupPanel({
       <ul className={cn(compact ? "space-y-1.5" : "space-y-3")}>
         {reqs.map((r) => {
           const done = configured.has(r.key);
-          const guide = HOW_TO_GET[r.key] ?? `${providerForKey(r.key)} provider dashboard → API / credentials`;
+          const guideContent = detectSecretGuide(r.key, envKeyList);
           return (
             <li
               key={r.key}
@@ -232,6 +216,9 @@ export function ImportedSecretsSetupPanel({
             >
               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                 <p className="font-mono text-[10px] font-semibold text-foreground sm:text-[11px]">{r.key}</p>
+                <span className="rounded bg-blue-500/10 px-1 py-0 text-[9px] font-semibold text-blue-800">
+                  {guideContent.platform}
+                </span>
                 <span
                   className={cn(
                     "rounded px-1 py-0 text-[9px] font-semibold uppercase",
@@ -248,11 +235,9 @@ export function ImportedSecretsSetupPanel({
                   <AlertCircle className="size-3 text-amber-600" />
                 )}
               </div>
-              {compact ? (
-                <p className="mt-0.5 line-clamp-1 text-[9px] text-muted-foreground">{reasonForKey(r.key)}</p>
-              ) : (
-                <p className="mt-0.5 text-[10px] text-muted-foreground">{reasonForKey(r.key)}</p>
-              )}
+              <p className={cn("mt-0.5 text-muted-foreground", compact ? "line-clamp-1 text-[9px]" : "text-[10px]")}>
+                {guideContent.why}
+              </p>
               <button
                 type="button"
                 className="mt-0.5 flex items-center gap-0.5 text-[9px] font-medium text-accent hover:underline"
@@ -266,7 +251,28 @@ export function ImportedSecretsSetupPanel({
                 How to get it
               </button>
               {expandedGuide === r.key ? (
-                <p className="mt-0.5 text-[9px] leading-snug text-muted-foreground">{guide}</p>
+                <div className="mt-1 space-y-1 rounded-md bg-muted/30 px-2 py-1.5 text-[9px] leading-snug text-muted-foreground">
+                  <p className="font-medium text-foreground">{guideContent.whereToGet}</p>
+                  <ol className="list-none space-y-0.5">
+                    {guideContent.steps.map((step) => (
+                      <li key={step}>{step}</li>
+                    ))}
+                  </ol>
+                  {guideContent.optionalNote ? (
+                    <p className="text-amber-700">{guideContent.optionalNote}</p>
+                  ) : null}
+                  {guideContent.link ? (
+                    <a
+                      href={guideContent.link.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-0.5 font-semibold text-accent hover:underline"
+                    >
+                      {guideContent.link.label}
+                      <ExternalLink className="size-2.5" />
+                    </a>
+                  ) : null}
+                </div>
               ) : null}
               <div className={cn("flex gap-1.5", compact ? "mt-1" : "mt-2")}>
                 <input

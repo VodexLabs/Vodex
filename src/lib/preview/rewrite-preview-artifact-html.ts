@@ -1,6 +1,18 @@
-import { injectPreviewNavigationGuard } from "@/lib/preview/inject-preview-navigation-guard";
 import { injectPreviewRouterShim } from "@/lib/preview/inject-preview-router-shim";
-import { injectPreviewRouteListener } from "@/lib/preview/inject-preview-route-listener";
+
+/** Rewrite hardcoded vodex.dev /p/ links to in-app paths before the bundle boots. */
+export function rewriteAbsoluteVodexLinksInHtml(html: string): string {
+  let out = html;
+  out = out.replace(
+    /https?:\/\/(?:www\.)?vodex\.dev(\/[^"'\s>]*)/gi,
+    (_, path: string) => path || "/",
+  );
+  out = out.replace(
+    /https?:\/\/[^"'\s>]*\.vodex\.app(\/[^"'\s>]*)/gi,
+    (_, path: string) => path || "/",
+  );
+  return out;
+}
 
 /**
  * Rewrites built SPA index.html asset URLs to the authenticated preview-assets API.
@@ -40,9 +52,9 @@ export function rewritePreviewArtifactHtml(
     return ` ${attr}="${assetUrl(p)}"`;
   });
 
-  out = injectPreviewNavigationGuard(out);
+  out = rewriteAbsoluteVodexLinksInHtml(out);
   out = injectPreviewRouterShim(out, routePath);
-  return injectPreviewRouteListener(out);
+  return out;
 }
 
 /** True when URL is safe for iframe embed (internal preview proxy only). */
