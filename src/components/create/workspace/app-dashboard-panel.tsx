@@ -906,7 +906,7 @@ export function AppDashboardPanel({
                     onInsertChatPrompt
                       ? () =>
                           onInsertChatPrompt(
-                            "Help me connect the required secrets for this imported app. Explain what each missing key is for, where to get it, and whether it is required.",
+                            "Help me connect the required secrets for this imported app. Explain briefly what each missing key is for, where to get it, and open the secure setup form.",
                           )
                       : undefined
                   }

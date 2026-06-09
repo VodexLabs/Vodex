@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { regenerateAppLogo } from "@/lib/projects/app-identity-service";
 import { quoteLogoRegenerationCredits } from "@/lib/action-credits/logo-generation-pricing";
+import { getActionCreditAvailability } from "@/lib/action-credits/get-action-credit-availability";
+import { resolveActionCreditBalance } from "@/lib/action-credits/resolve-action-credit-balance";
 import { routeImageProvider } from "@/lib/ai/image-provider-routing";
 import { randomUUID } from "node:crypto";
 
@@ -52,7 +54,30 @@ export async function POST(
 
   if (!result.ok) {
     const status = result.code === "insufficient" ? 402 : 500;
-    return NextResponse.json({ error: result.error, code: result.code }, { status });
+    const quote = quoteLogoRegenerationCredits(routeImageProvider("image_simple").estimatedCostUsd);
+    const [resolved, avail] = await Promise.all([
+      resolveActionCreditBalance(user.id, { projectId }),
+      getActionCreditAvailability(user.id, {
+        projectId,
+        actionType: "app_logo_regeneration",
+        dynamicFloor: quote.finalActionCredits,
+      }),
+    ]);
+    return NextResponse.json(
+      {
+        error: result.error,
+        code: result.code,
+        debug: {
+          user_id: user.id,
+          project_id: projectId,
+          action_credit_balance: resolved.balance,
+          required_cost: avail.requiredForAction,
+          source: resolved.source,
+          plan_allowance: resolved.planAllowance,
+        },
+      },
+      { status },
+    );
   }
 
   return NextResponse.json({

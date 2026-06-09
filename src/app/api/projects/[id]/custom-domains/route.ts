@@ -71,19 +71,38 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const verified = dns.txtVerified && dns.cnameVerified;
     const status = verified ? "active" : dns.txtVerified || dns.cnameVerified ? "verified" : "pending_dns";
 
+    const priorRecords =
+      row.dns_records && typeof row.dns_records === "object" && !Array.isArray(row.dns_records)
+        ? (row.dns_records as Record<string, unknown>)
+        : {};
+
     await admin
       .from("custom_domains" as never)
       .update({
         status,
         last_checked_at: new Date().toISOString(),
         verified_at: verified ? new Date().toISOString() : null,
-        dns_records: dns.records,
+        dns_records: {
+          ...priorRecords,
+          cname: priorRecords.cname ?? dns.expected.cname,
+          txt: priorRecords.txt ?? dns.expected.txt,
+          lastVerification: dns,
+        },
         failure_reason: verified ? null : dns.errors.join("; ") || "DNS not configured",
         updated_at: new Date().toISOString(),
       } as never)
       .eq("id", body.domainId);
 
-    return NextResponse.json({ ok: verified, status, dns });
+    return NextResponse.json({
+      ok: verified,
+      status,
+      dns,
+      cnameStatus: dns.cnameVerified ? "verified" : "pending",
+      txtStatus: dns.txtVerified ? "verified" : "pending",
+      sslStatus: dns.sslStatus,
+      propagationNote: dns.propagationNote,
+      failureReason: verified ? null : dns.errors.join("; "),
+    });
   }
 
   if (body.action === "remove" && body.domainId) {

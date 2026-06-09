@@ -25,6 +25,8 @@ export type AuthProviderRowProps = {
   lastChecked?: string | null;
   nested?: boolean;
   testId?: string;
+  /** Enabled + healthy — blue active outline */
+  active?: boolean;
 };
 
 export function AuthProviderRow({
@@ -46,6 +48,7 @@ export function AuthProviderRow({
   lastChecked,
   nested = false,
   testId,
+  active = false,
 }: AuthProviderRowProps) {
   const HealthIcon =
     health === "loading" ? Loader2 : health === "ok" ? CheckCircle2 : health === "warn" ? AlertTriangle : Circle;
@@ -55,7 +58,11 @@ export function AuthProviderRow({
       data-testid={testId ?? `auth-provider-row-${id}`}
       className={cn(
         "group flex flex-col gap-3 rounded-xl bg-surface/90 px-4 py-3.5 ring-1 transition",
-        enabled && !locked ? "ring-accent/35 shadow-[0_0_0_1px_rgba(30,107,255,0.08)]" : "ring-border/70",
+        active
+          ? "ring-2 ring-accent/55 shadow-[0_0_0_1px_rgba(30,107,255,0.12)]"
+          : enabled && !locked
+            ? "ring-accent/35 shadow-[0_0_0_1px_rgba(30,107,255,0.08)]"
+            : "ring-border/70",
         nested && "ml-6 border-l-2 border-accent/20",
         "hover:ring-accent/25",
       )}

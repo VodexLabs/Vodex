@@ -6,6 +6,8 @@ import { USER_CREDITS_PER_USD } from "@/lib/billing/pricing-config";
 
 export const DISCUSS_BC_TIER_STANDARD = 0.3;
 export const DISCUSS_BC_TIER_PROTECTED = 0.4;
+/** Lightweight secrets helper discuss turn — insert + short guidance. */
+export const SECRETS_HELPER_BC = 0.2;
 export const MIN_DISCUSS_MARGIN_MULTIPLIER = 5;
 
 /** Hard cap — medium answers, protects margin on long threads. */
@@ -47,11 +49,17 @@ export function defaultDiscussProviderCostUsd(): number {
 }
 
 /** Active discuss charge — resolves tier from projected provider cost. */
+export function secretsHelperCreditsToCharge(): number {
+  return SECRETS_HELPER_BC;
+}
+
 export function discussCreditsToCharge(input?: {
   providerCostUsd?: number;
   inputTokens?: number;
   outputTokens?: number;
+  secretsHelper?: boolean;
 }): number {
+  if (input?.secretsHelper) return SECRETS_HELPER_BC;
   const tokensIn = Math.min(input?.inputTokens ?? 800, DISCUSS_MAX_INPUT_TOKENS);
   const tokensOut = Math.min(input?.outputTokens ?? 600, DISCUSS_MAX_OUTPUT_TOKENS);
   const cost =

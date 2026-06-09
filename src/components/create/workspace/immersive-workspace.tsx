@@ -125,6 +125,7 @@ import { detectRequiredSecretNames } from "@/lib/integrations/detect-required-se
 import { WorkspaceLauncher, type WorkspaceRightTab } from "@/components/create/workspace/workspace-launcher";
 import { AppDashboardPanel, type DashSection } from "@/components/create/workspace/app-dashboard-panel";
 import { SecretSetupPanel } from "@/components/chat/secret-setup-panel";
+import { isSecretsHelperPrompt, SECRETS_HELPER_PROMPT } from "@/lib/secrets/secrets-helper-prompt";
 import type { CodeExplorerFile } from "@/components/create/workspace/code-explorer-panel";
 import { AppBuilderWorkspace } from "@/components/builder/app-builder-workspace";
 import { MobileWrapperStudio } from "@/components/mobile/mobile-wrapper-studio";
@@ -488,6 +489,7 @@ export function ImmersiveWorkspace({
   const insertPromptConsumedRef = React.useRef(false);
   const [pendingInsertAutoSubmit, setPendingInsertAutoSubmit] = React.useState<string | null>(null);
   const [secretsChatPanelOpen, setSecretsChatPanelOpen] = React.useState(false);
+  const secretsHelperPendingPanelRef = React.useRef(false);
   const [lastSubmitAt, setLastSubmitAt] = React.useState<number | null>(null);
 
   React.useEffect(() => {
@@ -552,11 +554,14 @@ export function ImmersiveWorkspace({
     setMobilePanel("chat");
     const autoSubmit = searchParams.get("autostart") === "1" || searchParams.get("autostart") === "true";
     if (autoSubmit) {
-      if (text.includes("required secrets")) setSecretsChatPanelOpen(true);
       setPendingInsertAutoSubmit(text);
     } else {
       setComposerLiveText(text);
-      toast.info("Prompt added to chat — review and press Submit");
+      if (isSecretsHelperPrompt(text)) {
+        toast.info("Secrets helper prompt added — press Send (~0.2 credits)");
+      } else {
+        toast.info("Prompt added to chat — review and press Submit");
+      }
     }
     const next = new URLSearchParams(searchParams.toString());
     next.delete("insertPrompt");
@@ -1918,6 +1923,10 @@ export function ImmersiveWorkspace({
     }
     lastSubmitFingerprintRef.current = { text, at: now };
 
+    if (isSecretsHelperPrompt(text)) {
+      secretsHelperPendingPanelRef.current = true;
+    }
+
     const projectIdempotencyKey =
       handoffProjectKeyRef.current ?? pendingOperationIdRef.current ?? crypto.randomUUID();
     const opId =
@@ -2325,6 +2334,21 @@ export function ImmersiveWorkspace({
     setShowOptimisticAssistant(true);
     invokeAutostartSubmit("url-auto", text);
   }, [hydrated, pendingInsertAutoSubmit, invokeAutostartSubmit]);
+
+  React.useEffect(() => {
+    if (!secretsHelperPendingPanelRef.current || isBusy) return;
+    const last = messages[messages.length - 1];
+    if (last?.role === "assistant") {
+      const parts = last.parts ?? [];
+      const hasText = parts.some(
+        (p) => p.type === "text" && typeof (p as { text?: string }).text === "string" && (p as { text: string }).text.trim(),
+      );
+      if (hasText) {
+        secretsHelperPendingPanelRef.current = false;
+        setSecretsChatPanelOpen(true);
+      }
+    }
+  }, [isBusy, messages]);
 
   const drainPromptQueue = React.useCallback(() => {
     if (streamActiveRef.current || buildJobActiveRef.current || submitInFlightRef.current) return;
@@ -3735,8 +3759,8 @@ export function ImmersiveWorkspace({
                   setMode("discuss");
                   setChatEngaged(true);
                   setMobilePanel("chat");
-                  if (prompt.includes("required secrets")) setSecretsChatPanelOpen(true);
-                  setPendingInsertAutoSubmit(prompt);
+                  setComposerLiveText(prompt || SECRETS_HELPER_PROMPT);
+                  toast.info("Secrets helper prompt added — press Send (~0.2 credits)");
                 }}
               />
               </div>

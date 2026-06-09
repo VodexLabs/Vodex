@@ -371,10 +371,13 @@ export async function createAppIdentityForBuild(input: CreateAppIdentityInput): 
       iconGenerationMode = "skipped_no_openai_key";
       await applyDeterministicFallback();
     } else {
+      const iconCreditQuote = quoteLogoGenerationCredits(mediaRoute.estimatedProviderCostUsd);
+
       const creditAvail = await getActionCreditAvailability(input.userId, {
         projectId: input.projectId,
         actionType: "app_logo_generation",
         providerCostUsd: mediaRoute.estimatedProviderCostUsd,
+        dynamicFloor: iconCreditQuote.finalActionCredits,
       });
 
       const afford = await assertActionCreditsAffordable({
@@ -382,13 +385,16 @@ export async function createAppIdentityForBuild(input: CreateAppIdentityInput): 
         projectId: input.projectId,
         actionType: "app_logo_generation",
         providerCostUsd: mediaRoute.estimatedProviderCostUsd,
+        dynamicFloor: iconCreditQuote.finalActionCredits,
       });
 
       if (!afford.ok || !creditAvail.available) {
         iconGenerationMode = "skipped_no_action_credits";
         logoGenerationStatus = "insufficient_credits";
         const depletedNotice =
-          "App draft saved. Icon generation skipped because Action Credits are depleted.";
+          afford.required > afford.balance
+            ? `App draft saved. Logo needs ${afford.required} Action Credits (you have ${afford.balance}).`
+            : "App draft saved. Icon generation skipped — Action Credit check failed.";
         await applyDeterministicFallback(depletedNotice);
         userNotice = depletedNotice;
         await logServerOperation({
@@ -411,7 +417,6 @@ export async function createAppIdentityForBuild(input: CreateAppIdentityInput): 
           },
         });
       } else {
-        const iconCreditQuote = quoteLogoGenerationCredits(mediaRoute.estimatedProviderCostUsd);
         await logServerOperation({
           writer: input.writer,
           userId: input.userId,
@@ -592,7 +597,11 @@ export async function regenerateAppLogo(input: {
     dynamicFloor: quote.finalActionCredits,
   });
   if (!afford.ok) {
-    return { ok: false, error: "Action Credits depleted.", code: "insufficient" };
+    return {
+      ok: false,
+      error: `Not enough Action Credits — need ${afford.required}, have ${afford.balance}.`,
+      code: "insufficient",
+    };
   }
 
   const charge = await chargeActionCredit({

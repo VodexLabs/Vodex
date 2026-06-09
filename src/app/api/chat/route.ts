@@ -74,6 +74,7 @@ import {
 import { calculateCreditsForStagedBuild } from "@/lib/credits/credit-pricing";
 import { chargeAiOperation } from "@/lib/credits/charge-ai-operation";
 import { calculateCreditsToCharge } from "@/lib/credits/calculate-charge";
+import { isSecretsHelperPrompt } from "@/lib/secrets/secrets-helper-prompt";
 import { finalizeBuildSuccess, finalizeBuildFailed } from "@/lib/build/finalize-build";
 import { runBuildQualityRepair } from "@/lib/build/quality-repair";
 import { ensureProjectConversation } from "@/lib/projects/project-conversation";
@@ -1452,6 +1453,7 @@ export async function POST(request: Request) {
             inputTokens: event.usage?.inputTokens ?? null,
             outputTokens: event.usage?.outputTokens ?? null,
             fileCount: savedFileCount,
+            secretsHelper: chargeMode === "discuss" && isSecretsHelperPrompt(userTextEarly),
           });
           const creditsToCharge = chargeCalc.creditsToCharge;
 

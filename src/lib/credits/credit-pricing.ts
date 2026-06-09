@@ -13,6 +13,7 @@ import {
   applyBuildCreditPricing,
   resolveBuildCreditOperationType,
 } from "@/lib/billing/build-credit-floors";
+import { secretsHelperCreditsToCharge } from "@/lib/billing/discuss-credit-pricing";
 
 /** @deprecated Use TARGET_REVENUE_MULTIPLIER */
 export const DREAMOS_CREDIT_MARKUP = TARGET_REVENUE_MULTIPLIER;
@@ -128,6 +129,8 @@ export type ChargeCalculationInput = {
   inputTokens?: number | null;
   outputTokens?: number | null;
   fileCount?: number;
+  /** Secrets setup helper — flat 0.2 BC discuss charge. */
+  secretsHelper?: boolean;
 };
 
 export type ChargeCalculationResult = {
@@ -149,6 +152,16 @@ export function calculateCreditsToCharge(input: ChargeCalculationInput): ChargeC
       : estimateProviderCostUsd(input.modelId, input.mode === "build" ? "build" : "discuss", input.inputTokens, input.outputTokens);
 
   if (input.mode === "discuss") {
+    if (input.secretsHelper) {
+      const flat = secretsHelperCreditsToCharge();
+      return {
+        creditsToCharge: normalizeCreditCharge(flat),
+        estimatedProviderCostUsd: tokenCost,
+        marginMultiplier: 5,
+        operationType: "discuss",
+        minimumFloorApplied: true,
+      };
+    }
     const quote = quoteDiscussCost({
       selectedModel: input.modelId,
       estimatedProviderCostUsd: tokenCost,

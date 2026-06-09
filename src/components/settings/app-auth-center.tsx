@@ -31,6 +31,7 @@ type Diagnostics = {
   publishedLoginUrl: string | null;
   lastAuthError: string | null;
   googleEnabled: boolean;
+  checks?: Array<{ id: string; status: string }>;
 };
 
 export function AppAuthCenter({
@@ -111,12 +112,30 @@ export function AppAuthCenter({
   const healthFor = (enabled: boolean): "ok" | "warn" | "off" =>
     oauthFailed && enabled ? "warn" : enabled ? "ok" : "off";
 
+  const vodexManagedReady =
+    diagnostics?.checks?.some((c) => c.id === "vodex_managed" && c.status === "ok") ?? false;
+  const googleCustomConfigured = settings.customOAuth?.google.configured ?? false;
+  const googleCanEnable = vodexManagedReady || googleCustomConfigured;
+  const githubCustomConfigured = settings.customOAuth?.github.configured ?? false;
+  const githubCanEnable = vodexManagedReady || githubCustomConfigured;
+
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4" data-testid="app-auth-center">
       <div>
         <h2 className="text-[18px] font-semibold tracking-tight text-foreground">Authentication</h2>
         <p className="mt-1 text-[13px] text-muted-foreground">
           Enable sign-in methods for your published app. Gmail and email login are recommended first.
+        </p>
+      </div>
+
+      <div className="rounded-xl bg-accent/5 px-4 py-3 ring-1 ring-accent/15 text-[12px] leading-relaxed text-muted-foreground">
+        <p>
+          <span className="font-semibold text-foreground">Vodex-managed OAuth</span> means users can sign in
+          without you creating provider API keys — Vodex runs the OAuth app.
+        </p>
+        <p className="mt-1.5">
+          <span className="font-semibold text-foreground">Custom OAuth</span> means you bring your own client ID,
+          secret, and redirect URI from Google, GitHub, or another provider.
         </p>
       </div>
 
@@ -137,8 +156,9 @@ export function AppAuthCenter({
           title="Gmail / Email & Password"
           description="Email and password login with optional magic link. Enabled by default for most apps."
           enabled={settings.email_password_enabled}
+          active={settings.email_password_enabled && healthFor(settings.email_password_enabled) === "ok"}
           health={healthFor(settings.email_password_enabled)}
-          statusBadge={settings.email_password_enabled ? "Primary" : undefined}
+          statusBadge={settings.email_password_enabled ? "Active" : undefined}
           onToggle={(on) => void patchSettings({ email_password_enabled: on })}
           onConfigure={() => toast.info("Configure SMTP and password rules in your app settings")}
           configureLabel="Email options"
@@ -149,10 +169,31 @@ export function AppAuthCenter({
           id="google"
           icon={<AuthProviderIcon provider="google" />}
           title="Google"
-          description="Vodex-managed Google sign-in, or connect your own OAuth client below."
+          description={
+            googleCustomConfigured
+              ? "Custom Google OAuth client configured."
+              : vodexManagedReady
+                ? "Vodex-managed Google sign-in — enable when ready."
+                : "Setup required — configure custom Google OAuth below or contact support for managed OAuth."
+          }
           enabled={settings.google_enabled}
-          health={healthFor(settings.google_enabled)}
-          onToggle={(on) => void patchSettings({ google_enabled: on })}
+          active={settings.google_enabled && healthFor(settings.google_enabled) === "ok"}
+          health={!googleCanEnable ? "off" : healthFor(settings.google_enabled)}
+          statusBadge={
+            googleCustomConfigured
+              ? "Custom OAuth"
+              : vodexManagedReady
+                ? "Managed by Vodex"
+                : "Setup required"
+          }
+          toggleDisabled={!googleCanEnable}
+          onToggle={(on) => {
+            if (!googleCanEnable) {
+              toast.info("Configure Google OAuth first, or enable Vodex-managed auth.");
+              return;
+            }
+            void patchSettings({ google_enabled: on });
+          }}
           onConfigure={() => setWizardProvider("google")}
           configureLabel={settings.customOAuth?.google.configured ? "Manage Google OAuth" : "Connect Google"}
           docsHref="https://vodex.dev/docs/auth/google"
@@ -204,15 +245,20 @@ export function AppAuthCenter({
             "customKey" in p && p.customKey
               ? settings.customOAuth?.[p.customKey]?.configured
               : undefined;
+          const canEnableGithub = p.id === "github" ? githubCanEnable : !comingSoon;
           const statusBadge = comingSoon
-            ? "Setup required"
-            : managed
-              ? "Managed by Vodex"
-              : configured
-                ? "Configured"
-                : cap
-                  ? connectionModeLabel(cap.connectionMode)
-                  : undefined;
+            ? "Coming soon"
+            : p.id === "github" && githubCustomConfigured
+              ? "Custom OAuth"
+              : p.id === "github" && vodexManagedReady
+                ? "Managed by Vodex"
+                : managed
+                  ? "Managed by Vodex"
+                  : configured
+                    ? "Configured"
+                    : cap
+                      ? connectionModeLabel(cap.connectionMode)
+                      : undefined;
           return (
             <AuthProviderRow
               key={p.id}
@@ -221,21 +267,22 @@ export function AppAuthCenter({
               title={p.label}
               description={
                 comingSoon
-                  ? `${p.label} sign-in is not fully wired yet. Configure your own OAuth client when available, or use email/Google in the meantime.`
+                  ? `${p.label} sign-in is coming soon. Use email/Google or Custom OAuth in the meantime.`
                   : managed
                     ? `Vodex-managed ${p.label} sign-in — enable when ready for your published app.`
                     : `Let users sign in with ${p.label}.`
               }
               enabled={enabled}
+              active={enabled && !comingSoon && healthFor(enabled) === "ok"}
               health={comingSoon ? "off" : healthFor(enabled)}
-              statusBadge={statusBadge}
+              statusBadge={enabled && !comingSoon ? "Active" : statusBadge}
               onToggle={
                 comingSoon || !("key" in p && p.key)
                   ? undefined
                   : (on) => void patchSettings({ [p.key]: on } as Partial<AuthSettings>)
               }
               showToggle={!comingSoon && "key" in p && Boolean(p.key)}
-              toggleDisabled={comingSoon}
+              toggleDisabled={comingSoon || (p.id === "github" && !canEnableGithub)}
               onConfigure={() => {
                 if (comingSoon) {
                   toast.info(`${p.label} OAuth setup is coming soon — use Custom OAuth for now.`);

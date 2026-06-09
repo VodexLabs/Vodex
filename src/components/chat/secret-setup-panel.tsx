@@ -1,13 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { X } from "lucide-react";
 import { ImportedSecretsSetupPanel } from "@/components/import/imported-secrets-setup-panel";
 import { cn } from "@/lib/utils";
 
 /**
- * In-chat secret setup — shown after the secrets AI assistant flow starts.
- * Never asks users to paste secrets as plain chat text.
+ * In-chat secret setup — compact, no nested Ask AI button.
  */
 export function SecretSetupPanel({
   projectId,
@@ -28,42 +26,19 @@ export function SecretSetupPanel({
     <div
       data-testid="secret-setup-panel"
       className={cn(
-        "mt-3 rounded-2xl border border-accent/25 bg-surface/95 p-4 shadow-sm ring-1 ring-accent/15",
+        "mt-2 rounded-xl border border-accent/20 bg-surface/95 p-2.5 shadow-sm ring-1 ring-accent/10",
         className,
       )}
     >
-      <div className="mb-3 flex items-start justify-between gap-2">
-        <div>
-          <p className="text-[13px] font-semibold text-foreground">Connect required secrets</p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
-            Save each key securely below — values are encrypted and never shown in chat.
-          </p>
-        </div>
-        {onClose ? (
-          <button
-            type="button"
-            aria-label="Close secret setup"
-            onClick={onClose}
-            className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <X className="size-4" />
-          </button>
-        ) : null}
-      </div>
+      <p className="mb-1.5 text-[11px] font-semibold text-foreground">Secure secret setup</p>
       <ImportedSecretsSetupPanel
         projectId={projectId}
         envRequirements={envRequirements}
+        variant="compact"
         onSaved={onSaved}
+        onClose={onClose}
+        onSkipOptional={onSkipOptional}
       />
-      {onSkipOptional ? (
-        <button
-          type="button"
-          onClick={onSkipOptional}
-          className="mt-3 text-[11px] font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-        >
-          Skip optional secrets for now
-        </button>
-      ) : null}
     </div>
   );
 }

@@ -79,6 +79,10 @@ export function CustomDomainsPanel({
   const [hostname, setHostname] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [wizardStep, setWizardStep] = React.useState(0);
+  const [dnsProvider, setDnsProvider] = React.useState<
+    "ionos" | "godaddy" | "namecheap" | "cloudflare" | "other"
+  >("ionos");
+  const [lastVerify, setLastVerify] = React.useState<Record<string, unknown> | null>(null);
   const [removeTarget, setRemoveTarget] = React.useState<string | null>(null);
 
   const load = React.useCallback(async () => {
@@ -137,8 +141,10 @@ export function CustomDomainsPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "verify", domainId: id }),
       });
-      const body = await r.json();
+      const body = (await r.json()) as Record<string, unknown>;
+      setLastVerify(body);
       if (body.ok) toast.success("Domain verified and active");
+      else if (body.failureReason) toast.error(String(body.failureReason));
       else toast.info(body.status === "pending_dns" ? "DNS not ready yet" : "Partial verification");
       await load();
     } finally {
@@ -256,8 +262,14 @@ export function CustomDomainsPanel({
           <Sparkles className="size-4 text-accent" />
           <p className="text-[13px] font-semibold">Custom domain wizard</p>
         </div>
-        <ol className="mb-4 grid gap-2 sm:grid-cols-3">
-          {["Enter hostname", "Configure DNS", "Verify & go live"].map((label, i) => (
+        <ol className="mb-4 grid gap-2 sm:grid-cols-5">
+          {[
+            "Choose root/www",
+            "Select provider",
+            "Copy records",
+            "Verify DNS",
+            "Go live",
+          ].map((label, i) => (
             <li
               key={label}
               className={cn(
@@ -270,10 +282,34 @@ export function CustomDomainsPanel({
           ))}
         </ol>
         <p className="mb-2 text-[11px] text-muted-foreground">
-          Use a subdomain (e.g. <code className="font-mono">app</code> or <code className="font-mono">www</code>).
-          Root domains like <code className="font-mono">example.com</code> are auto-mapped to{" "}
-          <code className="font-mono">www.example.com</code> because CNAME cannot target apex.
+          Step 1: Use <code className="font-mono">www.yourdomain.com</code> (recommended) or enter apex — apex
+          auto-maps to <code className="font-mono">www</code> because CNAME cannot target root.
         </p>
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {(
+            [
+              ["ionos", "IONOS"],
+              ["godaddy", "GoDaddy"],
+              ["namecheap", "Namecheap"],
+              ["cloudflare", "Cloudflare"],
+              ["other", "Other"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setDnsProvider(id)}
+              className={cn(
+                "cursor-pointer rounded-lg px-2.5 py-1 text-[10px] font-semibold ring-1",
+                dnsProvider === id
+                  ? "bg-accent/10 text-accent ring-accent/30"
+                  : "bg-muted/30 text-muted-foreground ring-border",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <input
             value={hostname}
@@ -393,6 +429,18 @@ export function CustomDomainsPanel({
               ) : null}
               {d.failure_reason && d.status !== "active" ? (
                 <p className="mt-2 text-[11px] text-destructive">{d.failure_reason}</p>
+              ) : null}
+              {lastVerify && d.status !== "active" ? (
+                <div className="mt-2 rounded-lg bg-background/80 p-2 text-[10px] ring-1 ring-border/60">
+                  <p className="font-semibold text-foreground">Last verification</p>
+                  <p className="mt-1 text-muted-foreground">
+                    CNAME: {String(lastVerify.cnameStatus ?? "—")} · TXT: {String(lastVerify.txtStatus ?? "—")} · SSL:{" "}
+                    {String(lastVerify.sslStatus ?? "—")}
+                  </p>
+                  {lastVerify.propagationNote ? (
+                    <p className="mt-1 text-muted-foreground">{String(lastVerify.propagationNote)}</p>
+                  ) : null}
+                </div>
               ) : null}
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
