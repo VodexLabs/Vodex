@@ -31,18 +31,16 @@ import { MIN_RENDERABLE_FILES } from "@/lib/build/build-success-contract";
 import { resolveBuildTerminalTruth } from "@/lib/build/build-terminal-truth";
 import { LiveFileLineDelta } from "@/components/create/workspace/live-file-line-delta";
 import { DreamOSMessageShell } from "@/components/create/workspace/dreamos-message-shell";
-import { StreamingNarrationLine } from "@/components/create/workspace/streaming-narration-line";
-import {
-  BuildFinalSummaryBlock,
-  ChunkProgressPanel,
-  LiveBuildActivityPanel,
-} from "@/components/create/workspace/live-build-activity-panel";
+import { BuildFinalSummaryBlock } from "@/components/create/workspace/live-build-activity-panel";
 import {
   deriveBuildPhaseFromEvents,
-  MAX_SAFE_CONTINUATION_ATTEMPTS,
 } from "@/lib/build/build-terminal-state-machine";
-import { deriveBuildActivityPresentation } from "@/lib/build/live-build-activity";
 import { sanitizeUserBuildChatText } from "@/lib/build/build-user-copy";
+import { BuildStepPhaseCard } from "@/components/create/workspace/build-step-phase-card";
+import { BuildFileStreamPanel } from "@/components/create/workspace/build-file-stream-panel";
+import { BuildNoFilesYetCard } from "@/components/create/workspace/build-no-files-yet-card";
+import { BuildActiveWorkChip } from "@/components/create/workspace/build-active-work-chip";
+import { NO_FILES_YET_THRESHOLD_MS } from "@/lib/build/build-step-ui";
 
 function isFileEvent(ev: AgentWorkflowEvent): boolean {
   return (
@@ -93,6 +91,33 @@ function compressFileEventsForDisplay(
 
 function groupFileEvents(events: AgentWorkflowEvent[], working: boolean): AgentWorkflowEvent[] {
   return compressFileEventsForDisplay(events, working);
+}
+
+function dedupeFileStreamEvents(events: AgentWorkflowEvent[]): AgentWorkflowEvent[] {
+  const byPath = new Map<string, AgentWorkflowEvent>();
+  for (const ev of events) {
+    if (!ev.filePath) continue;
+    const key = ev.filePath.replace(/\\/g, "/").toLowerCase();
+    const prev = byPath.get(key);
+    if (!prev || Date.parse(ev.at) >= Date.parse(prev.at)) {
+      byPath.set(key, ev);
+    }
+  }
+  return [...byPath.values()].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+}
+
+function isHeartbeatNarration(ev: AgentWorkflowEvent): boolean {
+  return ev.metadata?.heartbeat === true;
+}
+
+/** Files-first UI: hide narration history; diagnostics retain full event log. */
+function isStructuralTimelineEvent(ev: AgentWorkflowEvent, working: boolean): boolean {
+  if (isFileEvent(ev)) return false;
+  if (ev.category === "assistant_message") return false;
+  if (isHeartbeatNarration(ev)) return false;
+  if (working && ev.category === "phase_started") return false;
+  if (working && ev.category === "task_started") return false;
+  return true;
 }
 
 const MAX_ACTIVE_FILE_ROWS = 2;
@@ -345,14 +370,7 @@ function TimelineRow({
     );
   }
   if (event.category === "assistant_message" || isInlineWorkflowStatus(event.title)) {
-    const copy = event.subtitle ?? event.title;
-    return (
-      <StreamingNarrationLine
-        text={copy}
-        active={event.status === "active"}
-        className="mr-6 max-w-[min(100%,34rem)] px-1 text-[13px] leading-relaxed text-foreground sm:mr-10"
-      />
-    );
+    return null;
   }
   return (
     <ProgressRow
@@ -479,6 +497,12 @@ export function AgentWorkflowStream({
         )
       : [];
   const merged = mergeEphemeralWithServerEvents(ephemeral, serverSequential);
+  const rawFileStreamEvents = dedupeFileStreamEvents(
+    applyFileStreamFocus(
+      merged.filter(isFileEvent),
+      working,
+    ),
+  );
   const grouped = groupFileEvents(merged, working);
   const terminalMeta = (progress.latest?.metadata ?? {}) as Record<string, unknown>;
   const failedDraft =
@@ -500,51 +524,50 @@ export function AgentWorkflowStream({
   const timelineStaggered = useStaggeredWorkflowEvents(timelineRaw, shouldStaggerFiles);
   const timeline = applyFileStreamFocus(timelineStaggered, working);
 
-  const active = [...timeline]
+  const structuralTimeline = timeline.filter((ev) => isStructuralTimelineEvent(ev, working));
+  const active = [...structuralTimeline]
     .reverse()
-    .find((e) => e.status === "active" && !isFileEvent(e));
+    .find((e) => e.status === "active");
   const completedTimeline = active
-    ? timeline.filter((ev) => ev.stableKey !== active.stableKey)
-    : timeline;
+    ? structuralTimeline.filter((ev) => ev.stableKey !== active.stableKey)
+    : structuralTimeline;
 
   const fileDiffSummary = React.useMemo(() => {
     let files = 0;
     let added = 0;
     let removed = 0;
-    for (const ev of timeline) {
-      if (!isFileEvent(ev)) continue;
+    for (const ev of rawFileStreamEvents) {
       files += 1;
       added += ev.addedLines ?? 0;
       removed += ev.removedLines ?? 0;
     }
     if (files === 0) return null;
     return { files, added, removed };
-  }, [timeline]);
+  }, [rawFileStreamEvents]);
 
-  const narrationCopy = React.useMemo(() => {
-    const lines = completedTimeline
-      .filter((e) => e.category === "assistant_message")
+  const currentNarrationLine = React.useMemo(() => {
+    const narr = merged.filter(
+      (e) => e.category === "assistant_message" && !isHeartbeatNarration(e),
+    );
+    const last = narr[narr.length - 1];
+    if (!last) return undefined;
+    return sanitizeUserBuildChatText(last.subtitle ?? last.title) || undefined;
+  }, [merged]);
+
+  const diagnosticsNarrationCopy = React.useMemo(() => {
+    return merged
+      .filter((e) => e.category === "assistant_message" && !isHeartbeatNarration(e))
       .map((e) => sanitizeUserBuildChatText(e.subtitle ?? e.title))
-      .filter(Boolean);
-    if (active?.category === "assistant_message") {
-      lines.push(sanitizeUserBuildChatText(active.subtitle ?? active.title));
-    }
-    const unique = [...new Set(lines.filter(Boolean))];
-    const capped = working ? unique : unique.slice(-3);
-    return capped.join("\n");
-  }, [completedTimeline, active, working]);
+      .filter(Boolean)
+      .join("\n");
+  }, [merged]);
 
   const fileSummaryLine = fileDiffSummary
     ? `Generated ${fileDiffSummary.files} files · +${fileDiffSummary.added} −${fileDiffSummary.removed}`
     : "";
 
-  const activeAssistantCopy = active ? `${active.title} ${active.subtitle ?? ""}` : "";
   const buildPhase = deriveBuildPhaseFromEvents(progress.events ?? []);
-  const lastEventAt = progress.events?.length
-    ? Date.parse(progress.events[progress.events.length - 1]!.created_at)
-    : startedAt;
-  const staleMs = now - (Number.isFinite(lastEventAt) ? lastEventAt : startedAt);
-  const isStale = working && staleMs > 10_000;
+  const elapsedMs = now - startedAt;
   const lastMeta = progress.latest?.metadata ?? {};
   const chunkProgressLine = React.useMemo(() => {
     for (let i = (progress.events ?? []).length - 1; i >= 0; i--) {
@@ -557,9 +580,6 @@ export function AgentWorkflowStream({
     typeof lastMeta.active_work === "string" && lastMeta.heartbeat === true
       ? (progress.latest?.title ?? progress.latest?.detail ?? undefined)
       : undefined;
-  const continuationAttempt =
-    typeof lastMeta.continuation_attempt === "number" ? lastMeta.continuation_attempt : undefined;
-  const isHeartbeat = lastMeta.heartbeat === true || isStale;
   const finalSummaryLine = !working
     ? [...(progress.events ?? [])]
         .reverse()
@@ -567,29 +587,29 @@ export function AgentWorkflowStream({
         ?.title
     : null;
 
-  const activityPresentation = working
-    ? deriveBuildActivityPresentation({
-        phase: buildPhase,
-        elapsedMs: now - startedAt,
-        userPrompt,
-        assistantMessage: activeAssistantCopy || narrationCopy,
-        isHeartbeat,
-        attempt: continuationAttempt,
-        maxAttempts: MAX_SAFE_CONTINUATION_ATTEMPTS,
-        modelLabel: modelLabel ?? undefined,
-        chunkProgress: chunkProgressLine,
-        activeWork: activeWorkLine,
-      })
-    : null;
+  const isBuildPaused =
+    working &&
+    (terminalMeta.continuing_generation_needed === true ||
+      /generation paused/i.test(currentNarrationLine ?? ""));
 
-  const showLiveModelActivity = working && Boolean(activityPresentation);
+  const showNoFilesYet =
+    working &&
+    elapsedMs >= NO_FILES_YET_THRESHOLD_MS &&
+    rawFileStreamEvents.length === 0 &&
+    streamFileCount < 1;
+
+  const activeWorkChipLine =
+    activeWorkLine ??
+    (chunkProgressLine ? undefined : currentNarrationLine?.split("\n")[0]);
 
   return (
     <DreamOSMessageShell
       mode="build"
       status={working ? "thinking" : "done"}
       costState={working ? "pending" : "idle"}
-      messageTextForCopy={[narrationCopy, fileSummaryLine].filter(Boolean).join("\n\n") || userPrompt}
+      messageTextForCopy={
+        [diagnosticsNarrationCopy, fileSummaryLine].filter(Boolean).join("\n\n") || userPrompt
+      }
       className={className}
     >
     <div className="space-y-2.5" data-testid="agent-workflow-stream">
@@ -599,69 +619,56 @@ export function AgentWorkflowStream({
 
       {showAnalyzing ? <AnalyzingRequestBubble /> : null}
 
-      {working && chunkProgressLine && activityPresentation?.mode !== "card" ? (
-        <ChunkProgressPanel progressLine={chunkProgressLine} />
-      ) : null}
-
-      {showLiveModelActivity && activityPresentation?.mode === "card" ? (
-        <LiveBuildActivityPanel
-          active
-          startedAtMs={startedAt}
-          userPrompt={userPrompt}
-          assistantMessage={activeAssistantCopy || narrationCopy}
+      {working ? (
+        <BuildStepPhaseCard
           phase={buildPhase}
-          variant="card"
-          attempt={continuationAttempt}
-          maxAttempts={MAX_SAFE_CONTINUATION_ATTEMPTS}
-          isHeartbeat={isHeartbeat}
-          modelLabel={modelLabel}
-          line={activityPresentation.line}
+          working={working}
+          paused={isBuildPaused}
+          hasFiles={rawFileStreamEvents.length > 0 || streamFileCount > 0}
+          statusLine={currentNarrationLine}
           chunkProgress={chunkProgressLine}
         />
       ) : null}
 
-      <ul className="space-y-2">
-        <AnimatePresence initial={false}>
-          {completedTimeline.map((ev) => (
-            <li key={ev.stableKey}>
+      {showNoFilesYet ? <BuildNoFilesYetCard /> : null}
+
+      <BuildFileStreamPanel
+        working={working}
+        events={rawFileStreamEvents}
+        renderFileCard={(ev) => <FileChangeCard event={ev} />}
+      />
+
+      {working && activeWorkChipLine && activeWorkChipLine !== currentNarrationLine ? (
+        <BuildActiveWorkChip line={activeWorkChipLine} />
+      ) : null}
+
+      {completedTimeline.length > 0 || active ? (
+        <ul className="space-y-2">
+          <AnimatePresence initial={false}>
+            {completedTimeline.map((ev) => (
+              <li key={ev.stableKey}>
+                <TimelineRow
+                  event={ev}
+                  reducedMotion={Boolean(reducedMotion)}
+                  streamFileCount={streamFileCount}
+                  previewSucceeded={previewSucceeded}
+                  workflowEvents={progress.events}
+                />
+              </li>
+            ))}
+          </AnimatePresence>
+          {active ? (
+            <li data-testid="workflow-active-step">
               <TimelineRow
-                event={ev}
+                event={active}
                 reducedMotion={Boolean(reducedMotion)}
                 streamFileCount={streamFileCount}
                 previewSucceeded={previewSucceeded}
                 workflowEvents={progress.events}
               />
             </li>
-          ))}
-        </AnimatePresence>
-        {active ? (
-          <li data-testid="workflow-active-step">
-            <TimelineRow
-              event={active}
-              reducedMotion={Boolean(reducedMotion)}
-              streamFileCount={streamFileCount}
-              previewSucceeded={previewSucceeded}
-              workflowEvents={progress.events}
-            />
-          </li>
-        ) : null}
-      </ul>
-
-      {showLiveModelActivity && activityPresentation?.mode === "compact" ? (
-        <LiveBuildActivityPanel
-          active
-          startedAtMs={startedAt}
-          userPrompt={userPrompt}
-          assistantMessage={activeAssistantCopy || narrationCopy}
-          phase={buildPhase}
-          variant="compact"
-          attempt={continuationAttempt}
-          maxAttempts={MAX_SAFE_CONTINUATION_ATTEMPTS}
-          isHeartbeat={isHeartbeat}
-          modelLabel={modelLabel}
-          line={activityPresentation.line}
-          chunkProgress={chunkProgressLine}
-        />
+          ) : null}
+        </ul>
       ) : null}
 
       {!working && finalSummaryLine ? <BuildFinalSummaryBlock summary={finalSummaryLine} /> : null}

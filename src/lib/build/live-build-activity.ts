@@ -125,12 +125,12 @@ export function deriveBuildActivityPresentation(input: {
 
   if (input.isHeartbeat) {
     const work = input.assistantMessage?.trim();
+    const singleLine =
+      work && !work.includes("\n") && !/still waiting for/i.test(work) ? work : undefined;
     return {
       mode: "compact",
       phase: input.phase,
-      line: work && !/still waiting for/i.test(work)
-        ? work
-        : pickLiveActivityLine(messages, input.elapsedMs),
+      line: singleLine ?? pickLiveActivityLine(messages, input.elapsedMs),
     };
   }
 

@@ -1,6 +1,6 @@
 import { sliceToTokenBudget } from "@/lib/ai/prompt-compression-policy";
 import type { ProviderCallInput } from "@/lib/ai/provider-call";
-import { CHUNK_MODEL_TIMEOUT_MS } from "@/lib/ai/provider-timeouts";
+import { CHUNK_MODEL_TIMEOUT_MS, SHELL_CHUNK_TIMEOUT_MS } from "@/lib/ai/provider-timeouts";
 import { FILE_PAYLOAD_RULE } from "@/lib/build/stage-prompts";
 import type { DesignBrief } from "@/lib/build/design-brief-generator";
 import { callChunkWithFailover } from "@/lib/build/chunked-model-call";
@@ -188,14 +188,18 @@ export async function runRouteByRouteGeneration(
       complexity: input.complexity,
       accumulatedCostUsd: input.accumulatedCostUsd + costUsd,
       userSelectedModelId: input.userSelectedModelId,
-      timeoutMs: CHUNK_MODEL_TIMEOUT_MS,
+      timeoutMs: chunk.id === "generate_app_shell" ? SHELL_CHUNK_TIMEOUT_MS : CHUNK_MODEL_TIMEOUT_MS,
     };
+
+    const chunkTimeoutMs =
+      chunk.id === "generate_app_shell" ? SHELL_CHUNK_TIMEOUT_MS : CHUNK_MODEL_TIMEOUT_MS;
 
     const result: TimedProviderResult = await callChunkWithFailover(callInput, {
       trace: input.buildTrace,
       chunk,
       chunkIndex: index,
       chunkTotal: total,
+      timeoutMs: chunkTimeoutMs,
       buildSmallerPrompt: () =>
         `${routeChunkPrompt(chunk, promptCtx)}\nReturn exactly 1 file.`,
       onActiveWork: (line) => {
@@ -224,10 +228,17 @@ export async function runRouteByRouteGeneration(
     modelId = result.result.spec.modelId;
 
     const before = files.length;
+    const beforePaths = new Set(files.map((f) => f.path.replace(/\\/g, "/").toLowerCase()));
     files = await input.ingestChunk(result.result.text, files);
-    if (files.length > before) {
+    const newPaths = files.filter(
+      (f) => !beforePaths.has(f.path.replace(/\\/g, "/").toLowerCase()),
+    );
+    const filesAdded = Math.max(files.length - before, newPaths.length);
+    if (filesAdded > 0 || newPaths.length > 0) {
       chunksCompleted += 1;
-      input.onChunkComplete(index, total, chunk, files.length - before);
+      input.onChunkComplete(index, total, chunk, filesAdded || newPaths.length);
+    } else if (files.length > 0) {
+      input.onChunkComplete(index, total, chunk, 0);
     }
   }
 

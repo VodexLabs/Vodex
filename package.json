@@ -122,6 +122,7 @@
     "verify:no-duplicated-build-narration": "node scripts/verify-p1324-timeout-production.mjs no-duplicated-build-narration",
     "verify:continue-generation-resumes": "node scripts/verify-p1324-timeout-production.mjs continue-generation-resumes",
     "verify:no-repair-for-paused-new-build": "node scripts/verify-p1324-timeout-production.mjs no-repair-for-paused-new-build",
+    "verify:build-ui-files-first": "node scripts/verify-p1325-build-ui-files-first.mjs",
     "verify:build-terminal-state-machine": "node scripts/verify-p1323-production.mjs build-terminal-state-machine",
     "verify:build-never-stalls-on-thin-route": "node scripts/verify-p1323-production.mjs build-never-stalls-on-thin-route",
     "verify:compact-live-activity-line": "node scripts/verify-p1323-production.mjs compact-live-activity-line",

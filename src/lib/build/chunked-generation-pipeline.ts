@@ -3,6 +3,7 @@ import type { ProviderCallInput } from "@/lib/ai/provider-call";
 import { FILE_PAYLOAD_RULE } from "@/lib/build/stage-prompts";
 import type { DesignBrief } from "@/lib/build/design-brief-generator";
 import { callChunkWithFailover, CHUNK_MODEL_TIMEOUT_MS } from "@/lib/build/chunked-model-call";
+import { SHELL_CHUNK_TIMEOUT_MS } from "@/lib/ai/provider-timeouts";
 import type { TimedProviderResult } from "@/lib/build/timed-build-operations";
 import type { BuildFile } from "@/lib/build/generated-file-utils";
 import type { BuildWorkerTraceSnapshot } from "@/lib/build/build-worker-trace";
@@ -204,14 +205,18 @@ export async function runChunkedFrontendGeneration(
       complexity: input.complexity,
       accumulatedCostUsd: input.accumulatedCostUsd + costUsd,
       userSelectedModelId: input.userSelectedModelId,
-      timeoutMs: CHUNK_MODEL_TIMEOUT_MS,
+      timeoutMs: chunk.id === "generate_app_shell" ? SHELL_CHUNK_TIMEOUT_MS : CHUNK_MODEL_TIMEOUT_MS,
     };
+
+    const chunkTimeoutMs =
+      chunk.id === "generate_app_shell" ? SHELL_CHUNK_TIMEOUT_MS : CHUNK_MODEL_TIMEOUT_MS;
 
     let result: TimedProviderResult = await callChunkWithFailover(callInput, {
       trace: input.buildTrace,
       chunk,
       chunkIndex: index,
       chunkTotal: total,
+      timeoutMs: chunkTimeoutMs,
       buildSmallerPrompt: () => buildSmallerChunkPrompt(chunk, promptCtx),
       onActiveWork: (line) => {
         input.onChunkActiveWork(line, {
@@ -254,9 +259,14 @@ export async function runChunkedFrontendGeneration(
     modelId = result.result.spec.modelId;
 
     const before = files.length;
+    const beforePaths = new Set(files.map((f) => f.path.replace(/\\/g, "/").toLowerCase()));
     files = await input.ingestChunk(result.result.text, files);
+    const newPaths = files.filter(
+      (f) => !beforePaths.has(f.path.replace(/\\/g, "/").toLowerCase()),
+    );
+    const filesAdded = Math.max(files.length - before, newPaths.length);
     chunksCompleted += 1;
-    input.onChunkComplete(index, total, chunk, files.length - before);
+    input.onChunkComplete(index, total, chunk, filesAdded || newPaths.length);
   }
 
   return {

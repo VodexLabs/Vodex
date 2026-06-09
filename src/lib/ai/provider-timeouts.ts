@@ -3,6 +3,9 @@ import type { RouteOperationContext } from "@/lib/ai/model-router";
 /** No single chunked model call may wait longer than 25s without failover. */
 export const CHUNK_MODEL_TIMEOUT_MS = 25_000;
 
+/** Critical app shell chunk (layout, globals, config) gets extra time before failover. */
+export const SHELL_CHUNK_TIMEOUT_MS = 45_000;
+
 /** Hard caps for build pipeline provider calls (ms). */
 export const PROVIDER_TIMEOUT_MS: Partial<
   Record<RouteOperationContext["operationType"] | string, number>

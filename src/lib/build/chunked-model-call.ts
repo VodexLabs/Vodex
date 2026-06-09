@@ -22,6 +22,7 @@ export async function callChunkWithFailover(
     buildSmallerPrompt?: () => string;
     onActiveWork: (line: string) => void;
     useFallbackModel?: boolean;
+    timeoutMs?: number;
   },
 ): Promise<TimedProviderResult> {
   const maxAttempts = options.useFallbackModel ? 1 : 2;
@@ -30,7 +31,7 @@ export async function callChunkWithFailover(
   while (attempt < maxAttempts) {
     const prompt =
       attempt === 0 ? input.prompt : (options.buildSmallerPrompt?.() ?? input.prompt);
-    const timeoutMs = CHUNK_MODEL_TIMEOUT_MS;
+    const timeoutMs = options.timeoutMs ?? input.timeoutMs ?? CHUNK_MODEL_TIMEOUT_MS;
     const started = Date.now();
     let tick = 0;
 

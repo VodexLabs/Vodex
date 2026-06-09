@@ -50,7 +50,8 @@ const suites = {
     must(read("src/lib/build/workflow-stream-coalesce.ts"), "limitTerminalNarration", "terminal narration limit", errors);
     must(read("src/lib/build/workflow-stream-coalesce.ts"), "collapseDuplicateAssistantMessages", "dedupe assistant", errors);
     must(read("src/components/create/workspace/agent-workflow-stream.tsx"), "limitTerminalNarration", "limit wired in stream", errors);
-    must(read("src/components/create/workspace/agent-workflow-stream.tsx"), "unique.slice(-3)", "cap narration copy", errors);
+    must(read("src/components/create/workspace/agent-workflow-stream.tsx"), "currentNarrationLine", "single visible narration line", errors);
+    mustNot(read("src/components/create/workspace/agent-workflow-stream.tsx"), "narrationCopy", "no merged narration blob", errors);
     return errors;
   },
   "continue-generation-resumes": () => {
