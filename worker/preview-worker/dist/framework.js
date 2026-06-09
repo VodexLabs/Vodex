@@ -28,7 +28,12 @@ export function detectFramework(files) {
     const hasCra = Boolean(deps["react-scripts"]);
     const isSsrNext = hasNext &&
         !scripts.export &&
-        !paths.some((p) => p === "next.config.js" && filtered.find((f) => f.path === p)?.content.includes("output: 'export'"));
+        !filtered.some((f) => {
+            const p = norm(f.path);
+            if (!/^next\.config\.(js|mjs|ts)$/i.test(p))
+                return false;
+            return /output\s*:\s*['"]export['"]/.test(f.content);
+        });
     let id = "unknown";
     if (paths.some((p) => /index\.html$/i.test(p)) && !pkg)
         id = "static";

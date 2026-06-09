@@ -129,10 +129,21 @@ export function PreviewPanel({
   const hasInline = !!srcDoc?.trim() && !isUnrenderableSrcDoc(srcDoc);
   const resolvedPreviewUrl = React.useMemo(() => {
     if (!url || hasInline) return null;
+    if (url.startsWith("api/projects/") && !url.startsWith("/api/projects/")) {
+      console.warn("[preview-panel] correcting relative preview iframe path before render", { url });
+    }
     const normalized = tryNormalizeInternalPreviewUrl(url);
     if (!normalized) return null;
+    if (normalized !== url.trim()) {
+      console.warn("[preview-panel] normalized preview URL for iframe", { from: url, to: normalized });
+    }
     try {
-      return toPreviewIframeSrc(normalized);
+      const src = toPreviewIframeSrc(normalized);
+      if (src.includes("api/projects/") && !src.includes("/api/projects/")) {
+        console.error("[preview-panel] refused relative api/projects iframe src", { src });
+        return null;
+      }
+      return src;
     } catch {
       return null;
     }

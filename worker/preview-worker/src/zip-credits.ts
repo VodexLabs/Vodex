@@ -5,6 +5,42 @@ function operationId(projectId: string): string {
   return `zip-preview:${projectId}`;
 }
 
+type ZipCreditRpcSuccess = {
+  success: true;
+  charged?: number;
+  remaining?: number;
+  idempotent?: boolean;
+};
+
+type ZipCreditRpcFailure = {
+  success: false;
+  error: string;
+  message?: string;
+};
+
+export type ZipCreditResult = ZipCreditRpcSuccess | ZipCreditRpcFailure;
+
+function parseZipCreditRpc(data: unknown): ZipCreditResult | null {
+  if (!data || typeof data !== "object") return null;
+  const row = data as Record<string, unknown>;
+  if (row.success === true) {
+    return {
+      success: true,
+      charged: typeof row.charged === "number" ? row.charged : undefined,
+      remaining: typeof row.remaining === "number" ? row.remaining : undefined,
+      idempotent: row.idempotent === true,
+    };
+  }
+  if (row.success === false) {
+    return {
+      success: false,
+      error: typeof row.error === "string" ? row.error : "charge failed",
+      message: typeof row.message === "string" ? row.message : undefined,
+    };
+  }
+  return null;
+}
+
 type CreditJobPatch = {
   credit_reservation_id: string;
   estimated_action_credits: number;
@@ -26,7 +62,7 @@ export async function captureZipPreviewCredits(projectId: string, ownerId: strin
   }
 
   const credits = Number(hold.credits) || 10;
-  const { data, error } = await supabase.rpc("charge_action_credits", {
+  const { data, error: rpcError } = await supabase.rpc("charge_action_credits", {
     p_owner_user_id: ownerId,
     p_project_id: null,
     p_action_type: "zip_preview_build",
@@ -37,41 +73,56 @@ export async function captureZipPreviewCredits(projectId: string, ownerId: strin
     p_metadata: { zip_preview: true, capture: true },
   });
 
-  if (error) {
-    log("error", "zip preview charge failed", { projectId, error: error.message });
-    return;
-  }
-
-  const row = data as { success?: boolean } | null;
-  if (row?.success) {
-    await supabase
-      .from("zip_preview_action_holds")
-      .update({ status: "charged", updated_at: new Date().toISOString() })
-      .eq("operation_id", op);
-    await patchJobBilling(projectId, {
-      credit_reservation_id: op,
-      estimated_action_credits: credits,
-      captured_action_credits: credits,
-      credit_status: "captured",
-      estimated_action_credits_legacy: credits,
-      charged_action_credits: credits,
-      charge_status: "charged",
-    });
-    log("info", "zip preview credits captured", { projectId, credits });
-  } else {
-    const err = row?.error ?? error?.message ?? "charge failed";
-    log("error", "zip preview charge rejected", { projectId, error: err });
+  if (rpcError) {
+    log("error", "zip preview charge failed", { projectId, error: rpcError.message });
     await patchJobBilling(projectId, {
       credit_reservation_id: op,
       estimated_action_credits: credits,
       captured_action_credits: null,
       credit_status: "reserved",
-      credit_capture_error: `Worker capture failed: ${err}`,
+      credit_capture_error: `Worker capture RPC failed: ${rpcError.message}`,
       estimated_action_credits_legacy: credits,
       charged_action_credits: null,
       charge_status: "pending",
     });
+    return;
   }
+
+  const result = parseZipCreditRpc(data);
+  if (result?.success) {
+    await supabase
+      .from("zip_preview_action_holds")
+      .update({ status: "charged", updated_at: new Date().toISOString() })
+      .eq("operation_id", op);
+    const charged = result.charged ?? credits;
+    await patchJobBilling(projectId, {
+      credit_reservation_id: op,
+      estimated_action_credits: credits,
+      captured_action_credits: charged,
+      credit_status: "captured",
+      estimated_action_credits_legacy: credits,
+      charged_action_credits: charged,
+      charge_status: "charged",
+    });
+    log("info", "zip preview credits captured", { projectId, credits: charged, idempotent: result.idempotent });
+    return;
+  }
+
+  const err =
+    result && !result.success
+      ? result.message ?? result.error
+      : "charge failed";
+  log("error", "zip preview charge rejected", { projectId, error: err });
+  await patchJobBilling(projectId, {
+    credit_reservation_id: op,
+    estimated_action_credits: credits,
+    captured_action_credits: null,
+    credit_status: "reserved",
+    credit_capture_error: `Worker capture failed: ${err}`,
+    estimated_action_credits_legacy: credits,
+    charged_action_credits: null,
+    charge_status: "pending",
+  });
 }
 
 export async function cancelZipPreviewHold(projectId: string): Promise<void> {

@@ -26,6 +26,9 @@ export function normalizeInternalPreviewUrl(url: string): string {
 
   if (trimmed.startsWith("api/projects/")) {
     const fixed = `/${trimmed}`;
+    if (typeof console !== "undefined") {
+      console.warn("[preview-url] corrected relative preview API path", { from: trimmed, to: fixed });
+    }
     assertInternalPreviewUrl(fixed);
     return fixed;
   }
@@ -73,13 +76,40 @@ export function tryNormalizeInternalPreviewUrl(url: string | null | undefined): 
 /** Iframe src on the Vodex platform origin (never relative to generated app routes). */
 export function toPreviewIframeSrc(pathOrUrl: string, origin?: string): string {
   const path = normalizeInternalPreviewUrl(pathOrUrl);
+  if (path.includes("api/projects/") && !path.startsWith("/api/projects/")) {
+    throw new InvalidInternalPreviewUrlError("Preview iframe src still relative after normalization");
+  }
   if (typeof window !== "undefined") {
-    return new URL(path, window.location.origin).href;
+    const href = new URL(path, window.location.origin).href;
+    if (href.includes("api/projects/") && !href.includes("/api/projects/")) {
+      throw new InvalidInternalPreviewUrlError("Preview iframe href resolved to relative api/projects path");
+    }
+    return href;
   }
   if (origin) {
     return new URL(path, origin).href;
   }
   return path;
+}
+
+/** Normalize stored preview_url from DB; persists correction when persist=true and admin client provided. */
+export async function normalizeStoredPreviewUrl(input: {
+  projectId: string;
+  previewUrl: string | null | undefined;
+  persist?: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin?: { from: (table: string) => any } | null;
+}): Promise<string | null> {
+  if (!input.previewUrl?.trim()) return null;
+  const normalized = tryNormalizeInternalPreviewUrl(input.previewUrl);
+  if (!normalized) return null;
+  if (normalized !== input.previewUrl.trim() && input.persist && input.admin) {
+    await input.admin
+      .from("projects")
+      .update({ preview_url: normalized })
+      .eq("id", input.projectId);
+  }
+  return normalized;
 }
 
 /** Build preview-html frame path with route + optional artifact build id. */

@@ -5,6 +5,10 @@ import { requireProjectId, jsonMissingId } from "@/lib/ids/required-ids";
 import { applyPreviewBuildToProject } from "@/lib/imports/apply-preview-build-to-project";
 import { loadLatestPreviewDiagnostics } from "@/lib/imports/runtime-build-runner";
 import { loadPreviewRuntimeStatus } from "@/lib/preview/load-preview-runtime-status";
+import {
+  buildInternalPreviewHtmlUrl,
+  normalizeStoredPreviewUrl,
+} from "@/lib/preview/internal-preview-url";
 
 export const dynamic = "force-dynamic";
 
@@ -59,9 +63,29 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     }
   }
 
+  const admin = createServiceRoleClient();
+  let previewUrl = await normalizeStoredPreviewUrl({
+    projectId,
+    previewUrl: project.preview_url,
+    persist: true,
+    admin,
+  });
+
+  if (!previewUrl && runtime.previewRenderable && runtime.jobId) {
+    previewUrl = buildInternalPreviewHtmlUrl({
+      projectId,
+      artifactBuildId: runtime.jobId,
+    });
+  }
+
   return NextResponse.json({
     ...runtime,
-    previewUrl: project.preview_url ?? null,
+    previewUrl,
     previewHonest: runtime.previewHonest,
+    reservation_id: `zip-preview:${projectId}`,
+    estimated_action_credits: runtime.estimatedActionCredits,
+    credit_status: runtime.chargeStatus,
+    captured_action_credits: runtime.chargedActionCredits,
+    capture_error: runtime.creditCaptureWarning,
   });
 }

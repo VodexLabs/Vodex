@@ -66,6 +66,7 @@ export async function chargeActionCredit(
     projectId: input.projectId,
     actionType: input.actionType,
     providerCostUsd: input.providerCostUsd,
+    dynamicFloor: input.dynamicFloor ?? credits,
   });
   if (!affordable.ok) {
     return { ok: false, error: "Action Credits depleted.", code: "insufficient" };

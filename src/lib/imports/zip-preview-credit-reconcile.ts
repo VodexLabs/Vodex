@@ -42,7 +42,9 @@ export async function reconcileZipPreviewCreditCapture(input: {
       userId: input.ownerId,
       projectId: input.projectId,
     });
-    if (capture.ok && capture.charged > 0) {
+    const holdAfter = await loadZipPreviewHoldStatus(input.projectId);
+    const captured = capture.charged > 0 || holdAfter?.status === "charged";
+    if (capture.ok && captured) {
       if (admin) {
         await patchJobCreditMetadata(admin, input.projectId, {
           credit_reservation_id: operationId,
@@ -51,7 +53,13 @@ export async function reconcileZipPreviewCreditCapture(input: {
           credit_status: "captured",
         });
       }
-      return { action: "captured", charged: capture.charged, warning: null };
+      const chargedAmount =
+        capture.charged > 0
+          ? capture.charged
+          : holdAfter?.status === "charged"
+            ? holdAfter.credits
+            : hold.credits;
+      return { action: "captured", charged: chargedAmount, warning: null };
     }
 
     const warning =

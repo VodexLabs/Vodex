@@ -49,6 +49,8 @@ import {
   type Attachment,
 } from "@/components/create/workspace/attachment-rail";
 import { PreviewPanel } from "@/components/create/workspace/preview-panel";
+import { projectPreviewFrameUrl } from "@/lib/preview/preview-frame-url";
+import { tryNormalizeInternalPreviewUrl } from "@/lib/preview/internal-preview-url";
 import { WorkspaceLauncher, type WorkspaceRightTab } from "@/components/create/workspace/workspace-launcher";
 import { AgentPhases } from "@/components/create/workspace/agent-phases";
 import { AppDashboardPanel } from "@/components/create/workspace/app-dashboard-panel";
@@ -795,7 +797,12 @@ export function CreationWorkspace({
                     className="h-full p-3"
                   >
                     <PreviewPanel
-                      url={project?.previewUrl ?? null}
+                      url={
+                        project?.previewUrl
+                          ? tryNormalizeInternalPreviewUrl(project.previewUrl) ??
+                            projectPreviewFrameUrl(project.id)
+                          : null
+                      }
                       appName={project?.name ?? null}
                       thinking={isBusy}
                       editMode={mode === "edit"}

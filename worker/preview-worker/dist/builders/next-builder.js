@@ -3,21 +3,30 @@ import * as path from "node:path";
 import { resolveOutputDir } from "../sandbox.js";
 import { npmInstall, npmRunBuild } from "./run-command.js";
 import { injectPreviewEnvShims, detectLegacy } from "../adapters/base44-adapter.js";
+import { ensureNextStaticExportOnDisk } from "./next-static-export.js";
 export async function buildNext(root, framework, files) {
-    if (framework.isSsrNext && !framework.scripts.export) {
-        return {
-            ok: false,
-            logs: "Next SSR detected",
-            blockedReason: "Next SSR preview requires persistent runtime mode — static export is not configured for this app",
-        };
-    }
     let logs = "";
-    const install = await npmInstall(root, framework.packageManager, { preferInstall: true });
+    let frameworkInfo = framework;
+    if (framework.isSsrNext && !framework.scripts.export) {
+        const patch = await ensureNextStaticExportOnDisk(root);
+        logs += patch.logs;
+        if (patch.patched) {
+            frameworkInfo = { ...framework, isSsrNext: false, hasStaticExport: true };
+        }
+        else {
+            return {
+                ok: false,
+                logs: logs || "Next SSR detected",
+                blockedReason: "Next SSR preview requires persistent runtime mode — static export is not configured for this app",
+            };
+        }
+    }
+    const install = await npmInstall(root, frameworkInfo.packageManager, { preferInstall: true });
     logs += `[install] ${install.meta.command} ${install.meta.args.join(" ")}\n${install.logs}\n`;
     if (!install.ok) {
         return { ok: false, logs, blockedReason: "Next.js dependency install failed" };
     }
-    const build = await npmRunBuild(root, framework.packageManager, "build");
+    const build = await npmRunBuild(root, frameworkInfo.packageManager, "build");
     logs += `[build] ${build.meta.command} ${build.meta.args.join(" ")}\n${build.logs}\n`;
     if (!build.ok) {
         return { ok: false, logs, blockedReason: "Next.js build failed" };

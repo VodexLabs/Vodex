@@ -15,6 +15,83 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ZIP_IMPORT_MAX_MB } from "@/lib/import/zip-import-limits";
 import { splitZipScanBlockers, webPreviewReady } from "@/lib/import/zip-scan-classification";
+import { refreshCredits } from "@/lib/stores/credits-store";
+
+type ImportPreviewPollStatus = {
+  previewRenderable?: boolean;
+  previewStatus?: string;
+  jobStatus?: string | null;
+  previewHonest?: boolean;
+  blockedReason?: string | null;
+  userMessage?: string | null;
+  reservation_id?: string | null;
+  estimated_action_credits?: number | null;
+  credit_status?: string | null;
+  captured_action_credits?: number | null;
+  capture_error?: string | null;
+  buildLogs?: string | null;
+};
+
+const IMPORT_PREVIEW_STAGES: { pct: number; label: string }[] = [
+  { pct: 8, label: "Scanning ZIP" },
+  { pct: 18, label: "Uploading source" },
+  { pct: 28, label: "Queuing preview build" },
+  { pct: 42, label: "Worker installing dependencies" },
+  { pct: 58, label: "Worker building app" },
+  { pct: 74, label: "Uploading artifact" },
+  { pct: 88, label: "Verifying preview" },
+  { pct: 100, label: "Preview ready" },
+];
+
+function importStageFromPoll(status: ImportPreviewPollStatus): { pct: number; label: string } {
+  if (status.previewRenderable) return IMPORT_PREVIEW_STAGES[7]!;
+  if (status.jobStatus === "failed" || status.jobStatus === "failed_stale" || status.previewStatus === "failed") {
+    return { pct: 88, label: "Preview build failed" };
+  }
+  const logs = (status.buildLogs ?? "").toLowerCase();
+  if (status.jobStatus === "succeeded" || status.previewStatus === "ready") {
+    return IMPORT_PREVIEW_STAGES[6]!;
+  }
+  if (status.jobStatus === "locked" || status.jobStatus === "running") {
+    if (logs.includes("upload") && logs.includes("artifact")) return IMPORT_PREVIEW_STAGES[5]!;
+    if (logs.includes("build") || logs.includes("vite") || logs.includes("next build")) {
+      return IMPORT_PREVIEW_STAGES[4]!;
+    }
+    if (logs.includes("install") || logs.includes("npm") || logs.includes("pnpm") || logs.includes("yarn")) {
+      return IMPORT_PREVIEW_STAGES[3]!;
+    }
+    return IMPORT_PREVIEW_STAGES[4]!;
+  }
+  if (status.jobStatus === "queued" || status.jobStatus === "pending") {
+    return IMPORT_PREVIEW_STAGES[2]!;
+  }
+  return IMPORT_PREVIEW_STAGES[1]!;
+}
+
+async function pollImportPreviewStatus(
+  projectId: string,
+  onTick: (stage: { pct: number; label: string }, status: ImportPreviewPollStatus) => void,
+): Promise<ImportPreviewPollStatus> {
+  const deadline = Date.now() + 12 * 60 * 1000;
+  let last: ImportPreviewPollStatus = {};
+  while (Date.now() < deadline) {
+    const res = await fetch(`/api/projects/${projectId}/preview/import-status`, {
+      credentials: "include",
+    });
+    const j = (await res.json()) as ImportPreviewPollStatus;
+    last = j;
+    const stage = importStageFromPoll(j);
+    onTick(stage, j);
+    const terminal =
+      j.previewRenderable === true ||
+      j.jobStatus === "failed" ||
+      j.jobStatus === "failed_stale" ||
+      j.previewStatus === "failed";
+    if (terminal) return j;
+    await new Promise((r) => setTimeout(r, 2500));
+  }
+  return last;
+}
 
 // ─── Detection types ──────────────────────────────────────────────────────────
 
@@ -267,20 +344,16 @@ export function ZipImportWizard({ onClose, onComplete }: ZipImportWizardProps) {
   const [importProgress, setImportProgress] = React.useState(0);
   const [importStageLabel, setImportStageLabel] = React.useState("");
   const [importElapsedSec, setImportElapsedSec] = React.useState(0);
+  const [importBillingDiag, setImportBillingDiag] = React.useState<{
+    reservation_id: string | null;
+    estimated_action_credits: number | null;
+    credit_status: string | null;
+    captured_action_credits: number | null;
+    capture_error: string | null;
+  } | null>(null);
   const importStartedAt = React.useRef<number | null>(null);
 
   const isDev = process.env.NODE_ENV !== "production";
-
-  const IMPORT_STAGES: { pct: number; label: string }[] = [
-    { pct: 10, label: "Uploading ZIP" },
-    { pct: 25, label: "Scanning files" },
-    { pct: 40, label: "Analyzing framework" },
-    { pct: 55, label: "Preparing source snapshot" },
-    { pct: 70, label: "Queueing preview worker" },
-    { pct: 85, label: "Installing dependencies" },
-    { pct: 95, label: "Building preview" },
-    { pct: 100, label: "Finalizing preview" },
-  ];
 
   React.useEffect(() => {
     if (step !== "importing") {
@@ -288,23 +361,11 @@ export function ZipImportWizard({ onClose, onComplete }: ZipImportWizardProps) {
       return;
     }
     importStartedAt.current = Date.now();
-    setImportProgress(0);
     setImportElapsedSec(0);
     const tick = window.setInterval(() => {
       const started = importStartedAt.current ?? Date.now();
-      const elapsed = Math.floor((Date.now() - started) / 1000);
-      setImportElapsedSec(elapsed);
-      const idx = Math.min(
-        IMPORT_STAGES.length - 1,
-        Math.floor(elapsed / 12),
-      );
-      const stage = IMPORT_STAGES[idx]!;
-      setImportStageLabel(stage.label);
-      const base = idx > 0 ? IMPORT_STAGES[idx - 1]!.pct : 0;
-      const span = stage.pct - base;
-      const within = Math.min(1, (elapsed % 12) / 12);
-      setImportProgress(Math.min(98, Math.round(base + span * within)));
-    }, 400);
+      setImportElapsedSec(Math.floor((Date.now() - started) / 1000));
+    }, 1000);
     return () => window.clearInterval(tick);
   }, [step]);
 
@@ -463,9 +524,14 @@ export function ZipImportWizard({ onClose, onComplete }: ZipImportWizardProps) {
     }
     setStep("importing");
     setImportError(null);
+    setImportProgress(IMPORT_PREVIEW_STAGES[0]!.pct);
+    setImportStageLabel(IMPORT_PREVIEW_STAGES[0]!.label);
+    setImportBillingDiag(null);
     const fd = new FormData();
     fd.append("file", file);
     if (projectName.trim()) fd.append("name", projectName.trim());
+    setImportProgress(IMPORT_PREVIEW_STAGES[1]!.pct);
+    setImportStageLabel(IMPORT_PREVIEW_STAGES[1]!.label);
     const res = await fetch("/api/projects/import-zip", { method: "POST", body: fd });
     const j = (await res.json()) as {
       error?: string;
@@ -503,24 +569,46 @@ export function ZipImportWizard({ onClose, onComplete }: ZipImportWizardProps) {
       setStep("confirm");
       return;
     }
+    const projectId = j.projectId!;
+    setImportProgress(IMPORT_PREVIEW_STAGES[2]!.pct);
+    setImportStageLabel(IMPORT_PREVIEW_STAGES[2]!.label);
+
+    const polled = await pollImportPreviewStatus(projectId, (stage, status) => {
+      setImportProgress(stage.pct);
+      setImportStageLabel(stage.label);
+      setImportBillingDiag({
+        reservation_id: status.reservation_id ?? `zip-preview:${projectId}`,
+        estimated_action_credits: status.estimated_action_credits ?? scanPayload.creditEstimate.estimatedActionCredits,
+        credit_status: status.credit_status ?? "pending",
+        captured_action_credits: status.captured_action_credits ?? null,
+        capture_error: status.capture_error ?? null,
+      });
+    });
+
+    const previewReady = polled.previewRenderable === true;
+    const previewFailed =
+      polled.jobStatus === "failed" ||
+      polled.jobStatus === "failed_stale" ||
+      polled.previewStatus === "failed";
+
+    if (previewReady) {
+      setImportProgress(100);
+      setImportStageLabel("Preview ready");
+      await refreshCredits({ reason: "charge", force: true });
+    } else if (previewFailed) {
+      setImportStageLabel("Preview build failed");
+    }
+
     const result = {
-      projectId: j.projectId!,
+      projectId,
       redirectTo: j.redirectTo!,
       fileCount: j.fileCount ?? 0,
       framework: j.framework ?? scanPayload.framework,
-      previewReady: j.previewReady === true,
-      blockedReason: j.blockedReason ?? null,
-      previewStatus: j.previewStatus ?? "queued",
+      previewReady,
+      blockedReason: polled.blockedReason ?? j.blockedReason ?? null,
+      previewStatus: previewReady ? "ready" : previewFailed ? "failed" : (polled.previewStatus ?? j.previewStatus ?? "queued"),
     };
-    setImportProgress(100);
     setImportResult(result);
-    if (result.redirectTo && !result.previewReady) {
-      setStep("done");
-      const name = projectName || file?.name.replace(/\.zip$/i, "") || "Imported";
-      onComplete({ projectId: result.projectId, name });
-      router.push(result.redirectTo);
-      return;
-    }
     setStep("results");
   }
 
@@ -851,6 +939,17 @@ export function ZipImportWizard({ onClose, onComplete }: ZipImportWizardProps) {
                   Credits are currently <strong>reserved</strong>, not charged. We capture Action Credits only if the
                   preview build succeeds. Large imported apps can take a few minutes.
                 </p>
+                {importBillingDiag ? (
+                  <div className="max-w-md rounded-lg bg-muted/40 px-3 py-2 text-left text-[11px] text-muted-foreground ring-1 ring-border">
+                    <p>reservation_id: {importBillingDiag.reservation_id ?? "—"}</p>
+                    <p>estimated_action_credits: {importBillingDiag.estimated_action_credits ?? "—"}</p>
+                    <p>credit_status: {importBillingDiag.credit_status ?? "—"}</p>
+                    <p>captured_action_credits: {importBillingDiag.captured_action_credits ?? "—"}</p>
+                    {importBillingDiag.capture_error ? (
+                      <p className="text-destructive">capture_error: {importBillingDiag.capture_error}</p>
+                    ) : null}
+                  </div>
+                ) : null}
               </motion.div>
             )}
 
