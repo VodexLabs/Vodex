@@ -146,8 +146,9 @@ export function getCallbackUrl(next?: string, requestUrl?: string): string {
   return `${base}?next=${encodeURIComponent(safe)}`;
 }
 
+/** Must match Supabase Auth → URL Configuration redirect allowlist (no query string). */
 export function getPasswordResetUrl(requestUrl?: string): string {
-  return `${resolveCanonicalOAuthOrigin(requestUrl)}/auth/callback?type=recovery`;
+  return getCanonicalOAuthRedirectTo(requestUrl);
 }
 
 /** If Supabase lands OAuth on `/?code=...`, forward only auth-required params to /auth/callback. */

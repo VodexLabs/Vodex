@@ -485,6 +485,7 @@ export function ImmersiveWorkspace({
   const [dashboardSection, setDashboardSection] = React.useState<DashSection>(resolvedDashboardSection);
   const [versionDrawerOpen, setVersionDrawerOpen] = React.useState(false);
   const insertPromptConsumedRef = React.useRef(false);
+  const [pendingInsertAutoSubmit, setPendingInsertAutoSubmit] = React.useState<string | null>(null);
   const [lastSubmitAt, setLastSubmitAt] = React.useState<number | null>(null);
 
   React.useEffect(() => {
@@ -538,18 +539,26 @@ export function ImmersiveWorkspace({
     const raw = searchParams.get("insertPrompt");
     if (!raw?.trim() || insertPromptConsumedRef.current) return;
     insertPromptConsumedRef.current = true;
+    let text = raw;
     try {
-      setComposerLiveText(decodeURIComponent(raw));
-      setMode("discuss");
-      setMobilePanel("chat");
-      toast.info("Prompt added to chat — review and press Submit");
+      text = decodeURIComponent(raw);
     } catch {
-      setComposerLiveText(raw);
-      setMode("discuss");
-      setMobilePanel("chat");
+      /* use raw */
+    }
+    setMode(searchParams.get("mode") === "build" ? "build" : "discuss");
+    setChatEngaged(true);
+    setMobilePanel("chat");
+    const autoSubmit = searchParams.get("autostart") === "1" || searchParams.get("autostart") === "true";
+    if (autoSubmit) {
+      setPendingInsertAutoSubmit(text);
+    } else {
+      setComposerLiveText(text);
+      toast.info("Prompt added to chat — review and press Submit");
     }
     const next = new URLSearchParams(searchParams.toString());
     next.delete("insertPrompt");
+    next.delete("autostart");
+    next.delete("mode");
     const qs = next.toString();
     const target = qs ? `${pathname}?${qs}` : pathname || "/create";
     replaceBrowserUrl(target);
@@ -2302,6 +2311,15 @@ export function ImmersiveWorkspace({
       setAutoStartFailed("Could not start automatically. Tap retry below.");
     });
   }, []);
+
+  React.useEffect(() => {
+    if (!hydrated || !pendingInsertAutoSubmit?.trim()) return;
+    const text = pendingInsertAutoSubmit.trim();
+    setPendingInsertAutoSubmit(null);
+    setPendingUserBubble(text);
+    setShowOptimisticAssistant(true);
+    invokeAutostartSubmit("url-auto", text);
+  }, [hydrated, pendingInsertAutoSubmit, invokeAutostartSubmit]);
 
   const drainPromptQueue = React.useCallback(() => {
     if (streamActiveRef.current || buildJobActiveRef.current || submitInFlightRef.current) return;

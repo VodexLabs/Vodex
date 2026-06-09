@@ -17,14 +17,39 @@ import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import { fetchDedupe } from "@/lib/cache/fetch-dedupe";
 
+function Sparkline({
+  data,
+  className,
+}: {
+  data: Array<{ views: number }>;
+  className?: string;
+}) {
+  if (!data.length) return null;
+  const max = Math.max(1, ...data.map((d) => d.views));
+  const w = 72;
+  const h = 28;
+  const points = data.map((d, i) => {
+    const x = (i / Math.max(1, data.length - 1)) * w;
+    const y = h - (d.views / max) * (h - 4) - 2;
+    return `${x},${y}`;
+  });
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className={cn("h-7 w-[4.5rem] text-blue-500", className)} aria-hidden>
+      <polyline fill="none" stroke="currentColor" strokeWidth="1.75" points={points.join(" ")} />
+    </svg>
+  );
+}
+
 function MetricCard({
   label,
   value,
   delta,
+  sparkline,
 }: {
   label: string;
   value: string | number;
   delta?: string;
+  sparkline?: Array<{ views: number }>;
 }) {
   return (
     <motion.div
@@ -33,7 +58,10 @@ function MetricCard({
       animate={{ opacity: 1, y: 0 }}
       className="rounded-xl bg-gradient-to-br from-surface to-muted/20 p-3 ring-1 ring-border"
     >
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+        {sparkline?.length ? <Sparkline data={sparkline} /> : null}
+      </div>
       <p className="mt-1 text-[20px] font-bold tabular-nums text-foreground">{value}</p>
       {delta ? <p className="mt-0.5 text-[10px] text-emerald-600">{delta}</p> : null}
     </motion.div>
@@ -57,7 +85,7 @@ function TrafficLineChart({
   }
   const max = Math.max(1, ...data.map((d) => d.views));
   const w = 640;
-  const h = expanded ? 180 : 88;
+  const h = expanded ? 220 : 120;
   const padX = 12;
   const plotW = w - padX * 2;
   const points = data.map((d, i) => {
@@ -83,7 +111,7 @@ function TrafficLineChart({
     >
       <svg
         viewBox={`0 0 ${w} ${h}`}
-        className={cn("mx-auto block w-full max-w-3xl text-blue-500", expanded ? "h-44" : "h-28")}
+        className={cn("mx-auto block w-full max-w-4xl text-blue-500", expanded ? "h-56" : "h-36")}
         preserveAspectRatio="xMidYMid meet"
         onMouseLeave={() => setHover(null)}
       >
@@ -351,14 +379,28 @@ export function InsightsDashboardPanel({
                 )}
               >
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-                <p className="mt-1 text-[20px] font-bold tabular-nums text-foreground">{value}</p>
+                <div className="flex items-end justify-between gap-2">
+                  <p className="mt-1 text-[20px] font-bold tabular-nums text-foreground">{value}</p>
+                  {data?.timeseriesByMetric?.[key]?.length ? (
+                    <Sparkline data={data.timeseriesByMetric[key]!} />
+                  ) : null}
+                </div>
               </button>
             ))}
-            <MetricCard label="Conversion" value={`${data?.conversionRate ?? 0}%`} />
-            <MetricCard label="Bounce rate" value={`${data?.bounceRate ?? 0}%`} />
+            <MetricCard
+              label="Conversion"
+              value={`${data?.conversionRate ?? 0}%`}
+              sparkline={data?.timeseriesByMetric?.signups}
+            />
+            <MetricCard
+              label="Bounce rate"
+              value={`${data?.bounceRate ?? 0}%`}
+              sparkline={data?.timeseriesByMetric?.sessions}
+            />
             <MetricCard
               label="Avg session"
               value={data?.avgSessionSeconds ? `${Math.round((data.avgSessionSeconds ?? 0) / 60)}m` : "—"}
+              sparkline={data?.timeseriesByMetric?.pageViews}
             />
             <MetricCard label="Live now" value={data?.realtimeVisitors ?? 0} />
           </div>

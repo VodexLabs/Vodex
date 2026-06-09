@@ -36,7 +36,13 @@ function periodWindow(
 function bucketKey(iso: string, period: Period): string {
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return iso;
-  if (period === "realtime" || period === "24h") {
+  if (period === "realtime") {
+    const d = new Date(t);
+    const bucketMin = Math.floor(d.getMinutes() / 5) * 5;
+    d.setMinutes(bucketMin, 0, 0);
+    return d.toISOString();
+  }
+  if (period === "24h") {
     const d = new Date(t);
     d.setMinutes(0, 0, 0);
     return d.toISOString();
@@ -107,6 +113,30 @@ function buildTimeseries(
   return [...counts.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([date, views]) => ({ date, label: formatBucketLabel(date, period), views }));
+}
+
+function fillTimeBuckets(
+  points: TimeseriesPoint[],
+  period: Period,
+  since: string,
+  until: string,
+): TimeseriesPoint[] {
+  if (period !== "24h" && period !== "realtime") return points;
+  const end = new Date(until).getTime();
+  const stepMs = period === "realtime" ? 5 * 60 * 1000 : 60 * 60 * 1000;
+  const slots = period === "realtime" ? 12 : 24;
+  const map = new Map(points.map((p) => [p.date, p.views]));
+  const out: TimeseriesPoint[] = [];
+  for (let i = slots - 1; i >= 0; i--) {
+    const t = end - i * stepMs;
+    const key = bucketKey(new Date(t).toISOString(), period);
+    out.push({
+      date: key,
+      label: formatBucketLabel(key, period),
+      views: map.get(key) ?? 0,
+    });
+  }
+  return out;
 }
 
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -297,12 +327,17 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     errors: rows
       .filter((r) => ["error", "error_event"].includes(String(r.event_type)))
       .slice(0, 20),
-    timeseries: buildTimeseries(rows, period, "pageViews"),
+    timeseries: fillTimeBuckets(buildTimeseries(rows, period, "pageViews"), period, since, until),
     timeseriesByMetric: {
-      pageViews: buildTimeseries(rows, period, "pageViews"),
-      sessions: buildTimeseries(rows, period, "sessions"),
-      signups: buildTimeseries(rows, period, "signups"),
-      uniqueVisitors: buildTimeseries(rows, period, "uniqueVisitors"),
+      pageViews: fillTimeBuckets(buildTimeseries(rows, period, "pageViews"), period, since, until),
+      sessions: fillTimeBuckets(buildTimeseries(rows, period, "sessions"), period, since, until),
+      signups: fillTimeBuckets(buildTimeseries(rows, period, "signups"), period, since, until),
+      uniqueVisitors: fillTimeBuckets(
+        buildTimeseries(rows, period, "uniqueVisitors"),
+        period,
+        since,
+        until,
+      ),
     },
     revenue: paymentRow
       ? { connected: true, provider: (paymentRow as { provider?: string }).provider }

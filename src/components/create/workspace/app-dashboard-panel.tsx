@@ -753,7 +753,7 @@ export function AppDashboardPanel({
             onInsertChatPrompt={(prompt) => {
               if (onInsertChatPrompt) onInsertChatPrompt(prompt);
               else {
-                window.location.href = `/apps/${projectId}/builder?insertPrompt=${encodeURIComponent(prompt)}`;
+                window.location.href = `/apps/${projectId}/builder?mode=discuss&autostart=1&insertPrompt=${encodeURIComponent(prompt)}`;
               }
             }}
           />

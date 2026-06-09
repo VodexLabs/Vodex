@@ -61,6 +61,7 @@ export async function verifyCustomDomainDns(
 
   let txtVerified = false;
   const txtHost = `_vodex.${host}`;
+  const txtLabel = `_vodex.${dnsRecordLabel(host)}`;
   try {
     const txts = await dns.resolveTxt(txtHost);
     for (const row of txts) {
@@ -69,7 +70,7 @@ export async function verifyCustomDomainDns(
       if (joined === `${TXT_PREFIX}${verificationToken}`) txtVerified = true;
     }
   } catch {
-    errors.push(`TXT record not found at ${txtHost}`);
+    errors.push(`TXT record not found at ${txtHost} (in IONOS use Name: ${txtLabel})`);
   }
 
   let cnameVerified = false;
@@ -78,7 +79,28 @@ export async function verifyCustomDomainDns(
     cnameRecords.push(...cnames);
     cnameVerified = cnames.some((c) => c.toLowerCase().replace(/\.$/, "") === CNAME_TARGET);
   } catch {
-    errors.push(`CNAME on ${host} should point to ${CNAME_TARGET}`);
+    const label = dnsRecordLabel(host);
+    const apexNote = isApexHostname(host.replace(/^www\./, ""))
+      ? ""
+      : ` Do not use the full domain as the CNAME Name — use "${label}" only.`;
+    errors.push(`CNAME on ${host} should point to ${CNAME_TARGET}.${apexNote}`);
+    const zoneParts = host.split(".").filter(Boolean);
+    if (zoneParts.length >= 2) {
+      const zone = zoneParts.slice(-2).join(".");
+      const mistakenHost = `${zoneParts[zoneParts.length - 2]}.${zone}`;
+      if (mistakenHost !== host && mistakenHost.includes(".")) {
+        try {
+          const wrong = await dns.resolveCname(mistakenHost);
+          if (wrong.length) {
+            errors.push(
+              `You added CNAME at ${mistakenHost}, but Vodex expects ${host}. In IONOS use Name "${label}" only.`,
+            );
+          }
+        } catch {
+          /* no mistaken record */
+        }
+      }
+    }
   }
 
   return {

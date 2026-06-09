@@ -52,7 +52,8 @@ export async function GET(
     relativePath: rel,
   });
 
-  if (!file && rel !== "index.html" && !rel.includes(".")) {
+  const looksLikeAsset = /\.[a-z0-9]{1,8}$/i.test(rel.split("/").pop() ?? "");
+  if (!file && !looksLikeAsset) {
     rel = "index.html";
     file = await downloadPreviewArtifactFile({
       admin,

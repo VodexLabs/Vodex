@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { parseJsonResponse } from "@/lib/api/safe-json";
 import { MobileBillingWizard } from "@/components/payments/mobile-billing-wizard";
 import { ContextualHelp } from "@/components/help/contextual-help";
+import { IntegrationIconWell } from "@/components/brand/integration-icons";
 
 type ProviderCard = {
   provider: string;
@@ -22,12 +23,11 @@ type ProviderCard = {
   webhook_url?: string | null;
 };
 
-const PROVIDER_BRAND: Record<string, { initials: string; className: string }> = {
-  stripe: { initials: "S", className: "bg-[#635BFF] text-white" },
-  paddle: { initials: "P", className: "bg-[#FDDD35] text-slate-900" },
-  paypal: { initials: "PP", className: "bg-[#003087] text-white" },
-  revenuecat: { initials: "RC", className: "bg-[#2D2D2D] text-white" },
-  lemon_squeezy: { initials: "LS", className: "bg-[#FFC233] text-slate-900" },
+const PAYMENT_ICON: Record<string, string> = {
+  stripe: "stripe",
+  paddle: "paddle",
+  paypal: "paypal",
+  lemon_squeezy: "lemonsqueezy",
 };
 
 function apiErrorMessage(data: { error?: string | { message?: string } } | null): string {
@@ -231,7 +231,7 @@ export function ProjectPaymentsPanel({
                 type="button"
                 onClick={() => setSelected(p.provider)}
                 className={cn(
-                  "rounded-xl border p-4 text-left transition",
+                  "cursor-pointer rounded-xl border p-4 text-left transition hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
                   selected === p.provider
                     ? "border-accent bg-accent/5 ring-1 ring-accent/30"
                     : "border-border bg-background hover:border-accent/40",
@@ -239,15 +239,20 @@ export function ProjectPaymentsPanel({
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-2.5">
-                    <div
-                      className={cn(
-                        "flex size-9 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold",
-                        PROVIDER_BRAND[p.provider]?.className ?? "bg-muted text-foreground",
-                      )}
-                      aria-hidden
-                    >
-                      {PROVIDER_BRAND[p.provider]?.initials ?? p.label.slice(0, 2).toUpperCase()}
-                    </div>
+                    {PAYMENT_ICON[p.provider] ? (
+                      <IntegrationIconWell
+                        provider={PAYMENT_ICON[p.provider]}
+                        size="md"
+                        className="shrink-0"
+                      />
+                    ) : (
+                      <div
+                        className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#2D2D2D] text-[10px] font-bold text-white"
+                        aria-hidden
+                      >
+                        RC
+                      </div>
+                    )}
                     <div>
                       <p className="text-[14px] font-semibold">{p.label}</p>
                       <p className="mt-0.5 text-[11px] text-muted-foreground">{p.tagline}</p>

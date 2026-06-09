@@ -237,6 +237,10 @@ const ERROR_MAP: Array<[RegExp, string]> = [
   ],
   [/signup.*disabled|signups.*disabled/i, "Account registration is currently disabled."],
   [/email.*invalid|invalid.*email/i, "Please enter a valid email address."],
+  [
+    /redirect.*not allowed|invalid redirect|redirect_to|redirect url/i,
+    "__REDIRECT_NOT_ALLOWED__",
+  ],
 ];
 
 export function humanizeLoginError(
@@ -320,6 +324,9 @@ export function humanizeAuthError(
       }
       if (replacement === "__CONNECTION_SETUP__") {
         return CONNECTION_SETUP_USER_MESSAGE;
+      }
+      if (replacement === "__REDIRECT_NOT_ALLOWED__") {
+        return `Password reset redirect is not allowlisted in Supabase. Add ${getCanonicalOAuthRedirectTo()} under Authentication → URL Configuration → Redirect URLs.`;
       }
       return replacement;
     }

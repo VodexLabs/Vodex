@@ -166,7 +166,18 @@ export async function GET(request: NextRequest) {
 
   logAuthEvent("oauth_session_created", undefined, "info", "server");
 
-  if (type === "recovery") {
+  const {
+    data: { user: exchangeUser },
+  } = await supabase.auth.getUser();
+
+  const recoverySentAt = exchangeUser?.recovery_sent_at
+    ? new Date(exchangeUser.recovery_sent_at).getTime()
+    : null;
+  const isPasswordRecovery =
+    type === "recovery" ||
+    (recoverySentAt != null && Date.now() - recoverySentAt < 2 * 60 * 60 * 1000);
+
+  if (isPasswordRecovery) {
     const response = NextResponse.redirect(`${origin}/auth/reset-password`);
     applyPendingAuthCookies(response, pendingSessionCookies);
     return response;
@@ -177,9 +188,7 @@ export async function GET(request: NextRequest) {
   let onboardingCompleted = true;
   let profileSetupFailed = false;
   try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = exchangeUser;
     if (user) {
       logAuthEvent("profile_ensure_started", { userId: user.id }, "info", "server");
       const result = await bootstrapProfileFromOAuth(user, refCookie);

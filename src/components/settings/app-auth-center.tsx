@@ -1,16 +1,12 @@
 "use client";
 
 import * as React from "react";
-import {
-  Loader2,
-  Mail,
-  Phone,
-} from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { AuthProviderIcon } from "@/components/brand/auth-provider-icons";
 import { AuthProviderRow } from "@/components/settings/auth-provider-row";
 import { CustomOAuthWizard, type OAuthWizardProvider } from "@/components/settings/custom-oauth-wizard";
 import { AuthFallbackPanel } from "@/components/settings/auth-fallback-panel";
 import { toast } from "@/lib/toast";
-import { cn } from "@/lib/utils";
 
 type AuthSettings = {
   email_password_enabled: boolean;
@@ -35,29 +31,6 @@ type Diagnostics = {
   lastAuthError: string | null;
   googleEnabled: boolean;
 };
-
-function ProviderIcon({ label, className }: { label: string; className?: string }) {
-  const initials = label.slice(0, 1).toUpperCase();
-  const colors: Record<string, string> = {
-    Google: "bg-white text-[#4285F4]",
-    GitHub: "bg-[#24292f] text-white",
-    Apple: "bg-black text-white",
-    Microsoft: "bg-[#00A4EF] text-white",
-    Discord: "bg-[#5865F2] text-white",
-    Facebook: "bg-[#1877F2] text-white",
-  };
-  return (
-    <span
-      className={cn(
-        "flex size-6 items-center justify-center rounded-md text-[11px] font-bold",
-        colors[label] ?? "bg-accent/15 text-accent",
-        className,
-      )}
-    >
-      {initials}
-    </span>
-  );
-}
 
 export function AppAuthCenter({
   projectId,
@@ -159,7 +132,7 @@ export function AppAuthCenter({
         <AuthProviderRow
           id="email"
           testId="auth-provider-row-email"
-          icon={<Mail className="size-5 text-accent" />}
+          icon={<AuthProviderIcon provider="email" />}
           title="Gmail / Email & Password"
           description="Email and password login with optional magic link. Enabled by default for most apps."
           enabled={settings.email_password_enabled}
@@ -173,7 +146,7 @@ export function AppAuthCenter({
 
         <AuthProviderRow
           id="google"
-          icon={<ProviderIcon label="Google" />}
+          icon={<AuthProviderIcon provider="google" />}
           title="Google"
           description="Vodex-managed Google sign-in, or connect your own OAuth client below."
           enabled={settings.google_enabled}
@@ -187,7 +160,7 @@ export function AppAuthCenter({
         <AuthProviderRow
           id="google-custom"
           nested
-          icon={<ProviderIcon label="Google" className="opacity-80" />}
+          icon={<AuthProviderIcon provider="google-custom" className="opacity-80" />}
           title="Custom Google OAuth"
           description="Use your own Google Cloud OAuth client ID and secret."
           enabled={settings.customOAuth?.google.configured ?? false}
@@ -201,7 +174,7 @@ export function AppAuthCenter({
 
         <AuthProviderRow
           id="phone"
-          icon={<Phone className="size-5 text-accent" />}
+          icon={<AuthProviderIcon provider="phone" />}
           title="Phone number"
           description="SMS OTP sign-in. Visible to end users once SMS provider is configured."
           enabled={settings.phone_enabled ?? false}
@@ -231,7 +204,7 @@ export function AppAuthCenter({
             <AuthProviderRow
               key={p.id}
               id={p.id}
-              icon={<ProviderIcon label={p.label} />}
+              icon={<AuthProviderIcon provider={p.id} />}
               title={p.label}
               description={`Let users sign in with ${p.label}.`}
               enabled={enabled}
@@ -255,7 +228,7 @@ export function AppAuthCenter({
 
         <AuthProviderRow
           id="custom-oauth"
-          icon={<ProviderIcon label="OAuth" />}
+          icon={<AuthProviderIcon provider="custom" />}
           title="Custom OAuth"
           description="Bring your own OAuth provider with client ID, secret, and redirect URI."
           enabled={settings.oauth_mode === "custom"}

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { variants } from "@/lib/motion";
 import { authUpdatePassword, humanizeAuthError } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 function StrengthBar({ password }: { password: string }) {
@@ -47,9 +48,40 @@ export function ResetPasswordView() {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [done, setDone] = React.useState(false);
+  const [sessionReady, setSessionReady] = React.useState(false);
+  const [bootError, setBootError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    async function boot() {
+      const supabase = createClient();
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (cancelled) return;
+        if (error) {
+          setBootError(humanizeAuthError(error.message));
+          return;
+        }
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+      const { data } = await supabase.auth.getSession();
+      if (cancelled) return;
+      if (!data.session) {
+        setBootError("This reset link is invalid or expired. Request a new one from the forgot password page.");
+        return;
+      }
+      setSessionReady(true);
+    }
+    void boot();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const mismatch = confirm.length > 0 && password !== confirm;
-  const canSubmit = password.length >= 8 && password === confirm && !loading;
+  const canSubmit = sessionReady && password.length >= 8 && password === confirm && !loading;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -104,6 +136,18 @@ export function ResetPasswordView() {
                 Choose a strong password for your account.
               </p>
 
+              {bootError && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-4 flex items-start gap-2 rounded-lg bg-destructive/10 px-3 py-2.5 text-[12px] text-destructive ring-1 ring-destructive/20"
+                  role="alert"
+                >
+                  <AlertCircle className="mt-0.5 size-3.5 shrink-0" strokeWidth={2} />
+                  {bootError}
+                </motion.div>
+              )}
+
               {error && (
                 <motion.div
                   key={error}
@@ -116,6 +160,12 @@ export function ResetPasswordView() {
                   {error}
                 </motion.div>
               )}
+
+              {!sessionReady && !bootError ? (
+                <div className="mt-6 flex items-center justify-center gap-2 py-8 text-[13px] text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin" /> Verifying reset link…
+                </div>
+              ) : null}
 
               <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
                 <div className="space-y-1.5">

@@ -328,6 +328,34 @@ export function CustomDomainsPanel({
                       {d.dns_records.apexRedirectNote}
                     </p>
                   ) : null}
+                  <button
+                    type="button"
+                    className="cursor-pointer rounded-lg bg-blue-600/10 px-3 py-2 text-[11px] font-semibold text-blue-700 ring-1 ring-blue-600/20"
+                    onClick={() => {
+                      const cnameName = String(
+                        (d.dns_records?.cname as { name?: string } | undefined)?.name ??
+                          d.hostname.split(".")[0] ??
+                          "www",
+                      );
+                      const txtName = String(
+                        (d.dns_records?.txt as { name?: string } | undefined)?.name ??
+                          `_vodex.${cnameName}`,
+                      );
+                      const ionos = [
+                        "IONOS DNS setup for Vodex",
+                        `Host: ${d.hostname}`,
+                        "",
+                        `CNAME — Name: ${cnameName} → Value: cname.vodex.dev`,
+                        `TXT — Name: ${txtName} → Value: vodex-verify=${d.verification_token ?? ""}`,
+                        "",
+                        "Do not put the full domain in the CNAME Name field.",
+                      ].join("\n");
+                      void navigator.clipboard.writeText(ionos);
+                      toast.success("IONOS instructions copied");
+                    }}
+                  >
+                    Copy for IONOS
+                  </button>
                   <div className="space-y-2">
                     <p className="text-[10px] font-bold uppercase tracking-wide text-blue-600">CNAME record</p>
                     <DnsCopyField

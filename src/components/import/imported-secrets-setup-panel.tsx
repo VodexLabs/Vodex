@@ -227,8 +227,10 @@ export function ImportedSecretsSetupPanel({
           {submittingAll ? <Loader2 className="size-3.5 animate-spin" /> : "Submit all"}
         </Button>
         <Link
-          href={`/apps/${projectId}/builder?insertPrompt=${encodeURIComponent("Help me configure the missing environment variables for this imported app.")}`}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-[11px] font-semibold text-foreground ring-1 ring-border hover:bg-surface-raised"
+          href={`/apps/${projectId}/builder?mode=discuss&autostart=1&insertPrompt=${encodeURIComponent(
+            "Help me connect the required secrets for this imported app. Explain what each missing key is for, where to get it, and whether it is required.",
+          )}`}
+          className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-surface px-3 py-2 text-[11px] font-semibold text-foreground ring-1 ring-border hover:bg-surface-raised"
         >
           <Sparkles className="size-3.5 text-accent" />
           Ask AI to help connect secrets
