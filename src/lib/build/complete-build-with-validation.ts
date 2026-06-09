@@ -138,9 +138,9 @@ export async function completeBuildWithValidation(input: {
         : "ui_polish_quote"
       : "open_builder_retry";
 
-  const nextPreviewUrl = previewWasReady
-    ? (cur?.preview_url ?? input.previewUrl ?? null)
-    : null;
+  const { tryNormalizeInternalPreviewUrl } = await import("@/lib/preview/internal-preview-url");
+  const rawPreviewUrl = previewWasReady ? (cur?.preview_url ?? input.previewUrl ?? null) : null;
+  const nextPreviewUrl = rawPreviewUrl ? tryNormalizeInternalPreviewUrl(rawPreviewUrl) : null;
 
   const nextBuildStatus = previewFailedPersisted
     ? "preview_failed"

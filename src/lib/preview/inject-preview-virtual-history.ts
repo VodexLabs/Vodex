@@ -1,21 +1,34 @@
 /**
  * Keeps the iframe URL on preview-html while SPAs read virtual app routes.
  * Prevents replaceState("/dashboard") from escaping to platform origin paths.
+ * Blocks navigation to api/projects/* (relative or absolute) inside artifact SPAs.
  */
 export function buildPreviewVirtualHistoryScript(initialRoute: string): string {
-  const route = initialRoute.startsWith("/") ? initialRoute : `/${initialRoute}`;
+  let route = initialRoute.startsWith("/") ? initialRoute : `/${initialRoute}`;
+  if (/api\/projects\//i.test(route)) route = "/";
+
   return `(function(){
   var LOCK=location.pathname+location.search;
   var virtualPath=${JSON.stringify(route)};
   window.__VODEX_PREVIEW_ACTIVE__=true;
   window.__VODEX_VIRTUAL_PATH__=virtualPath;
+
   function normPath(p){
     if(!p)return"/";
     p=String(p).split("?")[0].split("#")[0];
     if(!p.startsWith("/"))p="/"+p;
     return p;
   }
+  function isPlatformPreviewPath(p){
+    var s=normPath(p).toLowerCase();
+    return s.indexOf("/api/projects/")===0||s.indexOf("api/projects/")>=0;
+  }
+  function isExternalPlatformHost(hostname){
+    if(!hostname)return false;
+    return /vodex\\.dev$/i.test(hostname)||/\\.vodex\\.app$/i.test(hostname);
+  }
   function setVirtualPath(p){
+    if(isPlatformPreviewPath(p))p="/";
     virtualPath=normPath(p);
     window.__VODEX_VIRTUAL_PATH__=virtualPath;
     try{
@@ -24,12 +37,13 @@ export function buildPreviewVirtualHistoryScript(initialRoute: string): string {
     }catch(e){}
   }
   function internalize(url){
-    if(typeof url==="string"&&(url.startsWith("api/projects/")||url.startsWith("/api/projects/")))return null;
+    if(typeof url!=="string")return null;
+    if(url.startsWith("api/projects/")||url.startsWith("/api/projects/"))return"/";
     try{
       var u=new URL(url,location.href);
-      if(u.pathname.startsWith("/api/projects/")||u.pathname.startsWith("api/projects/"))return null;
+      if(u.pathname.startsWith("/api/projects/")||u.pathname.indexOf("api/projects/")>=0)return"/";
       if(u.origin===location.origin)return normPath(u.pathname);
-      if(/vodex\\.dev$/i.test(u.hostname)||/\\.vodex\\.app$/i.test(u.hostname))return normPath(u.pathname);
+      if(isExternalPlatformHost(u.hostname))return normPath(u.pathname)||"/";
     }catch(e){}
     return null;
   }
@@ -39,7 +53,10 @@ export function buildPreviewVirtualHistoryScript(initialRoute: string): string {
       var origPathGet=pathDesc.get;
       Object.defineProperty(Location.prototype,"pathname",{
         get:function(){
-          if(window.__VODEX_PREVIEW_ACTIVE__)return window.__VODEX_VIRTUAL_PATH__||"/";
+          if(window.__VODEX_PREVIEW_ACTIVE__){
+            var vp=window.__VODEX_VIRTUAL_PATH__||"/";
+            return isPlatformPreviewPath(vp)?"/":vp;
+          }
           return origPathGet.call(this);
         },
         configurable:true
@@ -52,6 +69,7 @@ export function buildPreviewVirtualHistoryScript(initialRoute: string): string {
         get:function(){
           if(window.__VODEX_PREVIEW_ACTIVE__){
             var p=window.__VODEX_VIRTUAL_PATH__||"/";
+            if(isPlatformPreviewPath(p))p="/";
             return location.origin+p+(location.search||"");
           }
           return origHrefGet.call(this);
@@ -67,6 +85,7 @@ export function buildPreviewVirtualHistoryScript(initialRoute: string): string {
       var ip=internalize(u);
       if(ip){setVirtualPath(ip);return;}
       if(u.startsWith("/")&&!u.startsWith("//")){setVirtualPath(u);return;}
+      if(isPlatformPreviewPath(u)){setVirtualPath("/");return;}
     }
     return _push(s,t,LOCK);
   };
@@ -75,13 +94,16 @@ export function buildPreviewVirtualHistoryScript(initialRoute: string): string {
       var ip=internalize(u);
       if(ip){setVirtualPath(ip);return;}
       if(u.startsWith("/")&&!u.startsWith("//")){setVirtualPath(u);return;}
+      if(isPlatformPreviewPath(u)){setVirtualPath("/");return;}
     }
     return _replace(s,t,LOCK);
   };
   document.addEventListener("click",function(e){
     var a=e.target&&e.target.closest?e.target.closest("a[href]"):null;
     if(!a)return;
-    var p=internalize(a.getAttribute("href")||a.href);
+    var href=a.getAttribute("href")||a.href||"";
+    if(isPlatformPreviewPath(href)){e.preventDefault();e.stopPropagation();setVirtualPath("/");return;}
+    var p=internalize(href);
     if(p){e.preventDefault();e.stopPropagation();setVirtualPath(p);}
   },true);
   try{
@@ -97,12 +119,14 @@ export function buildPreviewVirtualHistoryScript(initialRoute: string): string {
     location.assign=function(url){
       var p=internalize(url);
       if(p){setVirtualPath(p);return;}
+      if(typeof url==="string"&&isPlatformPreviewPath(url)){setVirtualPath("/");return;}
       _assign(url);
     };
     var _locReplace=location.replace.bind(location);
     location.replace=function(url){
       var p=internalize(url);
       if(p){setVirtualPath(p);return;}
+      if(typeof url==="string"&&isPlatformPreviewPath(url)){setVirtualPath("/");return;}
       _locReplace(url);
     };
   }catch(e){}

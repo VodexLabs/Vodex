@@ -561,7 +561,14 @@ function DiscussionCard({
             disc.liked && "text-red-500",
           )}
         >
-          <Heart className={cn("size-3.5", disc.liked && "fill-current")} strokeWidth={disc.liked ? 0 : 1.55} />
+          <motion.span
+            key={disc.liked ? "liked" : "plain"}
+            initial={{ scale: 0.85 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 500, damping: 18 }}
+          >
+            <Heart className={cn("size-3.5 transition-colors", disc.liked && "fill-red-500 text-red-500")} strokeWidth={disc.liked ? 0 : 1.55} />
+          </motion.span>
           {disc.like_count}
         </button>
         <span className="flex items-center gap-1">
@@ -736,11 +743,24 @@ function GroupsTab({ onCreateGroup }: { onCreateGroup: () => void }) {
 
   if (error) {
     return (
-      <CommunityFetchFallback
-        title="Get started"
-        description="Groups are taking longer than usual to load. You can still build apps on Vodex or try loading again."
-        onRetry={() => setRetryKey((k) => k + 1)}
-      />
+      <div className="flex flex-col items-center rounded-[var(--radius-xl)] bg-surface py-14 text-center ring-1 ring-border px-6">
+        <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-accent/10 ring-1 ring-accent/20">
+          <Users className="size-7 text-accent" strokeWidth={1.5} />
+        </div>
+        <p className="text-[15px] font-semibold text-foreground">Be the first to create a Vodex builder group</p>
+        <p className="mt-2 max-w-sm text-[13px] text-muted-foreground">
+          No groups are available yet. Start a collective or explore discussions while the community grows.
+        </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <Button variant="accent" size="sm" className="gap-1.5" onClick={onCreateGroup}>
+            <Plus className="size-3.5" strokeWidth={2} />
+            Create first group
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => setRetryKey((k) => k + 1)}>
+            Retry load
+          </Button>
+        </div>
+      </div>
     );
   }
 
@@ -751,9 +771,9 @@ function GroupsTab({ onCreateGroup }: { onCreateGroup: () => void }) {
           <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-accent/10 ring-1 ring-accent/20">
             <Users className="size-7 text-accent" strokeWidth={1.5} />
           </div>
-          <p className="text-[15px] font-semibold text-foreground">No groups yet</p>
+          <p className="text-[15px] font-semibold text-foreground">Be the first to create a Vodex builder group</p>
           <p className="mt-2 max-w-sm text-[13px] text-muted-foreground">
-            Be the first to start a builder collective. Create a group around a niche, stack, or product category.
+            Start a builder collective around your stack, niche, or product category — or explore discussions while you wait.
           </p>
           <Button variant="accent" size="sm" className="mt-6 gap-1.5" onClick={onCreateGroup}>
             <Plus className="size-3.5" strokeWidth={2} />
@@ -941,12 +961,31 @@ export function CommunityView() {
       return next;
     });
 
-    if (isLiked) {
-      await supabase.from("discussion_likes").delete().eq("user_id", user.id).eq("discussion_id", discussionId);
-      await supabase.from("discussions").update({ like_count: discussions.find((d) => d.id === discussionId)!.like_count - 1 }).eq("id", discussionId);
-    } else {
-      await supabase.from("discussion_likes").insert({ user_id: user.id, discussion_id: discussionId });
-      await supabase.from("discussions").update({ like_count: discussions.find((d) => d.id === discussionId)!.like_count + 1 }).eq("id", discussionId);
+    try {
+      const res = await fetch(`/api/community/discussions/${discussionId}/like`, {
+        method: isLiked ? "DELETE" : "POST",
+        credentials: "include",
+      });
+      const j = (await res.json()) as { likeCount?: number };
+      if (typeof j.likeCount === "number") {
+        setDiscussions((prev) =>
+          prev.map((d) => (d.id === discussionId ? { ...d, like_count: j.likeCount! } : d)),
+        );
+      }
+    } catch {
+      setDiscussions((prev) =>
+        prev.map((d) =>
+          d.id === discussionId
+            ? { ...d, liked: isLiked, like_count: d.like_count + (isLiked ? 1 : -1) }
+            : d,
+        ),
+      );
+      setLikedIds((prev) => {
+        const next = new Set(prev);
+        if (isLiked) next.add(discussionId);
+        else next.delete(discussionId);
+        return next;
+      });
     }
   }
 
@@ -1225,40 +1264,62 @@ function CommunityAppsTab() {
 // ─── Builders tab ─────────────────────────────────────────────────────────────
 
 function BuildersTab({ onExploreCommunity }: { onExploreCommunity: () => void }) {
+  const [builders, setBuilders] = React.useState<
+    Array<{
+      id: string;
+      username: string;
+      displayName: string;
+      avatarUrl: string | null;
+      rankLabel: string;
+      followerCount: number;
+      bio: string | null;
+    }>
+  >([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    void fetch("/api/community/builders", { credentials: "include" })
+      .then((r) => r.json())
+      .then((j) => setBuilders(j.builders ?? []))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return <div className="flex justify-center py-16"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>;
+  }
+
+  if (builders.length === 0) {
+    return (
+      <div className="rounded-[var(--radius-xl)] bg-surface px-6 py-14 text-center ring-1 ring-border">
+        <p className="text-[15px] font-semibold text-foreground">No public builder profiles yet</p>
+        <p className="mt-2 text-[13px] text-muted-foreground">Enable your public profile in settings to appear here.</p>
+        <Button variant="accent" size="sm" className="mt-4" type="button" onClick={onExploreCommunity}>
+          Explore discussions
+        </Button>
+      </div>
+    );
+  }
+
   return (
-    <div
-      className="relative overflow-hidden rounded-[var(--radius-xl)] border border-sky-200/40 bg-gradient-to-br from-sky-50/90 via-white to-indigo-50/70 px-6 py-10 text-center shadow-[var(--shadow-card)] ring-1 ring-border dark:from-slate-900/80 dark:via-slate-950 dark:to-indigo-950/40"
-      data-testid="builders-coming-soon"
-    >
-      <div className="pointer-events-none absolute -right-12 -top-12 size-40 rounded-full bg-sky-400/15 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-8 -left-8 size-32 rounded-full bg-violet-400/15 blur-3xl" />
-      <div className="relative mx-auto mb-4 flex size-16 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white shadow-lg ring-1 ring-white/20">
-        <Users className="size-8" strokeWidth={1.5} />
-      </div>
-      <h2 className="relative text-[17px] font-semibold tracking-tight text-foreground">
-        Builders directory is coming soon
-      </h2>
-      <p className="relative mx-auto mt-2 max-w-md text-[13px] leading-relaxed text-muted-foreground">
-        Discover creators, teams, and makers building with Vodex.
-      </p>
-      <div className="relative mt-4 flex flex-wrap items-center justify-center gap-2">
-        {["Verified builders", "Featured creators", "Team profiles"].map((badge) => (
-          <span
-            key={badge}
-            className="rounded-full border border-border/80 bg-background/70 px-2.5 py-1 text-[10px] font-medium text-muted-foreground"
-          >
-            {badge}
-          </span>
-        ))}
-      </div>
-      <div className="relative mt-6 flex flex-wrap items-center justify-center gap-2">
-        <Button variant="accent" size="sm" className="gap-1.5" type="button" onClick={onExploreCommunity}>
-          Explore community
-        </Button>
-        <Button variant="secondary" size="sm" className="gap-1.5" asChild>
-          <Link href="/create">Create your first app</Link>
-        </Button>
-      </div>
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {builders.map((b) => (
+        <Link
+          key={b.id}
+          href={`/builders/${b.username}`}
+          className="rounded-[var(--radius-xl)] bg-surface p-4 ring-1 ring-border transition hover:ring-accent/30"
+        >
+          <div className="flex items-center gap-3">
+            <Avatar name={b.displayName} src={b.avatarUrl} size="sm" />
+            <div className="min-w-0">
+              <p className="truncate text-[13px] font-semibold text-foreground">{b.displayName}</p>
+              <p className="text-[11px] text-muted-foreground">@{b.username}</p>
+            </div>
+          </div>
+          <p className="mt-2 text-[11px] font-medium text-blue-600">{b.rankLabel}</p>
+          {b.bio ? <p className="mt-1 line-clamp-2 text-[12px] text-muted-foreground">{b.bio}</p> : null}
+          <p className="mt-2 text-[11px] text-muted-foreground">{b.followerCount} followers</p>
+        </Link>
+      ))}
     </div>
   );
 }

@@ -16,6 +16,7 @@ import { isWeakIconSvg } from "@/lib/projects/ensure-project-icon";
 import { isUserVisibleProject } from "@/lib/projects/user-visible-projects";
 import { computeProjectCardStatus } from "@/lib/projects/project-card-status";
 import { computeProjectCardUiState } from "@/lib/projects/project-visibility-status";
+import { normalizeProjectPreviewUrlField } from "@/lib/preview/normalize-project-preview-url-field";
 
 export const dynamic = "force-dynamic";
 
@@ -100,8 +101,10 @@ export async function GET(request: Request) {
       preview_url: row.preview_url,
     });
     const meta = LIFECYCLE_META[lifecycle];
+    const normalizedPreviewUrl = normalizeProjectPreviewUrlField(row.preview_url);
     projects.push({
       ...row,
+      preview_url: normalizedPreviewUrl,
       icon_svg,
       banner_svg,
       metadata,

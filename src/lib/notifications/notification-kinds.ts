@@ -30,7 +30,14 @@ export type NotificationKind =
   | "security_alert"
   | "integration_connected"
   | "integration_failed"
-  | "system_status";
+  | "system_status"
+  | "discussion_liked"
+  | "discussion_commented"
+  | "comment_replied"
+  | "comment_liked"
+  | "user_followed"
+  | "group_invite"
+  | "group_mention";
 
 export type NotificationInboxTab =
   | "main"
@@ -65,6 +72,13 @@ const MAIN_KINDS = new Set<NotificationKind>([
   "credits_low",
   "credits_added",
   "subscription_updated",
+  "discussion_liked",
+  "discussion_commented",
+  "comment_replied",
+  "comment_liked",
+  "user_followed",
+  "group_invite",
+  "group_mention",
 ]);
 
 const TAB_KINDS: Record<Exclude<NotificationInboxTab, "main" | "all">, Set<NotificationKind>> = {

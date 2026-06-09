@@ -24,6 +24,11 @@ const patchSchema = z
     signup_wizard_completed: z.boolean().optional(),
     signup_heard_about: z.string().max(500).optional().nullable(),
     signup_referral_code: z.string().max(120).optional().nullable(),
+    bio: z.string().max(500).optional().nullable(),
+    public_profile_enabled: z.boolean().optional(),
+    show_apps_on_profile: z.boolean().optional(),
+    show_follower_count: z.boolean().optional(),
+    allow_follows: z.boolean().optional(),
   })
   .strict();
 
@@ -76,6 +81,19 @@ export async function PATCH(req: NextRequest) {
   if (payload.signup_referral_code !== undefined) {
     (updates as Record<string, unknown>).signup_referral_code =
       payload.signup_referral_code;
+  }
+  if (payload.bio !== undefined) (updates as Record<string, unknown>).bio = payload.bio;
+  if (payload.public_profile_enabled !== undefined) {
+    (updates as Record<string, unknown>).public_profile_enabled = payload.public_profile_enabled;
+  }
+  if (payload.show_apps_on_profile !== undefined) {
+    (updates as Record<string, unknown>).show_apps_on_profile = payload.show_apps_on_profile;
+  }
+  if (payload.show_follower_count !== undefined) {
+    (updates as Record<string, unknown>).show_follower_count = payload.show_follower_count;
+  }
+  if (payload.allow_follows !== undefined) {
+    (updates as Record<string, unknown>).allow_follows = payload.allow_follows;
   }
 
   if (Object.keys(updates).length === 0) {
