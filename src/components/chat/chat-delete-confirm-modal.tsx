@@ -57,7 +57,7 @@ export function ChatDeleteConfirmModal({ open, title, onClose, onConfirm }: Prop
           type="button"
           disabled={loading}
           onClick={() => void confirm()}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-destructive px-3 py-1.5 text-[12px] font-semibold text-white"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-red-700 disabled:opacity-60"
         >
           {loading ? <Loader2 className="size-3.5 animate-spin" /> : null}
           Delete

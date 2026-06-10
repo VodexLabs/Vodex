@@ -218,16 +218,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               ...current,
               ...patch,
             });
-            if (creditRefreshTimer) clearTimeout(creditRefreshTimer);
             const planChanged = patch.plan_id != null && patch.plan_id !== prevPlan;
-            creditRefreshTimer = setTimeout(
-              () =>
-                void refreshCredits({
-                  reason: planChanged ? "plan-change" : "profile-realtime",
-                  force: planChanged,
-                }),
-              planChanged ? 200 : 1500,
-            );
+            if (planChanged) {
+              if (creditRefreshTimer) clearTimeout(creditRefreshTimer);
+              creditRefreshTimer = setTimeout(
+                () => void refreshCredits({ reason: "plan-change", force: true }),
+                200,
+              );
+            }
           },
         )
         .subscribe();

@@ -160,6 +160,19 @@ async function main() {
   console.log(`bootstrap_likely_broken: ${innerRouteBootstrapLikelyBroken(servedHtml, projectId)}`);
   console.log(`has_virtual_history_shim: ${servedHtml.includes("vodex-preview-virtual-history")}`);
   console.log(`has_inner_watchdog: ${servedHtml.includes("vodex-preview-inner-watchdog")}`);
+  console.log(`has_prehydration_rewrite: ${servedHtml.includes("vodex-prehydration-location-rewrite")}`);
+
+  const headChunk = servedHtml.match(/<head[^>]*>[\s\S]{0,8000}/i)?.[0] ?? servedHtml.slice(0, 8000);
+  const scriptTags = [...headChunk.matchAll(/<(script|link)[^>]*>/gi)].slice(0, 20);
+  console.log("\nFirst script/link tags in served HTML head:");
+  for (const [i, m] of scriptTags.entries()) {
+    console.log(`  ${i + 1}. ${m[0].slice(0, 120)}`);
+  }
+  const preIdx = servedHtml.indexOf("vodex-prehydration-location-rewrite");
+  const nextScriptIdx = servedHtml.search(/<script[^>]*(?:_next|__next)/i);
+  console.log(
+    `prehydration_before_next_scripts: ${preIdx >= 0 && (nextScriptIdx < 0 || preIdx < nextScriptIdx)}`,
+  );
 
   printLeaks("served_html", servedHtml, "index.html");
 

@@ -4,6 +4,7 @@
  */
 
 const INTERNAL_PREVIEW_PREFIX = "/api/projects/";
+const VIRTUAL_PREVIEW_PREFIX = "/preview-runtime/";
 
 export class InvalidInternalPreviewUrlError extends Error {
   constructor(message: string) {
@@ -75,6 +76,14 @@ export function tryNormalizeInternalPreviewUrl(url: string | null | undefined): 
 
 /** Iframe src on the Vodex platform origin (never relative to generated app routes). */
 export function toPreviewIframeSrc(pathOrUrl: string, origin?: string): string {
+  const trimmed = pathOrUrl.trim();
+  if (isVirtualPreviewRuntimePath(trimmed)) {
+    if (typeof window !== "undefined") {
+      return new URL(trimmed, window.location.origin).href;
+    }
+    if (origin) return new URL(trimmed, origin).href;
+    return trimmed;
+  }
   const path = normalizeInternalPreviewUrl(pathOrUrl);
   if (path.includes("api/projects/") && !path.startsWith("/api/projects/")) {
     throw new InvalidInternalPreviewUrlError("Preview iframe src still relative after normalization");
@@ -110,6 +119,35 @@ export async function normalizeStoredPreviewUrl(input: {
       .eq("id", input.projectId);
   }
   return normalized;
+}
+
+/** Virtual preview path — browser pathname is the app route, not the API proxy. */
+export function buildVirtualPreviewRuntimeUrl(input: {
+  projectId: string;
+  artifactBuildId: string;
+  route?: string | null;
+  cacheBust?: string | number;
+}): string {
+  const route = input.route?.trim();
+  const normalizedRoute =
+    route && route !== "/" ? (route.startsWith("/") ? route : `/${route}`) : "/";
+  const pathSeg =
+    normalizedRoute === "/"
+      ? ""
+      : normalizedRoute
+          .split("/")
+          .filter(Boolean)
+          .map((seg) => encodeURIComponent(seg))
+          .join("/");
+  const base = `${VIRTUAL_PREVIEW_PREFIX}${encodeURIComponent(input.projectId)}/${encodeURIComponent(input.artifactBuildId)}${pathSeg ? `/${pathSeg}` : ""}`;
+  if (input.cacheBust != null && input.cacheBust !== "") {
+    return `${base}?v=${encodeURIComponent(String(input.cacheBust))}`;
+  }
+  return base;
+}
+
+export function isVirtualPreviewRuntimePath(url: string): boolean {
+  return url.startsWith(VIRTUAL_PREVIEW_PREFIX);
 }
 
 /** Build preview-html frame path with route + optional artifact build id. */

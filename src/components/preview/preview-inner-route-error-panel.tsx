@@ -91,15 +91,27 @@ export function PreviewInnerRouteErrorPanel({
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-[15px] font-semibold leading-snug text-foreground">
-            Preview loaded, but the imported app routed to a missing page
+            {error.kind === "inner_next_route_404"
+              ? "Imported app booted on the preview proxy path"
+              : "Preview loaded, but the imported app routed to a missing page"}
           </p>
           <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted-foreground">
-            Vodex loaded the preview proxy correctly. The imported app&apos;s own router is trying to
-            render{" "}
-            <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-foreground">
-              {error.path}
-            </code>{" "}
-            as an internal route.
+            {error.kind === "inner_next_route_404" ? (
+              <>
+                Vodex loaded the preview iframe URL correctly, but the imported Next.js app read{" "}
+                <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-foreground">location.pathname</code>{" "}
+                as an internal route during hydration.
+              </>
+            ) : (
+              <>
+                Vodex loaded the preview proxy correctly. The imported app&apos;s own router is trying to
+                render{" "}
+                <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-foreground">
+                  {error.path}
+                </code>{" "}
+                as an internal route.
+              </>
+            )}
           </p>
           <p className="mt-2 text-[11.5px] leading-relaxed text-muted-foreground/90">
             This usually means the ZIP app contains Next router state, <code>basePath</code>, service

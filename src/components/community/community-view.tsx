@@ -20,6 +20,7 @@ import { CommunityHeartButton } from "@/components/community/community-heart-but
 import { GroupCategoryBadges, parseGroupCategories } from "@/components/community/group-category-badges";
 import { GroupCategoryPicker } from "@/components/community/group-category-picker";
 import { ConfirmDialog } from "@/components/community/confirm-dialog";
+import { MyDiscussionsDialog } from "@/components/community/my-discussions-dialog";
 import { sortByTrending } from "@/lib/community/trending-score";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -929,6 +930,7 @@ export function CommunityView() {
   const [discussionsRetryKey, setDiscussionsRetryKey] = React.useState(0);
   const [showCreate, setShowCreate] = React.useState(false);
   const [showCreateGroup, setShowCreateGroup] = React.useState(false);
+  const [showMyDiscussions, setShowMyDiscussions] = React.useState(false);
   const [groupsRefreshKey, setGroupsRefreshKey] = React.useState(0);
   const [likedIds, setLikedIds] = React.useState<Set<string>>(new Set());
   const [openDiscussion, setOpenDiscussion] = React.useState<DiscussionWithAuthor | null>(null);
@@ -1083,6 +1085,11 @@ export function CommunityView() {
         </div>
 
         <div className="flex items-center gap-2">
+          {tab === "Discussions" && user ? (
+            <Button variant="secondary" size="md" onClick={() => setShowMyDiscussions(true)} title="My discussions">
+              <MessageCircle className="size-4" strokeWidth={1.75} />
+            </Button>
+          ) : null}
           {tab === "Groups" ? (
             <Button variant="accent" size="md" onClick={() => setShowCreateGroup(true)} disabled={!user}>
               <Plus className="size-4" strokeWidth={1.75} />
@@ -1234,6 +1241,20 @@ export function CommunityView() {
           onLikeToggle={() => void handleLike(openDiscussion.id)}
         />
       ) : null}
+
+      <MyDiscussionsDialog
+        open={showMyDiscussions}
+        onClose={() => setShowMyDiscussions(false)}
+        onOpenDiscussion={(d) => {
+          const p = useAuthStore.getState().profile;
+          setOpenDiscussion({
+            ...d,
+            author_name: p?.full_name ?? p?.username ?? user?.email?.split("@")[0] ?? "You",
+            author_avatar: p?.avatar_url ?? undefined,
+          });
+        }}
+        onDiscussionsChanged={() => setDiscussionsRetryKey((k) => k + 1)}
+      />
 
     </div>
   );

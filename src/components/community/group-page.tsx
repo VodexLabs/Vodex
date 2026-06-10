@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowLeft, Users, Loader2, Lock, Globe, UserPlus, UserCheck, Settings, X, Share2, Flag,
+  ArrowLeft, Users, Loader2, Lock, Globe, UserPlus, UserCheck, Settings, X, Share2, Flag, MoreHorizontal,
 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { ReportDialog } from "@/components/community/report-dialog";
@@ -21,6 +21,8 @@ import { ConfirmDialog } from "@/components/community/confirm-dialog";
 import { profileDisplayName } from "@/lib/community/profile-display-name";
 import { normalizeGroupCategories } from "@/lib/community/group-categories";
 import { GroupCategoryPicker } from "@/components/community/group-category-picker";
+import { useRegisterOverlay } from "@/components/ui/overlay-provider";
+import { overlayZClass } from "@/components/ui/overlay-layers";
 
 interface Group {
   id: string;
@@ -67,6 +69,9 @@ export function GroupPageClient({ groupId }: { groupId: string }) {
   const [manageRules, setManageRules] = React.useState<string[]>([]);
   const [savingManage, setSavingManage] = React.useState(false);
   const [reportOpen, setReportOpen] = React.useState(false);
+  const [deleteGroupOpen, setDeleteGroupOpen] = React.useState(false);
+  const [deleteCode, setDeleteCode] = React.useState("");
+  const [deletePending, setDeletePending] = React.useState(false);
   const [manageBanner, setManageBanner] = React.useState("#4f7cff");
   const [manageIconUrl, setManageIconUrl] = React.useState<string | null>(null);
   const [uploadingIcon, setUploadingIcon] = React.useState(false);
@@ -178,6 +183,45 @@ export function GroupPageClient({ groupId }: { groupId: string }) {
     if (err) return;
     setShowManage(false);
     void load();
+  }
+
+  async function requestGroupDelete() {
+    setDeletePending(true);
+    try {
+      const res = await fetch(`/api/community/groups/${groupId}/delete-request`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const j = (await res.json()) as { error?: string; message?: string };
+      if (!res.ok) throw new Error(j.error ?? "Could not send verification email");
+      toast.success(j.message ?? "Check your email for the deletion code.");
+      setDeleteGroupOpen(true);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not start group deletion");
+    } finally {
+      setDeletePending(false);
+    }
+  }
+
+  async function confirmGroupDelete() {
+    if (!deleteCode.trim()) return;
+    setDeletePending(true);
+    try {
+      const res = await fetch(`/api/community/groups/${groupId}/delete-confirm`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: deleteCode.trim() }),
+      });
+      const j = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(j.error ?? "Invalid code");
+      toast.success("Group deleted");
+      router.push("/community");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not delete group");
+    } finally {
+      setDeletePending(false);
+    }
   }
 
   if (loading) {
@@ -342,6 +386,12 @@ export function GroupPageClient({ groupId }: { groupId: string }) {
             }}
             onSave={() => void saveManage()}
             onClose={() => setShowManage(false)}
+            onRequestDelete={() => void requestGroupDelete()}
+            deletePending={deletePending}
+            deleteCode={deleteCode}
+            onDeleteCode={setDeleteCode}
+            onConfirmDelete={() => void confirmGroupDelete()}
+            deleteRequested={deleteGroupOpen}
           />
         ) : null}
       </AnimatePresence>
@@ -379,6 +429,9 @@ function MembersDrawer({
   onChanged: () => void;
 }) {
   const canModerate = Boolean(currentUserId && creatorId === currentUserId);
+  const [menuFor, setMenuFor] = React.useState<string | null>(null);
+
+  useRegisterOverlay({ open: true, layer: "sheet", onEscape: onClose, lockScroll: true });
 
   async function kickMember(userId: string) {
     const res = await fetch(`/api/community/groups/${groupId}/members/${userId}`, {
@@ -400,6 +453,18 @@ function MembersDrawer({
     onChanged();
   }
 
+  async function timeoutMember(userId: string) {
+    const until = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const res = await fetch(`/api/community/groups/${groupId}/sanctions`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, sanctionType: "timeout", until, reason: "Timed out by moderator" }),
+    });
+    if (!res.ok) return;
+    onChanged();
+  }
+
   async function transferOwnership(userId: string) {
     const res = await fetch(`/api/community/groups/${groupId}/transfer`, {
       method: "POST",
@@ -412,8 +477,8 @@ function MembersDrawer({
   }
 
   return (
-    <div className="fixed inset-0 z-[1500] flex justify-end">
-      <button type="button" className="absolute inset-0 bg-foreground/30" onClick={onClose} aria-label="Close" />
+    <div className={cn("fixed inset-0 flex justify-end", overlayZClass("sheet"))}>
+      <button type="button" className="absolute inset-0 bg-foreground/40 backdrop-blur-[1px]" onClick={onClose} aria-label="Close" />
       <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} className="relative flex h-full w-full max-w-md flex-col bg-background shadow-2xl ring-1 ring-border">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <p className="font-semibold">Members ({members.length})</p>
@@ -442,10 +507,23 @@ function MembersDrawer({
                   <p className="text-[11px] capitalize text-muted-foreground">{m.role}{isOwner ? " · Owner" : ""}</p>
                 </div>
                 {canModerate && !isSelf && !isOwner ? (
-                  <div className="flex shrink-0 gap-1">
-                    <button type="button" onClick={() => void kickMember(m.user_id)} className="rounded-lg px-2 py-1 text-[10px] text-muted-foreground hover:bg-muted">Kick</button>
-                    <button type="button" onClick={() => void banMember(m.user_id)} className="rounded-lg px-2 py-1 text-[10px] text-destructive hover:bg-destructive/10">Ban</button>
-                    <button type="button" onClick={() => void transferOwnership(m.user_id)} className="rounded-lg px-2 py-1 text-[10px] text-accent hover:bg-accent/10">Make owner</button>
+                  <div className="relative shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setMenuFor(menuFor === m.user_id ? null : m.user_id)}
+                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted"
+                      aria-label="Member actions"
+                    >
+                      <MoreHorizontal className="size-4" />
+                    </button>
+                    {menuFor === m.user_id ? (
+                      <div className="absolute right-0 top-full z-10 mt-1 min-w-[9rem] overflow-hidden rounded-xl bg-background py-1 shadow-xl ring-1 ring-border">
+                        <button type="button" onClick={() => { setMenuFor(null); void kickMember(m.user_id); }} className="block w-full px-3 py-2 text-left text-[11px] hover:bg-muted">Remove</button>
+                        <button type="button" onClick={() => { setMenuFor(null); void timeoutMember(m.user_id); }} className="block w-full px-3 py-2 text-left text-[11px] hover:bg-muted">Timeout 24h</button>
+                        <button type="button" onClick={() => { setMenuFor(null); void banMember(m.user_id); }} className="block w-full px-3 py-2 text-left text-[11px] text-destructive hover:bg-destructive/10">Ban</button>
+                        <button type="button" onClick={() => { setMenuFor(null); void transferOwnership(m.user_id); }} className="block w-full px-3 py-2 text-left text-[11px] text-accent hover:bg-accent/10">Make owner</button>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
               </li>
@@ -460,6 +538,7 @@ function MembersDrawer({
 function ManageSheet({
   name, description, categories, rules, bannerColor, iconUrl, uploadingIcon, saving,
   onName, onDescription, onCategories, onRules, onBannerColor, onIconUpload, onSave, onClose,
+  onRequestDelete, deletePending, deleteCode, onDeleteCode, onConfirmDelete, deleteRequested,
 }: {
   name: string;
   description: string;
@@ -477,11 +556,18 @@ function ManageSheet({
   onIconUpload: (file: File) => Promise<void>;
   onSave: () => void;
   onClose: () => void;
+  onRequestDelete: () => void;
+  deletePending?: boolean;
+  deleteCode?: string;
+  onDeleteCode?: (v: string) => void;
+  onConfirmDelete?: () => void;
+  deleteRequested?: boolean;
 }) {
   const iconInputRef = React.useRef<HTMLInputElement>(null);
+  useRegisterOverlay({ open: true, layer: "dialog", onEscape: onClose, lockScroll: true });
   return (
-    <div className="fixed inset-0 z-[1500] flex items-center justify-center p-4">
-      <button type="button" className="absolute inset-0 bg-foreground/30" onClick={onClose} aria-label="Close" />
+    <div className={cn("fixed inset-0 flex items-center justify-center p-4", overlayZClass("dialog"))}>
+      <button type="button" className="absolute inset-0 bg-foreground/40 backdrop-blur-[1px]" onClick={onClose} aria-label="Close" />
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-background p-5 shadow-2xl ring-1 ring-border">
         <p className="text-[15px] font-semibold">Manage group</p>
         <div className="mt-4 space-y-3">
@@ -520,6 +606,29 @@ function ManageSheet({
               <button type="button" onClick={() => onRules([...rules, ""])} className="text-[12px] font-medium text-accent">+ Add rule</button>
             </div>
           </div>
+        </div>
+        <div className="mt-6 border-t border-border pt-4">
+          <p className="text-[12px] font-semibold text-destructive">Danger zone</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Deleting a group sends a verification code to your account email.
+          </p>
+          {!deleteRequested ? (
+            <Button variant="secondary" size="sm" className="mt-2 text-destructive" disabled={deletePending} onClick={onRequestDelete}>
+              {deletePending ? "Sending email…" : "Remove group"}
+            </Button>
+          ) : (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <input
+                value={deleteCode ?? ""}
+                onChange={(e) => onDeleteCode?.(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="6-digit code"
+                className="h-9 w-32 rounded-lg bg-surface px-3 text-[13px] ring-1 ring-border"
+              />
+              <Button variant="secondary" size="sm" className="bg-red-600 text-white hover:bg-red-700" disabled={deletePending || !(deleteCode ?? "").trim()} onClick={onConfirmDelete}>
+                Confirm delete
+              </Button>
+            </div>
+          )}
         </div>
         <div className="mt-5 flex justify-end gap-2">
           <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>

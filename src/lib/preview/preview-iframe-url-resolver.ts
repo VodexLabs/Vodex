@@ -1,5 +1,6 @@
 import {
   buildInternalPreviewHtmlUrl,
+  buildVirtualPreviewRuntimeUrl,
   normalizeInternalPreviewUrl,
   toPreviewIframeSrc,
   tryNormalizeInternalPreviewUrl,
@@ -159,23 +160,33 @@ export function resolvePreviewIframeUrl(input: {
     wasRejected = true;
     rejectReason = rejectReason ?? "no_valid_candidate";
     if (input.projectId) {
-      normalizedPreviewUrl = buildInternalPreviewHtmlUrl({
-        projectId: input.projectId,
-        route,
-        cacheBust: cacheBust ?? undefined,
-        artifactBuildId: artifactId,
-      });
-      source = "rebuilt_canonical";
+      if (artifactId) {
+        normalizedPreviewUrl = buildVirtualPreviewRuntimeUrl({
+          projectId: input.projectId,
+          artifactBuildId: artifactId,
+          route,
+          cacheBust: cacheBust ?? undefined,
+        });
+        source = "rebuilt_canonical";
+      } else {
+        normalizedPreviewUrl = buildInternalPreviewHtmlUrl({
+          projectId: input.projectId,
+          route,
+          cacheBust: cacheBust ?? undefined,
+          artifactBuildId: artifactId,
+        });
+        source = "rebuilt_canonical";
+      }
       wasNormalized = true;
       rejectReason = null;
       wasRejected = false;
     }
-  } else if (artifactId && !extractArtifactIdFromPreviewUrl(normalizedPreviewUrl)) {
-    normalizedPreviewUrl = buildInternalPreviewHtmlUrl({
+  } else if (artifactId) {
+    normalizedPreviewUrl = buildVirtualPreviewRuntimeUrl({
       projectId: input.projectId,
+      artifactBuildId: artifactId,
       route,
       cacheBust: cacheBust ?? undefined,
-      artifactBuildId: artifactId,
     });
     source = "rebuilt_canonical";
     wasNormalized = true;

@@ -319,6 +319,12 @@ export function ProjectsView() {
   const [search, setSearch] = React.useState("");
 
   React.useEffect(() => {
+    const main = document.querySelector("main");
+    main?.scrollTo({ top: 0, behavior: "auto" });
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, []);
+
+  React.useEffect(() => {
     const section = searchParams.get("section");
     if (section === "drafts") setStatusFilter("draft");
     else if (section === "building") setStatusFilter("building");

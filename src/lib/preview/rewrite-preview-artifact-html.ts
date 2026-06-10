@@ -1,3 +1,4 @@
+import { injectPreviewPrehydrationLocationRewrite } from "@/lib/preview/inject-preview-prehydration-location-rewrite";
 import { injectPreviewInnerWatchdog } from "@/lib/preview/inject-preview-inner-watchdog";
 import { injectPreviewRouterShim } from "@/lib/preview/inject-preview-router-shim";
 import { buildInternalPreviewHtmlUrl } from "@/lib/preview/internal-preview-url";
@@ -65,6 +66,7 @@ export function rewritePreviewArtifactHtml(
   });
 
   out = rewriteAbsoluteVodexLinksInHtml(out);
+  out = injectPreviewPrehydrationLocationRewrite(out, routePath);
   out = injectPreviewRouterShim(out, routePath);
   out = injectPreviewInnerWatchdog(out);
   return sanitizePreviewDocument(out);

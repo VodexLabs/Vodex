@@ -6,7 +6,7 @@ import type { UIMessage } from "ai";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, Search, Send, Paperclip, X, AlertCircle,
-  Loader2, Copy, Check, RotateCcw, MoreHorizontal,
+  Loader2, Copy, Check, RotateCcw, MoreHorizontal, Pencil,
   Link2, HelpCircle, MessageSquare, PanelLeft, ChevronDown,
 } from "lucide-react";
 import Link from "next/link";
@@ -64,6 +64,37 @@ function parseAttachments(raw: unknown): ChatAttachment[] {
   );
 }
 
+function dedupeConversations(conversations: Conversation[]): Conversation[] {
+  const byId = new Map<string, Conversation>();
+  for (const conv of conversations) {
+    const prev = byId.get(conv.id);
+    if (!prev || new Date(conv.updated_at).getTime() > new Date(prev.updated_at).getTime()) {
+      byId.set(conv.id, conv);
+    }
+  }
+  return [...byId.values()].sort(
+    (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+  );
+}
+
+function mapUiMessagesToDb(conversationId: string, userId: string, msgs: UIMessage[]): Message[] {
+  return msgs.map((m) => ({
+    id: m.id,
+    conversation_id: conversationId,
+    user_id: userId,
+    role: m.role as "user" | "assistant" | "system",
+    content: m.parts?.find((p) => p.type === "text")?.text ?? "",
+    created_at: new Date().toISOString(),
+    model_id: null,
+    credits_used: 0,
+    finish_reason: null,
+    tokens_input: null,
+    tokens_output: null,
+    attachments: null,
+    metadata: null,
+  }));
+}
+
 // ─── Data hooks ───────────────────────────────────────────────────────────────
 
 const CONV_LOAD_TIMEOUT_MS = 15_000;
@@ -119,7 +150,7 @@ function useConversations(userId: string | undefined, sessionReady: boolean) {
         } else if (!res.ok) {
           setError(body.error ?? "Could not load conversations");
         } else {
-          setConversations(body.conversations ?? []);
+          setConversations(dedupeConversations(body.conversations ?? []));
           if (sidebarTimedOut) setError(null);
         }
       } catch (err) {
@@ -518,8 +549,8 @@ export function ChatView() {
   const switchingConvRef = React.useRef(false);
   const streamConvRef = React.useRef<string | null>(null);
 
-  /** Stable for component lifetime — never tie to activeConvId or send wipes mid-flight. */
-  const chatSessionId = React.useId();
+  /** Per-conversation chat session — switching conv resets stream state and reloads from cache/API. */
+  const chatSessionKey = activeConvId ?? "new-chat";
 
   const histById = React.useMemo(() => new Map(history.map((m) => [m.id, m])), [history]);
 
@@ -561,7 +592,7 @@ export function ChatView() {
   );
 
   const { messages, sendMessage, regenerate, status, error, setMessages, clearError } = useChat({
-    id: `dream-ai-chat-${chatSessionId}`,
+    id: `dream-ai-chat-${chatSessionKey}`,
     transport,
     onError: (err) => {
       pendingAttachmentIdsRef.current = [];
@@ -572,10 +603,10 @@ export function ChatView() {
     },
     onFinish: () => {
       pendingAttachmentIdsRef.current = [];
-      useCreditsStore.getState().deductOptimistic(DISCUSS_FLAT_CREDITS);
       if (convRef.current) updateChatUrl(convRef.current);
       if (userId) void refreshCredits({ reason: "charge" });
       void reloadConversations();
+      setHistReload((n) => n + 1);
     },
   });
   const isBusy = status === "submitted" || status === "streaming";
@@ -606,28 +637,21 @@ export function ChatView() {
   const switchConversation = React.useCallback(
     (conversationId: string) => {
       if (conversationId === activeConvId) return;
+      const prevId = activeConvId;
+      if (prevId && messages.length > 0 && userId) {
+        useChatConversationStore.getState().setCachedMessages(
+          prevId,
+          mapUiMessagesToDb(prevId, userId, messages),
+        );
+      }
       switchingConvRef.current = true;
       streamConvRef.current = null;
       clearError();
       setActiveConvId(conversationId);
       convRef.current = conversationId;
       updateChatUrl(conversationId);
-
-      const cached = useChatConversationStore.getState().getCachedMessages(conversationId);
-      if (cached?.length) {
-        setMessages(
-          cached.map((m) => ({
-            id: m.id,
-            role: m.role as "user" | "assistant",
-            parts: [{ type: "text" as const, text: m.content }],
-          })),
-        );
-        switchingConvRef.current = false;
-      } else {
-        setMessages([]);
-      }
     },
-    [activeConvId, clearError, setMessages, updateChatUrl],
+    [activeConvId, clearError, messages, updateChatUrl, userId],
   );
 
   React.useEffect(() => {
@@ -679,8 +703,22 @@ export function ChatView() {
         parts: [{ type: "text" as const, text: m.content }],
       })),
     );
+    if (activeConvId && history.length > 0) {
+      useChatConversationStore.getState().setCachedMessages(activeConvId, history);
+    }
     switchingConvRef.current = false;
-  }, [history, activeConvId, histLoading, histError, histHasCache, isBusy, setMessages]); // messages intentionally omitted — avoid loop during stream
+  }, [history, activeConvId, histLoading, histError, histHasCache, isBusy, setMessages]);
+
+  React.useEffect(() => {
+    if (!activeConvId || !userId || messages.length === 0) return;
+    const t = window.setTimeout(() => {
+      useChatConversationStore.getState().setCachedMessages(
+        activeConvId,
+        mapUiMessagesToDb(activeConvId, userId, messages),
+      );
+    }, isBusy ? 400 : 0);
+    return () => window.clearTimeout(t);
+  }, [messages, activeConvId, userId, isBusy]);
 
   React.useEffect(() => {
     if (isBusy && activeConvId) streamConvRef.current = activeConvId;
@@ -919,7 +957,7 @@ export function ChatView() {
           message_count: 0,
           last_message_at: null,
         };
-        setConversations((prev) => [stub, ...prev.filter((c) => c.id !== pre.conversationId)]);
+        setConversations((prev) => dedupeConversations([stub, ...prev.filter((c) => c.id !== pre.conversationId)]));
       }
     }
 
@@ -1173,7 +1211,7 @@ export function ChatView() {
                       }}
                       className="mt-1 flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition group-hover:opacity-100 hover:bg-background hover:text-foreground"
                     >
-                      <MoreHorizontal className="size-3.5" />
+                      <Pencil className="size-3.5" />
                     </button>
                     <button
                       type="button"

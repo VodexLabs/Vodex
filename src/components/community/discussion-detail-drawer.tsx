@@ -9,12 +9,14 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
-import type { Discussion } from "@/lib/supabase/types";
 import { CommunityHeartButton } from "@/components/community/community-heart-button";
 import { fetchProfileNameMap, fetchProfilePreviewMap } from "@/lib/community/profile-display-name";
 import { CommunityMessageMenu } from "@/components/community/community-message-menu";
 import { ConfirmDialog } from "@/components/community/confirm-dialog";
+import { useRegisterOverlay } from "@/components/ui/overlay-provider";
+import { overlayZClass } from "@/components/ui/overlay-layers";
 import Link from "next/link";
+import type { Discussion } from "@/lib/supabase/types";
 
 type CommentRow = {
   id: string;
@@ -80,17 +82,21 @@ function commentScore(c: CommentRow): number {
 function FlatReply({
   reply,
   replyToName,
+  parentPreview,
   userId,
   onLike,
   onEdit,
   onRequestDelete,
+  onScrollToParent,
 }: {
   reply: CommentRow;
   replyToName?: string;
+  parentPreview?: { author: string; body: string; id: string };
   userId?: string;
   onLike: (id: string, liked: boolean) => void;
   onEdit: (id: string, text: string) => Promise<void>;
   onRequestDelete: (id: string) => void;
+  onScrollToParent?: (id: string) => void;
 }) {
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(reply.body);
@@ -108,9 +114,17 @@ function FlatReply({
               userId={reply.user_id}
               currentUserId={userId}
             />
-            {replyToName ? (
+            {replyToName && parentPreview ? (
+              <button
+                type="button"
+                onClick={() => onScrollToParent?.(parentPreview.id)}
+                className="mt-2 w-full rounded-lg border-l-2 border-accent/40 bg-muted/40 px-2.5 py-1.5 text-left ring-1 ring-border/50"
+              >
+                <p className="text-[10px] font-semibold text-accent">{parentPreview.author}</p>
+                <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">{parentPreview.body}</p>
+              </button>
+            ) : replyToName ? (
               <p className="mt-1 text-[10px] text-muted-foreground">
-                <span className="font-semibold text-accent">→</span>{" "}
                 <span className="font-medium">{replyToName}</span>
               </p>
             ) : null}
@@ -149,6 +163,7 @@ function CommentItem({
   comment,
   flatReplies,
   nameById,
+  commentById,
   userId,
   onLike,
   onReply,
@@ -158,13 +173,14 @@ function CommentItem({
   comment: CommentRow;
   flatReplies: CommentRow[];
   nameById: Map<string, string>;
+  commentById: Map<string, CommentRow>;
   userId?: string;
   onLike: (id: string, liked: boolean) => void;
   onReply: (parentId: string, text: string) => Promise<void>;
   onEdit: (id: string, text: string) => Promise<void>;
   onRequestDelete: (id: string) => void;
 }) {
-  const [showReplies, setShowReplies] = React.useState(true);
+  const [showReplies, setShowReplies] = React.useState(false);
   const [replyOpen, setReplyOpen] = React.useState(false);
   const [replyText, setReplyText] = React.useState("");
   const [replying, setReplying] = React.useState(false);
@@ -188,7 +204,7 @@ function CommentItem({
   }
 
   return (
-    <li>
+    <li id={`comment-${comment.id}`}>
       <div className="rounded-xl bg-surface/80 px-3 py-2.5 ring-1 ring-border/60">
         <div className="flex items-start justify-between gap-2">
           <AuthorLink
@@ -238,16 +254,23 @@ function CommentItem({
         <ul className="mt-3 space-y-2">
           {flatReplies.map((r) => {
             const parent = r.parent_reply_id ? nameById.get(r.parent_reply_id) : undefined;
+            const parentRow = r.parent_reply_id ? commentById.get(r.parent_reply_id) : undefined;
             const replyToName = r.parent_reply_id && r.parent_reply_id !== comment.id ? parent : undefined;
             return (
               <FlatReply
                 key={r.id}
                 reply={r}
                 replyToName={replyToName}
+                parentPreview={
+                  parentRow
+                    ? { id: parentRow.id, author: parentRow.author_name ?? "Member", body: parentRow.body }
+                    : undefined
+                }
                 userId={userId}
                 onLike={onLike}
                 onEdit={onEdit}
                 onRequestDelete={onRequestDelete}
+                onScrollToParent={(id) => document.getElementById(`comment-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}
               />
             );
           })}
@@ -284,6 +307,13 @@ export function DiscussionDetailDrawer({
   const [localLikeCount, setLocalLikeCount] = React.useState(discussion.like_count);
   const [deleteTargetId, setDeleteTargetId] = React.useState<string | null>(null);
   const scrollRef = React.useRef<HTMLDivElement>(null);
+
+  useRegisterOverlay({
+    open: true,
+    layer: "sheet",
+    onEscape: onClose,
+    lockScroll: true,
+  });
 
   React.useEffect(() => {
     setLocalLiked(!!liked);
@@ -369,6 +399,7 @@ export function DiscussionDetailDrawer({
     () => new Map(comments.map((c) => [c.id, c.author_name ?? "Member"])),
     [comments],
   );
+  const commentById = React.useMemo(() => new Map(comments.map((c) => [c.id, c])), [comments]);
 
   async function handleCommentEdit(commentId: string, text: string) {
     const res = await fetch(`/api/community/comments/${commentId}`, {
@@ -524,7 +555,7 @@ export function DiscussionDetailDrawer({
 
   return createPortal(
     <AnimatePresence>
-      <div className="fixed inset-0 z-[10050] lg:flex lg:justify-end" role="dialog" aria-modal="true">
+      <div className={cn("fixed inset-0 lg:flex lg:justify-end", overlayZClass("sheet"))} role="dialog" aria-modal="true">
         <motion.button
           type="button"
           initial={{ opacity: 0 }}
@@ -578,6 +609,7 @@ export function DiscussionDetailDrawer({
                       comment={c}
                       flatReplies={repliesByParent.get(c.id) ?? []}
                       nameById={nameById}
+                      commentById={commentById}
                       userId={user?.id}
                       onLike={handleCommentLike}
                       onReply={handleCommentReply}

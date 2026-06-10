@@ -260,6 +260,13 @@ export function GroupChatPanel({
     setMessages((prev) => [...prev, optimistic]);
     setBody("");
     setReplyTo(null);
+    requestAnimationFrame(() => {
+      const el = scrollRef.current;
+      if (el) {
+        el.scrollTop = el.scrollHeight;
+        setUnreadCount(0);
+      }
+    });
     try {
       const res = await fetch(`/api/community/groups/${groupId}/messages`, {
         method: "POST",
@@ -312,22 +319,41 @@ export function GroupChatPanel({
                 return acc;
               }, {});
               return (
-                <li key={m.id} className={cn("flex gap-2", mine ? "flex-row-reverse" : "flex-row", parent && !mine && "ml-5 border-l-2 border-accent/25 pl-3")}>
-                  <Avatar name={m.author_name ?? "Member"} src={m.author_avatar ?? (mine ? profile?.avatar_url : undefined)} size="sm" />
-                  <div className={cn("max-w-[80%] space-y-1", mine && "items-end")}>
-                    {m.author_username ? (
+                <li
+                  key={m.id}
+                  id={`group-msg-${m.id}`}
+                  className={cn("flex gap-2", mine ? "flex-row-reverse" : "flex-row", parent && !mine && "ml-4")}
+                >
+                  <div className={cn("flex shrink-0 self-end pb-6", mine ? "order-2" : "order-1")}>
+                    <Avatar name={m.author_name ?? "Member"} src={m.author_avatar ?? (mine ? profile?.avatar_url : undefined)} size="sm" />
+                  </div>
+                  <div className={cn("min-w-0 max-w-[80%] space-y-1", mine ? "items-end text-right" : "items-start")}>
+                    {m.author_username && !mine ? (
                       <Link href={`/builders/${m.author_username}`} className="text-[10px] font-medium text-muted-foreground hover:text-accent">
                         {m.author_name}
                       </Link>
-                    ) : (
+                    ) : !mine ? (
                       <p className="text-[10px] font-medium text-muted-foreground">{m.author_name}</p>
-                    )}
+                    ) : null}
                     {parent ? (
-                      <p className="text-[10px] text-muted-foreground">
-                        <span className="font-medium">{m.author_name}</span>
-                        <span className="mx-1 text-accent">→</span>
-                        <span>{parent.author_name ?? "Member"}</span>
-                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const target = document.getElementById(`group-msg-${parent.id}`);
+                          target?.scrollIntoView({ behavior: "smooth", block: "center" });
+                        }}
+                        className={cn(
+                          "w-full rounded-xl border-l-2 px-2.5 py-1.5 text-left ring-1 ring-border/50",
+                          mine ? "border-white/40 bg-white/10" : "border-accent/40 bg-muted/40",
+                        )}
+                      >
+                        <p className={cn("text-[10px] font-semibold", mine ? "text-white/90" : "text-accent")}>
+                          {parent.author_name ?? "Member"}
+                        </p>
+                        <p className={cn("mt-0.5 line-clamp-2 text-[11px]", mine ? "text-white/75" : "text-muted-foreground")}>
+                          {parent.body}
+                        </p>
+                      </button>
                     ) : null}
                     <div className={cn("rounded-2xl px-3 py-2 text-[13px] leading-relaxed", mine ? "bg-accent text-white" : "bg-muted/50 text-foreground")}>
                       <p>

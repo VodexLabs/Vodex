@@ -1,9 +1,8 @@
 "use client";
 
-import { createPortal } from "react-dom";
-import { motion } from "framer-motion";
+import * as React from "react";
 import { AlertTriangle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { OverlayDialog } from "@/components/ui/overlay-dialog";
 import { cn } from "@/lib/utils";
 
 export function ConfirmDialog({
@@ -25,47 +24,57 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
-  if (!open || typeof document === "undefined") return null;
-
-  return createPortal(
-    <div className="fixed inset-0 z-[1600] flex items-center justify-center p-4">
-      <button type="button" className="absolute inset-0 bg-foreground/30 backdrop-blur-[2px]" aria-label="Close" onClick={onCancel} />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.96, y: 8 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
+  return (
+    <OverlayDialog
+      open={open}
+      onClose={onCancel}
+      layer="confirmation"
+      panelClassName="max-w-sm"
+      data-testid="community-confirm-dialog"
+    >
+      <div
         className={cn(
-          "relative w-full max-w-sm overflow-hidden rounded-2xl bg-background p-5 shadow-2xl ring-1",
-          destructive ? "ring-destructive/25" : "ring-accent/25",
+          "pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b to-transparent",
+          destructive ? "from-red-500/10" : "from-accent/10",
         )}
-      >
+      />
+      <div className="relative flex items-start gap-3 px-5 pt-5">
         <div
           className={cn(
-            "pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b to-transparent",
-            destructive ? "from-destructive/10" : "from-accent/10",
+            "flex size-10 shrink-0 items-center justify-center rounded-xl ring-1",
+            destructive ? "bg-red-500/10 text-red-600 ring-red-500/20" : "bg-accent/10 text-accent ring-accent/20",
           )}
-        />
-        <div className="relative flex items-start gap-3">
-          <div
-            className={cn(
-              "flex size-10 shrink-0 items-center justify-center rounded-xl ring-1",
-              destructive ? "bg-destructive/10 text-destructive ring-destructive/20" : "bg-accent/10 text-accent ring-accent/20",
-            )}
-          >
-            <AlertTriangle className="size-5" strokeWidth={1.75} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[15px] font-semibold text-foreground">{title}</p>
-            {description ? (
-              <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">{description}</p>
-            ) : null}
-          </div>
+        >
+          <AlertTriangle className="size-5" strokeWidth={1.75} />
         </div>
-        <div className="relative mt-5 flex justify-end gap-2">
-          <Button variant="secondary" size="sm" onClick={onCancel}>{cancelLabel}</Button>
-          <Button variant={destructive ? "destructive" : "accent"} size="sm" onClick={onConfirm}>{confirmLabel}</Button>
+        <div className="min-w-0 flex-1">
+          <p className="text-[15px] font-semibold text-foreground">{title}</p>
+          {description ? (
+            <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">{description}</p>
+          ) : null}
         </div>
-      </motion.div>
-    </div>,
-    document.body,
+      </div>
+      <div className="relative flex justify-end gap-2 px-5 py-4">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg px-3 py-1.5 text-[13px] font-medium ring-1 ring-border hover:bg-muted"
+        >
+          {cancelLabel}
+        </button>
+        <button
+          type="button"
+          onClick={onConfirm}
+          className={cn(
+            "rounded-lg px-3 py-1.5 text-[13px] font-semibold",
+            destructive
+              ? "bg-red-600 text-white hover:bg-red-700"
+              : "bg-accent text-white hover:bg-accent/90",
+          )}
+        >
+          {confirmLabel}
+        </button>
+      </div>
+    </OverlayDialog>
   );
 }

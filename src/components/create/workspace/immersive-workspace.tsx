@@ -392,7 +392,6 @@ export function ImmersiveWorkspace({
     isConfirmed: creditsConfirmed,
     resetAt,
     syncFromDB,
-    deductOptimistic,
     build: buildCredits,
     action: actionCredits,
     planId: creditsPlanId,
