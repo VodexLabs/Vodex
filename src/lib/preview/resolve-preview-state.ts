@@ -70,6 +70,70 @@ function metaRecord(meta: unknown): Record<string, unknown> {
   return meta && typeof meta === "object" && !Array.isArray(meta) ? (meta as Record<string, unknown>) : {};
 }
 
+export function importedArtifactReady(input: {
+  isImportedZip: boolean;
+  runtime: PreviewRuntimeStatusPayload | null | undefined;
+  meta: Record<string, unknown>;
+  artifactIdFromUrl?: string | null;
+}): boolean {
+  if (!input.isImportedZip) return false;
+
+  const renderable =
+    input.runtime?.previewRenderable === true ||
+    input.meta.preview_renderable === true ||
+    input.meta.preview_ready === true;
+  if (!renderable) return false;
+
+  const hasArtifact = Boolean(
+    input.runtime?.artifactPath ||
+      input.runtime?.jobId ||
+      input.artifactIdFromUrl ||
+      (typeof input.meta.preview_artifact_path === "string" && input.meta.preview_artifact_path) ||
+      (typeof input.meta.preview_job_id === "string" && input.meta.preview_job_id),
+  );
+  if (!hasArtifact) return false;
+
+  const workerSucceeded =
+    input.runtime?.jobStatus === "succeeded" ||
+    input.meta.preview_status === "ready" ||
+    (input.meta.preview_honest === true && input.meta.preview_renderable === true) ||
+    (input.meta.preview_renderable === true && hasArtifact && !input.runtime);
+
+  return workerSucceeded && hasArtifact && renderable;
+}
+
+export function isHardImportedPreviewReady(input: {
+  projectMetadata?: unknown;
+  runtimeStatus?: PreviewRuntimeStatusPayload | null;
+  urlResolution?: PreviewIframeUrlResolution | null;
+  iframeSrc?: string | null;
+  iframeUrl?: string | null;
+  projectPreviewUrl?: string | null;
+}): boolean {
+  const meta = metaRecord(input.projectMetadata);
+  if (!isZipImportProject(meta)) return false;
+
+  const hasPreviewUrl = Boolean(
+    input.iframeSrc ||
+      input.iframeUrl ||
+      input.urlResolution?.normalizedPreviewUrl ||
+      input.projectPreviewUrl,
+  );
+  if (!hasPreviewUrl) return false;
+
+  const artifactId =
+    input.urlResolution?.artifactId ??
+    input.runtimeStatus?.jobId ??
+    (typeof meta.preview_job_id === "string" ? meta.preview_job_id : null);
+
+  return importedArtifactReady({
+    isImportedZip: true,
+    runtime: input.runtimeStatus,
+    meta,
+    artifactIdFromUrl: artifactId,
+  });
+}
+
 function isJobActive(runtime: PreviewRuntimeStatusPayload | null | undefined): boolean {
   if (!runtime) return false;
   return (
@@ -84,25 +148,6 @@ function isJobActive(runtime: PreviewRuntimeStatusPayload | null | undefined): b
   );
 }
 
-function importedArtifactReady(input: {
-  isImportedZip: boolean;
-  runtime: PreviewRuntimeStatusPayload | null | undefined;
-  meta: Record<string, unknown>;
-}): boolean {
-  if (!input.isImportedZip) return false;
-  const jobOk = input.runtime?.jobStatus === "succeeded";
-  const hasArtifact = Boolean(
-    input.runtime?.artifactPath ||
-      input.runtime?.jobId ||
-      typeof metaRecord(input.meta).preview_artifact_path === "string",
-  );
-  const renderable =
-    input.runtime?.previewRenderable === true ||
-    input.meta.preview_renderable === true ||
-    input.meta.preview_ready === true;
-  return jobOk && hasArtifact && renderable;
-}
-
 export function resolvePreviewState(input: PreviewStateRawInputs): ResolvedPreviewState {
   const meta = metaRecord(input.projectMetadata);
   const isImportedZip = isZipImportProject(meta);
@@ -110,8 +155,12 @@ export function resolvePreviewState(input: PreviewStateRawInputs): ResolvedPrevi
   const importFileCount = importMeta.file_count ?? 0;
   const runtime = input.runtimeStatus ?? null;
   const artifactId =
-    input.urlResolution?.artifactId ?? runtime?.jobId ?? null;
-  const workerJobId = runtime?.jobId ?? null;
+    input.urlResolution?.artifactId ??
+    runtime?.jobId ??
+    (typeof meta.preview_job_id === "string" ? meta.preview_job_id : null);
+  const workerJobId =
+    runtime?.jobId ??
+    (typeof meta.preview_job_id === "string" ? meta.preview_job_id : null);
   const workerJobStatus = runtime?.jobStatus ?? runtime?.previewStatus ?? null;
   const previewRenderable =
     runtime?.previewRenderable === true ||
@@ -123,7 +172,12 @@ export function resolvePreviewState(input: PreviewStateRawInputs): ResolvedPrevi
       input.urlResolution?.normalizedPreviewUrl ||
       input.projectPreviewUrl,
   );
-  const importedReady = importedArtifactReady({ isImportedZip, runtime, meta });
+  const importedReady = importedArtifactReady({
+    isImportedZip,
+    runtime,
+    meta,
+    artifactIdFromUrl: artifactId,
+  });
   const classification: PreviewClassification = input.hasInline
     ? "inline"
     : isImportedZip
@@ -212,6 +266,54 @@ export function resolvePreviewState(input: PreviewStateRawInputs): ResolvedPrevi
     };
   }
 
+  /** P1.3.37 — Hard ready invariant: imported artifact ready overrides thinking/buildActive/isBusy. */
+  const hardImportedReady = importedReady && hasPreviewUrl && !input.innerRouteError;
+
+  if (hardImportedReady) {
+    if (input.iframeError || input.loadingExceeded60s) {
+      return {
+        state: "needs_rebuild",
+        classification,
+        title: "Preview failed to boot",
+        summary:
+          "The preview artifact is ready but the iframe did not finish loading. Retry, clear cache, or check boot diagnostics.",
+        sourceOfTruth: "imported_hard_ready_iframe_timeout",
+        showIframe: false,
+        showErrorPanel: true,
+        showBuildingShell: false,
+        showRuntimeOverlay: false,
+        showGenerationContinuingCopy: false,
+        showSlowLoadHint: false,
+        artifactId,
+        workerJobId,
+        workerJobStatus: workerJobStatus ?? "succeeded",
+        previewRenderable: true,
+        technical,
+        raw: { ...raw, hardImportedReady: true },
+      };
+    }
+
+    return {
+      state: "ready",
+      classification,
+      title: "Preview ready",
+      summary: `Imported app preview is live${importFileCount ? ` (${importFileCount} files in ZIP)` : ""}.`,
+      sourceOfTruth: "imported_hard_ready_invariant",
+      showIframe: true,
+      showErrorPanel: false,
+      showBuildingShell: false,
+      showRuntimeOverlay: false,
+      showGenerationContinuingCopy: false,
+      showSlowLoadHint: false,
+      artifactId,
+      workerJobId,
+      workerJobStatus: workerJobStatus ?? "succeeded",
+      previewRenderable: true,
+      technical,
+      raw: { ...raw, hardImportedReady: true },
+    };
+  }
+
   if (input.buildActive || input.thinking) {
     return {
       state: "building",
@@ -281,6 +383,34 @@ export function resolvePreviewState(input: PreviewStateRawInputs): ResolvedPrevi
       technical,
       raw,
     };
+  }
+
+  if (!isImportedZip && input.legacyCanPreview === false) {
+    const workerNotSucceeded =
+      runtime?.jobStatus != null && runtime.jobStatus !== "succeeded";
+    const notRenderable = !previewRenderable;
+    if (workerNotSucceeded || notRenderable) {
+      return {
+        state: "ai_generation_incomplete",
+        classification,
+        title: "Generation still in progress",
+        summary:
+          "Continue generation from chat when the build pauses — preview opens once enough app files are saved.",
+        sourceOfTruth: "ai_build_truth_can_preview_false",
+        showIframe: false,
+        showErrorPanel: true,
+        showBuildingShell: !hasPreviewUrl,
+        showRuntimeOverlay: false,
+        showGenerationContinuingCopy: true,
+        showSlowLoadHint: false,
+        artifactId,
+        workerJobId,
+        workerJobStatus,
+        previewRenderable,
+        technical,
+        raw,
+      };
+    }
   }
 
   if (isJobActive(runtime)) {
@@ -361,29 +491,6 @@ export function resolvePreviewState(input: PreviewStateRawInputs): ResolvedPrevi
       showBuildingShell: false,
       showRuntimeOverlay: false,
       showGenerationContinuingCopy: false,
-      showSlowLoadHint: false,
-      artifactId,
-      workerJobId,
-      workerJobStatus,
-      previewRenderable,
-      technical,
-      raw,
-    };
-  }
-
-  if (!isImportedZip && input.legacyCanPreview === false) {
-    return {
-      state: "ai_generation_incomplete",
-      classification,
-      title: "Generation still in progress",
-      summary:
-        "Continue generation from chat when the build pauses — preview opens once enough app files are saved.",
-      sourceOfTruth: "ai_build_truth_can_preview_false",
-      showIframe: false,
-      showErrorPanel: true,
-      showBuildingShell: !hasPreviewUrl,
-      showRuntimeOverlay: false,
-      showGenerationContinuingCopy: true,
       showSlowLoadHint: false,
       artifactId,
       workerJobId,

@@ -151,6 +151,8 @@ import { projectPreviewFrameUrl } from "@/lib/preview/preview-frame-url";
 import { clearPreviewClientCache } from "@/lib/preview/clear-preview-client-cache";
 import { resolvePreviewIframeUrl } from "@/lib/preview/preview-iframe-url-resolver";
 import type { PreviewRuntimeStatusPayload } from "@/lib/preview/preview-runtime-status";
+import { isHardImportedPreviewReady } from "@/lib/preview/resolve-preview-state";
+import { shouldPollPreviewRuntime } from "@/lib/preview/should-poll-preview-runtime";
 import { previewRuntimeStatusEqual } from "@/lib/preview/preview-runtime-status-equal";
 import {
   detectPreviewRoutesFromFiles,
@@ -2764,8 +2766,27 @@ export function ImmersiveWorkspace({
     }
   }, [effectiveProjectId]);
 
+  const previewArtifactLockedRef = React.useRef<string | null>(null);
   React.useEffect(() => {
-    if (!effectiveProjectId || projectFiles.length === 0) {
+    previewArtifactLockedRef.current = null;
+  }, [effectiveProjectId]);
+
+  const shouldPollPreview = shouldPollPreviewRuntime({
+    projectId: effectiveProjectId,
+    projectFilesCount: projectFiles.length,
+    projectMetadata: effectiveProject?.metadata,
+    projectPreviewUrl: effectiveProject?.preview_url ?? null,
+    previewArtifactId:
+      previewArtifactLockedRef.current ??
+      (typeof effectiveProject?.metadata === "object" &&
+      effectiveProject.metadata &&
+      !Array.isArray(effectiveProject.metadata)
+        ? (effectiveProject.metadata as Record<string, unknown>).preview_job_id
+        : null) as string | null,
+  });
+
+  React.useEffect(() => {
+    if (!shouldPollPreview) {
       setPreviewRuntime(null);
       return;
     }
@@ -2792,12 +2813,8 @@ export function ImmersiveWorkspace({
       cancelled = true;
       window.clearInterval(t);
     };
-  }, [effectiveProjectId, projectFiles.length, projectDataRefresh]);
+  }, [effectiveProjectId, shouldPollPreview, projectDataRefresh]);
 
-  const previewArtifactLockedRef = React.useRef<string | null>(null);
-  React.useEffect(() => {
-    previewArtifactLockedRef.current = null;
-  }, [effectiveProjectId]);
   React.useEffect(() => {
     if (previewRuntime?.previewRenderable && previewRuntime.jobId) {
       if (!previewArtifactLockedRef.current) {
@@ -2900,6 +2917,26 @@ export function ImmersiveWorkspace({
 
   const previewSrcRenderable = previewRuntime?.previewRenderable === true;
 
+  const hardImportedPreviewReady = React.useMemo(
+    () =>
+      isHardImportedPreviewReady({
+        projectMetadata: effectiveProject?.metadata,
+        runtimeStatus: previewRuntime,
+        urlResolution: previewUrlResolution,
+        iframeUrl: previewFrameUrl,
+        projectPreviewUrl: effectiveProject?.preview_url ?? null,
+      }),
+    [
+      effectiveProject?.metadata,
+      effectiveProject?.preview_url,
+      previewRuntime,
+      previewUrlResolution,
+      previewFrameUrl,
+    ],
+  );
+
+  const previewReadyForUi = previewSrcRenderable || hardImportedPreviewReady;
+
   const appBuildTruth = React.useMemo(() => {
     const meta =
       effectiveProject?.metadata &&
@@ -2913,12 +2950,15 @@ export function ImmersiveWorkspace({
       workflowEvents: buildJobProgress?.events,
       previewSessionId:
         typeof meta.preview_session_id === "string" ? meta.preview_session_id : null,
-      previewBuildJobId: previewRuntime?.jobId ?? null,
+      previewBuildJobId:
+        previewRuntime?.jobId ??
+        (typeof meta.preview_job_id === "string" ? meta.preview_job_id : null),
       previewArtifactExists:
         Boolean(previewRuntime?.jobId) ||
         meta.preview_renderable === true ||
-        meta.preview_ready === true,
-      previewRenderable: previewSrcRenderable,
+        meta.preview_ready === true ||
+        typeof meta.preview_artifact_path === "string",
+      previewRenderable: previewReadyForUi,
       sourceIntegrityOk: meta.source_integrity_ok !== false,
       previewStatus:
         typeof meta.preview_status === "string"
@@ -2945,7 +2985,7 @@ export function ImmersiveWorkspace({
     buildJobProgress?.events,
     buildJobProgress?.latest?.metadata,
     previewRuntime?.jobId,
-    previewSrcRenderable,
+    previewReadyForUi,
     isImportedZipProject,
     buildJobActive,
     buildStarting,
@@ -3925,8 +3965,10 @@ export function ImmersiveWorkspace({
                 previewStateRepairing={previewStateRepairing}
                 showPreviewDebug
                 appName={effectiveProject?.name ?? null}
-                buildActive={buildActive && !previewSrcRenderable}
-                thinking={buildActive || (isBusy && !previewSrcRenderable)}
+                buildActive={buildActive && !previewReadyForUi}
+                thinking={(buildActive || (isBusy && !previewReadyForUi)) && !hardImportedPreviewReady}
+                isBusy={isBusy}
+                isImportedZip={isImportedZipProject}
                 editMode={mode === "edit"}
                 hasGenerated={
                   previewSrcRenderable ||

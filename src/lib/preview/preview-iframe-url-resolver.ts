@@ -235,20 +235,18 @@ export function resolvePreviewIframeUrl(input: {
   return resolution;
 }
 
+/** Stable iframe mount key — only changes on project/artifact/route or explicit user reload. */
 export function previewIframeDomKey(input: {
   projectId: string;
   artifactId?: string | null;
   route?: string;
-  normalizedSrc?: string | null;
-  cacheBust?: string | number | null;
+  /** User-initiated reload counter only — not runtime poll cache bust. */
   reloadKey?: string | number;
 }): string {
   return [
     input.projectId,
     input.artifactId ?? "no-artifact",
     input.route ?? "/",
-    input.normalizedSrc ?? "no-src",
-    input.cacheBust ?? "0",
     input.reloadKey ?? "0",
   ].join("::");
 }

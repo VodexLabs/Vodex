@@ -45,6 +45,13 @@ import { PreviewInnerRouteErrorPanel } from "@/components/preview/preview-inner-
 import { PreviewUniversalErrorPanel } from "@/components/preview/preview-universal-error-panel";
 import { PreviewDebugDrawer } from "@/components/preview/preview-debug-drawer";
 import { resolvePreviewState } from "@/lib/preview/resolve-preview-state";
+import {
+  isPreviewBootAuditMessage,
+  summarizeBootAudit,
+  type PreviewBootAuditPayload,
+  type PreviewBootAuditSummary,
+} from "@/lib/preview/preview-boot-audit-types";
+import { PreviewBootFailurePanel } from "@/components/preview/preview-boot-failure-panel";
 
 type Viewport = "desktop" | "tablet" | "mobile";
 
@@ -98,6 +105,8 @@ export interface PreviewPanelProps {
   previewStateRepairing?: boolean;
   showPreviewDebug?: boolean;
   onRefreshRuntimeStatus?: () => void;
+  isBusy?: boolean;
+  isImportedZip?: boolean;
 }
 
 function isUnrenderableSrcDoc(doc: string | null | undefined): boolean {
@@ -145,6 +154,8 @@ export function PreviewPanel({
   previewStateRepairing = false,
   showPreviewDebug = false,
   onRefreshRuntimeStatus,
+  isBusy = false,
+  isImportedZip = false,
 }: PreviewPanelProps) {
   const [viewport, setViewport] = React.useState<Viewport>("desktop");
   const [reloadKey, setReloadKey] = React.useState(0);
@@ -160,6 +171,9 @@ export function PreviewPanel({
   } | null>(null);
   const [loadingStartedAt, setLoadingStartedAt] = React.useState<number | null>(null);
   const [loadingExceeded60s, setLoadingExceeded60s] = React.useState(false);
+  const [bootAuditEvents, setBootAuditEvents] = React.useState<PreviewBootAuditPayload[]>([]);
+  const [iframeMountCount, setIframeMountCount] = React.useState(0);
+  const [bootFailureDismissed, setBootFailureDismissed] = React.useState(false);
   const iframeRef = React.useRef<HTMLIFrameElement>(null);
 
   const effectivePreviewPath = urlResolution?.normalizedPreviewUrl ?? url;
@@ -259,18 +273,41 @@ export function PreviewPanel({
     };
   }, [resolvedPreviewUrl, hasInline, reloadKey]);
 
+  React.useEffect(() => {
+    setBootAuditEvents([]);
+    setBootFailureDismissed(false);
+  }, [projectId, urlResolution?.artifactId, reloadKey]);
+
+  React.useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (!isPreviewBootAuditMessage(event.data)) return;
+      const frameWin = iframeRef.current?.contentWindow;
+      if (frameWin && event.source !== frameWin) return;
+      setBootAuditEvents((prev) => [...prev.slice(-80), event.data]);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
+  const bootAuditSummary = React.useMemo(
+    () => summarizeBootAudit(bootAuditEvents, { iframeRemountCount: iframeMountCount }),
+    [bootAuditEvents, iframeMountCount],
+  );
+
   const iframeDomKey = React.useMemo(
     () =>
       previewIframeDomKey({
         projectId: projectId ?? "unknown",
         artifactId: urlResolution?.artifactId ?? null,
         route: urlResolution?.route ?? previewRoute,
-        normalizedSrc: urlResolution?.normalizedPreviewUrl ?? url,
-        cacheBust: urlResolution?.cacheBust ?? reloadKey,
         reloadKey,
       }),
-    [projectId, urlResolution, previewRoute, url, reloadKey],
+    [projectId, urlResolution?.artifactId, urlResolution?.route, previewRoute, reloadKey],
   );
+
+  React.useEffect(() => {
+    setIframeMountCount((c) => c + 1);
+  }, [iframeDomKey]);
 
   const previewUrlInvalid = Boolean(
     (effectivePreviewPath || urlResolution?.selectedPreviewUrl) && !hasInline && !resolvedPreviewUrl,
@@ -441,6 +478,61 @@ export function PreviewPanel({
     !showInnerRouteError &&
     !showEmbedFallback &&
     canonicalPreview.state !== "inner_route_error";
+  const showBootFailure =
+    !bootFailureDismissed &&
+    canonicalPreview.state === "ready" &&
+    showIframe &&
+    Boolean(bootAuditSummary.bootFailureReason) &&
+    !iframeLoading &&
+    (bootAuditEvents.some((e) => e.phase === "asset-error" || e.phase === "runtime-error") ||
+      bootAuditEvents.filter((e) => e.phase === "snapshot").length >= 2);
+
+  React.useEffect(() => {
+    const shouldLog =
+      showPreviewDebug ||
+      (typeof process !== "undefined" && process.env.NODE_ENV === "development");
+    if (!shouldLog) return;
+    console.info("[preview-render-gate]", {
+      canonicalState: canonicalPreview.state,
+      sourceOfTruth: canonicalPreview.sourceOfTruth,
+      showIframe,
+      showBuildShell,
+      showRuntimeOverlay,
+      showUniversalError,
+      generationContinuing,
+      previewRenderable: canonicalPreview.previewRenderable,
+      runtimePreviewRenderable: runtimeStatus?.previewRenderable ?? null,
+      workerStatus: runtimeStatus?.jobStatus ?? null,
+      artifactId: canonicalPreview.artifactId,
+      iframeUrl: resolvedPreviewUrl,
+      thinking,
+      buildActive,
+      isBusy,
+      projectFilesCount: projectFileCount,
+      importFileCount: canonicalPreview.raw.importFileCount,
+      isImportedZip,
+      iframeMountCount,
+      bootFailureReason: bootAuditSummary.bootFailureReason,
+    });
+  }, [
+    showPreviewDebug,
+    canonicalPreview,
+    showIframe,
+    showBuildShell,
+    showRuntimeOverlay,
+    showUniversalError,
+    generationContinuing,
+    runtimeStatus,
+    resolvedPreviewUrl,
+    thinking,
+    buildActive,
+    isBusy,
+    projectFileCount,
+    isImportedZip,
+    iframeMountCount,
+    bootAuditSummary.bootFailureReason,
+  ]);
+
   const showSlowLoadHint =
     showArtifact &&
     iframeError &&
@@ -450,6 +542,7 @@ export function PreviewPanel({
     !hasInline &&
     !showInnerRouteError &&
     !showUniversalError &&
+    !showBootFailure &&
     canonicalPreview.state === "ready";
   const shellState =
     buildActive || thinking
@@ -878,6 +971,23 @@ export function PreviewPanel({
           </div>
         )}
 
+        {showBootFailure && bootAuditSummary.bootFailureReason ? (
+          <div className="absolute inset-0 z-25 flex items-center justify-center bg-atmosphere/95 p-6 backdrop-blur-sm">
+            <PreviewBootFailurePanel
+              summary={bootAuditSummary}
+              iframeUrl={resolvedPreviewUrl}
+              onRetryLoad={() => {
+                setBootFailureDismissed(false);
+                setBootAuditEvents([]);
+                setIframeError(false);
+                setIframeLoading(true);
+                setReloadKey((k) => k + 1);
+              }}
+              onDismiss={() => setBootFailureDismissed(true)}
+            />
+          </div>
+        ) : null}
+
         {showIframe && (
           <div
             className={cn(
@@ -968,6 +1078,9 @@ export function PreviewPanel({
           resolved={canonicalPreview}
           urlResolution={urlResolution}
           iframeHeaderProbe={iframeHeaderProbe?.headers ?? null}
+          bootAudit={bootAuditSummary}
+          iframeUrl={resolvedPreviewUrl}
+          iframeMountCount={iframeMountCount}
           visible={showPreviewDebug}
         />
 

@@ -4,6 +4,7 @@ import { injectPreviewRouterShim } from "@/lib/preview/inject-preview-router-shi
 import { buildInternalPreviewHtmlUrl } from "@/lib/preview/internal-preview-url";
 import { stripPreviewPlatformPathsFromText } from "@/lib/preview/strip-preview-platform-paths";
 import { sanitizePreviewDocument } from "@/lib/preview/preview-html-sanitizer";
+import { injectPreviewBootAudit } from "@/lib/preview/inject-preview-boot-audit";
 import { stripIframeBlockingMetaFromHtml } from "@/lib/preview/preview-iframe-embed-headers";
 
 export {
@@ -71,6 +72,7 @@ export function rewritePreviewArtifactHtml(
   out = injectPreviewRouterShim(out, routePath);
   out = injectPreviewInnerWatchdog(out);
   out = stripIframeBlockingMetaFromHtml(out);
+  out = injectPreviewBootAudit(out);
   return sanitizePreviewDocument(out);
 }
 

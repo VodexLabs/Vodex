@@ -7,10 +7,15 @@ import { cn } from "@/lib/utils";
 import type { ResolvedPreviewState } from "@/lib/preview/resolve-preview-state";
 import type { PreviewIframeUrlResolution } from "@/lib/preview/preview-iframe-url-resolver";
 
+import type { PreviewBootAuditSummary } from "@/lib/preview/preview-boot-audit-types";
+
 export type PreviewDebugDrawerProps = {
   resolved: ResolvedPreviewState;
   urlResolution?: PreviewIframeUrlResolution | null;
   iframeHeaderProbe?: Record<string, string | null> | null;
+  bootAudit?: PreviewBootAuditSummary | null;
+  iframeUrl?: string | null;
+  iframeMountCount?: number;
   visible?: boolean;
   className?: string;
 };
@@ -19,6 +24,9 @@ export function PreviewDebugDrawer({
   resolved,
   urlResolution = null,
   iframeHeaderProbe = null,
+  bootAudit = null,
+  iframeUrl = null,
+  iframeMountCount = 0,
   visible = true,
   className,
 }: PreviewDebugDrawerProps) {
@@ -34,6 +42,19 @@ export function PreviewDebugDrawer({
     technical: resolved.technical,
     urlResolution,
     iframeHeaders: iframeHeaderProbe,
+    iframeUrl,
+    iframeMountCount,
+    bootAudit: bootAudit
+      ? {
+          loadedCount: bootAudit.loadedCount,
+          failedCount: bootAudit.failedCount,
+          cancelledOrIncompleteCount: bootAudit.cancelledOrIncompleteCount,
+          firstFailedAssetUrl: bootAudit.firstFailedAssetUrl,
+          bootFailureReason: bootAudit.bootFailureReason,
+          serviceWorkerCount: bootAudit.serviceWorkerCount,
+          navigations: bootAudit.navigations,
+        }
+      : null,
   };
 
   const copyAll = () => {
