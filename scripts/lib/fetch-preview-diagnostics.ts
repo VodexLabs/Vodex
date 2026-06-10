@@ -53,16 +53,35 @@ export function isPreviewDiagnosticsPass(report: PreviewDiagnosticsReport): bool
     report.rebuild_required === false &&
     (report.unsafe_path_count ?? 0) === 0 &&
     (report.hydration_path_count ?? 0) === 0 &&
+    report.iframe_embeddable === true &&
     (report.issues?.length ?? 0) === 0
   );
+}
+
+export function resolveDiagnosticsProjectId(root = process.cwd()): string {
+  const fromArg = arg("--project", "");
+  if (fromArg?.trim()) return fromArg.trim();
+  const envLocal = loadEnvLocal(root);
+  if (envLocal.READINESS_PROJECT_ID?.trim()) return envLocal.READINESS_PROJECT_ID.trim();
+  if (envLocal.PREVIEW_PROJECT_ID?.trim()) return envLocal.PREVIEW_PROJECT_ID.trim();
+  if (process.env.READINESS_PROJECT_ID?.trim()) return process.env.READINESS_PROJECT_ID.trim();
+  if (process.env.PREVIEW_PROJECT_ID?.trim()) return process.env.PREVIEW_PROJECT_ID.trim();
+  return "";
 }
 
 const isMain =
   process.argv[1]?.replace(/\\/g, "/").includes("fetch-preview-diagnostics") ?? false;
 
 if (isMain) {
-  const projectId = arg("--project", "ff55c353-aabf-479a-aaec-2138bba9d6b4");
+  const projectId = resolveDiagnosticsProjectId();
   const compact = process.argv.includes("--compact");
+
+  if (!projectId) {
+    process.stderr.write(
+      "Missing project id — pass --project <uuid> or set READINESS_PROJECT_ID in .env.local\n",
+    );
+    process.exit(1);
+  }
 
   loadPreviewDiagnosticsReport(projectId)
     .then((report) => {

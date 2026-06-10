@@ -2,7 +2,17 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { downloadPreviewArtifactFile, PREVIEW_ARTIFACTS_BUCKET } from "@/lib/imports/preview-artifact-storage";
 import { rewritePreviewArtifactHtml } from "@/lib/preview/rewrite-preview-artifact-html";
-import { buildInternalPreviewHtmlUrl } from "@/lib/preview/internal-preview-url";
+import {
+  buildInternalPreviewHtmlUrl,
+  buildVirtualPreviewRuntimeUrl,
+} from "@/lib/preview/internal-preview-url";
+import {
+  analyzeIframeEmbeddabilityFromHeaders,
+  detectPreviewIframeUrlMode,
+  mergePreviewIframeEmbedHeaders,
+  scanHtmlForIframeBlockingMeta,
+  type PreviewIframeUrlMode,
+} from "@/lib/preview/preview-iframe-embed-headers";
 import { innerRouteBootstrapLikelyBroken } from "@/lib/preview/detect-inner-route-bootstrap";
 import {
   countHydrationPathLeaks,
@@ -26,6 +36,10 @@ export type PreviewDiagnosticsReport = {
   unsafe_path_count: number;
   hydration_path_count: number;
   current_iframe_url: string | null;
+  iframe_embeddable: boolean;
+  iframe_block_reason: string | null;
+  iframe_response_headers: Record<string, string | null>;
+  iframe_url_mode: PreviewIframeUrlMode | null;
   rebuild_required: boolean;
   served_html_bytes: number | null;
   stored_unsafe_path_count: number | null;
@@ -83,6 +97,66 @@ function scanServedHtmlSignals(html: string, projectId: string) {
     unsafe_path_count: unsafeMatches.length,
     hydration_path_count,
   };
+}
+
+async function probePreviewIframeEmbeddability(input: {
+  iframeUrl: string | null;
+  servedHtml: string;
+  baseOrigin: string;
+}): Promise<{
+  iframe_embeddable: boolean;
+  iframe_block_reason: string | null;
+  iframe_response_headers: Record<string, string | null>;
+  iframe_url_mode: PreviewIframeUrlMode | null;
+}> {
+  const iframe_url_mode = detectPreviewIframeUrlMode(input.iframeUrl);
+  const expected = analyzeIframeEmbeddabilityFromHeaders(mergePreviewIframeEmbedHeaders());
+
+  if (!input.iframeUrl) {
+    return {
+      iframe_embeddable: false,
+      iframe_block_reason: "No preview iframe URL",
+      iframe_response_headers: expected.iframe_response_headers,
+      iframe_url_mode: null,
+    };
+  }
+
+  const metaScan = scanHtmlForIframeBlockingMeta(input.servedHtml);
+  if (metaScan.blocked) {
+    return {
+      iframe_embeddable: false,
+      iframe_block_reason: metaScan.reason,
+      iframe_response_headers: expected.iframe_response_headers,
+      iframe_url_mode,
+    };
+  }
+
+  const absoluteUrl = input.iframeUrl.startsWith("http")
+    ? input.iframeUrl
+    : new URL(input.iframeUrl, input.baseOrigin).href;
+
+  try {
+    let res = await fetch(absoluteUrl, {
+      method: "HEAD",
+      redirect: "follow",
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (res.status === 405 || res.status === 501) {
+      res = await fetch(absoluteUrl, {
+        method: "GET",
+        redirect: "follow",
+        signal: AbortSignal.timeout(20_000),
+        headers: { Range: "bytes=0-0" },
+      });
+    }
+    const live = analyzeIframeEmbeddabilityFromHeaders(res.headers);
+    if (!live.iframe_embeddable) {
+      return { ...live, iframe_url_mode };
+    }
+    return { ...live, iframe_url_mode };
+  } catch {
+    return { ...expected, iframe_url_mode };
+  }
 }
 
 export async function buildPreviewDiagnosticsReport(
@@ -199,13 +273,33 @@ export async function buildPreviewDiagnosticsReport(
 
   const currentIframeUrl =
     artifactId && previewRenderable
-      ? buildInternalPreviewHtmlUrl({
+      ? buildVirtualPreviewRuntimeUrl({
           projectId,
           artifactBuildId: artifactId,
           route: "/",
           cacheBust: jobRow?.id ?? undefined,
         })
-      : null;
+      : previewRenderable
+        ? buildInternalPreviewHtmlUrl({
+            projectId,
+            route: "/",
+            cacheBust: jobRow?.id ?? undefined,
+          })
+        : null;
+
+  const baseOrigin =
+    (typeof process !== "undefined" && process.env.NEXT_PUBLIC_APP_URL?.trim()) ||
+    "http://localhost:3000";
+
+  const iframeProbe = await probePreviewIframeEmbeddability({
+    iframeUrl: currentIframeUrl,
+    servedHtml,
+    baseOrigin,
+  });
+
+  if (!iframeProbe.iframe_embeddable && iframeProbe.iframe_block_reason) {
+    issues.push(`iframe not embeddable: ${iframeProbe.iframe_block_reason}`);
+  }
 
   return {
     project_id: projectId,
@@ -217,6 +311,10 @@ export async function buildPreviewDiagnosticsReport(
     preview_renderable: previewRenderable,
     ...servedSignals,
     current_iframe_url: currentIframeUrl,
+    iframe_embeddable: iframeProbe.iframe_embeddable,
+    iframe_block_reason: iframeProbe.iframe_block_reason,
+    iframe_response_headers: iframeProbe.iframe_response_headers,
+    iframe_url_mode: iframeProbe.iframe_url_mode,
     rebuild_required,
     served_html_bytes: servedHtml ? servedHtml.length : null,
     stored_unsafe_path_count: artifactPath ? storedUnsafeTotal : null,

@@ -4,6 +4,7 @@ import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { downloadPreviewArtifactFile } from "@/lib/imports/preview-artifact-writer";
 import { requireProjectId, jsonMissingId } from "@/lib/ids/required-ids";
 import { stripPreviewPlatformPathsFromText } from "@/lib/preview/strip-preview-platform-paths";
+import { mergePreviewIframeEmbedHeaders } from "@/lib/preview/preview-iframe-embed-headers";
 
 export const dynamic = "force-dynamic";
 
@@ -83,10 +84,9 @@ export async function GET(
 
   return new NextResponse(new Uint8Array(body), {
     status: 200,
-    headers: {
+    headers: mergePreviewIframeEmbedHeaders({
       "Content-Type": file.contentType,
       "Cache-Control": "private, no-store",
-      "X-Frame-Options": "SAMEORIGIN",
-    },
+    }),
   });
 }

@@ -4,6 +4,7 @@ import { injectPreviewRouterShim } from "@/lib/preview/inject-preview-router-shi
 import { buildInternalPreviewHtmlUrl } from "@/lib/preview/internal-preview-url";
 import { stripPreviewPlatformPathsFromText } from "@/lib/preview/strip-preview-platform-paths";
 import { sanitizePreviewDocument } from "@/lib/preview/preview-html-sanitizer";
+import { stripIframeBlockingMetaFromHtml } from "@/lib/preview/preview-iframe-embed-headers";
 
 export {
   assertInternalPreviewUrl,
@@ -69,16 +70,21 @@ export function rewritePreviewArtifactHtml(
   out = injectPreviewPrehydrationLocationRewrite(out, routePath);
   out = injectPreviewRouterShim(out, routePath);
   out = injectPreviewInnerWatchdog(out);
+  out = stripIframeBlockingMetaFromHtml(out);
   return sanitizePreviewDocument(out);
 }
 
 /** True when URL is safe for iframe embed (internal preview proxy only). */
 export function isInternalPreviewProxyUrl(url: string | null | undefined): boolean {
   if (!url?.trim()) return false;
+  if (url.startsWith("/preview-runtime/")) return true;
+  if (url.startsWith("preview-runtime/")) return true;
   if (url.startsWith("/api/projects/") && url.includes("/preview-html")) return true;
   if (url.startsWith("api/projects/") && url.includes("/preview-html")) return true;
+  if (url.startsWith("/api/projects/") && url.includes("/preview-assets")) return true;
   try {
     const u = new URL(url, "https://localhost");
+    if (u.pathname.startsWith("/preview-runtime/")) return true;
     return u.pathname.includes("/preview-html") || u.pathname.includes("/preview-assets");
   } catch {
     return false;

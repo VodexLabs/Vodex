@@ -24,6 +24,7 @@ const noisyStdout = `
   "preview_renderable": true,
   "unsafe_path_count": 0,
   "hydration_path_count": 0,
+  "iframe_embeddable": true,
   "rebuild_required": false,
   "issues": []
 }
@@ -33,7 +34,7 @@ const parsed = extractFirstJsonObject(noisyStdout);
 assert(parsed?.project_id === "ff55c353-aabf-479a-aaec-2138bba9d6b4", "extract from noisy stdout");
 assert(isPreviewDiagnosticsPass(parsed), "strict PASS on clean fixture");
 
-const failFixture = { ...parsed, unsafe_path_count: 1, issues: ["leak"] };
+const failFixture = { ...parsed, iframe_embeddable: false, unsafe_path_count: 1, issues: ["leak"] };
 assert(!isPreviewDiagnosticsPass(failFixture), "strict FAIL when leaks present");
 
 const reportSrc = fs.readFileSync(path.join(root, "scripts/production-readiness-report.mjs"), "utf8");

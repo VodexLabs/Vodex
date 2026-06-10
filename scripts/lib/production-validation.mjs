@@ -5,7 +5,17 @@ import { createClient } from "@supabase/supabase-js";
 
 export const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
-export const DEFAULT_PREVIEW_PROJECT_ID = "ff55c353-aabf-479a-aaec-2138bba9d6b4";
+/** @deprecated Use resolveProjectId() — do not hardcode validation project UUIDs. */
+export const DEFAULT_PREVIEW_PROJECT_ID = "";
+
+export function resolveProjectId() {
+  const fromArg = arg("--project", "");
+  if (fromArg?.trim()) return fromArg.trim();
+  const e = env();
+  if (e.READINESS_PROJECT_ID?.trim()) return e.READINESS_PROJECT_ID.trim();
+  if (e.PREVIEW_PROJECT_ID?.trim()) return e.PREVIEW_PROJECT_ID.trim();
+  return "";
+}
 
 export function loadEnvLocal() {
   const p = path.join(root, ".env.local");

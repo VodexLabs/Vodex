@@ -12,12 +12,13 @@ import { loadPreviewRuntimeStatus } from "@/lib/preview/load-preview-runtime-sta
 import { buildPreviewStatusHtml } from "@/lib/preview/preview-status-html";
 import { assertPreviewBootstrapClean } from "@/lib/preview/preview-bootstrap-sanitizer";
 import { buildPreviewBootstrapLeakPanel } from "@/lib/preview/preview-bootstrap-leak-panel";
+import { mergePreviewIframeEmbedHeaders } from "@/lib/preview/preview-iframe-embed-headers";
 
 export const dynamic = "force-dynamic";
 
-const PREVIEW_CACHE_HEADERS = {
+const PREVIEW_CACHE_HEADERS = mergePreviewIframeEmbedHeaders({
   "Cache-Control": "no-store, max-age=0",
-} as const;
+});
 
 function wantsHtmlFrame(req: Request): boolean {
   const url = new URL(req.url);
@@ -144,7 +145,6 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
           headers: {
             ...PREVIEW_CACHE_HEADERS,
             "Content-Type": "text/html; charset=utf-8",
-            "X-Frame-Options": "SAMEORIGIN",
             "X-Preview-Renderable": "false",
             "X-Preview-Bootstrap-Leak": "1",
           },
@@ -192,7 +192,6 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
         headers: {
           ...PREVIEW_CACHE_HEADERS,
           "Content-Type": "text/html; charset=utf-8",
-          "X-Frame-Options": "SAMEORIGIN",
           "X-Preview-Renderable": "false",
         },
       });
@@ -203,7 +202,6 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       headers: {
         ...PREVIEW_CACHE_HEADERS,
         "Content-Type": "text/html; charset=utf-8",
-        "X-Frame-Options": "SAMEORIGIN",
         "X-Preview-Renderable": "true",
         "X-Preview-Artifact": servedFromArtifact ? "1" : "0",
         "X-Preview-Source": servedFromArtifact ? "artifact_proxy" : "generated",

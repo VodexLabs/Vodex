@@ -12,6 +12,7 @@ import {
   ShieldAlert,
   Loader2,
   Wifi,
+  Copy,
   Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -30,6 +31,8 @@ import {
   toPreviewIframeSrc,
   tryNormalizeInternalPreviewUrl,
 } from "@/lib/preview/rewrite-preview-artifact-html";
+import { isVirtualPreviewRuntimePath } from "@/lib/preview/internal-preview-url";
+import { analyzeIframeEmbeddabilityFromHeaders } from "@/lib/preview/preview-iframe-embed-headers";
 import {
   previewIframeDomKey,
   type PreviewIframeUrlResolution,
@@ -92,10 +95,6 @@ function isUnrenderableSrcDoc(doc: string | null | undefined): boolean {
   return /no renderable content/i.test(doc);
 }
 
-function isArtifactPreviewUrl(url: string | null): boolean {
-  return isInternalPreviewProxyUrl(url);
-}
-
 export function PreviewPanel({
   url,
   srcDoc = null,
@@ -137,7 +136,14 @@ export function PreviewPanel({
   const [iframeLoaded, setIframeLoaded] = React.useState(false);
   const [innerRouteError, setInnerRouteError] =
     React.useState<PreviewInnerRouteErrorMessage | null>(null);
+  const [iframeHeaderProbe, setIframeHeaderProbe] = React.useState<{
+    embeddable: boolean;
+    reason: string | null;
+    headers: Record<string, string | null>;
+  } | null>(null);
   const iframeRef = React.useRef<HTMLIFrameElement>(null);
+
+  const effectivePreviewPath = urlResolution?.normalizedPreviewUrl ?? url;
 
   // Route changes reload iframe via previewFrameUrl ?route= query — no postMessage escape.
 
@@ -172,6 +178,13 @@ export function PreviewPanel({
       return urlResolution.iframeSrc;
     }
     if (!url) return null;
+    if (isVirtualPreviewRuntimePath(url) || url.includes("/preview-runtime/")) {
+      try {
+        return toPreviewIframeSrc(url.startsWith("/") ? url : `/${url.replace(/^\/+/, "")}`);
+      } catch {
+        return null;
+      }
+    }
     if (url.startsWith("api/projects/") && !url.startsWith("/api/projects/")) {
       console.warn("[preview-panel] correcting relative preview iframe path before render", { url, source: "url_prop" });
     }
@@ -189,6 +202,38 @@ export function PreviewPanel({
     }
   }, [url, hasInline, urlResolution]);
 
+  React.useEffect(() => {
+    if (hasInline || !resolvedPreviewUrl) {
+      setIframeHeaderProbe(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        let res = await fetch(resolvedPreviewUrl, { method: "HEAD", credentials: "include" });
+        if (res.status === 405 || res.status === 501) {
+          res = await fetch(resolvedPreviewUrl, {
+            method: "GET",
+            credentials: "include",
+            headers: { Range: "bytes=0-0" },
+          });
+        }
+        if (cancelled) return;
+        const analysis = analyzeIframeEmbeddabilityFromHeaders(res.headers);
+        setIframeHeaderProbe({
+          embeddable: analysis.iframe_embeddable,
+          reason: analysis.iframe_block_reason,
+          headers: analysis.iframe_response_headers,
+        });
+      } catch {
+        if (!cancelled) setIframeHeaderProbe(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedPreviewUrl, hasInline, reloadKey]);
+
   const iframeDomKey = React.useMemo(
     () =>
       previewIframeDomKey({
@@ -203,13 +248,15 @@ export function PreviewPanel({
   );
 
   const previewUrlInvalid = Boolean(
-    (url || urlResolution?.selectedPreviewUrl) && !hasInline && !resolvedPreviewUrl,
+    (effectivePreviewPath || urlResolution?.selectedPreviewUrl) && !hasInline && !resolvedPreviewUrl,
   );
   const iframeRenderable = runtimeStatus?.previewRenderable === true;
   const previewBuildFailed =
     runtimeStatus?.jobStatus === "failed" || runtimeStatus?.previewStatus === "failed";
   const previewPreparing = Boolean(runtimeStatus && !iframeRenderable && !previewBuildFailed);
-  const isArtifactUrl = Boolean(url && isArtifactPreviewUrl(url));
+  const isArtifactUrl = Boolean(
+    effectivePreviewPath && isInternalPreviewProxyUrl(effectivePreviewPath),
+  );
 
   React.useEffect(() => {
     if (!iframeLoading) return;
@@ -222,7 +269,12 @@ export function PreviewPanel({
     return () => window.clearTimeout(t);
   }, [iframeLoading, reloadKey, url, srcDoc, previewPreparing, isArtifactUrl]);
 
-  const rawBlocked = Boolean(url && isBlockedRawAppPreviewUrl(url)) || previewUrlInvalid;
+  const rawBlocked =
+    Boolean(
+      effectivePreviewPath &&
+        !isInternalPreviewProxyUrl(effectivePreviewPath) &&
+        isBlockedRawAppPreviewUrl(effectivePreviewPath),
+    ) || previewUrlInvalid;
   const previewDiagnostics = React.useMemo(() => {
     if (hasInline) return null;
     const activeUrl = urlResolution?.normalizedPreviewUrl ?? url;
@@ -272,9 +324,25 @@ export function PreviewPanel({
     resolvedPreviewUrl,
   ]);
 
-  const hasPreviewArtifact = !!url || hasInline;
-  const artifactUrlOk = hasInline || !url || (isArtifactUrl && !rawBlocked);
-  const embedBlocked = Boolean(url && !hasInline && (!artifactUrlOk || rawBlocked));
+  const hasPreviewArtifact = Boolean(effectivePreviewPath || url || hasInline);
+  const headerBlocksEmbed = iframeHeaderProbe?.embeddable === false;
+  const artifactUrlOk =
+    hasInline ||
+    !effectivePreviewPath ||
+    ((isArtifactUrl || Boolean(resolvedPreviewUrl)) && !rawBlocked && !headerBlocksEmbed);
+  const embedBlocked = Boolean(
+    (effectivePreviewPath || url) && !hasInline && (!artifactUrlOk || rawBlocked || headerBlocksEmbed),
+  );
+  const embedBlockReason =
+    previewUrlInvalid
+      ? "Preview route URL invalid — iframe src could not be resolved"
+      : rawBlocked
+        ? "External preview URL blocked — use internal preview proxy"
+        : headerBlocksEmbed
+          ? iframeHeaderProbe?.reason ?? "Response headers block iframe embedding"
+          : !isArtifactUrl && effectivePreviewPath
+            ? "This route blocks iframe embedding"
+            : "Preview embed blocked";
   const showBuildShell = buildActive || thinking;
   const showArtifact = hasPreviewArtifact && !showBuildShell;
   const awaitingRuntimeStatus = Boolean(url && isArtifactUrl && !hasInline && !runtimeStatus);
@@ -612,20 +680,37 @@ export function PreviewPanel({
                   ? "Preview route URL invalid"
                   : rawBlocked
                     ? "External preview URL blocked"
-                    : "Preview embed blocked"}
+                    : headerBlocksEmbed || !isArtifactUrl
+                      ? embedBlockReason
+                      : "Preview embed blocked"}
               </p>
               <p className="text-[11.5px] leading-relaxed text-muted-foreground">
                 {previewUrlInvalid
-                  ? "The preview iframe must load an absolute Vodex API route starting with /api/projects/…/preview-html — not a relative app path."
+                  ? "The preview iframe must load an absolute Vodex preview route (/preview-runtime/… or /api/projects/…/preview-html)."
                   : rawBlocked
                     ? "Imported apps must load through the internal preview proxy — never raw vodex.dev URLs in the iframe."
-                    : "This route blocks iframe embedding. Open the preview in a new tab or run embed repair."}
+                    : embedBlockReason}
               </p>
+              {resolvedPreviewUrl ? (
+                <p
+                  className="max-w-full truncate text-[10px] font-mono text-muted-foreground/80"
+                  title={resolvedPreviewUrl}
+                >
+                  iframe URL: {resolvedPreviewUrl}
+                </p>
+              ) : effectivePreviewPath ? (
+                <p
+                  className="max-w-full truncate text-[10px] font-mono text-muted-foreground/80"
+                  title={effectivePreviewPath}
+                >
+                  preview path: {effectivePreviewPath}
+                </p>
+              ) : null}
               <div className="flex flex-wrap justify-center gap-2">
-                {url ? (
+                {(resolvedPreviewUrl ?? effectivePreviewPath ?? url) ? (
                   <>
                     <a
-                      href={url}
+                      href={resolvedPreviewUrl ?? effectivePreviewPath ?? url!}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[12px] font-semibold text-white"
@@ -636,7 +721,8 @@ export function PreviewPanel({
                     <button
                       type="button"
                       onClick={() => {
-                        void navigator.clipboard.writeText(url).then(
+                        const copyUrl = resolvedPreviewUrl ?? effectivePreviewPath ?? url ?? "";
+                        void navigator.clipboard.writeText(copyUrl).then(
                           () => toast.success("Copied preview URL"),
                           () => toast.error("Could not copy"),
                         );
@@ -645,6 +731,23 @@ export function PreviewPanel({
                     >
                       Copy preview URL
                     </button>
+                    {iframeHeaderProbe?.headers ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void navigator.clipboard
+                            .writeText(JSON.stringify(iframeHeaderProbe.headers, null, 2))
+                            .then(
+                              () => toast.success("Copied response headers"),
+                              () => toast.error("Could not copy"),
+                            );
+                        }}
+                        className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-[12px] font-semibold ring-1 ring-border"
+                      >
+                        <Copy className="size-3" strokeWidth={1.75} />
+                        Copy headers
+                      </button>
+                    ) : null}
                   </>
                 ) : null}
                 {onRebuildPreview ? (
@@ -768,6 +871,7 @@ export function PreviewPanel({
             </p>
             <p className="truncate opacity-80" title={previewDiagnostics.iframeSrc ?? undefined}>
               iframe: {previewDiagnostics.iframeSrc ?? "—"}
+              {iframeHeaderProbe?.reason ? ` · ${iframeHeaderProbe.reason}` : ""}
             </p>
           </div>
         ) : null}

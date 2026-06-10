@@ -7,10 +7,18 @@ import { detectImportedFramework } from "@/lib/imports/framework-detector";
 import { rewritePreviewArtifactHtml } from "@/lib/preview/rewrite-preview-artifact-html";
 import { assertPreviewBootstrapClean } from "@/lib/preview/preview-bootstrap-sanitizer";
 import { buildPreviewBootstrapLeakPanel } from "@/lib/preview/preview-bootstrap-leak-panel";
+import { mergePreviewIframeEmbedHeaders } from "@/lib/preview/preview-iframe-embed-headers";
 
 export const dynamic = "force-dynamic";
 
 const CACHE_HEADERS = { "Cache-Control": "no-store, max-age=0" } as const;
+
+function previewHtmlHeaders(extra?: Record<string, string>): Record<string, string> {
+  return mergePreviewIframeEmbedHeaders({
+    ...CACHE_HEADERS,
+    ...extra,
+  });
+}
 
 /** Virtual preview path — browser URL is app route, not /api/projects/.../preview-html. */
 export async function GET(
@@ -66,23 +74,19 @@ export async function GET(
     });
     return new NextResponse(leakPanel, {
       status: 200,
-      headers: {
-        ...CACHE_HEADERS,
+      headers: previewHtmlHeaders({
         "Content-Type": "text/html; charset=utf-8",
-        "X-Frame-Options": "SAMEORIGIN",
         "X-Preview-Renderable": "false",
-      },
+      }),
     });
   }
 
   return new NextResponse(html, {
     status: 200,
-    headers: {
-      ...CACHE_HEADERS,
+    headers: previewHtmlHeaders({
       "Content-Type": "text/html; charset=utf-8",
-      "X-Frame-Options": "SAMEORIGIN",
       "X-Preview-Renderable": "true",
       "X-Preview-Virtual-Route": virtualRoute,
-    },
+    }),
   });
 }

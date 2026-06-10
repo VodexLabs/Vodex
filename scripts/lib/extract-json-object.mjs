@@ -64,6 +64,7 @@ export function isPreviewDiagnosticsPass(report) {
     report.rebuild_required === false &&
     (report.unsafe_path_count ?? 0) === 0 &&
     (report.hydration_path_count ?? 0) === 0 &&
+    report.iframe_embeddable === true &&
     (Array.isArray(report.issues) ? report.issues.length === 0 : true)
   );
 }

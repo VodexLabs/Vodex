@@ -8,14 +8,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   createAdmin,
-  DEFAULT_PREVIEW_PROJECT_ID,
-  arg,
   env,
+  resolveProjectId,
 } from "./lib/production-validation.mjs";
 import { extractFirstJsonObject, isPreviewDiagnosticsPass } from "./lib/extract-json-object.mjs";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
-const projectId = arg("--project", DEFAULT_PREVIEW_PROJECT_ID);
+const projectId = resolveProjectId();
 
 function runNpm(script) {
   const r = spawnSync(process.platform === "win32" ? "npm.cmd" : "npm", ["run", script], {
@@ -74,6 +73,10 @@ async function evaluatePreview() {
     "unsafe_path_count",
     "hydration_path_count",
     "current_iframe_url",
+    "iframe_embeddable",
+    "iframe_block_reason",
+    "iframe_response_headers",
+    "iframe_url_mode",
     "rebuild_required",
     "issues",
   ];
@@ -94,8 +97,8 @@ async function evaluatePreview() {
   return {
     pass: healthy,
     detail: healthy
-      ? `renderable, job=${report.latest_worker_status}, 0 leaks, 0 issues`
-      : `renderable=${report.preview_renderable}, rebuild_required=${report.rebuild_required}, unsafe=${report.unsafe_path_count}, hydration=${report.hydration_path_count}, issues=${(report.issues ?? []).join("; ") || "none"}`,
+      ? `renderable, iframe_embeddable, job=${report.latest_worker_status}, 0 leaks, 0 issues`
+      : `renderable=${report.preview_renderable}, iframe_embeddable=${report.iframe_embeddable}, rebuild_required=${report.rebuild_required}, unsafe=${report.unsafe_path_count}, hydration=${report.hydration_path_count}, iframe_block=${report.iframe_block_reason ?? "none"}, issues=${(report.issues ?? []).join("; ") || "none"}`,
     report,
   };
 }
@@ -143,6 +146,11 @@ function banner(title) {
 }
 
 async function main() {
+  if (!projectId) {
+    console.error("✗ Missing project id — pass --project <uuid> or set READINESS_PROJECT_ID");
+    process.exit(1);
+  }
+
   console.log("\n╔══════════════════════════════════════════════════════╗");
   console.log("║     P1.3.32 Production Readiness Report              ║");
   console.log(`║     Project: ${projectId.slice(0, 36)}  ║`);

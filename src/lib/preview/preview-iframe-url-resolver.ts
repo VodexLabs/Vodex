@@ -89,6 +89,10 @@ function evaluateCandidate(
       rejectReason: normalized ? "normalized_relative_api_projects" : "relative_api_projects_unfixable",
     };
   }
+  if (trimmed.includes("/preview-runtime/") || trimmed.startsWith("/preview-runtime/")) {
+    const normalized = trimmed.startsWith("/") ? trimmed : `/${trimmed.replace(/^\/+/, "")}`;
+    return { source, raw: trimmed, normalized, rejected: false, rejectReason: null };
+  }
   const normalized = tryNormalizeInternalPreviewUrl(trimmed);
   return {
     source,
