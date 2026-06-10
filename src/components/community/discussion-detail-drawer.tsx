@@ -11,6 +11,7 @@ import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import type { Discussion } from "@/lib/supabase/types";
 import { CommunityHeartButton } from "@/components/community/community-heart-button";
+import { fetchProfileNameMap } from "@/lib/community/profile-display-name";
 
 type CommentRow = {
   id: string;
@@ -37,6 +38,8 @@ function CommentItem({
   onLike,
   onReply,
   depth = 0,
+  replyToName,
+  getChildReplies,
 }: {
   comment: CommentRow;
   replies: CommentRow[];
@@ -44,6 +47,8 @@ function CommentItem({
   onLike: (id: string, liked: boolean) => void;
   onReply: (parentId: string, text: string) => Promise<void>;
   depth?: number;
+  replyToName?: string;
+  getChildReplies: (id: string) => CommentRow[];
 }) {
   const [showReplies, setShowReplies] = React.useState(false);
   const [replyOpen, setReplyOpen] = React.useState(false);
@@ -68,7 +73,15 @@ function CommentItem({
   return (
     <li className={cn(depth > 0 && "ml-4 border-l-2 border-border/60 pl-3")}>
       <div className="rounded-xl bg-surface/80 px-3 py-2.5 ring-1 ring-border/60">
-        <p className="text-[11px] font-medium text-muted-foreground">{comment.author_name ?? "Member"}</p>
+        {replyToName ? (
+          <p className="text-[11px] text-muted-foreground">
+            <span className="font-semibold text-foreground">{comment.author_name ?? "Member"}</span>
+            <span className="mx-1.5 font-bold text-accent">→</span>
+            <span className="font-medium">{replyToName}</span>
+          </p>
+        ) : (
+          <p className="text-[11px] font-medium text-muted-foreground">{comment.author_name ?? "Member"}</p>
+        )}
         <p className="mt-1 text-[13px] text-foreground">{comment.body}</p>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <CommunityHeartButton
@@ -121,11 +134,13 @@ function CommentItem({
             <CommentItem
               key={r.id}
               comment={r}
-              replies={[]}
+              replies={getChildReplies(r.id)}
+              getChildReplies={getChildReplies}
               userId={userId}
               onLike={onLike}
               onReply={onReply}
               depth={depth + 1}
+              replyToName={comment.parent_reply_id ? comment.author_name : undefined}
             />
           ))}
         </ul>
@@ -183,9 +198,12 @@ export function DiscussionDetailDrawer({
         setComments([]);
       } else {
         const likedIds = new Set((likesRes.data ?? []).map((l: { reply_id: string }) => l.reply_id));
-        const rows = ((commentsRes.data ?? []) as CommentRow[]).map((c) => ({
+        const raw = (commentsRes.data ?? []) as CommentRow[];
+        const names = await fetchProfileNameMap(supabase, raw.map((c) => c.user_id));
+        const rows = raw.map((c) => ({
           ...c,
           liked: likedIds.has(c.id),
+          author_name: c.user_id === user?.id ? "You" : names.get(c.user_id) ?? "Member",
         }));
         setComments([...rows].sort((a, b) => commentScore(b) - commentScore(a)));
       }
@@ -358,6 +376,7 @@ export function DiscussionDetailDrawer({
                       key={c.id}
                       comment={c}
                       replies={repliesByParent.get(c.id) ?? []}
+                      getChildReplies={(id) => repliesByParent.get(id) ?? []}
                       userId={user?.id}
                       onLike={handleCommentLike}
                       onReply={handleCommentReply}

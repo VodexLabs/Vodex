@@ -17,7 +17,7 @@ export function getPortalContainer(): HTMLElement {
     root.setAttribute("data-vodex-portal-root", "true");
     root.style.position = "fixed";
     root.style.inset = "0";
-    root.style.zIndex = "var(--z-portal-root, 900)";
+    root.style.zIndex = "var(--z-portal-root, 1400)";
     root.style.pointerEvents = "none";
     root.style.isolation = "isolate";
     document.body.appendChild(root);

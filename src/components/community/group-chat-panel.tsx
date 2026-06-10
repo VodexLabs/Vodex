@@ -1,23 +1,28 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, Send, CheckCheck } from "lucide-react";
+import { Loader2, Send, Smile, Reply } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { Avatar } from "@/components/ui/avatar";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
+import { fetchProfileNameMap, profileDisplayName } from "@/lib/community/profile-display-name";
+
+type ReactionRow = { emoji: string; user_id: string };
 
 type MessageRow = {
   id: string;
   body: string;
   created_at: string;
   user_id: string;
+  parent_message_id?: string | null;
   author_name?: string;
   author_avatar?: string | null;
+  reactions?: ReactionRow[];
 };
 
-type TypingUser = { userId: string; name: string };
+const QUICK_REACTIONS = ["👍", "❤️", "🔥", "😂", "🎉"];
 
 export function GroupChatPanel({
   groupId,
@@ -32,37 +37,55 @@ export function GroupChatPanel({
   const [loading, setLoading] = React.useState(true);
   const [body, setBody] = React.useState("");
   const [sending, setSending] = React.useState(false);
-  const [typingUsers, setTypingUsers] = React.useState<TypingUser[]>([]);
-  const [lastReadAt, setLastReadAt] = React.useState<string | null>(null);
+  const [replyTo, setReplyTo] = React.useState<MessageRow | null>(null);
+  const [typingUsers, setTypingUsers] = React.useState<{ userId: string; name: string }[]>([]);
+  const [reactionPickerFor, setReactionPickerFor] = React.useState<string | null>(null);
   const bottomRef = React.useRef<HTMLDivElement>(null);
-  const typingTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const channelRef = React.useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  const enrichMessages = React.useCallback(
+    async (rows: MessageRow[]) => {
+      const names = await fetchProfileNameMap(supabase, rows.map((m) => m.user_id));
+      return rows.map((m) => ({
+        ...m,
+        author_name: m.user_id === user?.id ? "You" : names.get(m.user_id) ?? "Member",
+      }));
+    },
+    [supabase, user?.id],
+  );
 
   const loadMessages = React.useCallback(async () => {
     const { data, error } = await supabase
       .from("group_messages" as never)
-      .select("id, body, created_at, user_id")
+      .select("id, body, created_at, user_id, parent_message_id")
       .eq("group_id" as never, groupId)
       .eq("is_deleted" as never, false)
       .order("created_at", { ascending: true })
-      .limit(80);
+      .limit(120);
     if (error) {
       setMessages([]);
       return;
     }
-    setMessages((data ?? []) as unknown as MessageRow[]);
-  }, [groupId, supabase]);
+    const base = (data ?? []) as unknown as MessageRow[];
+    const enriched = await enrichMessages(base);
 
-  const markRead = React.useCallback(async () => {
-    if (!user || !joined) return;
-    const now = new Date().toISOString();
-    setLastReadAt(now);
-    await supabase
-      .from("group_members" as never)
-      .update({ last_read_at: now } as never)
-      .eq("group_id" as never, groupId)
-      .eq("user_id" as never, user.id);
-  }, [groupId, joined, supabase, user]);
+    const ids = base.map((m) => m.id);
+    if (ids.length) {
+      const { data: rxn } = await supabase
+        .from("group_message_reactions" as never)
+        .select("message_id, emoji, user_id")
+        .in("message_id" as never, ids);
+      const byMsg = new Map<string, ReactionRow[]>();
+      for (const r of (rxn ?? []) as unknown as (ReactionRow & { message_id: string })[]) {
+        const list = byMsg.get(r.message_id) ?? [];
+        list.push({ emoji: r.emoji, user_id: r.user_id });
+        byMsg.set(r.message_id, list);
+      }
+      setMessages(enriched.map((m) => ({ ...m, reactions: byMsg.get(m.id) ?? [] })));
+    } else {
+      setMessages(enriched);
+    }
+  }, [enrichMessages, groupId, supabase]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -70,65 +93,72 @@ export function GroupChatPanel({
       setLoading(true);
       await loadMessages();
       if (!cancelled) setLoading(false);
-      void markRead();
     })();
 
-    const channel = supabase.channel(`group-chat:${groupId}`, {
-      config: { broadcast: { self: false } },
-    });
-
+    const channel = supabase.channel(`group-chat:${groupId}`, { config: { broadcast: { self: false } } });
     channel
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "group_messages", filter: `group_id=eq.${groupId}` },
         (payload) => {
           const row = payload.new as MessageRow;
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === row.id)) return prev;
-            return [...prev, row];
+          void enrichMessages([row]).then(([enriched]) => {
+            setMessages((prev) => (prev.some((m) => m.id === enriched.id) ? prev : [...prev, { ...enriched, reactions: [] }]));
           });
-          void markRead();
         },
       )
       .on("broadcast", { event: "typing" }, (payload) => {
         const p = payload.payload as { userId?: string; name?: string };
         if (!p.userId || p.userId === user?.id) return;
-        setTypingUsers((prev) => {
-          const filtered = prev.filter((t) => t.userId !== p.userId);
-          return [...filtered, { userId: p.userId!, name: p.name ?? "Someone" }];
-        });
-        window.setTimeout(() => {
-          setTypingUsers((prev) => prev.filter((t) => t.userId !== p.userId));
-        }, 2800);
+        setTypingUsers((prev) => [...prev.filter((t) => t.userId !== p.userId), { userId: p.userId!, name: p.name ?? "Someone" }]);
+        window.setTimeout(() => setTypingUsers((prev) => prev.filter((t) => t.userId !== p.userId)), 2800);
       })
       .subscribe();
-
     channelRef.current = channel;
 
     return () => {
       cancelled = true;
       void supabase.removeChannel(channel);
-      channelRef.current = null;
     };
-  }, [groupId, loadMessages, markRead, supabase, user?.id]);
+  }, [enrichMessages, groupId, loadMessages, supabase, user?.id]);
 
   React.useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, typingUsers.length]);
 
-  function broadcastTyping() {
-    if (!user || !joined || !channelRef.current) return;
-    void channelRef.current.send({
-      type: "broadcast",
-      event: "typing",
-      payload: { userId: user.id, name: profile?.full_name ?? "Member" },
-    });
-  }
-
-  function onInputChange(value: string) {
-    setBody(value);
-    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
-    typingTimerRef.current = setTimeout(() => broadcastTyping(), 200);
+  async function toggleReaction(messageId: string, emoji: string) {
+    if (!user) return;
+    const msg = messages.find((m) => m.id === messageId);
+    const has = msg?.reactions?.some((r) => r.user_id === user.id && r.emoji === emoji);
+    if (has) {
+      await supabase
+        .from("group_message_reactions" as never)
+        .delete()
+        .eq("message_id" as never, messageId)
+        .eq("user_id" as never, user.id)
+        .eq("emoji" as never, emoji);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId
+            ? { ...m, reactions: (m.reactions ?? []).filter((r) => !(r.user_id === user.id && r.emoji === emoji)) }
+            : m,
+        ),
+      );
+    } else {
+      await supabase.from("group_message_reactions" as never).insert({
+        message_id: messageId,
+        user_id: user.id,
+        emoji,
+      } as never);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId
+            ? { ...m, reactions: [...(m.reactions ?? []), { emoji, user_id: user.id }] }
+            : m,
+        ),
+      );
+    }
+    setReactionPickerFor(null);
   }
 
   async function send() {
@@ -140,20 +170,25 @@ export function GroupChatPanel({
       body: text,
       created_at: new Date().toISOString(),
       user_id: user.id,
-      author_name: profile?.full_name ?? "You",
+      parent_message_id: replyTo?.id ?? null,
+      author_name: profileDisplayName(profile, "You"),
+      reactions: [],
     };
+    const parentMessageId = replyTo?.id ?? null;
     setMessages((prev) => [...prev, optimistic]);
     setBody("");
+    setReplyTo(null);
     try {
-      const { data, error } = await supabase
-        .from("group_messages" as never)
-        .insert({ group_id: groupId, user_id: user.id, body: text } as never)
-        .select("id, body, created_at, user_id")
-        .single();
-      if (error) throw error;
-      const row = data as unknown as MessageRow;
-      setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? { ...row, author_name: "You" } : m)));
-      void markRead();
+      const res = await fetch(`/api/community/groups/${groupId}/messages`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, parentMessageId }),
+      });
+      const j = (await res.json()) as { message?: MessageRow; error?: string };
+      if (!res.ok || !j.message) throw new Error(j.error ?? "Send failed");
+      const enriched = await enrichMessages([j.message]);
+      setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? { ...enriched[0], reactions: [] } : m)));
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
       setBody(text);
@@ -171,36 +206,67 @@ export function GroupChatPanel({
     );
   }
 
+  const msgById = new Map(messages.map((m) => [m.id, m]));
+
   return (
-    <div className="flex h-[min(420px,60vh)] flex-col overflow-hidden rounded-2xl bg-surface ring-1 ring-border" data-testid="group-chat-panel">
+    <div className="flex h-[min(520px,65vh)] flex-col overflow-hidden rounded-2xl bg-surface ring-1 ring-border" data-testid="group-chat-panel">
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <p className="text-[11px] font-semibold text-muted-foreground">Group chat</p>
-        <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">Realtime</span>
+        <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">Live</span>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3">
         {loading ? (
-          <ul className="space-y-3">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <li key={i} className="h-12 animate-pulse rounded-2xl bg-muted/40" />
-            ))}
-          </ul>
+          <div className="flex justify-center py-10"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
         ) : messages.length === 0 ? (
           <p className="py-8 text-center text-[12px] text-muted-foreground">No messages yet — say hello.</p>
         ) : (
           <ul className="space-y-3">
             {messages.map((m) => {
               const mine = m.user_id === user?.id;
-              const read = mine && lastReadAt && new Date(m.created_at) <= new Date(lastReadAt);
+              const parent = m.parent_message_id ? msgById.get(m.parent_message_id) : null;
+              const reactionCounts = (m.reactions ?? []).reduce<Record<string, number>>((acc, r) => {
+                acc[r.emoji] = (acc[r.emoji] ?? 0) + 1;
+                return acc;
+              }, {});
               return (
-                <li key={m.id} className={cn("flex gap-2", mine && "flex-row-reverse")}>
-                  <Avatar name={m.author_name ?? "Member"} src={m.author_avatar} size="sm" />
-                  <div className={cn("max-w-[78%] rounded-2xl px-3 py-2 text-[13px]", mine ? "bg-accent text-white" : "bg-muted/50 text-foreground")}>
-                    <p>{m.body}</p>
-                    <div className={cn("mt-1 flex items-center gap-1 text-[9px] opacity-70", mine ? "justify-end text-white/80" : "text-muted-foreground")}>
-                      <span>{new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-                      {mine && read ? <CheckCheck className="size-3" /> : null}
+                <li key={m.id} className={cn("flex gap-2", mine ? "flex-row-reverse" : "flex-row")}>
+                  {!mine ? <Avatar name={m.author_name ?? "Member"} size="sm" /> : null}
+                  <div className={cn("max-w-[80%] space-y-1", mine && "items-end")}>
+                    {!mine ? <p className="text-[10px] font-medium text-muted-foreground">{m.author_name}</p> : null}
+                    {parent ? (
+                      <p className="text-[10px] text-muted-foreground">
+                        <span className="font-medium">{m.author_name}</span>
+                        <span className="mx-1 text-accent">→</span>
+                        <span>{parent.author_name ?? "Member"}</span>
+                      </p>
+                    ) : null}
+                    <div className={cn("rounded-2xl px-3 py-2 text-[13px] leading-relaxed", mine ? "bg-accent text-white" : "bg-muted/50 text-foreground")}>
+                      <p>{m.body}</p>
+                      <p className={cn("mt-1 text-[9px] opacity-70", mine ? "text-right text-white/80" : "text-muted-foreground")}>
+                        {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </p>
                     </div>
+                    <div className={cn("flex flex-wrap items-center gap-1", mine && "justify-end")}>
+                      {Object.entries(reactionCounts).map(([emoji, count]) => (
+                        <button key={emoji} type="button" onClick={() => void toggleReaction(m.id, emoji)} className="rounded-full bg-background/80 px-1.5 py-0.5 text-[11px] ring-1 ring-border">
+                          {emoji} {count}
+                        </button>
+                      ))}
+                      <button type="button" onClick={() => setReactionPickerFor(reactionPickerFor === m.id ? null : m.id)} className="rounded-lg p-1 text-muted-foreground hover:bg-muted">
+                        <Smile className="size-3.5" />
+                      </button>
+                      <button type="button" onClick={() => setReplyTo(m)} className="inline-flex items-center gap-0.5 rounded-lg px-1 py-1 text-[10px] text-muted-foreground hover:text-foreground">
+                        <Reply className="size-3" /> Reply
+                      </button>
+                    </div>
+                    {reactionPickerFor === m.id ? (
+                      <div className="flex gap-1">
+                        {QUICK_REACTIONS.map((e) => (
+                          <button key={e} type="button" onClick={() => void toggleReaction(m.id, e)} className="rounded-lg bg-background px-2 py-1 text-sm ring-1 ring-border hover:bg-muted">{e}</button>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 </li>
               );
@@ -211,29 +277,33 @@ export function GroupChatPanel({
       </div>
 
       {typingUsers.length > 0 ? (
-        <p className="px-3 pb-1 text-[11px] text-muted-foreground">
-          {typingUsers.map((t) => t.name).join(", ")} typing…
-        </p>
+        <p className="px-3 pb-1 text-[11px] text-muted-foreground">{typingUsers.map((t) => t.name).join(", ")} typing…</p>
       ) : null}
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void send();
-        }}
-        className="flex gap-2 border-t border-border px-3 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]"
-      >
+      {replyTo ? (
+        <div className="flex items-center justify-between border-t border-border bg-muted/30 px-3 py-1.5 text-[11px]">
+          <span>Replying to <strong>{replyTo.author_name}</strong></span>
+          <button type="button" onClick={() => setReplyTo(null)} className="text-muted-foreground hover:text-foreground">Cancel</button>
+        </div>
+      ) : null}
+
+      <form onSubmit={(e) => { e.preventDefault(); void send(); }} className="flex gap-2 border-t border-border px-3 py-3">
         <input
           value={body}
-          onChange={(e) => onInputChange(e.target.value)}
+          onChange={(e) => {
+            setBody(e.target.value);
+            if (channelRef.current && user) {
+              void channelRef.current.send({
+                type: "broadcast",
+                event: "typing",
+                payload: { userId: user.id, name: profileDisplayName(profile, "You") },
+              });
+            }
+          }}
           placeholder="Message the group…"
           className="min-w-0 flex-1 rounded-xl bg-background px-3 py-2.5 text-[13px] ring-1 ring-border"
         />
-        <button
-          type="submit"
-          disabled={sending || !body.trim()}
-          className="rounded-xl bg-accent px-3 py-2.5 text-white disabled:opacity-50"
-        >
+        <button type="submit" disabled={sending || !body.trim()} className="rounded-xl bg-accent px-3 py-2.5 text-white disabled:opacity-50">
           <Send className="size-4" />
         </button>
       </form>

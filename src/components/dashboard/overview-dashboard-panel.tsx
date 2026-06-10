@@ -18,6 +18,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { buildPreviewRepairBuilderUrl } from "@/lib/utils/safe-url";
 import { fetchDedupe } from "@/lib/cache/fetch-dedupe";
 import { OverviewPreviewThumbnailControl } from "@/components/dashboard/overview-preview-thumbnail-control";
 
@@ -140,7 +141,7 @@ export function OverviewDashboardPanel({
           recs.push({ id: "mobile", title: "Complete mobile setup", detail: "Configure package ID, signing, and store metadata.", action: "mobile" });
         }
         if (!previewReady && buildOk) {
-          recs.push({ id: "preview", title: "Fix preview", detail: "Files are saved — run preview repair.", href: `/apps/${projectId}/builder?repair=preview` });
+          recs.push({ id: "preview", title: "Fix preview", detail: "Files are saved — run preview repair.", href: buildPreviewRepairBuilderUrl(projectId) });
         }
 
         setData({

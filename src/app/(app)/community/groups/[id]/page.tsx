@@ -1,5 +1,6 @@
 import { GroupPageClient } from "@/components/community/group-page";
 
-export default function GroupPage({ params }: { params: { id: string } }) {
-  return <GroupPageClient groupId={params.id} />;
+export default async function GroupPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return <GroupPageClient groupId={id} />;
 }

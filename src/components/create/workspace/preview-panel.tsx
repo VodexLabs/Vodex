@@ -546,13 +546,13 @@ export function PreviewPanel({
                   viewport === "desktop" &&
                     "absolute inset-x-0 top-2 bottom-1 mx-auto h-[calc(100%-12px)] w-[min(100%,102%)] rounded-sm shadow-[0_2px_24px_-6px_rgba(0,0,0,0.12)] ring-1 ring-border/50",
                   viewport === "tablet" &&
-                    "max-h-[min(88vh,1024px)] w-[min(820px,calc(100%-20px))] rounded-[var(--radius-lg)] shadow-[0_8px_32px_-8px_rgba(0,0,0,0.18)] ring-1 ring-border",
+                    "h-[min(88vh,1024px)] w-[min(820px,calc(100%-24px))] max-w-full rounded-[var(--radius-lg)] shadow-[0_8px_32px_-8px_rgba(0,0,0,0.18)] ring-1 ring-border",
                   viewport === "mobile" &&
-                    "z-10 max-h-[min(86vh,852px)] w-[min(393px,calc(100%-20px))] rounded-[var(--radius-lg)] shadow-[0_0_40px_rgba(0,0,0,0.5)] ring-1 ring-border",
+                    "z-10 h-[min(86vh,852px)] w-[min(393px,calc(100%-24px))] max-w-full rounded-[var(--radius-lg)] shadow-[0_0_40px_rgba(0,0,0,0.5)] ring-1 ring-border",
                 )}
               >
                 {viewport === "mobile" && (
-                  <div className="absolute top-0 left-1/2 z-10 h-5 w-24 -translate-x-1/2 rounded-b-xl bg-black/90" />
+                  <div className="pointer-events-none absolute top-0 left-1/2 z-10 h-4 w-20 -translate-x-1/2 rounded-b-lg bg-black/80" />
                 )}
 
                 {/* Loading overlay */}

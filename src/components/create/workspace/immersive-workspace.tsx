@@ -542,7 +542,10 @@ export function ImmersiveWorkspace({
   );
 
   React.useEffect(() => {
-    const raw = searchParams.get("insertPrompt");
+    const repairPreview = searchParams.get("repair") === "preview";
+    const raw = repairPreview
+      ? "Fix the preview for this imported app. The iframe shows a 404 on the preview-html proxy path. Inspect routing, entry files, and base paths — update only what is needed so all routes load correctly inside the Vodex preview."
+      : searchParams.get("insertPrompt");
     if (!raw?.trim() || insertPromptConsumedRef.current) return;
     insertPromptConsumedRef.current = true;
     let text = raw;
@@ -551,10 +554,10 @@ export function ImmersiveWorkspace({
     } catch {
       /* use raw */
     }
-    setMode(searchParams.get("mode") === "build" ? "build" : "discuss");
+    setMode(repairPreview ? "edit" : searchParams.get("mode") === "build" ? "build" : "discuss");
     setChatEngaged(true);
     setMobilePanel("chat");
-    const autoSubmit = searchParams.get("autostart") === "1" || searchParams.get("autostart") === "true";
+    const autoSubmit = !repairPreview && (searchParams.get("autostart") === "1" || searchParams.get("autostart") === "true");
     if (autoSubmit) {
       setPendingInsertAutoSubmit(text);
     } else {
@@ -567,6 +570,7 @@ export function ImmersiveWorkspace({
     }
     const next = new URLSearchParams(searchParams.toString());
     next.delete("insertPrompt");
+    next.delete("repair");
     next.delete("autostart");
     next.delete("mode");
     const qs = next.toString();

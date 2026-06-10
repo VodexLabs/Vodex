@@ -23,6 +23,30 @@ export function buildPreviewVirtualHistoryScript(initialRoute: string): string {
     var s=normPath(p).toLowerCase();
     return s.indexOf("/api/projects/")===0||s.indexOf("api/projects/")>=0;
   }
+  function patchNextData(){
+    try{
+      var el=document.getElementById('__NEXT_DATA__');
+      if(!el||!el.textContent)return;
+      var nd=JSON.parse(el.textContent);
+      function fixPath(p){
+        if(!p||typeof p!=='string')return p;
+        if(isPlatformPreviewPath(p))return'/';
+        if(p.indexOf('preview-html')>=0)return'/';
+        return p;
+      }
+      nd.page=fixPath(nd.page);
+      nd.asPath=fixPath(nd.asPath);
+      nd.pathname=fixPath(nd.pathname);
+      nd.url=fixPath(nd.url);
+      el.textContent=JSON.stringify(nd);
+    }catch(e){}
+  }
+  patchNextData();
+  if(typeof MutationObserver!=='undefined'&&document.documentElement){
+    try{
+      new MutationObserver(function(){patchNextData();}).observe(document.documentElement,{childList:true,subtree:true});
+    }catch(e){}
+  }
   function isExternalPlatformHost(hostname){
     if(!hostname)return false;
     return /vodex\\.dev$/i.test(hostname)||/\\.vodex\\.app$/i.test(hostname);

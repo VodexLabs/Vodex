@@ -2,6 +2,8 @@
  * Canonical project card status — single source for home, apps grid, and build-status API.
  */
 
+import { buildPreviewRepairBuilderUrl } from "@/lib/utils/safe-url";
+
 export type ProjectCardStatus =
   | "building"
   | "preview_preparing"
@@ -122,7 +124,7 @@ export function projectCardStatusCtas(
   if (status === "preview_failed") {
     ctas.push({
       label: "Repair preview",
-      href: `/apps/${projectId}/builder?repair=preview`,
+      href: buildPreviewRepairBuilderUrl(projectId),
     });
   }
   if (status === "failed") {

@@ -733,7 +733,7 @@ export async function POST(request: Request) {
     name: r.file_name ?? "attachment",
   })) as unknown as Json;
 
-  if (userText && !conversationId) {
+  if (userText && !conversationId && (projectId || chargeMode !== "discuss")) {
     const conv = await ensureProjectConversation({
       writer,
       user,
@@ -749,6 +749,11 @@ export async function POST(request: Request) {
       );
     }
     conversationId = conv.id;
+  } else if (userText && !conversationId && chargeMode === "discuss" && !projectId) {
+    return NextResponse.json(
+      { error: "Conversation not initialized. Please retry.", code: "missing_conversation" },
+      { status: 400 },
+    );
   } else if (conversationId && projectId) {
     await ensureProjectConversation({
       writer,

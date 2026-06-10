@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { safeUrlHost } from "@/lib/utils/safe-url";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ExternalLink,
@@ -138,7 +139,7 @@ function buildGraph(
     nodes.push({
       id: "domain",
       kind: "domain",
-      label: project.custom_domain ?? new URL(project.preview_url!).host,
+      label: project.custom_domain ?? safeUrlHost(project.preview_url!),
       sublabel: project.custom_domain ? "Custom" : "Vercel",
     });
     edges.push({ from: "app", to: "domain" });
@@ -337,7 +338,7 @@ function DeploymentsTab({ deployments }: { deployments: DeploymentRow[] }) {
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 text-accent hover:underline"
                     >
-                      {new URL(d.url).host}
+                      {safeUrlHost(d.url)}
                       <ExternalLink className="size-3" strokeWidth={2} />
                     </Link>
                   ) : (
@@ -879,16 +880,16 @@ function LogsTab({ project }: { project: ProjectRow }) {
           </span>
         )}
       </div>
-      <div className="max-h-[min(60vh,480px)] overflow-y-auto rounded-[var(--radius-xl)] bg-[#080c12] p-4 ring-1 ring-border font-mono">
+      <div className="max-h-[min(60vh,480px)] overflow-y-auto rounded-[var(--radius-xl)] bg-white p-4 ring-1 ring-border font-mono">
         {loading ? (
-          <p className="text-[11.5px] text-muted-foreground/50">Loading logs…</p>
+          <p className="text-[11.5px] text-muted-foreground">Loading logs…</p>
         ) : lines.length === 0 ? (
-          <p className="text-[11.5px] text-emerald-400/70">
+          <p className="text-[11.5px] text-foreground/80">
             {new Date().toISOString()} — No errors recorded. App is healthy.
           </p>
         ) : (
           lines.map((line, i) => (
-            <p key={i} className="text-[11.5px] text-emerald-400/80">
+            <p key={i} className="text-[11.5px] text-foreground">
               {line}
             </p>
           ))

@@ -26,6 +26,7 @@ import { formatCreditAmount } from "@/lib/credits/credit-summary";
 import { resolveDisplayName } from "@/lib/profile-display";
 import { toast } from "@/lib/toast";
 import { createDreamChatTransport } from "@/lib/chat/create-chat-transport";
+import { DISCUSS_SUGGESTIONS } from "@/lib/chat/discuss-suggestions";
 import { runAiPreflightDeduped } from "@/lib/ai/preflight-inflight";
 import { isAiPreflightSuccess, preflightBlockedLabel } from "@/lib/ai/preflight-types";
 import { applyComposerPaste } from "@/lib/composer/textarea-handlers";
@@ -1284,13 +1285,8 @@ export function ChatView() {
                 <p className="mt-1.5 max-w-md text-[12.5px] leading-relaxed text-muted-foreground">
                   Ask how Vodex works, what to build first, or where to find pricing and settings. Short, plain-language answers.
                 </p>
-                <div className="mt-6 flex w-full max-w-xl flex-col gap-2">
-                  {[
-                    "What is Vodex in one sentence?",
-                    "How do I build my first app here?",
-                    "Where do tokens and pricing work?",
-                    "Where are templates and example apps?",
-                  ].map((text) => (
+                <div className="mt-6 grid w-full max-w-xl grid-cols-1 gap-2 sm:grid-cols-2">
+                  {DISCUSS_SUGGESTIONS.map((text) => (
                     <button
                       key={text}
                       type="button"

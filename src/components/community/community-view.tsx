@@ -19,6 +19,7 @@ import { DiscussionDetailDrawer } from "@/components/community/discussion-detail
 import { CommunityHeartButton } from "@/components/community/community-heart-button";
 import { GroupCategoryBadges, parseGroupCategories } from "@/components/community/group-category-badges";
 import { GroupCategoryPicker } from "@/components/community/group-category-picker";
+import { ConfirmDialog } from "@/components/community/confirm-dialog";
 import { sortByTrending } from "@/lib/community/trending-score";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -375,7 +376,7 @@ function CreateGroupModal({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl ring-4 ring-accent transition hover:opacity-90"
+              className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl ring-2 ring-accent transition hover:opacity-90"
               style={{ background: iconPreview ? undefined : "rgba(79,124,255,0.12)" }}
             >
               {iconPreview ? (
@@ -652,6 +653,7 @@ function GroupsTab({ onCreateGroup, refreshKey }: { onCreateGroup: () => void; r
   const [retryKey, setRetryKey] = React.useState(0);
   const [joinedIds, setJoinedIds] = React.useState<Set<string>>(new Set());
   const [joiningId, setJoiningId] = React.useState<string | null>(null);
+  const [leaveGroupId, setLeaveGroupId] = React.useState<string | null>(null);
   const router = useRouter();
 
   React.useEffect(() => {
@@ -695,19 +697,30 @@ function GroupsTab({ onCreateGroup, refreshKey }: { onCreateGroup: () => void; r
     };
   }, [user?.id, retryKey, refreshKey]);
 
-  async function handleJoin(groupId: string) {
+  async function handleJoin(groupId: string, group?: Group) {
     if (!user) { router.push("/auth/login"); return; }
-    setJoiningId(groupId);
     const isJoined = joinedIds.has(groupId);
+    const isOwner = group?.creator_id === user.id;
     if (isJoined) {
-      await supabase.from("group_members").delete().eq("group_id", groupId).eq("user_id", user.id);
-      setJoinedIds((prev) => { const n = new Set(prev); n.delete(groupId); return n; });
-      setGroups((prev) => prev.map((g) => g.id === groupId ? { ...g, member_count: Math.max(0, g.member_count - 1) } : g));
-    } else {
-      await supabase.from("group_members").insert({ group_id: groupId, user_id: user.id, role: "member" });
-      setJoinedIds((prev) => new Set([...prev, groupId]));
-      setGroups((prev) => prev.map((g) => g.id === groupId ? { ...g, member_count: g.member_count + 1 } : g));
+      if (isOwner) return;
+      setLeaveGroupId(groupId);
+      return;
     }
+    setJoiningId(groupId);
+    await supabase.from("group_members").insert({ group_id: groupId, user_id: user.id, role: "member" });
+    setJoinedIds((prev) => new Set([...prev, groupId]));
+    setGroups((prev) => prev.map((g) => g.id === groupId ? { ...g, member_count: g.member_count + 1 } : g));
+    setJoiningId(null);
+  }
+
+  async function confirmLeaveGroup() {
+    if (!user || !leaveGroupId) return;
+    const groupId = leaveGroupId;
+    setLeaveGroupId(null);
+    setJoiningId(groupId);
+    await supabase.from("group_members").delete().eq("group_id", groupId).eq("user_id", user.id);
+    setJoinedIds((prev) => { const n = new Set(prev); n.delete(groupId); return n; });
+    setGroups((prev) => prev.map((g) => g.id === groupId ? { ...g, member_count: Math.max(0, g.member_count - 1) } : g));
     setJoiningId(null);
   }
 
@@ -758,6 +771,7 @@ function GroupsTab({ onCreateGroup, refreshKey }: { onCreateGroup: () => void; r
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {groups.map((g) => {
             const isJoined = joinedIds.has(g.id);
+            const isOwner = g.creator_id === user?.id;
             return (
               <motion.div
                 key={g.id}
@@ -804,19 +818,23 @@ function GroupsTab({ onCreateGroup, refreshKey }: { onCreateGroup: () => void; r
                     <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground line-clamp-2">{g.description}</p>
                   )}
                   <div className="mt-3 flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleJoin(g.id)}
-                      disabled={joiningId === g.id}
-                      className={cn(
-                        "rounded-lg px-3 py-1.5 text-[11.5px] font-semibold ring-1 transition",
-                        isJoined
-                          ? "bg-muted/60 text-muted-foreground ring-border hover:bg-destructive/10 hover:text-destructive hover:ring-destructive/20"
-                          : "bg-accent/10 text-accent ring-accent/20 hover:bg-accent/20",
-                      )}
-                    >
-                      {joiningId === g.id ? <Loader2 className="size-3 animate-spin inline" /> : isJoined ? "Leave" : "Join"}
-                    </button>
+                    {!isOwner ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleJoin(g.id, g)}
+                        disabled={joiningId === g.id}
+                        className={cn(
+                          "rounded-lg px-3 py-1.5 text-[11.5px] font-semibold ring-1 transition",
+                          isJoined
+                            ? "bg-muted/60 text-muted-foreground ring-border hover:bg-destructive/10 hover:text-destructive hover:ring-destructive/20"
+                            : "bg-accent/10 text-accent ring-accent/20 hover:bg-accent/20",
+                        )}
+                      >
+                        {joiningId === g.id ? <Loader2 className="size-3 animate-spin inline" /> : isJoined ? "Leave" : "Join"}
+                      </button>
+                    ) : (
+                      <span className="rounded-lg bg-accent/10 px-3 py-1.5 text-[11.5px] font-semibold text-accent ring-1 ring-accent/20">Owner</span>
+                    )}
                     <Link
                       href={`/community/groups/${g.id}`}
                       className="rounded-lg bg-surface-raised px-3 py-1.5 text-[11.5px] font-medium text-muted-foreground ring-1 ring-border transition hover:text-foreground"
@@ -830,6 +848,16 @@ function GroupsTab({ onCreateGroup, refreshKey }: { onCreateGroup: () => void; r
           })}
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(leaveGroupId)}
+        title="Leave this group?"
+        description="You can rejoin anytime from the groups list."
+        confirmLabel="Leave group"
+        destructive
+        onConfirm={() => void confirmLeaveGroup()}
+        onCancel={() => setLeaveGroupId(null)}
+      />
 
       {/* Create group CTA */}
       <div

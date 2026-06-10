@@ -32,18 +32,18 @@ export function CodeEditorWithLines({
   };
 
   return (
-    <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden bg-[#0d1117]", className)}>
+    <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden bg-white", className)}>
       {activePath ? (
-        <div className="flex shrink-0 items-center gap-2 border-b border-white/10 bg-[#161b22] px-3 py-1.5">
-          <span className="truncate font-mono text-[11px] text-emerald-400/90">{activePath}</span>
-          <span className="ml-auto text-[10px] tabular-nums text-white/35">{lineCount} lines</span>
+        <div className="flex shrink-0 items-center gap-2 border-b border-border bg-surface px-3 py-1.5">
+          <span className="truncate font-mono text-[11px] text-foreground">{activePath}</span>
+          <span className="ml-auto text-[10px] tabular-nums text-muted-foreground">{lineCount} lines</span>
         </div>
       ) : null}
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <div
           ref={gutterRef}
           aria-hidden
-          className="shrink-0 select-none overflow-hidden border-r border-white/10 bg-[#0d1117] px-2.5 py-3 text-right font-mono text-[11px] leading-[1.625rem] text-white/30"
+          className="shrink-0 select-none overflow-hidden border-r border-border bg-surface/60 px-2.5 py-3 text-right font-mono text-[11px] leading-[1.625rem] text-muted-foreground"
         >
           {Array.from({ length: lineCount }, (_, i) => (
             <div key={i}>{i + 1}</div>
@@ -57,7 +57,7 @@ export function CodeEditorWithLines({
           readOnly={readOnly}
           spellCheck={false}
           placeholder={placeholder}
-          className="min-h-0 flex-1 resize-none overflow-auto overscroll-contain bg-transparent px-3 py-3 font-mono text-[11px] leading-[1.625rem] text-[#e6edf3] outline-none placeholder:text-white/25"
+          className="min-h-0 flex-1 resize-none overflow-auto overscroll-contain bg-white px-3 py-3 font-mono text-[11px] leading-[1.625rem] text-foreground outline-none placeholder:text-muted-foreground/50"
         />
       </div>
     </div>
