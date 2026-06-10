@@ -2735,6 +2735,35 @@ export function ImmersiveWorkspace({
     }
   }, [effectiveProjectId]);
 
+  const [innerRouteRepairing, setInnerRouteRepairing] = React.useState(false);
+
+  const runInnerRouteRepair = React.useCallback(async () => {
+    if (!effectiveProjectId) return;
+    setInnerRouteRepairing(true);
+    try {
+      const res = await fetch(
+        `/api/projects/${effectiveProjectId}/preview/inner-route-repair`,
+        { method: "POST", credentials: "include" },
+      );
+      const body = (await res.json()) as {
+        ok?: boolean;
+        queued?: boolean;
+        message?: string;
+        error?: string;
+      };
+      if (body.ok) {
+        toast.success(body.message ?? "Inner route repair started");
+      } else {
+        toast.error(body.error ?? "Inner route repair failed");
+      }
+      setProjectDataRefresh((n) => n + 1);
+    } catch {
+      toast.error("Could not run inner route repair");
+    } finally {
+      setInnerRouteRepairing(false);
+    }
+  }, [effectiveProjectId]);
+
   React.useEffect(() => {
     if (!effectiveProjectId || projectFiles.length === 0) {
       setPreviewRuntime(null);
@@ -3876,6 +3905,10 @@ export function ImmersiveWorkspace({
                 onRebuildPreview={
                   effectiveProjectId ? () => void rebuildPreview() : undefined
                 }
+                onInnerRouteRepair={
+                  effectiveProjectId ? () => void runInnerRouteRepair() : undefined
+                }
+                innerRouteRepairing={innerRouteRepairing}
                 onStartPreview={
                   effectiveProjectId ? () => void startPreviewSession() : undefined
                 }

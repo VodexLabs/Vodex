@@ -34,6 +34,11 @@ import {
   previewIframeDomKey,
   type PreviewIframeUrlResolution,
 } from "@/lib/preview/preview-iframe-url-resolver";
+import {
+  isPreviewInnerRouteErrorMessage,
+  type PreviewInnerRouteErrorMessage,
+} from "@/lib/preview/preview-inner-route-types";
+import { PreviewInnerRouteErrorPanel } from "@/components/preview/preview-inner-route-error-panel";
 
 type Viewport = "desktop" | "tablet" | "mobile";
 
@@ -78,6 +83,8 @@ export interface PreviewPanelProps {
   projectId?: string | null;
   urlResolution?: PreviewIframeUrlResolution | null;
   onClearPreviewCache?: () => void;
+  onInnerRouteRepair?: () => void;
+  innerRouteRepairing?: boolean;
 }
 
 function isUnrenderableSrcDoc(doc: string | null | undefined): boolean {
@@ -120,12 +127,16 @@ export function PreviewPanel({
   projectId = null,
   urlResolution = null,
   onClearPreviewCache,
+  onInnerRouteRepair,
+  innerRouteRepairing = false,
 }: PreviewPanelProps) {
   const [viewport, setViewport] = React.useState<Viewport>("desktop");
   const [reloadKey, setReloadKey] = React.useState(0);
   const [iframeError, setIframeError] = React.useState(false);
   const [iframeLoading, setIframeLoading] = React.useState(false);
   const [iframeLoaded, setIframeLoaded] = React.useState(false);
+  const [innerRouteError, setInnerRouteError] =
+    React.useState<PreviewInnerRouteErrorMessage | null>(null);
   const iframeRef = React.useRef<HTMLIFrameElement>(null);
 
   // Route changes reload iframe via previewFrameUrl ?route= query — no postMessage escape.
@@ -133,8 +144,22 @@ export function PreviewPanel({
   React.useEffect(() => {
     setIframeError(false);
     setIframeLoaded(false);
+    setInnerRouteError(null);
     if (url || srcDoc) setIframeLoading(true);
-  }, [url, srcDoc, reloadKey]);
+  }, [url, srcDoc, reloadKey, previewRoute]);
+
+  React.useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (!isPreviewInnerRouteErrorMessage(event.data)) return;
+      const frameWin = iframeRef.current?.contentWindow;
+      if (frameWin && event.source !== frameWin) return;
+      if (!frameWin && event.origin !== window.location.origin) return;
+      setInnerRouteError(event.data);
+      setIframeLoading(false);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
 
   const hasInline = !!srcDoc?.trim() && !isUnrenderableSrcDoc(srcDoc);
   const resolvedPreviewUrl = React.useMemo(() => {
@@ -265,6 +290,7 @@ export function PreviewPanel({
     !showRuntimeOverlay &&
     (hasInline || iframeRenderable);
   const generationContinuing = canPreview === false && !buildActive;
+  const showInnerRouteError = Boolean(innerRouteError && showArtifact && !embedBlocked);
   const showSlowLoadHint =
     canPreview !== false &&
     showArtifact &&
@@ -272,7 +298,8 @@ export function PreviewPanel({
     !embedBlocked &&
     !previewPreparing &&
     !previewBuildFailed &&
-    !hasInline;
+    !hasInline &&
+    !showInnerRouteError;
   const shellState =
     buildActive || thinking
       ? previewState === "compiling"
@@ -486,6 +513,46 @@ export function PreviewPanel({
             </div>
           </div>
         )}
+
+        {showInnerRouteError && innerRouteError ? (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-atmosphere/95 p-6 backdrop-blur-sm">
+            <PreviewInnerRouteErrorPanel
+              error={innerRouteError}
+              iframeUrl={resolvedPreviewUrl}
+              artifactId={urlResolution?.artifactId ?? previewDiagnostics?.artifactId ?? null}
+              route={urlResolution?.route ?? previewRoute}
+              runtimeStatus={runtimeStatus}
+              onInnerRouteRepair={
+                onInnerRouteRepair
+                  ? () => {
+                      setInnerRouteError(null);
+                      onInnerRouteRepair();
+                    }
+                  : undefined
+              }
+              onClearPreviewCache={
+                onClearPreviewCache
+                  ? () => {
+                      setInnerRouteError(null);
+                      onClearPreviewCache();
+                      setReloadKey((k) => k + 1);
+                      setIframeLoading(true);
+                    }
+                  : undefined
+              }
+              onRebuildArtifact={
+                onRebuildPreview
+                  ? () => {
+                      setInnerRouteError(null);
+                      onRebuildPreview();
+                    }
+                  : undefined
+              }
+              innerRouteRepairing={innerRouteRepairing}
+              previewRebuilding={previewRebuilding}
+            />
+          </div>
+        ) : null}
 
         {showSlowLoadHint && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-atmosphere p-6">

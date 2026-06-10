@@ -1,3 +1,4 @@
+import { injectPreviewInnerWatchdog } from "@/lib/preview/inject-preview-inner-watchdog";
 import { injectPreviewRouterShim } from "@/lib/preview/inject-preview-router-shim";
 import { buildInternalPreviewHtmlUrl } from "@/lib/preview/internal-preview-url";
 import { stripPreviewPlatformPathsFromText } from "@/lib/preview/strip-preview-platform-paths";
@@ -65,6 +66,7 @@ export function rewritePreviewArtifactHtml(
 
   out = rewriteAbsoluteVodexLinksInHtml(out);
   out = injectPreviewRouterShim(out, routePath);
+  out = injectPreviewInnerWatchdog(out);
   return sanitizePreviewDocument(out);
 }
 
