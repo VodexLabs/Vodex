@@ -92,15 +92,18 @@ export function PreviewInnerRouteErrorPanel({
         <div className="min-w-0 flex-1">
           <p className="text-[15px] font-semibold leading-snug text-foreground">
             {error.kind === "inner_next_route_404"
-              ? "Imported app booted on the preview proxy path"
+              ? "Imported app booted with stale preview route"
               : "Preview loaded, but the imported app routed to a missing page"}
           </p>
           <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted-foreground">
             {error.kind === "inner_next_route_404" ? (
               <>
-                Vodex loaded the preview iframe URL correctly, but the imported Next.js app read{" "}
-                <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-foreground">location.pathname</code>{" "}
-                as an internal route during hydration.
+                Vodex loaded the preview-runtime iframe URL correctly, but the imported app still
+                booted with a stale{" "}
+                <code className="rounded bg-muted px-1 py-0.5 text-[11px] text-foreground">
+                  preview-html
+                </code>{" "}
+                route in its JS bundle, service worker cache, or router state.
               </>
             ) : (
               <>
@@ -175,7 +178,7 @@ export function PreviewInnerRouteErrorPanel({
             ) : (
               <Wrench className="size-3.5" strokeWidth={2} />
             )}
-            {innerRouteRepairing ? "Repairing inner route…" : "Run inner-route repair"}
+            {innerRouteRepairing ? "Repairing inner route…" : "Deep clean cache + rebuild artifact"}
           </button>
         ) : null}
         {onClearPreviewCache ? (

@@ -52,6 +52,7 @@ import {
   type PreviewBootAuditSummary,
 } from "@/lib/preview/preview-boot-audit-types";
 import { PreviewBootFailurePanel } from "@/components/preview/preview-boot-failure-panel";
+import { postPreviewIframeDeepClean } from "@/lib/preview/post-preview-iframe-deep-clean";
 
 type Viewport = "desktop" | "tablet" | "mobile";
 
@@ -640,11 +641,12 @@ export function PreviewPanel({
             type="button"
             aria-label="Clear preview cache"
             onClick={() => {
+              postPreviewIframeDeepClean(iframeRef.current, { reload: false });
               onClearPreviewCache();
               setReloadKey((k) => k + 1);
               setIframeError(false);
               setIframeLoading(true);
-              toast.success("Preview cache cleared — reloading canonical URL");
+              toast.success("Preview cache cleared — deep clean + reload");
             }}
             className="rounded-md px-2 py-1 text-[10px] font-semibold text-muted-foreground ring-1 ring-border transition hover:bg-surface hover:text-foreground"
           >

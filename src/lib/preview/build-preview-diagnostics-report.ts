@@ -19,6 +19,11 @@ import {
   scanBootstrapLeaksDetailed,
 } from "@/lib/preview/preview-bootstrap-sanitizer";
 import { TEXT_ARTIFACT_EXT } from "@/lib/preview/preview-path-leak-scanner";
+import { scanPreviewArtifactLeaks } from "@/lib/preview/scan-preview-artifact-leaks";
+import {
+  PREVIEW_TEXT_ASSET_EXT,
+  sanitizeServedPreviewAssetText,
+} from "@/lib/preview/serve-preview-artifact-asset";
 
 export type PreviewDiagnosticsReport = {
   project_id: string;
@@ -35,6 +40,11 @@ export type PreviewDiagnosticsReport = {
   router_cache_detected: boolean;
   unsafe_path_count: number;
   hydration_path_count: number;
+  boot_asset_leak_count: number;
+  failed_asset_count: number;
+  visible_next_404_detected: boolean;
+  bad_inner_route_visible: boolean;
+  rendered_document_error_detected: boolean;
   current_iframe_url: string | null;
   iframe_embeddable: boolean;
   iframe_block_reason: string | null;
@@ -43,6 +53,7 @@ export type PreviewDiagnosticsReport = {
   rebuild_required: boolean;
   served_html_bytes: number | null;
   stored_unsafe_path_count: number | null;
+  first_leaking_asset: string | null;
   issues: string[];
 };
 
@@ -71,6 +82,20 @@ function artifactIdFromPath(artifactPath: string | null, projectId: string): str
   const parts = artifactPath.split("/").filter(Boolean);
   if (parts[0] === projectId && parts[1]) return parts[1];
   return parts[parts.length - 1] ?? null;
+}
+
+function detectVisibleNext404(html: string): boolean {
+  const lower = html.toLowerCase();
+  const has404 =
+    lower.includes("page not found") ||
+    lower.includes("could not be found in this application") ||
+    lower.includes("could not be found");
+  if (!has404) return false;
+  return /preview-html|api\/projects\/[a-f0-9-]+\/preview-html/i.test(html);
+}
+
+function detectBadInnerRouteVisible(html: string): boolean {
+  return /api\/projects\/[a-f0-9-]+\/preview-html/i.test(html) && /page not found/i.test(html);
 }
 
 function scanServedHtmlSignals(html: string, projectId: string) {
@@ -210,6 +235,8 @@ export async function buildPreviewDiagnosticsReport(
 
   let servedHtml = "";
   let storedUnsafeTotal = 0;
+  let bootAssetLeakCount = 0;
+  let firstLeakingAsset: string | null = null;
   const issues: string[] = [];
 
   if (admin && artifactPath) {
@@ -226,16 +253,34 @@ export async function buildPreviewDiagnosticsReport(
     }
 
     try {
-      const files = await listArtifactFiles(admin, artifactPath);
-      for (const rel of files) {
-        if (!TEXT_ARTIFACT_EXT.test(rel)) continue;
-        const file = await downloadPreviewArtifactFile({ admin, artifactPath, relativePath: rel });
-        if (!file) continue;
-        const text = file.data.toString("utf8");
-        storedUnsafeTotal += scanBootstrapLeaksDetailed(text, projectId, {
-          excludePlatformInjections: false,
-          file: rel,
-        }).length;
+      const leakReport = await scanPreviewArtifactLeaks(admin, projectId);
+      if (leakReport) {
+        bootAssetLeakCount = leakReport.served_leak_count;
+        const first = leakReport.hits.find((h) => h.phase === "served");
+        firstLeakingAsset = first?.file ?? null;
+        storedUnsafeTotal = leakReport.stored_leak_count;
+      } else {
+        const files = await listArtifactFiles(admin, artifactPath);
+        for (const rel of files) {
+          if (!TEXT_ARTIFACT_EXT.test(rel) && !PREVIEW_TEXT_ASSET_EXT.test(rel)) continue;
+          const file = await downloadPreviewArtifactFile({ admin, artifactPath, relativePath: rel });
+          if (!file) continue;
+          const raw = file.data.toString("utf8");
+          const served =
+            /index\.html?$/i.test(rel) && artifactId
+              ? rewritePreviewArtifactHtml(raw, projectId, artifactId, "/")
+              : sanitizeServedPreviewAssetText(raw, projectId, "/");
+          const servedLeaks = scanBootstrapLeaksDetailed(served, projectId, {
+            excludePlatformInjections: true,
+            file: rel,
+          }).filter((l) => !l.safe);
+          bootAssetLeakCount += servedLeaks.length;
+          if (!firstLeakingAsset && servedLeaks.length > 0) firstLeakingAsset = rel;
+          storedUnsafeTotal += scanBootstrapLeaksDetailed(raw, projectId, {
+            excludePlatformInjections: false,
+            file: rel,
+          }).filter((l) => !l.safe).length;
+        }
       }
     } catch (e) {
       issues.push(`artifact scan failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -243,6 +288,11 @@ export async function buildPreviewDiagnosticsReport(
   } else if (!artifactPath) {
     issues.push("no preview artifact path");
   }
+
+  const visibleNext404 = servedHtml ? detectVisibleNext404(servedHtml) : false;
+  const badInnerRouteVisible = servedHtml ? detectBadInnerRouteVisible(servedHtml) : false;
+  const renderedDocumentError =
+    visibleNext404 || badInnerRouteVisible || innerRouteBootstrapLikelyBroken(servedHtml, projectId);
 
   const servedSignals = servedHtml ? scanServedHtmlSignals(servedHtml, projectId) : {
     service_worker_detected: false,
@@ -257,6 +307,17 @@ export async function buildPreviewDiagnosticsReport(
   if (servedHtml && innerRouteBootstrapLikelyBroken(servedHtml, projectId)) {
     issues.push("inner route bootstrap likely broken in served HTML");
   }
+  if (bootAssetLeakCount > 0) {
+    issues.push(
+      `${bootAssetLeakCount} boot asset leak(s) in served text assets${firstLeakingAsset ? ` (first: ${firstLeakingAsset})` : ""}`,
+    );
+  }
+  if (visibleNext404) {
+    issues.push("visible Next 404 for stale preview-html route detected in served HTML simulation");
+  }
+  if (badInnerRouteVisible) {
+    issues.push("bad inner route visible — imported app would render preview proxy 404");
+  }
   if (storedUnsafeTotal > 0) {
     issues.push(`${storedUnsafeTotal} unsafe path leak(s) in stored artifact`);
   }
@@ -267,7 +328,10 @@ export async function buildPreviewDiagnosticsReport(
   const rebuild_required =
     !previewRenderable ||
     storedUnsafeTotal > 0 ||
+    bootAssetLeakCount > 0 ||
     servedSignals.unsafe_path_count > 0 ||
+    visibleNext404 ||
+    badInnerRouteVisible ||
     (servedHtml ? innerRouteBootstrapLikelyBroken(servedHtml, projectId) : false) ||
     jobRow?.status === "failed";
 
@@ -310,6 +374,11 @@ export async function buildPreviewDiagnosticsReport(
     latest_worker_status: jobRow?.status ?? null,
     preview_renderable: previewRenderable,
     ...servedSignals,
+    boot_asset_leak_count: bootAssetLeakCount,
+    failed_asset_count: 0,
+    visible_next_404_detected: visibleNext404,
+    bad_inner_route_visible: badInnerRouteVisible,
+    rendered_document_error_detected: renderedDocumentError,
     current_iframe_url: currentIframeUrl,
     iframe_embeddable: iframeProbe.iframe_embeddable,
     iframe_block_reason: iframeProbe.iframe_block_reason,
@@ -318,6 +387,7 @@ export async function buildPreviewDiagnosticsReport(
     rebuild_required,
     served_html_bytes: servedHtml ? servedHtml.length : null,
     stored_unsafe_path_count: artifactPath ? storedUnsafeTotal : null,
+    first_leaking_asset: firstLeakingAsset,
     issues,
   };
 }

@@ -44,6 +44,7 @@ function platformPreviewPathPatterns(projectId: string, includeAssetUrls = true)
     new RegExp(`api\\\\u002Fprojects\\\\u002F${esc}\\\\u002Fpreview-html[^"'\\s>]*`, "gi"),
     new RegExp(`(?:%2F)?api%2Fprojects%2F${esc}(?:%2F)?preview-html[^"'\\s>]*`, "gi"),
     new RegExp(`(?:%2F)?api%2Fprojects%2F${esc}%2Fpreview-html[^"'\\s>]*`, "gi"),
+    /preview-html[^"'\\s>]*(?:format=frame|format%3Dframe)[^"'\\s>]*/gi,
     /api\/projects\/[a-f0-9-]{36}\/preview-html[^"'\\s>]*/gi,
     /https?:\/\/(?:www\.)?vodex\.dev\/api\/projects\/[a-f0-9-]{36}\/preview-html[^"'\\s>]*/gi,
     /api\\u002Fprojects\\u002F[a-f0-9-]+\\u002Fpreview-html/gi,

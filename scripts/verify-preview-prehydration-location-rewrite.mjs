@@ -19,7 +19,8 @@ function assert(cond, msg) {
 const pre = read("src/lib/preview/inject-preview-prehydration-location-rewrite.ts");
 const rewrite = read("src/lib/preview/rewrite-preview-artifact-html.ts");
 
-assert(pre.includes("vodex-prehydration-location-rewrite"), "prehydration script id");
+assert(pre.includes("onRuntime"), "preview-runtime path detection");
+assert(pre.includes("vodex-preview-deep-clean"), "deep clean handler");
 assert(pre.includes("__VODEX_PREVIEW_LOCATION_REWRITTEN__"), "location rewritten marker");
 assert(pre.includes("preview'+'-'+'html"), "no literal preview-html poison");
 assert(rewrite.includes("injectPreviewPrehydrationLocationRewrite"), "rewrite injects prehydration");

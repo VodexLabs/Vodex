@@ -1,6 +1,7 @@
 /**
  * FIRST executable script in served preview HTML — patches location before Next hydration.
  * Must not contain literal preview-html poison strings (built at runtime).
+ * P1.3.38 — activates for preview-runtime virtual paths, not only legacy preview-html proxy.
  */
 export function buildPrehydrationLocationRewriteScript(virtualRoute: string): string {
   let route = virtualRoute.startsWith("/") ? virtualRoute : `/${virtualRoute}`;
@@ -9,13 +10,20 @@ export function buildPrehydrationLocationRewriteScript(virtualRoute: string): st
   return `(function(){
   var PH=('preview'+'-'+'html');
   var AAP=('/'+'api/'+'projects/');
+  var RT=('/'+'preview-runtime/');
   var params=new URLSearchParams(location.search);
   var route=${JSON.stringify(route)};
   var override=params.get('route');
   if(override){if(!override.startsWith('/'))override='/'+override;route=override;}
   var path=location.pathname||'';
   var onProxy=path.indexOf(AAP)>=0&&path.indexOf(PH)>=0;
-  if(!onProxy)return;
+  var onRuntime=path.indexOf(RT)===0;
+  if(!onProxy&&!onRuntime)return;
+  if(onRuntime){
+    var parts=path.split('/').filter(Boolean);
+    if(parts.length>3){route='/'+parts.slice(3).join('/');}
+    else{route='/';}
+  }
   window.__VODEX_PREVIEW_ORIGINAL_URL__=location.href;
   window.__VODEX_PREVIEW_VIRTUAL_ROUTE__=route;
   window.__VODEX_PREVIEW_LOCATION_REWRITTEN__=true;
@@ -23,7 +31,10 @@ export function buildPrehydrationLocationRewriteScript(virtualRoute: string): st
   window.__VODEX_VIRTUAL_PATH__=route;
   var LOCK=location.pathname+location.search;
   function normPath(p){if(!p)return'/';p=String(p).split('?')[0].split('#')[0];if(!p.startsWith('/'))p='/'+p;return p;}
-  function isPlatform(p){var s=normPath(p).toLowerCase();return s.indexOf(AAP)>=0||s.indexOf(PH)>=0;}
+  function isPlatform(p){
+    var s=normPath(p).toLowerCase();
+    return s.indexOf(AAP)>=0||s.indexOf(PH)>=0;
+  }
   try{
     var d=Object.getOwnPropertyDescriptor(Location.prototype,'pathname');
     if(d&&d.get){
@@ -55,6 +66,32 @@ export function buildPrehydrationLocationRewriteScript(virtualRoute: string): st
     }
   }catch(e){}
   try{history.replaceState({__vodex:route},'',LOCK);}catch(e){}
+  try{
+    window.addEventListener('message',function(e){
+      if(!e.data||e.data.type!=='vodex-preview-deep-clean')return;
+      try{
+        if('serviceWorker' in navigator){
+          navigator.serviceWorker.getRegistrations().then(function(regs){regs.forEach(function(r){r.unregister();});});
+        }
+        if(window.caches&&caches.keys){
+          caches.keys().then(function(keys){keys.forEach(function(k){caches.delete(k);});});
+        }
+        try{
+          for(var i=localStorage.length-1;i>=0;i--){
+            var k=localStorage.key(i);
+            if(k&&(k.indexOf('preview')>=0||k.indexOf('next')>=0||k.indexOf('workbox')>=0))localStorage.removeItem(k);
+          }
+        }catch(e){}
+        try{
+          for(var j=sessionStorage.length-1;j>=0;j--){
+            var sk=sessionStorage.key(j);
+            if(sk&&(sk.indexOf('preview')>=0||sk.indexOf('next')>=0))sessionStorage.removeItem(sk);
+          }
+        }catch(e){}
+      }catch(e){}
+      if(e.data.reload)location.reload();
+    });
+  }catch(e){}
 })();`;
 }
 

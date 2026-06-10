@@ -10,11 +10,9 @@ const sample = `<!DOCTYPE html><html><head>
 </body></html>`;
 
 const out = rewritePreviewArtifactHtml(sample, projectId, buildId);
-if (!out.includes(`/api/projects/${encodeURIComponent(projectId)}/preview-assets/assets/index-beef.js`)) {
-  throw new Error("script src not rewritten");
-}
-if (!out.includes("build=" + encodeURIComponent(buildId))) {
-  throw new Error("build query missing");
+const expected = `/preview-runtime/${encodeURIComponent(projectId)}/${encodeURIComponent(buildId)}/assets/assets/index-beef.js`;
+if (!out.includes(expected)) {
+  throw new Error("script src not rewritten to preview-runtime asset path");
 }
 if (out.includes('href="/assets/')) {
   throw new Error("unrewritten absolute asset path remains");

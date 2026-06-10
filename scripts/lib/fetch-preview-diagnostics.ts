@@ -53,6 +53,9 @@ export function isPreviewDiagnosticsPass(report: PreviewDiagnosticsReport): bool
     report.rebuild_required === false &&
     (report.unsafe_path_count ?? 0) === 0 &&
     (report.hydration_path_count ?? 0) === 0 &&
+    (report.boot_asset_leak_count ?? 0) === 0 &&
+    report.visible_next_404_detected !== true &&
+    report.bad_inner_route_visible !== true &&
     report.iframe_embeddable === true &&
     (report.issues?.length ?? 0) === 0
   );

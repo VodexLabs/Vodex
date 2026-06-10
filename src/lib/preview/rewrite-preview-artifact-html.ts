@@ -6,6 +6,10 @@ import { stripPreviewPlatformPathsFromText } from "@/lib/preview/strip-preview-p
 import { sanitizePreviewDocument } from "@/lib/preview/preview-html-sanitizer";
 import { injectPreviewBootAudit } from "@/lib/preview/inject-preview-boot-audit";
 import { stripIframeBlockingMetaFromHtml } from "@/lib/preview/preview-iframe-embed-headers";
+import {
+  buildPreviewRuntimeAssetBase,
+  buildPreviewRuntimeAssetUrl,
+} from "@/lib/preview/preview-runtime-asset-url";
 
 export {
   assertInternalPreviewUrl,
@@ -37,25 +41,39 @@ export function rewritePreviewArtifactHtml(
   projectId: string,
   artifactBuildId: string,
   routePath = "/",
+  assetVersion?: string | number | null,
 ): string {
-  const base = `/api/projects/${encodeURIComponent(projectId)}/preview-assets`;
-  const q = `build=${encodeURIComponent(artifactBuildId)}`;
+  const assetUrl = (rel: string) =>
+    buildPreviewRuntimeAssetUrl({
+      projectId,
+      artifactBuildId,
+      relativePath: rel.replace(/^\//, ""),
+      version: assetVersion,
+    });
 
-  const assetUrl = (rel: string) => {
-    const clean = rel.replace(/^\//, "");
-    return `${base}/${clean}?${q}`;
-  };
+  const baseHref = buildPreviewRuntimeAssetBase({
+    projectId,
+    artifactBuildId,
+  });
 
   let out = stripPreviewPlatformPathsFromText(html, projectId, { virtualRoute: routePath });
 
   if (!/<base\s/i.test(out)) {
-    const baseTag = `<base href="${base}/?${q}" />`;
+    const baseTag = `<base href="${baseHref}" />`;
     if (/<head[^>]*>/i.test(out)) {
       out = out.replace(/<head[^>]*>/i, (m) => `${m}${baseTag}`);
     } else {
       out = baseTag + out;
     }
+  } else {
+    out = out.replace(/<base\s[^>]*href=["'][^"']*["'][^>]*\/?>/gi, `<base href="${baseHref}" />`);
   }
+
+  /** Rewrite legacy preview-assets API URLs to canonical preview-runtime asset paths. */
+  out = out.replace(
+    /\/api\/projects\/[^/"'\s>]+?\/preview-assets\/([^?"'\s>]+)(?:\?[^"'\s>]*)?/gi,
+    (_, rel: string) => assetUrl(rel),
+  );
 
   out = out.replace(/\s(src|href)=["'](\/assets\/[^"']+)["']/gi, (_, attr, p) => {
     return ` ${attr}="${assetUrl(p)}"`;

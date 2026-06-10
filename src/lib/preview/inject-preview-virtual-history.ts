@@ -85,7 +85,13 @@ export function buildPreviewVirtualHistoryScript(initialRoute: string): string {
     if(url.indexOf(AP)===0||url.indexOf(AAP)===0)return"/";
     try{
       var u=new URL(url,location.href);
-      if(u.pathname.indexOf(AAP)===0||u.pathname.indexOf(AP)>=0)return"/";
+      if(u.pathname.indexOf(AAP)===0||u.pathname.indexOf(AP)>=0||u.pathname.indexOf(PH)>=0)return"/";
+      var rt=('/'+'preview-runtime/');
+      if(u.pathname.indexOf(rt)===0){
+        var segs=u.pathname.split('/').filter(Boolean);
+        if(segs.length>3)return normPath('/'+segs.slice(3).join('/'));
+        return"/";
+      }
       if(u.origin===location.origin)return normPath(u.pathname);
       if(isExternalPlatformHost(u.hostname))return normPath(u.pathname)||"/";
     }catch(e){}

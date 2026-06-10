@@ -12,6 +12,12 @@ const LEAK_PATTERN_DEFS: Array<{ id: string; re: RegExp; safe?: boolean; repair:
   { id: "relative_api_projects", re: /(?<![/"'])api\/projects\/[a-f0-9-]+\/preview-html[^"'`\s>]*/gi, repair: "Replace with '/' or virtual app route" },
   { id: "absolute_api_projects", re: /\/api\/projects\/[a-f0-9-]+\/preview-html[^"'`\s>]*/gi, repair: "Strip preview-html proxy path from bundle" },
   {
+    id: "preview_runtime_assets",
+    re: /\/preview-runtime\/[a-f0-9-]+\/[a-f0-9-]+\/assets[^"'`\s>]*/gi,
+    safe: true,
+    repair: "Intentional preview-runtime asset URL injected at serve layer",
+  },
+  {
     id: "preview_assets_leak",
     re: /\/api\/projects\/[a-f0-9-]+\/preview-assets[^"'`\s>]*/gi,
     safe: true,
@@ -28,6 +34,8 @@ const LEAK_PATTERN_DEFS: Array<{ id: string; re: RegExp; safe?: boolean; repair:
   { id: "url_encoded", re: /(?:%2F)?api%2Fprojects%2F[a-f0-9-]+%2Fpreview-html/gi, repair: "Decode and replace with '/'" },
   { id: "vodex_dev", re: /https?:\/\/(?:www\.)?vodex\.dev\/[^"'`\s>]*/gi, repair: "Rewrite to in-app virtual path" },
   { id: "vodex_app", re: /https?:\/\/[^"'`\s>]*\.vodex\.app\/[^"'`\s>]*/gi, repair: "Rewrite to in-app virtual path" },
+  { id: "preview_html_format_frame", re: /preview-html[^"'`\s>]*format=frame[^"'`\s>]*/gi, repair: "Strip legacy preview-html frame URL" },
+  { id: "preview_html_format_frame_encoded", re: /preview-html[^"'`\s>]*format%3Dframe[^"'`\s>]*/gi, repair: "Strip URL-encoded preview-html frame URL" },
   { id: "next_data_page", re: /"page"\s*:\s*"[^"]*preview-html[^"]*"/gi, repair: 'Set "page":"/"' },
   { id: "next_f_push", re: /__next_f\.push\([^)]*preview-html[^)]*\)/gi, repair: "Strip poisoned flight chunk push" },
   { id: "service_worker_register", re: /navigator\.serviceWorker\.register\s*\(/gi, safe: true, repair: "Block SW registration in preview iframe shim" },
@@ -57,4 +65,4 @@ export function scanTextForPathLeaks(text: string, projectId?: string): PathLeak
   return matches;
 }
 
-export const TEXT_ARTIFACT_EXT = /\.(html?|js|mjs|json|txt|rsc)$/i;
+export const TEXT_ARTIFACT_EXT = /\.(html?|js|mjs|cjs|css|json|txt|rsc|map|webmanifest|xml)$/i;
