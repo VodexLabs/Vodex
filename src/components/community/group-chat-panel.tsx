@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, Send, Smile, Reply } from "lucide-react";
+import { ChevronDown, Loader2, Send, Smile, Reply } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { Avatar } from "@/components/ui/avatar";
@@ -25,7 +25,13 @@ type MessageRow = {
   reactions?: ReactionRow[];
 };
 
-type ReactorPreview = { userId: string; name: string; avatar: string | null; username: string | null };
+type ReactorPreview = {
+  userId: string;
+  name: string;
+  avatar: string | null;
+  username: string | null;
+  emoji: string;
+};
 
 const QUICK_REACTIONS = ["👍", "❤️", "🔥", "😂", "🎉"];
 
@@ -49,7 +55,10 @@ export function GroupChatPanel({
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const channelRef = React.useRef<ReturnType<typeof supabase.channel> | null>(null);
   const [unreadCount, setUnreadCount] = React.useState(0);
-  const [reactionViewer, setReactionViewer] = React.useState<{ messageId: string; emoji: string } | null>(null);
+  const [reactionViewer, setReactionViewer] = React.useState<{
+    messageId: string;
+    emoji: string | null;
+  } | null>(null);
   const [reactors, setReactors] = React.useState<ReactorPreview[]>([]);
   const initialScrollDoneRef = React.useRef(false);
 
@@ -64,7 +73,10 @@ export function GroupChatPanel({
         const preview = previews.get(m.user_id);
         return {
           ...m,
-          author_name: m.user_id === user?.id ? "You" : names.get(m.user_id) ?? "Member",
+          author_name:
+            m.user_id === user?.id
+              ? profileDisplayName(profile, names.get(m.user_id) ?? "You")
+              : names.get(m.user_id) ?? "Member",
           author_avatar: preview?.avatar_url ?? null,
           author_username: preview?.username ?? null,
         };
@@ -156,7 +168,7 @@ export function GroupChatPanel({
     if (!el || loading) return;
     if (!initialScrollDoneRef.current) {
       initialScrollDoneRef.current = true;
-      el.scrollTop = 0;
+      el.scrollTop = el.scrollHeight;
       return;
     }
     if (isNearBottom()) {
@@ -170,17 +182,23 @@ export function GroupChatPanel({
   React.useEffect(() => {
     if (!reactionViewer) return;
     const msg = messages.find((m) => m.id === reactionViewer.messageId);
-    const userIds = (msg?.reactions ?? [])
-      .filter((r) => r.emoji === reactionViewer.emoji)
-      .map((r) => r.user_id);
+    const reactions = msg?.reactions ?? [];
+    const filtered = reactionViewer.emoji
+      ? reactions.filter((r) => r.emoji === reactionViewer.emoji)
+      : reactions;
+    const userIds = [...new Set(filtered.map((r) => r.user_id))];
     void Promise.all([fetchProfileNameMap(supabase, userIds), fetchProfilePreviewMap(supabase, userIds)]).then(
       ([names, previews]) => {
         setReactors(
-          userIds.map((id) => {
-            const preview = previews.get(id);
+          filtered.map((r) => {
+            const preview = previews.get(r.user_id);
             return {
-              userId: id,
-              name: id === user?.id ? "You" : names.get(id) ?? "Member",
+              userId: r.user_id,
+              emoji: r.emoji,
+              name:
+                r.user_id === user?.id
+                  ? profileDisplayName(profile, names.get(r.user_id) ?? "You")
+                  : names.get(r.user_id) ?? "Member",
               avatar: preview?.avatar_url ?? null,
               username: preview?.username ?? null,
             };
@@ -188,7 +206,7 @@ export function GroupChatPanel({
         );
       },
     );
-  }, [reactionViewer, messages, supabase, user?.id]);
+  }, [reactionViewer, messages, supabase, user?.id, profile]);
 
   async function toggleReaction(messageId: string, emoji: string) {
     if (!user) return;
@@ -280,19 +298,6 @@ export function GroupChatPanel({
       </div>
 
       <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3">
-        {unreadCount > 0 ? (
-          <button
-            type="button"
-            onClick={() => {
-              const el = scrollRef.current;
-              if (el) el.scrollTop = el.scrollHeight;
-              setUnreadCount(0);
-            }}
-            className="sticky top-2 z-10 mx-auto mb-2 block rounded-full bg-accent px-3 py-1 text-[11px] font-semibold text-white shadow"
-          >
-            {unreadCount} new message{unreadCount === 1 ? "" : "s"}
-          </button>
-        ) : null}
         {loading ? (
           <div className="flex justify-center py-10"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
         ) : messages.length === 0 ? (
@@ -310,7 +315,7 @@ export function GroupChatPanel({
                 <li key={m.id} className={cn("flex gap-2", mine ? "flex-row-reverse" : "flex-row", parent && !mine && "ml-5 border-l-2 border-accent/25 pl-3")}>
                   <Avatar name={m.author_name ?? "Member"} src={m.author_avatar ?? (mine ? profile?.avatar_url : undefined)} size="sm" />
                   <div className={cn("max-w-[80%] space-y-1", mine && "items-end")}>
-                    {m.author_username && !mine ? (
+                    {m.author_username ? (
                       <Link href={`/builders/${m.author_username}`} className="text-[10px] font-medium text-muted-foreground hover:text-accent">
                         {m.author_name}
                       </Link>
@@ -343,7 +348,7 @@ export function GroupChatPanel({
                         <button
                           key={emoji}
                           type="button"
-                          onClick={() => setReactionViewer({ messageId: m.id, emoji })}
+                          onClick={() => setReactionViewer({ messageId: m.id, emoji: null })}
                           onContextMenu={(e) => { e.preventDefault(); void toggleReaction(m.id, emoji); }}
                           className="rounded-full bg-background/80 px-1.5 py-0.5 text-[11px] ring-1 ring-border"
                         >
@@ -371,6 +376,20 @@ export function GroupChatPanel({
           </ul>
         )}
         <div ref={bottomRef} />
+        {unreadCount > 0 ? (
+          <button
+            type="button"
+            onClick={() => {
+              const el = scrollRef.current;
+              if (el) el.scrollTop = el.scrollHeight;
+              setUnreadCount(0);
+            }}
+            className="sticky bottom-2 z-10 mx-auto mt-2 flex items-center gap-1 rounded-full bg-accent px-3 py-1 text-[11px] font-semibold text-white shadow-lg animate-bounce"
+          >
+            <ChevronDown className="size-3.5" strokeWidth={2.5} />
+            {unreadCount} new message{unreadCount === 1 ? "" : "s"}
+          </button>
+        ) : null}
       </div>
 
       {typingUsers.length > 0 ? (
@@ -393,39 +412,74 @@ export function GroupChatPanel({
             className="border-t-2 border-accent/40 bg-white px-4 py-3 shadow-[0_-8px_30px_rgba(79,124,255,0.12)] dark:bg-background"
           >
             <div className="mb-2 flex items-center justify-between">
-              <p className="text-[12px] font-semibold text-foreground">
-                <span className="mr-1.5 text-lg">{reactionViewer.emoji}</span>
-                Reactions
-              </p>
+              <p className="text-[12px] font-semibold text-foreground">Reactions</p>
               <button type="button" onClick={() => setReactionViewer(null)} className="text-[11px] text-muted-foreground hover:text-foreground">
                 Close
               </button>
             </div>
-            <ul className="max-h-40 space-y-2 overflow-y-auto">
-              {reactors.map((r) => (
-                <li key={r.userId} className="flex items-center justify-between gap-2 rounded-xl bg-accent/5 px-2.5 py-2 ring-1 ring-accent/15">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <Avatar name={r.name} src={r.avatar ?? undefined} size="sm" />
-                    {r.username && r.userId !== user?.id ? (
-                      <Link href={`/builders/${r.username}`} className="truncate text-[12px] font-medium hover:text-accent">
-                        {r.name}
-                      </Link>
-                    ) : (
-                      <span className="truncate text-[12px] font-medium">{r.name}</span>
-                    )}
-                  </div>
-                  {r.userId === user?.id ? (
+            {(() => {
+              const msg = messages.find((m) => m.id === reactionViewer.messageId);
+              const counts = (msg?.reactions ?? []).reduce<Record<string, number>>((acc, r) => {
+                acc[r.emoji] = (acc[r.emoji] ?? 0) + 1;
+                return acc;
+              }, {});
+              const emojis = Object.keys(counts);
+              return (
+                <div className="flex gap-3">
+                  <div className="flex max-h-48 w-16 shrink-0 flex-col gap-1 overflow-y-auto">
                     <button
                       type="button"
-                      onClick={() => void toggleReaction(reactionViewer.messageId, reactionViewer.emoji)}
-                      className="shrink-0 text-[11px] font-medium text-destructive"
+                      onClick={() => setReactionViewer({ messageId: reactionViewer.messageId, emoji: null })}
+                      className={cn(
+                        "rounded-lg px-2 py-1.5 text-[11px] font-semibold",
+                        reactionViewer.emoji == null ? "bg-accent/15 text-accent ring-1 ring-accent/30" : "text-muted-foreground hover:bg-muted",
+                      )}
                     >
-                      Remove
+                      All
                     </button>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
+                    {emojis.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => setReactionViewer({ messageId: reactionViewer.messageId, emoji })}
+                        className={cn(
+                          "rounded-lg px-2 py-1.5 text-left text-[13px]",
+                          reactionViewer.emoji === emoji ? "bg-accent/15 ring-1 ring-accent/30" : "hover:bg-muted",
+                        )}
+                      >
+                        {emoji} {counts[emoji]}
+                      </button>
+                    ))}
+                  </div>
+                  <ul className="max-h-48 min-w-0 flex-1 space-y-2 overflow-y-auto">
+                    {reactors.map((r, idx) => (
+                      <li key={`${r.userId}-${r.emoji}-${idx}`} className="flex items-center justify-between gap-2 rounded-xl bg-accent/5 px-2.5 py-2 ring-1 ring-accent/15">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="text-base">{r.emoji}</span>
+                          <Avatar name={r.name} src={r.avatar ?? undefined} size="sm" />
+                          {r.username ? (
+                            <Link href={`/builders/${r.username}`} className="truncate text-[12px] font-medium hover:text-accent">
+                              {r.name}
+                            </Link>
+                          ) : (
+                            <span className="truncate text-[12px] font-medium">{r.name}</span>
+                          )}
+                        </div>
+                        {r.userId === user?.id ? (
+                          <button
+                            type="button"
+                            onClick={() => void toggleReaction(reactionViewer.messageId, r.emoji)}
+                            className="shrink-0 text-[11px] font-medium text-destructive"
+                          >
+                            Remove
+                          </button>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })()}
           </motion.div>
         ) : null}
       </AnimatePresence>

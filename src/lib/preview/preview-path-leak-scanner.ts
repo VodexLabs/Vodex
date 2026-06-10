@@ -11,7 +11,18 @@ export type PathLeakMatch = {
 const LEAK_PATTERN_DEFS: Array<{ id: string; re: RegExp; safe?: boolean; repair: string }> = [
   { id: "relative_api_projects", re: /(?<![/"'])api\/projects\/[a-f0-9-]+\/preview-html[^"'`\s>]*/gi, repair: "Replace with '/' or virtual app route" },
   { id: "absolute_api_projects", re: /\/api\/projects\/[a-f0-9-]+\/preview-html[^"'`\s>]*/gi, repair: "Strip preview-html proxy path from bundle" },
-  { id: "preview_assets_leak", re: /api\/projects\/[a-f0-9-]+\/preview-assets/gi, repair: "Keep only when rewritten by serve layer; strip in artifact at rest" },
+  {
+    id: "preview_assets_leak",
+    re: /\/api\/projects\/[a-f0-9-]+\/preview-assets[^"'`\s>]*/gi,
+    safe: true,
+    repair: "Intentional preview-assets proxy URL injected at serve layer",
+  },
+  {
+    id: "relative_preview_assets",
+    re: /(?<![/"'])api\/projects\/[a-f0-9-]+\/preview-assets[^"'`\s>]*/gi,
+    safe: true,
+    repair: "Intentional preview-assets proxy URL injected at serve layer",
+  },
   { id: "escaped_api_projects", re: /api\\u002Fprojects\\u002F[a-f0-9-]+\\u002Fpreview-html/gi, repair: "Normalize unicode-escaped path to '/'" },
   { id: "slash_escaped", re: /api\\\/projects\\\/[a-f0-9-]+\\\/preview-html/gi, repair: "Normalize JSON-escaped path to '/'" },
   { id: "url_encoded", re: /(?:%2F)?api%2Fprojects%2F[a-f0-9-]+%2Fpreview-html/gi, repair: "Decode and replace with '/'" },

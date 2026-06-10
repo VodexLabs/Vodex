@@ -4,10 +4,16 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ensurePrivateBucket } from "@/lib/supabase/ensure-storage-bucket";
+import {
+  downloadPreviewArtifactFile,
+  PREVIEW_ARTIFACTS_BUCKET,
+} from "@/lib/imports/preview-artifact-storage";
 
-export const PREVIEW_ARTIFACTS_BUCKET = "preview-artifacts";
+export { downloadPreviewArtifactFile, PREVIEW_ARTIFACTS_BUCKET };
 
 import { ZIP_IMPORT_MAX_BYTES } from "@/lib/import/zip-import-limits";
+import { sanitizePreviewBootstrapState } from "@/lib/preview/preview-bootstrap-sanitizer";
+import { TEXT_ARTIFACT_EXT } from "@/lib/preview/preview-path-leak-scanner";
 
 const MAX_ARTIFACT_BYTES = ZIP_IMPORT_MAX_BYTES;
 
@@ -56,7 +62,15 @@ export async function uploadPreviewArtifacts(input: {
   let uploaded = 0;
 
   for (const file of files) {
-    const buf = await fs.readFile(file.abs);
+    let buf = await fs.readFile(file.abs);
+    if (TEXT_ARTIFACT_EXT.test(file.rel)) {
+      const text = buf.toString("utf8");
+      const isJs = /\.m?js$/i.test(file.rel);
+      const sanitized = sanitizePreviewBootstrapState(text, input.projectId, "/", {
+        rewriteAssetUrls: !isJs,
+      });
+      buf = Buffer.from(sanitized, "utf8");
+    }
     total += buf.length;
     if (total > MAX_ARTIFACT_BYTES) {
       return { ok: false, error: "Preview artifact exceeds size limit" };
@@ -71,19 +85,4 @@ export async function uploadPreviewArtifacts(input: {
   }
 
   return { ok: true, artifactPath: prefix, fileCount: uploaded };
-}
-
-export async function downloadPreviewArtifactFile(input: {
-  admin: SupabaseClient;
-  artifactPath: string;
-  relativePath: string;
-}): Promise<{ data: Buffer; contentType: string } | null> {
-  const rel = input.relativePath.replace(/^\/+/, "") || "index.html";
-  const storagePath = `${input.artifactPath}/${rel}`;
-  const { data, error } = await input.admin.storage
-    .from(PREVIEW_ARTIFACTS_BUCKET)
-    .download(storagePath);
-  if (error || !data) return null;
-  const buf = Buffer.from(await data.arrayBuffer());
-  return { data: buf, contentType: contentTypeFor(rel) };
 }

@@ -8,6 +8,7 @@ export const CONTACT_SOURCES = [
   "abuse",
   "contact_page",
   "pricing_modal",
+  "community_report",
 ] as const;
 
 export type ContactSource = (typeof CONTACT_SOURCES)[number];

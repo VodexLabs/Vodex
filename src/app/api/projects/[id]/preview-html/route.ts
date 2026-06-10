@@ -10,8 +10,14 @@ import { countProjectFiles, loadProjectFilesWithContent } from "@/lib/preview/pr
 import { rewritePreviewArtifactHtml } from "@/lib/preview/rewrite-preview-artifact-html";
 import { loadPreviewRuntimeStatus } from "@/lib/preview/load-preview-runtime-status";
 import { buildPreviewStatusHtml } from "@/lib/preview/preview-status-html";
+import { assertPreviewBootstrapClean } from "@/lib/preview/preview-bootstrap-sanitizer";
+import { buildPreviewBootstrapLeakPanel } from "@/lib/preview/preview-bootstrap-leak-panel";
 
 export const dynamic = "force-dynamic";
+
+const PREVIEW_CACHE_HEADERS = {
+  "Cache-Control": "no-store, max-age=0",
+} as const;
 
 function wantsHtmlFrame(req: Request): boolean {
   const url = new URL(req.url);
@@ -125,6 +131,30 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       const legacy = analyzeLegacyAdapter(shimHints, fw);
       html = injectPreviewShims(file.data.toString("utf8"), legacy);
       html = rewritePreviewArtifactHtml(html, projectId, buildId, previewRoute);
+      const bootstrapAssert = assertPreviewBootstrapClean(html, projectId);
+      if (!bootstrapAssert.ok && wantsHtmlFrame(req)) {
+        const leakPanel = buildPreviewBootstrapLeakPanel({
+          projectId,
+          leaks: bootstrapAssert.leaks,
+          hydrationCount: bootstrapAssert.hydrationCount,
+          repairUrl: `/api/projects/${projectId}/preview/inner-route-repair`,
+        });
+        return new NextResponse(leakPanel, {
+          status: 200,
+          headers: {
+            ...PREVIEW_CACHE_HEADERS,
+            "Content-Type": "text/html; charset=utf-8",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-Preview-Renderable": "false",
+            "X-Preview-Bootstrap-Leak": "1",
+          },
+        });
+      }
+      if (!bootstrapAssert.ok) {
+        runtime.previewRenderable = false;
+        runtime.blockedReason =
+          `Bootstrap path leaks (${bootstrapAssert.leaks.length} unsafe, ${bootstrapAssert.hydrationCount} hydration)`;
+      }
       diagnostics = analyzePreviewHtml(html, shimHints.map((f) => ({ path: f.path, content: f.content })));
       servedFromArtifact = true;
 
@@ -154,17 +184,13 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 
   const frameRenderable = runtime.previewRenderable && diagnostics.previewRenderable && html.trim().length > 80;
 
-  const cacheHeaders = {
-    "Cache-Control": "no-store, max-age=0",
-  };
-
   if (wantsHtmlFrame(req)) {
     if (!frameRenderable) {
       const statusHtml = buildPreviewStatusHtml(runtime, runtime.buildLogs ?? undefined);
       return new NextResponse(statusHtml, {
         status: 200,
         headers: {
-          ...cacheHeaders,
+          ...PREVIEW_CACHE_HEADERS,
           "Content-Type": "text/html; charset=utf-8",
           "X-Frame-Options": "SAMEORIGIN",
           "X-Preview-Renderable": "false",
@@ -175,7 +201,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     return new NextResponse(html, {
       status: 200,
       headers: {
-        ...cacheHeaders,
+        ...PREVIEW_CACHE_HEADERS,
         "Content-Type": "text/html; charset=utf-8",
         "X-Frame-Options": "SAMEORIGIN",
         "X-Preview-Renderable": "true",
@@ -214,6 +240,6 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       legacyPlatform,
       buildCommand: importMeta?.buildCommand ?? null,
     },
-    { headers: cacheHeaders },
+    { headers: PREVIEW_CACHE_HEADERS },
   );
 }

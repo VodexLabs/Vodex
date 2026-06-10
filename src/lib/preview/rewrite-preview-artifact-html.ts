@@ -43,7 +43,7 @@ export function rewritePreviewArtifactHtml(
     return `${base}/${clean}?${q}`;
   };
 
-  let out = stripPreviewPlatformPathsFromText(html, projectId);
+  let out = stripPreviewPlatformPathsFromText(html, projectId, { virtualRoute: routePath });
 
   if (!/<base\s/i.test(out)) {
     const baseTag = `<base href="${base}/?${q}" />`;

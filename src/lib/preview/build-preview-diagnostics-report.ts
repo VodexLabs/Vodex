@@ -1,0 +1,225 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { createSupabaseAdmin } from "@/lib/supabase/admin";
+import { downloadPreviewArtifactFile, PREVIEW_ARTIFACTS_BUCKET } from "@/lib/imports/preview-artifact-storage";
+import { rewritePreviewArtifactHtml } from "@/lib/preview/rewrite-preview-artifact-html";
+import { buildInternalPreviewHtmlUrl } from "@/lib/preview/internal-preview-url";
+import { innerRouteBootstrapLikelyBroken } from "@/lib/preview/detect-inner-route-bootstrap";
+import {
+  countHydrationPathLeaks,
+  scanBootstrapLeaksDetailed,
+} from "@/lib/preview/preview-bootstrap-sanitizer";
+import { TEXT_ARTIFACT_EXT } from "@/lib/preview/preview-path-leak-scanner";
+
+export type PreviewDiagnosticsReport = {
+  project_id: string;
+  preview_url: string | null;
+  artifact_id: string | null;
+  artifact_path: string | null;
+  latest_worker_job: string | null;
+  latest_worker_status: string | null;
+  preview_renderable: boolean;
+  service_worker_detected: boolean;
+  next_data_detected: boolean;
+  next_f_detected: boolean;
+  flight_payload_detected: boolean;
+  router_cache_detected: boolean;
+  unsafe_path_count: number;
+  hydration_path_count: number;
+  current_iframe_url: string | null;
+  rebuild_required: boolean;
+  served_html_bytes: number | null;
+  stored_unsafe_path_count: number | null;
+  issues: string[];
+};
+
+async function listArtifactFiles(
+  admin: SupabaseClient,
+  artifactPath: string,
+): Promise<string[]> {
+  const out: string[] = [];
+  async function walk(folder: string) {
+    const { data, error } = await admin.storage.from(PREVIEW_ARTIFACTS_BUCKET).list(folder, {
+      limit: 500,
+    });
+    if (error || !data) return;
+    for (const ent of data) {
+      const rel = folder ? `${folder}/${ent.name}` : ent.name;
+      if (ent.id == null) await walk(rel);
+      else out.push(rel.replace(`${artifactPath}/`, "").replace(/^\/+/, ""));
+    }
+  }
+  await walk(artifactPath);
+  return out;
+}
+
+function artifactIdFromPath(artifactPath: string | null, projectId: string): string | null {
+  if (!artifactPath) return null;
+  const parts = artifactPath.split("/").filter(Boolean);
+  if (parts[0] === projectId && parts[1]) return parts[1];
+  return parts[parts.length - 1] ?? null;
+}
+
+function scanServedHtmlSignals(html: string, projectId: string) {
+  const service_worker_detected = /navigator\.serviceWorker\.register\s*\(/i.test(html);
+  const next_data_detected = /<script[^>]+id="__NEXT_DATA__"/i.test(html);
+  const next_f_detected = /__next_f/i.test(html);
+  const flight_payload_detected = /__next_f\.push\s*\(/i.test(html);
+  const router_cache_detected =
+    /"initialTree"[^[]*\[[^\]]*preview-html/i.test(html) ||
+    /"pathname"\s*:\s*"[^"]*preview-html/i.test(html) ||
+    /"asPath"\s*:\s*"[^"]*preview-html/i.test(html);
+
+  const unsafeMatches = scanBootstrapLeaksDetailed(html, projectId, {
+    excludePlatformInjections: true,
+  });
+  const hydration_path_count = countHydrationPathLeaks(html, projectId, true);
+
+  return {
+    service_worker_detected,
+    next_data_detected,
+    next_f_detected,
+    flight_payload_detected,
+    router_cache_detected,
+    unsafe_path_count: unsafeMatches.length,
+    hydration_path_count,
+  };
+}
+
+export async function buildPreviewDiagnosticsReport(
+  supabase: SupabaseClient,
+  projectId: string,
+): Promise<PreviewDiagnosticsReport | null> {
+  const { data: proj } = await supabase
+    .from("projects")
+    .select("id, metadata, preview_url, owner_id")
+    .eq("id", projectId)
+    .maybeSingle();
+
+  if (!proj) return null;
+
+  const meta =
+    proj.metadata && typeof proj.metadata === "object" && !Array.isArray(proj.metadata)
+      ? (proj.metadata as Record<string, unknown>)
+      : {};
+
+  const admin = createSupabaseAdmin();
+
+  type PreviewJobRow = {
+    id: string;
+    status: string;
+    artifact_path: string | null;
+    preview_renderable: boolean | null;
+  };
+  let jobRow: PreviewJobRow | null = null;
+  if (admin) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (admin as any)
+      .from("preview_build_jobs")
+      .select("id, status, artifact_path, preview_renderable")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    jobRow = (data as PreviewJobRow | null) ?? null;
+  }
+
+  const previewRenderable =
+    meta.preview_renderable === true ||
+    jobRow?.preview_renderable === true ||
+    meta.preview_ready === true;
+
+  const artifactPath =
+    (typeof meta.preview_artifact_path === "string" ? meta.preview_artifact_path : null) ??
+    jobRow?.artifact_path ??
+    null;
+  const artifactId = artifactIdFromPath(artifactPath, projectId);
+
+  let servedHtml = "";
+  let storedUnsafeTotal = 0;
+  const issues: string[] = [];
+
+  if (admin && artifactPath) {
+    const index = await downloadPreviewArtifactFile({
+      admin,
+      artifactPath,
+      relativePath: "index.html",
+    });
+    if (index) {
+      const buildId = artifactId ?? "unknown";
+      servedHtml = rewritePreviewArtifactHtml(index.data.toString("utf8"), projectId, buildId, "/");
+    } else {
+      issues.push("artifact index.html missing from storage");
+    }
+
+    try {
+      const files = await listArtifactFiles(admin, artifactPath);
+      for (const rel of files) {
+        if (!TEXT_ARTIFACT_EXT.test(rel)) continue;
+        const file = await downloadPreviewArtifactFile({ admin, artifactPath, relativePath: rel });
+        if (!file) continue;
+        const text = file.data.toString("utf8");
+        storedUnsafeTotal += scanBootstrapLeaksDetailed(text, projectId, {
+          excludePlatformInjections: false,
+          file: rel,
+        }).length;
+      }
+    } catch (e) {
+      issues.push(`artifact scan failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  } else if (!artifactPath) {
+    issues.push("no preview artifact path");
+  }
+
+  const servedSignals = servedHtml ? scanServedHtmlSignals(servedHtml, projectId) : {
+    service_worker_detected: false,
+    next_data_detected: false,
+    next_f_detected: false,
+    flight_payload_detected: false,
+    router_cache_detected: false,
+    unsafe_path_count: 0,
+    hydration_path_count: 0,
+  };
+
+  if (servedHtml && innerRouteBootstrapLikelyBroken(servedHtml, projectId)) {
+    issues.push("inner route bootstrap likely broken in served HTML");
+  }
+  if (storedUnsafeTotal > 0) {
+    issues.push(`${storedUnsafeTotal} unsafe path leak(s) in stored artifact`);
+  }
+  if (jobRow?.status === "failed") {
+    issues.push(`latest worker job failed: ${jobRow.id}`);
+  }
+
+  const rebuild_required =
+    !previewRenderable ||
+    storedUnsafeTotal > 0 ||
+    servedSignals.unsafe_path_count > 0 ||
+    (servedHtml ? innerRouteBootstrapLikelyBroken(servedHtml, projectId) : false) ||
+    jobRow?.status === "failed";
+
+  const currentIframeUrl =
+    artifactId && previewRenderable
+      ? buildInternalPreviewHtmlUrl({
+          projectId,
+          artifactBuildId: artifactId,
+          route: "/",
+          cacheBust: jobRow?.id ?? undefined,
+        })
+      : null;
+
+  return {
+    project_id: projectId,
+    preview_url: proj.preview_url ?? null,
+    artifact_id: artifactId,
+    artifact_path: artifactPath,
+    latest_worker_job: jobRow?.id ?? null,
+    latest_worker_status: jobRow?.status ?? null,
+    preview_renderable: previewRenderable,
+    ...servedSignals,
+    current_iframe_url: currentIframeUrl,
+    rebuild_required,
+    served_html_bytes: servedHtml ? servedHtml.length : null,
+    stored_unsafe_path_count: artifactPath ? storedUnsafeTotal : null,
+    issues,
+  };
+}

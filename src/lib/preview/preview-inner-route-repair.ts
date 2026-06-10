@@ -5,7 +5,13 @@ import {
   PREVIEW_ARTIFACTS_BUCKET,
   downloadPreviewArtifactFile,
 } from "@/lib/imports/preview-artifact-writer";
-import { stripPreviewPlatformPathsFromText } from "@/lib/preview/strip-preview-platform-paths";
+import {
+  assertPreviewBootstrapClean,
+  countHydrationPathLeaks,
+  sanitizePreviewBootstrapState,
+  scanBootstrapLeaksDetailed,
+} from "@/lib/preview/preview-bootstrap-sanitizer";
+import { rewritePreviewArtifactHtml } from "@/lib/preview/rewrite-preview-artifact-html";
 import { runProjectPreviewBuild } from "@/lib/imports/run-project-preview-build";
 import { TEXT_ARTIFACT_EXT } from "@/lib/preview/preview-path-leak-scanner";
 
@@ -38,8 +44,60 @@ function contentTypeFor(filePath: string): string {
   return "application/octet-stream";
 }
 
+export async function verifyStoredArtifactBootstrapClean(input: {
+  admin: SupabaseClient;
+  projectId: string;
+  artifactPath: string;
+}): Promise<{
+  ok: boolean;
+  unsafeCount: number;
+  hydrationCount: number;
+  servedUnsafeCount: number;
+  servedHydrationCount: number;
+}> {
+  const files = await listArtifactFiles(input.admin, input.artifactPath);
+  let unsafeCount = 0;
+  let hydrationCount = 0;
+  let servedUnsafeCount = 0;
+  let servedHydrationCount = 0;
+  const buildId = input.artifactPath.split("/").pop() ?? "unknown";
+
+  for (const rel of files) {
+    if (!TEXT_ARTIFACT_EXT.test(rel)) continue;
+    const file = await downloadPreviewArtifactFile({
+      admin: input.admin,
+      artifactPath: input.artifactPath,
+      relativePath: rel,
+    });
+    if (!file) continue;
+    const text = file.data.toString("utf8");
+    unsafeCount += scanBootstrapLeaksDetailed(text, input.projectId, {
+      excludePlatformInjections: false,
+      file: rel,
+    }).length;
+    hydrationCount += countHydrationPathLeaks(text, input.projectId, false);
+
+    if (/index\.html?$/i.test(rel)) {
+      const served = rewritePreviewArtifactHtml(text, input.projectId, buildId, "/");
+      const servedAssert = assertPreviewBootstrapClean(served, input.projectId);
+      if (!servedAssert.ok) {
+        servedUnsafeCount = servedAssert.leaks.length;
+        servedHydrationCount = servedAssert.hydrationCount;
+      }
+    }
+  }
+
+  return {
+    ok: unsafeCount === 0 && hydrationCount === 0 && servedUnsafeCount === 0 && servedHydrationCount === 0,
+    unsafeCount,
+    hydrationCount,
+    servedUnsafeCount,
+    servedHydrationCount,
+  };
+}
+
 /**
- * Sanitize stored artifact files, then queue a full preview rebuild so worker re-applies shims.
+ * Sanitize stored artifact files, rebuild, and verify zero bootstrap leaks before marking renderable.
  */
 export async function repairPreviewInnerRoute(input: {
   admin: SupabaseClient;
@@ -52,6 +110,8 @@ export async function repairPreviewInnerRoute(input: {
   sanitizedFiles: number;
   jobId?: string;
   queued?: boolean;
+  verified?: boolean;
+  verification?: Awaited<ReturnType<typeof verifyStoredArtifactBootstrapClean>>;
   message?: string;
   error?: string;
 }> {
@@ -71,7 +131,7 @@ export async function repairPreviewInnerRoute(input: {
     if (!file) continue;
     const text = file.data.toString("utf8");
     const isJs = /\.m?js$/i.test(rel);
-    const stripped = stripPreviewPlatformPathsFromText(text, input.projectId, {
+    const stripped = sanitizePreviewBootstrapState(text, input.projectId, "/", {
       rewriteAssetUrls: !isJs,
     });
     if (stripped === text) continue;
@@ -100,13 +160,29 @@ export async function repairPreviewInnerRoute(input: {
   });
 
   const queued = diagnostics.previewStatus === "queued";
+  let verification: Awaited<ReturnType<typeof verifyStoredArtifactBootstrapClean>> | undefined;
+  let verified = false;
+
+  if (!queued && diagnostics.artifactPath) {
+    verification = await verifyStoredArtifactBootstrapClean({
+      admin: input.admin,
+      projectId: input.projectId,
+      artifactPath: diagnostics.artifactPath,
+    });
+    verified = verification.ok;
+  }
+
   return {
     ok: true,
     sanitizedFiles,
     jobId: jobId ?? undefined,
     queued,
+    verified,
+    verification,
     message: queued
       ? `Sanitized ${sanitizedFiles} artifact file(s) and queued preview rebuild`
-      : `Sanitized ${sanitizedFiles} artifact file(s); preview rebuild finished`,
+      : verified
+        ? `Sanitized ${sanitizedFiles} file(s); rebuild verified clean (0 leaks)`
+        : `Sanitized ${sanitizedFiles} file(s); rebuild finished — verification pending or leaks remain`,
   };
 }

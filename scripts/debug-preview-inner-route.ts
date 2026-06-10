@@ -6,13 +6,19 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
-import { downloadPreviewArtifactFile } from "../src/lib/imports/preview-artifact-writer";
+import { downloadPreviewArtifactFile, PREVIEW_ARTIFACTS_BUCKET } from "../src/lib/imports/preview-artifact-storage";
 import { rewritePreviewArtifactHtml } from "../src/lib/preview/rewrite-preview-artifact-html";
 import {
   detectInnerRouteBootstrapIssues,
   innerRouteBootstrapLikelyBroken,
 } from "../src/lib/preview/detect-inner-route-bootstrap";
-import { scanTextForPathLeaks } from "../src/lib/preview/preview-path-leak-scanner";
+import {
+  countHydrationPathLeaks,
+  formatBootstrapLeakReport,
+  sanitizePreviewBootstrapState,
+  scanBootstrapLeaksDetailed,
+} from "../src/lib/preview/preview-bootstrap-sanitizer";
+import { TEXT_ARTIFACT_EXT } from "../src/lib/preview/preview-path-leak-scanner";
 
 const root = path.join(process.cwd());
 
@@ -37,8 +43,43 @@ function arg(name: string, fallback: string) {
 
 const projectId = arg("--project", "ff55c353-aabf-479a-aaec-2138bba9d6b4");
 
+async function listArtifactFiles(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  artifactPath: string,
+): Promise<string[]> {
+  const out: string[] = [];
+  async function walk(folder: string) {
+    const { data, error } = await admin.storage.from(PREVIEW_ARTIFACTS_BUCKET).list(folder, { limit: 500 });
+    if (error || !data) return;
+    for (const ent of data) {
+      const rel = folder ? `${folder}/${ent.name}` : ent.name;
+      if (ent.id == null) await walk(rel);
+      else out.push(rel.replace(`${artifactPath}/`, "").replace(/^\/+/, ""));
+    }
+  }
+  await walk(artifactPath);
+  return out;
+}
+
+function printLeaks(label: string, text: string, file?: string) {
+  const leaks = scanBootstrapLeaksDetailed(text, projectId, {
+    excludePlatformInjections: label === "served_html",
+    file,
+  });
+  const hydration = countHydrationPathLeaks(text, projectId, label === "served_html");
+  console.log(`\n${label} (${file ?? "document"}) — unsafe: ${leaks.length}, hydration: ${hydration}`);
+  for (const leak of leaks) {
+    console.log(`  [${leak.source}] ${leak.pattern} @${leak.index}`);
+    console.log(`    ${leak.snippet}`);
+  }
+}
+
 async function main() {
-  const env = { ...process.env, ...loadEnvLocal() };
+  const envLocal = loadEnvLocal();
+  Object.assign(process.env, envLocal);
+  if (!process.env.NODE_USE_SYSTEM_CA) process.env.NODE_USE_SYSTEM_CA = "1";
+  const env = { ...process.env, ...envLocal };
   const url = env.NEXT_PUBLIC_SUPABASE_URL;
   const key = env.SUPABASE_SERVICE_ROLE_KEY ?? env.SUPABASE_SECRET_KEY;
   if (!url || !key) {
@@ -80,6 +121,26 @@ async function main() {
     process.exit(1);
   }
 
+  const files = await listArtifactFiles(admin, artifactPath);
+  for (const rel of files.filter((f) => TEXT_ARTIFACT_EXT.test(f)).slice(0, 8)) {
+    const raw = await downloadPreviewArtifactFile({ admin, artifactPath, relativePath: rel });
+    if (!raw) continue;
+    const stored = raw.data.toString("utf8");
+    const sanitized = sanitizePreviewBootstrapState(stored, projectId, "/", {
+      rewriteAssetUrls: !/\.m?js$/i.test(rel),
+    });
+    if (sanitized !== stored) {
+      console.log(formatBootstrapLeakReport({
+        before: stored,
+        after: sanitized,
+        projectId,
+        label: `sanitizer ${rel}`,
+        file: rel,
+      }));
+    }
+    printLeaks("stored_html", stored, rel);
+  }
+
   const raw = await downloadPreviewArtifactFile({
     admin,
     artifactPath,
@@ -92,24 +153,15 @@ async function main() {
 
   const storedHtml = raw.data.toString("utf8");
   const servedHtml = rewritePreviewArtifactHtml(storedHtml, projectId, buildId, "/");
-  const storedLeaks = scanTextForPathLeaks(storedHtml, projectId).filter((m) => !m.safe);
-  const servedLeaks = scanTextForPathLeaks(servedHtml, projectId).filter((m) => !m.safe);
   const issues = detectInnerRouteBootstrapIssues(servedHtml, projectId);
 
-  console.log(`stored_html_bytes: ${storedHtml.length}`);
+  console.log(`\nstored_html_bytes: ${storedHtml.length}`);
   console.log(`served_html_bytes: ${servedHtml.length}`);
-  console.log(`stored_unsafe_leaks: ${storedLeaks.length}`);
-  console.log(`served_unsafe_leaks: ${servedLeaks.length}`);
   console.log(`bootstrap_likely_broken: ${innerRouteBootstrapLikelyBroken(servedHtml, projectId)}`);
   console.log(`has_virtual_history_shim: ${servedHtml.includes("vodex-preview-virtual-history")}`);
   console.log(`has_inner_watchdog: ${servedHtml.includes("vodex-preview-inner-watchdog")}`);
 
-  if (storedLeaks.length) {
-    console.log("\nStored artifact leaks (sample):");
-    for (const leak of storedLeaks.slice(0, 5)) {
-      console.log(`  - [${leak.pattern}] ${leak.snippet}`);
-    }
-  }
+  printLeaks("served_html", servedHtml, "index.html");
 
   if (issues.length) {
     console.log("\nBootstrap issues:");

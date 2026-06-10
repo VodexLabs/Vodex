@@ -32,7 +32,8 @@ const checks = {
     assert(watchdog.includes("inner_next_route_404"), "watchdog kind");
     assert(watchdog.includes("Page Not Found") || watchdog.includes("page not found"), "404 text");
     assert(watchdog.includes("could not be found in this application"), "Next 404 phrase");
-    assert(watchdog.includes("api/projects/"), "platform path detection");
+    assert(watchdog.includes("cloneNode"), "visible text scan");
+    assert(watchdog.includes('data-vodex-preview-watchdog="true"'), "watchdog marked");
     assert(rewrite.includes("injectPreviewInnerWatchdog"), "rewrite injects watchdog");
     assert(types.includes("isPreviewInnerRouteErrorMessage"), "type guard");
     assert(panel.includes("isPreviewInnerRouteErrorMessage"), "panel listens");

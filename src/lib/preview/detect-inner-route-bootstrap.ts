@@ -1,6 +1,10 @@
 /** Server-side scan for bootstrap state that can make Next route to preview proxy paths. */
 
-import { scanTextForPathLeaks } from "@/lib/preview/preview-path-leak-scanner";
+import {
+  countHydrationPathLeaks,
+  scanBootstrapLeaksDetailed,
+  stripPlatformInjectionScripts,
+} from "@/lib/preview/preview-bootstrap-sanitizer";
 
 export type InnerRouteBootstrapIssue = {
   id: string;
@@ -15,7 +19,8 @@ export function detectInnerRouteBootstrapIssues(
 ): InnerRouteBootstrapIssue[] {
   const issues: InnerRouteBootstrapIssue[] = [];
 
-  const leaks = scanTextForPathLeaks(html, projectId).filter((m) => !m.safe);
+  const appHtml = stripPlatformInjectionScripts(html);
+  const leaks = scanBootstrapLeaksDetailed(appHtml, projectId, { excludePlatformInjections: false });
   for (const leak of leaks.slice(0, 12)) {
     issues.push({
       id: `leak_${leak.pattern}`,
@@ -25,8 +30,8 @@ export function detectInnerRouteBootstrapIssues(
     });
   }
 
-  const nextData = html.match(/<script[^>]+id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
-  if (nextData?.[1] && /preview-html|api\/projects/i.test(nextData[1])) {
+  const nextData = appHtml.match(/<script[^>]+id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
+  if (nextData?.[1] && /preview-html|api\/projects\/[a-f0-9-]+\/preview-html/i.test(nextData[1])) {
     issues.push({
       id: "next_data_router_state",
       severity: "error",
@@ -35,7 +40,7 @@ export function detectInnerRouteBootstrapIssues(
     });
   }
 
-  if (/__next_f\.push\([^)]*preview-html/i.test(html)) {
+  if (/__next_f\.push\([^)]*preview-html/i.test(appHtml)) {
     issues.push({
       id: "next_f_flight_push",
       severity: "error",
@@ -74,5 +79,7 @@ export function innerRouteBootstrapLikelyBroken(
   html: string,
   projectId: string,
 ): boolean {
+  const appHtml = stripPlatformInjectionScripts(html);
+  if (countHydrationPathLeaks(appHtml, projectId, false) > 0) return true;
   return detectInnerRouteBootstrapIssues(html, projectId).some((i) => i.severity === "error");
 }

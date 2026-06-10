@@ -733,14 +733,14 @@ export async function POST(request: Request) {
     name: r.file_name ?? "attachment",
   })) as unknown as Json;
 
-  if (userText && !conversationId && (projectId || chargeMode !== "discuss")) {
+  if (userText && !conversationId) {
     const conv = await ensureProjectConversation({
       writer,
       user,
-      projectId,
+      projectId: projectId ?? undefined,
       title: userText.slice(0, 60) || "New conversation",
       modelId,
-      mode,
+      mode: chargeMode === "discuss" || chargeMode === "create_question" ? "discuss" : mode,
     });
     if ("error" in conv) {
       return NextResponse.json(
@@ -749,11 +749,6 @@ export async function POST(request: Request) {
       );
     }
     conversationId = conv.id;
-  } else if (userText && !conversationId && chargeMode === "discuss" && !projectId) {
-    return NextResponse.json(
-      { error: "Conversation not initialized. Please retry.", code: "missing_conversation" },
-      { status: 400 },
-    );
   } else if (conversationId && projectId) {
     await ensureProjectConversation({
       writer,
@@ -878,6 +873,16 @@ export async function POST(request: Request) {
         .from("message_attachments")
         .update({ message_id: userMessageId, conversation_id: conversationId })
         .in("id", attachmentIds);
+    }
+    if (userMessageId) {
+      await writer
+        .from("conversations")
+        .update({
+          updated_at: new Date().toISOString(),
+          last_message_at: new Date().toISOString(),
+        } as never)
+        .eq("id", conversationId)
+        .eq("user_id", user.id);
     }
     }
   }
@@ -1317,6 +1322,15 @@ export async function POST(request: Request) {
             if (process.env.NODE_ENV !== "production") {
               console.warn("[chat] assistant message insert:", asstErr.message);
             }
+          } else {
+            await writer
+              .from("conversations")
+              .update({
+                updated_at: new Date().toISOString(),
+                last_message_at: new Date().toISOString(),
+              } as never)
+              .eq("id", conversationId)
+              .eq("user_id", user.id);
           }
         }
 

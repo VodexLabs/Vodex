@@ -10,6 +10,7 @@ import { requireAuthUser, requireMutationProjectId, isNextResponse } from "@/lib
 import { guardExpensiveRoute } from "@/lib/security/route-guard";
 import { requireOwnedProject, isOwnedProjectFailure } from "@/lib/security/owned-project";
 import { logSecurityAudit } from "@/lib/security/audit-events";
+import { notifyBuilderFollowers } from "@/lib/community/notify-builder-followers";
 
 export const dynamic = "force-dynamic";
 
@@ -118,6 +119,25 @@ export async function POST(
     .update({ icon_url: iconUrl } as never)
     .eq("id", projectId)
     .eq("owner_id", authUser.id);
+
+  const { data: builderProfile } = await admin
+    .from("profiles")
+    .select("display_name, username")
+    .eq("id", authUser.id)
+    .maybeSingle();
+  const builderName =
+    (builderProfile as { display_name?: string | null; username?: string | null } | null)?.display_name ??
+    (builderProfile as { username?: string | null } | null)?.username ??
+    "A builder you follow";
+  void notifyBuilderFollowers(admin, {
+    builderId: authUser.id,
+    builderName,
+    kind: "app_published",
+    title: "New app from someone you follow",
+    body: `${builderName} published a new app on Vodex.`,
+    actionUrl: result.publicUrl ?? `/apps/${projectId}/dashboard`,
+    metadata: { project_id: projectId, public_url: result.publicUrl ?? null },
+  }).catch(() => {});
 
   return NextResponse.json({
     ok: true,

@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, Search, Send, Paperclip, X, AlertCircle,
   Loader2, Copy, Check, RotateCcw, MoreHorizontal,
-  Link2, HelpCircle, MessageSquare, PanelLeft,
+  Link2, HelpCircle, MessageSquare, PanelLeft, ChevronDown,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
@@ -372,6 +372,9 @@ function MessageBubble({ msg, displayName, avatarUrl, attachments = [] }: {
         )}
       </div>
       <div className={cn("flex max-w-[min(100%,560px)] flex-col gap-1.5", isUser && "items-end")}>
+        {isUser && displayName ? (
+          <p className="px-1 text-[11px] font-medium text-muted-foreground">{displayName}</p>
+        ) : null}
         <div
           className={cn(
             "relative overflow-hidden px-4 py-3 text-[14px] leading-relaxed shadow-sm",
@@ -495,6 +498,9 @@ export function ChatView() {
   const fileRef = React.useRef<HTMLInputElement>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const bottomRef = React.useRef<HTMLDivElement>(null);
+  const messagesScrollRef = React.useRef<HTMLDivElement>(null);
+  const stickToBottomRef = React.useRef(true);
+  const [newMessagesBelow, setNewMessagesBelow] = React.useState(0);
   const pendingAttachmentIdsRef = React.useRef<string[]>([]);
 
   const [histReload, setHistReload] = React.useState(0);
@@ -681,10 +687,41 @@ export function ChatView() {
     if (!isBusy) streamConvRef.current = null;
   }, [isBusy, activeConvId]);
 
+  const scrollMessagesToBottom = React.useCallback((behavior: ScrollBehavior = "smooth") => {
+    const el = messagesScrollRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior });
+    setNewMessagesBelow(0);
+  }, []);
+
+  const updateStickState = React.useCallback(() => {
+    const el = messagesScrollRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 96;
+    stickToBottomRef.current = nearBottom;
+    if (nearBottom) setNewMessagesBelow(0);
+  }, []);
+
+  const prevMessageCountRef = React.useRef(0);
   React.useEffect(() => {
-    if (messages.length === 0 && !isBusy) return;
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, isBusy, activeConvId]);
+    if (messages.length === 0 && !isBusy) {
+      prevMessageCountRef.current = 0;
+      return;
+    }
+    if (stickToBottomRef.current) {
+      requestAnimationFrame(() => scrollMessagesToBottom(isBusy ? "auto" : "smooth"));
+      prevMessageCountRef.current = messages.length;
+      return;
+    }
+    const delta = messages.length - prevMessageCountRef.current;
+    if (delta > 0) setNewMessagesBelow((n) => n + delta);
+    prevMessageCountRef.current = messages.length;
+  }, [messages.length, isBusy, activeConvId, scrollMessagesToBottom]);
+
+  React.useEffect(() => {
+    stickToBottomRef.current = true;
+    setNewMessagesBelow(0);
+  }, [activeConvId]);
 
   function startNewConversation() {
     setActiveConvId(null);
@@ -1270,7 +1307,12 @@ export function ChatView() {
         </div>
 
         {/* Messages */}
-        <div className="vodex-scroll-panel min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain">
+        <div className="relative min-h-0 min-w-0 flex-1">
+        <div
+          ref={messagesScrollRef}
+          onScroll={updateStickState}
+          className="vodex-scroll-panel h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden overscroll-y-contain"
+        >
           <div className="mx-auto w-full max-w-3xl space-y-4 px-4 py-4 sm:px-5 lg:px-6">
             {messages.length === 0 && !isBusy && (
               <motion.div
@@ -1397,6 +1439,20 @@ export function ChatView() {
 
             <div ref={bottomRef} />
           </div>
+        </div>
+        {newMessagesBelow > 0 ? (
+          <button
+            type="button"
+            onClick={() => {
+              stickToBottomRef.current = true;
+              scrollMessagesToBottom("smooth");
+            }}
+            className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-accent px-3.5 py-1.5 text-[11px] font-semibold text-white shadow-lg animate-bounce"
+          >
+            <ChevronDown className="size-3.5" strokeWidth={2.5} />
+            {newMessagesBelow} new message{newMessagesBelow === 1 ? "" : "s"}
+          </button>
+        ) : null}
         </div>
 
         {/* Input area */}

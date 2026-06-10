@@ -3,7 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Loader2, Share2, Flag, UserPlus, UserMinus, Sparkles, AppWindow } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Loader2, Share2, Flag, UserPlus, UserMinus, AppWindow } from "lucide-react";
 import { ReportDialog } from "@/components/community/report-dialog";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -156,7 +157,6 @@ export function PublicBuilderProfileView({ username }: { username: string }) {
               {profile.followerCount != null ? (
                 <span>{profile.followerCount.toLocaleString()} followers</span>
               ) : null}
-              <span>{profile.profileVisitCount.toLocaleString()} visits lifetime</span>
               <span>{profile.profileVisits30d.toLocaleString()} visits (30d)</span>
               <span>Joined {new Date(profile.joinedAt).toLocaleDateString()}</span>
             </div>
@@ -166,12 +166,15 @@ export function PublicBuilderProfileView({ username }: { username: string }) {
               <Button
                 variant={profile.following ? "secondary" : "accent"}
                 size="sm"
-                className="gap-1.5"
+                className={cn(
+                  "gap-1.5",
+                  profile.following && "bg-muted text-foreground hover:bg-muted/80",
+                )}
                 disabled={followBusy}
                 onClick={() => void toggleFollow()}
               >
                 {profile.following ? <UserMinus className="size-3.5" /> : <UserPlus className="size-3.5" />}
-                {profile.following ? "Unfollow" : "Follow"}
+                {profile.following ? "Following" : "Follow"}
               </Button>
             ) : null}
             <Button
@@ -205,18 +208,6 @@ export function PublicBuilderProfileView({ username }: { username: string }) {
           <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Apps shared</p>
           <p className="mt-1 text-[15px] font-semibold text-foreground">{(profile.apps?.length ?? 0).toLocaleString()}</p>
         </div>
-      </section>
-
-      <section className="rounded-[var(--radius-xl)] bg-gradient-to-br from-accent/5 via-background to-violet-500/5 p-5 ring-1 ring-border">
-        <div className="flex items-center gap-2">
-          <Sparkles className="size-4 text-accent" />
-          <h2 className="text-[14px] font-semibold text-foreground">Builder spotlight</h2>
-        </div>
-        <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-          {profile.bio?.trim()
-            ? profile.bio
-            : `${profile.displayName} is building on Vodex. Follow for updates or explore their shared apps below.`}
-        </p>
       </section>
 
       <section className="space-y-3">

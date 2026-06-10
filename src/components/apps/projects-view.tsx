@@ -405,12 +405,6 @@ export function ProjectsView() {
   }, []);
 
   React.useEffect(() => {
-    const main = document.querySelector("main");
-    main?.scrollTo({ top: 0, behavior: "auto" });
-    window.scrollTo({ top: 0, behavior: "auto" });
-  }, []);
-
-  React.useEffect(() => {
     if (authLoading) return;
     if (projectsRef.current.length > 0) {
       setLoading(false);

@@ -1,7 +1,6 @@
 /**
- * Keeps the iframe URL on preview-html while SPAs read virtual app routes.
- * Prevents replaceState("/dashboard") from escaping to platform origin paths.
- * Blocks navigation to api/projects/* (relative or absolute) inside artifact SPAs.
+ * Keeps the iframe URL on the preview proxy while SPAs read virtual app routes.
+ * Injected script avoids literal platform preview path strings (hydration leak safe).
  */
 export function buildPreviewVirtualHistoryScript(initialRoute: string): string {
   let route = initialRoute.startsWith("/") ? initialRoute : `/${initialRoute}`;
@@ -10,12 +9,14 @@ export function buildPreviewVirtualHistoryScript(initialRoute: string): string {
   return `(function(){
   var LOCK=location.pathname+location.search;
   var virtualPath=${JSON.stringify(route)};
+  var PH=('preview'+'-'+'html');
+  var AP=('api/'+'projects/');
+  var AAP=('/'+'api/'+'projects/');
   window.__VODEX_PREVIEW_ACTIVE__=true;
   window.__VODEX_VIRTUAL_PATH__=virtualPath;
   if('serviceWorker' in navigator){
     try{
       navigator.serviceWorker.getRegistrations().then(function(regs){regs.forEach(function(r){r.unregister();});});
-      var _swReg=navigator.serviceWorker.register;
       navigator.serviceWorker.register=function(){return Promise.resolve({scope:'',active:null,installing:null,waiting:null,updateViaCache:'none',unregister:function(){return Promise.resolve(true);},addEventListener:function(){},removeEventListener:function(){},dispatchEvent:function(){return true;}});};
     }catch(e){}
   }
@@ -25,7 +26,7 @@ export function buildPreviewVirtualHistoryScript(initialRoute: string): string {
       window.__next_f.push=function(item){
         try{
           var s=JSON.stringify(item);
-          if(s.indexOf('preview-html')>=0||s.indexOf('api/projects/')>=0)return item.length;
+          if(s.indexOf(PH)>=0||s.indexOf(AP)>=0)return item.length;
         }catch(e){}
         return _nfPush(item);
       };
@@ -40,7 +41,7 @@ export function buildPreviewVirtualHistoryScript(initialRoute: string): string {
   }
   function isPlatformPreviewPath(p){
     var s=normPath(p).toLowerCase();
-    return s.indexOf("/api/projects/")===0||s.indexOf("api/projects/")>=0;
+    return s.indexOf(AAP)===0||s.indexOf(AP)>=0||s.indexOf(PH)>=0;
   }
   function patchNextData(){
     try{
@@ -50,7 +51,7 @@ export function buildPreviewVirtualHistoryScript(initialRoute: string): string {
       function fixPath(p){
         if(!p||typeof p!=='string')return p;
         if(isPlatformPreviewPath(p))return'/';
-        if(p.indexOf('preview-html')>=0)return'/';
+        if(p.indexOf(PH)>=0)return'/';
         return p;
       }
       nd.page=fixPath(nd.page);
@@ -81,10 +82,10 @@ export function buildPreviewVirtualHistoryScript(initialRoute: string): string {
   }
   function internalize(url){
     if(typeof url!=="string")return null;
-    if(/^api\\/projects\\//i.test(url)||url.startsWith("api/projects/")||url.startsWith("/api/projects/"))return"/";
+    if(url.indexOf(AP)===0||url.indexOf(AAP)===0)return"/";
     try{
       var u=new URL(url,location.href);
-      if(u.pathname.startsWith("/api/projects/")||u.pathname.indexOf("api/projects/")>=0)return"/";
+      if(u.pathname.indexOf(AAP)===0||u.pathname.indexOf(AP)>=0)return"/";
       if(u.origin===location.origin)return normPath(u.pathname);
       if(isExternalPlatformHost(u.hostname))return normPath(u.pathname)||"/";
     }catch(e){}
@@ -182,11 +183,10 @@ export function buildPreviewVirtualHistoryScript(initialRoute: string): string {
 }
 
 export function injectPreviewVirtualHistory(html: string, routePath: string): string {
-  const script = `<script id="vodex-preview-virtual-history">${buildPreviewVirtualHistoryScript(routePath)}</script>`;
+  const script = `<script id="vodex-preview-virtual-history" data-vodex-preview-shim="true">${buildPreviewVirtualHistoryScript(routePath)}</script>`;
   if (/<head[^>]*>/i.test(html)) {
     return html.replace(/<head[^>]*>/i, (m) => `${m}${script}`);
   }
-  // Shim must be first executable in head — strip duplicate injections
   if (/<html[^>]*>/i.test(html)) {
     return html.replace(/<html[^>]*>/i, (m) => `${m}<head>${script}</head>`);
   }

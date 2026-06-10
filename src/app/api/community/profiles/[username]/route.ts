@@ -114,20 +114,42 @@ export async function GET(
   });
 
   let apps: Array<{ id: string; name: string; previewUrl: string }> = [];
-  const showApps = profile.show_apps_on_profile !== false;
+  const showApps = profile.show_apps_on_profile === true;
   if (showApps) {
     const { data: rows } = await db
       .from("projects")
-      .select("id, name, app_name, is_public, metadata")
+      .select("id, name, app_name, is_public, status, published_subdomain, custom_domain, metadata")
       .eq("owner_id", profile.id)
-      .or("is_public.eq.true,metadata->>community_listed.eq.true")
       .order("updated_at", { ascending: false })
-      .limit(12);
-    apps = (rows ?? []).map((p: { id: string; name: string; app_name: string | null }) => ({
-      id: p.id,
-      name: p.app_name ?? p.name,
-      previewUrl: buildInternalPreviewHtmlUrl({ projectId: p.id }),
-    }));
+      .limit(24);
+    apps = (rows ?? [])
+      .filter((p: {
+        is_public?: boolean | null;
+        status?: string | null;
+        published_subdomain?: string | null;
+        custom_domain?: string | null;
+        metadata?: unknown;
+      }) => {
+        const meta =
+          p.metadata && typeof p.metadata === "object" && !Array.isArray(p.metadata)
+            ? (p.metadata as Record<string, unknown>)
+            : {};
+        return Boolean(
+          p.is_public ||
+            p.published_subdomain ||
+            p.custom_domain ||
+            p.status === "live" ||
+            meta.community_listed === true ||
+            meta.lifecycle_status === "published" ||
+            meta.published_at,
+        );
+      })
+      .slice(0, 12)
+      .map((p: { id: string; name: string; app_name: string | null }) => ({
+        id: p.id,
+        name: p.app_name ?? p.name,
+        previewUrl: buildInternalPreviewHtmlUrl({ projectId: p.id }),
+      }));
   }
 
   return NextResponse.json({

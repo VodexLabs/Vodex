@@ -50,7 +50,7 @@ function CommunityProfileSettings({
     (profile as { public_profile_enabled?: boolean })?.public_profile_enabled === false,
   );
   const [showApps, setShowApps] = React.useState(
-    (profile as { show_apps_on_profile?: boolean })?.show_apps_on_profile !== false,
+    (profile as { show_apps_on_profile?: boolean })?.show_apps_on_profile === true,
   );
   const [showFollowers, setShowFollowers] = React.useState(
     (profile as { show_follower_count?: boolean })?.show_follower_count !== false,
@@ -64,7 +64,7 @@ function CommunityProfileSettings({
     if (!profile) return;
     setBio((profile as { bio?: string | null }).bio ?? "");
     setPrivateProfile((profile as { public_profile_enabled?: boolean }).public_profile_enabled === false);
-    setShowApps((profile as { show_apps_on_profile?: boolean }).show_apps_on_profile !== false);
+    setShowApps((profile as { show_apps_on_profile?: boolean }).show_apps_on_profile === true);
     setShowFollowers((profile as { show_follower_count?: boolean }).show_follower_count !== false);
     setAllowFollows((profile as { allow_follows?: boolean }).allow_follows !== false);
   }, [profile?.id]);

@@ -53,14 +53,14 @@ function AuthorLink({
   userId: string;
   currentUserId?: string;
 }) {
-  const label = userId === currentUserId ? "You" : name;
+  const label = name || "Member";
   const inner = (
     <div className="flex items-center gap-2">
       <Avatar name={label} src={avatar ?? undefined} size="sm" />
       <span className="text-[12px] font-medium text-foreground">{label}</span>
     </div>
   );
-  if (username && userId !== currentUserId) {
+  if (username) {
     return (
       <Link href={`/builders/${username}`} className="transition hover:opacity-80">
         {inner}
