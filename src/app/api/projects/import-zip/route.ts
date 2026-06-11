@@ -35,8 +35,8 @@ import {
   estimateZipPreviewCreditsWithPlatformMultiplier,
   reserveZipPreviewActionCredits,
   refundZipPreviewActionCredits,
-  captureZipPreviewActionCredits,
 } from "@/lib/imports/zip-preview-action-credits";
+import { reconcileZipPreviewCreditCapture } from "@/lib/imports/zip-preview-credit-reconcile";
 import { frameworkNeedsWorkerBuild } from "@/lib/imports/preview-build-queue";
 import type { DetectedFrameworkId } from "@/lib/imports/framework-detector";
 import {
@@ -446,7 +446,13 @@ export async function POST(req: Request) {
   const previewReady = diagnostics?.previewRenderable === true;
 
   if (previewReady) {
-    await captureZipPreviewActionCredits({ userId: user.id, projectId });
+    await reconcileZipPreviewCreditCapture({
+      projectId,
+      ownerId: user.id,
+      jobStatus: diagnostics?.previewStatus === "ready" ? "succeeded" : "ready",
+      previewRenderable: true,
+      admin,
+    });
   } else if (diagnostics?.previewStatus === "queued") {
     /* Worker will capture on success; hold stays reserved. */
   } else {

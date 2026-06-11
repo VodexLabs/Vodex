@@ -4,6 +4,7 @@ import { ensureUserProfileServer } from "@/lib/auth/ensure-user-profile-server";
 import { buildChargeTokensRpcPayload } from "@/lib/db/charge-tokens-rpc";
 import { assertProfitableCharge } from "@/lib/billing/credit-profit-guard";
 import { MIN_CHARGEABLE_CREDITS } from "@/lib/billing/credit-pricing";
+import { BUILD_CREDIT_OPERATION_FLOORS } from "@/lib/billing/build-credit-floors";
 import { logCreditEconomicsAdmin } from "@/lib/billing/credit-admin-log";
 import type { BuildCreditOperationType } from "@/lib/billing/build-credit-floors";
 import {
@@ -131,12 +132,17 @@ export async function chargeAiOperation(
     }
   }
 
+  const isFlatDiscussProductCharge =
+    (input.mode === "discuss" || input.mode === "create_question") &&
+    input.amount >= BUILD_CREDIT_OPERATION_FLOORS.discuss - 1e-9;
+
   const profitProviderUsd =
-    input.mode === "discuss"
+    input.mode === "discuss" || input.mode === "create_question"
       ? Math.min(input.providerCostUsd ?? 0, 0.03)
       : (input.providerCostUsd ?? 0);
-  const profitCheck =
-    input.mode === "discuss"
+  const profitCheck = isFlatDiscussProductCharge
+    ? { ok: true as const }
+    : input.mode === "discuss" || input.mode === "create_question"
       ? assertProfitableCharge(input.amount, profitProviderUsd, "discuss")
       : assertProfitableCharge(
           input.amount,

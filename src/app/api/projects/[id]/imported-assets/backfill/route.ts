@@ -7,6 +7,7 @@ import {
 } from "@/lib/import/import-zip-binary-assets";
 import { persistImportedAppIconFromZip } from "@/lib/import/persist-imported-app-icon";
 import { ZIP_IMPORT_BUCKET } from "@/lib/import/zip-storage";
+import { reconcileZipPreviewCreditCapture } from "@/lib/imports/zip-preview-credit-reconcile";
 
 /** Re-extract binary assets from stored ZIP archive and/or built preview artifact. */
 export async function POST(
@@ -118,6 +119,19 @@ export async function POST(
   const totalImported = zipResult.imported + artifactResult.imported;
   const errors = [...zipResult.errors, ...artifactResult.errors].slice(0, 15);
 
+  const previewRenderable = meta.preview_renderable === true || meta.preview_ready === true;
+  let creditCapture: { action: string; charged: number } | null = null;
+  if (previewRenderable) {
+    const reconcile = await reconcileZipPreviewCreditCapture({
+      projectId,
+      ownerId: user.id,
+      jobStatus: "ready",
+      previewRenderable: true,
+      admin,
+    });
+    creditCapture = { action: reconcile.action, charged: reconcile.charged };
+  }
+
   return NextResponse.json({
     ok: totalImported > 0 || errors.length === 0,
     imported: totalImported,
@@ -126,5 +140,6 @@ export async function POST(
     skipped: zipResult.skipped + artifactResult.skipped,
     icon_url: iconPersist.icon_url,
     errors,
+    creditCapture,
   });
 }

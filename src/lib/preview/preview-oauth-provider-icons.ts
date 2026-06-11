@@ -1,6 +1,7 @@
 import "server-only";
 
-import { siApple, siDiscord, siFacebook, siGithub, siGoogle } from "simple-icons";
+import { siApple, siDiscord, siFacebook, siGithub } from "simple-icons";
+import { googleSignInIconHtml } from "@/lib/brand/google-sign-in-icon";
 
 function brandSvg(icon: { path: string; hex: string }, size = 20): string {
   return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" class="oauth-icon" aria-hidden="true"><path fill="#${icon.hex}" d="${icon.path}"/></svg>`;
@@ -14,7 +15,7 @@ const EMAIL_SVG = `<svg viewBox="0 0 24 24" width="20" height="20" class="oauth-
 export function previewOAuthProviderIconHtml(provider: string): string {
   switch (provider.toLowerCase()) {
     case "google":
-      return brandSvg(siGoogle);
+      return googleSignInIconHtml(20);
     case "github":
       return brandSvg(siGithub);
     case "apple":

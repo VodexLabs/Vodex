@@ -1473,10 +1473,11 @@ export async function POST(request: Request) {
           }
         }
 
+        const isDiscussCharge = chargeMode === "discuss" || chargeMode === "create_question";
         const shouldCharge =
-          outputSaved &&
           Boolean(event.text?.trim()) &&
-          (chargeMode !== "build" || savedFileCount > 0);
+          (isDiscussCharge ||
+            (outputSaved && (chargeMode !== "build" || savedFileCount > 0)));
 
         let charged = false;
         let chargeError: string | null = null;

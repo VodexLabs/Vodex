@@ -52,18 +52,27 @@ export async function commitActionCreditHold(input: {
     actionType: input.actionType,
     dynamicFloor: input.amount,
     operationId: input.operationId,
-    metadata: { reason: input.reason },
+    metadata: { reason: input.reason, zip_preview: input.actionType === "zip_preview_build" },
   });
 
+  if (!result.ok) {
+    console.warn("[action-credit-hold] commit failed", {
+      operationId: input.operationId,
+      actionType: input.actionType,
+      amount: input.amount,
+    });
+    return { ok: false };
+  }
+
   const admin = createSupabaseAdmin();
-  if (admin && result.ok) {
+  if (admin) {
     await admin
       .from("zip_preview_action_holds" as never)
       .update({ status: "charged", updated_at: new Date().toISOString() } as never)
       .eq("operation_id", input.operationId);
   }
 
-  return result.ok ? { ok: true, charged: result.charged } : { ok: false };
+  return { ok: true, charged: result.charged };
 }
 
 export async function releaseActionCreditHold(input: {

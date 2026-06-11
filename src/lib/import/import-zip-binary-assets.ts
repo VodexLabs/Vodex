@@ -7,6 +7,7 @@ import {
 } from "@/lib/import/zip-file-validator";
 import { ensurePublicBucket } from "@/lib/supabase/ensure-storage-bucket";
 import { PREVIEW_ARTIFACTS_BUCKET } from "@/lib/imports/preview-artifact-storage";
+import { insertMediaAssetRow } from "@/lib/import/insert-media-asset-row";
 
 const BINARY_EXT = new Set([
   "png",
@@ -130,21 +131,20 @@ async function insertProjectMediaAsset(input: {
     return;
   }
 
-  const { error: dbError } = await input.admin.from("media_assets").insert({
-    user_id: input.userId,
-    project_id: input.projectId,
+  const inserted = await insertMediaAssetRow(input.admin, {
+    userId: input.userId,
+    projectId: input.projectId,
     filename,
-    storage_path: storagePath,
-    public_url: publicUrl,
-    mime_type: input.mime,
-    size_bytes: input.data.length,
-    asset_type: assetTypeForMime(input.mime),
-    generated: false,
-    tags: ["zip_import", input.rel],
-  } as never);
+    storagePath,
+    publicUrl,
+    mimeType: input.mime,
+    sizeBytes: input.data.length,
+    zipImportPath: input.rel,
+    assetType: assetTypeForMime(input.mime),
+  });
 
-  if (dbError) {
-    input.result.errors.push(`${input.rel}: ${dbError.message}`);
+  if (!inserted.ok) {
+    input.result.errors.push(`${input.rel}: ${inserted.error}`);
     return;
   }
 

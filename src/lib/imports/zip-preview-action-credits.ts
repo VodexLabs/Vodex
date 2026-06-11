@@ -180,7 +180,15 @@ export async function captureZipPreviewActionCredits(input: {
     reason: "zip_preview_success",
   });
 
-  if (!charge.ok) return { ok: false, charged: 0 };
+  if (!charge.ok) {
+    console.warn("[zip-preview-credits] capture failed", {
+      projectId: input.projectId,
+      operationId,
+      credits,
+      holdStatus: hold.status,
+    });
+    return { ok: false, charged: 0 };
+  }
 
   await patchLatestPreviewJobBilling(
     admin,

@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { siApple, siDiscord, siFacebook, siGithub, siGoogle } from "simple-icons";
+import { siApple, siDiscord, siFacebook, siGithub } from "simple-icons";
 import { Mail, Phone } from "lucide-react";
+import { GoogleSignInIcon } from "@/lib/brand/google-sign-in-icon";
 import { cn } from "@/lib/utils";
 
 function BrandSvg({ icon, className }: { icon: { path: string; hex: string }; className?: string }) {
@@ -38,7 +39,7 @@ export function AuthProviderIcon({
       return <Phone className={cn("size-5 text-accent", className)} strokeWidth={1.75} />;
     case "google":
     case "google-custom":
-      return <BrandSvg icon={siGoogle} className={className} />;
+      return <GoogleSignInIcon className={className} />;
     case "github":
       return <BrandSvg icon={siGithub} className={className} />;
     case "apple":

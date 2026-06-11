@@ -35,7 +35,6 @@ export async function reconcileZipPreviewCreditCapture(input: {
 
   if (
     input.previewRenderable &&
-    (input.jobStatus === "succeeded" || input.jobStatus === "ready") &&
     hold.status === "reserved"
   ) {
     const capture = await captureZipPreviewActionCredits({
@@ -77,8 +76,11 @@ export async function reconcileZipPreviewCreditCapture(input: {
   }
 
   if (
-    (input.jobStatus === "failed" || input.jobStatus === "failed_stale") &&
-    hold.status === "reserved"
+    (input.jobStatus === "failed" ||
+      input.jobStatus === "failed_stale" ||
+      input.jobStatus === "cancelled") &&
+    hold.status === "reserved" &&
+    !input.previewRenderable
   ) {
     await refundZipPreviewActionCredits({
       userId: input.ownerId,

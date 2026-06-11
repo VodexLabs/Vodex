@@ -13,7 +13,7 @@ import {
   applyBuildCreditPricing,
   resolveBuildCreditOperationType,
 } from "@/lib/billing/build-credit-floors";
-import { secretsHelperCreditsToCharge } from "@/lib/billing/discuss-credit-pricing";
+import { secretsHelperCreditsToCharge, discussCreditsToCharge } from "@/lib/billing/discuss-credit-pricing";
 
 /** @deprecated Use TARGET_REVENUE_MULTIPLIER */
 export const DREAMOS_CREDIT_MARKUP = TARGET_REVENUE_MULTIPLIER;
@@ -162,18 +162,13 @@ export function calculateCreditsToCharge(input: ChargeCalculationInput): ChargeC
         minimumFloorApplied: true,
       };
     }
-    const quote = quoteDiscussCost({
-      selectedModel: input.modelId,
-      estimatedProviderCostUsd: tokenCost,
-      inputTokens: input.inputTokens,
-      outputTokens: input.outputTokens,
-    });
+    const flat = discussCreditsToCharge();
     return {
-      creditsToCharge: normalizeCreditCharge(quote.userCreditsRequired),
+      creditsToCharge: normalizeCreditCharge(flat),
       estimatedProviderCostUsd: tokenCost,
-      marginMultiplier: quote.revenueMultiplier,
-      operationType: quote.operationType,
-      minimumFloorApplied: quote.adminBreakdown.minimum_floor_applied,
+      marginMultiplier: 5,
+      operationType: "discuss",
+      minimumFloorApplied: true,
     };
   }
 

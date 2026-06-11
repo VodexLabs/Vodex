@@ -45,7 +45,7 @@ export const RUNTIME_ACTION_CATALOG = {
   splash_ai_generation: { floor: 10, label: "AI splash screen", category: "image" },
   store_metadata_ai_generation: { floor: 1, label: "Store listing AI draft", category: "llm" },
   store_publish_attempt: { floor: 1, label: "Store publish attempt", category: "mobile" },
-  zip_preview_build: { floor: 140, label: "ZIP preview runtime build", category: "file" },
+  zip_preview_build: { floor: 11, label: "ZIP preview runtime build", category: "file" },
 } as const;
 
 export type RuntimeActionType = keyof typeof RUNTIME_ACTION_CATALOG;

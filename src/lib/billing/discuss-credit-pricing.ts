@@ -48,7 +48,7 @@ export function defaultDiscussProviderCostUsd(): number {
   return estimateDiscussProviderCostUsd(800, 600);
 }
 
-/** Active discuss charge — resolves tier from projected provider cost. */
+/** Active discuss charge — flat 0.3 BC per successful message (product policy). */
 export function secretsHelperCreditsToCharge(): number {
   return SECRETS_HELPER_BC;
 }
@@ -60,9 +60,5 @@ export function discussCreditsToCharge(input?: {
   secretsHelper?: boolean;
 }): number {
   if (input?.secretsHelper) return SECRETS_HELPER_BC;
-  const tokensIn = Math.min(input?.inputTokens ?? 800, DISCUSS_MAX_INPUT_TOKENS);
-  const tokensOut = Math.min(input?.outputTokens ?? 600, DISCUSS_MAX_OUTPUT_TOKENS);
-  const cost =
-    input?.providerCostUsd ?? estimateDiscussProviderCostUsd(tokensIn, tokensOut);
-  return resolveDiscussBuildCredits(cost);
+  return DISCUSS_BC_TIER_STANDARD;
 }
