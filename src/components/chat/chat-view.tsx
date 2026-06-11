@@ -601,7 +601,7 @@ export function ChatView() {
     onFinish: () => {
       pendingAttachmentIdsRef.current = [];
       if (convRef.current) updateChatUrl(convRef.current);
-      if (userId) void refreshCredits({ reason: "charge" });
+      if (userId) void refreshCredits({ reason: "charge", force: true });
       void reloadConversations();
       setHistReload((n) => n + 1);
     },
@@ -728,12 +728,19 @@ export function ChatView() {
     if (!isBusy) streamConvRef.current = null;
   }, [isBusy, activeConvId]);
 
+  const lockPageScroll = React.useCallback(() => {
+    if (typeof window === "undefined") return;
+    window.scrollTo({ top: 0, behavior: "auto" });
+    document.querySelector("main")?.scrollTo({ top: 0, behavior: "auto" });
+  }, []);
+
   const scrollMessagesToBottom = React.useCallback((behavior: ScrollBehavior = "smooth") => {
     const el = messagesScrollRef.current;
     if (!el) return;
     el.scrollTo({ top: el.scrollHeight, behavior });
     setNewMessagesBelow(0);
-  }, []);
+    lockPageScroll();
+  }, [lockPageScroll]);
 
   const updateStickState = React.useCallback(() => {
     const el = messagesScrollRef.current;
@@ -1317,8 +1324,8 @@ export function ChatView() {
         )}
       </AnimatePresence>
 
-      {/* Main chat area */}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      {/* Main chat area — composer is shrink-0 below; only messages scroll */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden overscroll-y-none">
         <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3 safe-area-pad-x lg:hidden">
           <button
             type="button"
@@ -1351,12 +1358,12 @@ export function ChatView() {
           </span>
         </div>
 
-        {/* Messages */}
-        <div className="relative min-h-0 min-w-0 flex-1">
+        {/* Messages — isolated scroll region; composer stays fixed below */}
+        <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
         <div
           ref={messagesScrollRef}
           onScroll={updateStickState}
-          className="vodex-scroll-panel h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden overscroll-y-contain"
+          className="vodex-scroll-panel h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden overscroll-y-contain [overflow-anchor:none]"
         >
           <div className="mx-auto w-full max-w-3xl space-y-4 px-4 py-4 sm:px-5 lg:px-6">
             {messages.length === 0 && !isBusy && (
@@ -1500,10 +1507,10 @@ export function ChatView() {
         ) : null}
         </div>
 
-        {/* Input area */}
+        {/* Input area — pinned; never scrolls with messages */}
         <div
           ref={composerRootRef}
-          className="relative z-30 shrink-0 border-t border-border/60 bg-background/90 px-2.5 pt-2 backdrop-blur-xl pb-[max(0.75rem,calc(var(--vodex-mobile-bottom-nav-height,68px)+env(safe-area-inset-bottom,0px)+0.5rem))] sm:px-3 lg:pb-3"
+          className="relative z-30 shrink-0 border-t border-border/60 bg-background px-2.5 pt-2 shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.08)] pb-[max(0.75rem,calc(var(--vodex-mobile-bottom-nav-height,68px)+env(safe-area-inset-bottom,0px)+0.5rem))] sm:px-3 lg:pb-3"
         >
           {attachments.length > 0 && (
             <div className="mx-auto mb-2 flex w-full max-w-3xl flex-wrap gap-2">

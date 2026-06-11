@@ -101,20 +101,16 @@ export function ProjectBanner({
         ],
       })
     : null;
-  const iframeSrc = resolution?.iframeSrc ?? null;
-  if (iframeSrc) {
+  /** Card thumbnails use static placeholders — live preview iframes caused hundreds of sandbox warnings and layout shift. */
+  if (resolution?.iframeSrc && !previewOnly) {
     return (
-      <div className={cn("relative w-full overflow-hidden bg-muted/20", heightClass, className)}>
-        <iframe
-          key={`${projectId}-${resolution?.artifactId ?? "na"}-${resolution?.normalizedPreviewUrl ?? ""}`}
-          src={iframeSrc}
-          title={title ? `${title} preview` : "App preview"}
-          tabIndex={-1}
-          loading="lazy"
-          sandbox="allow-scripts allow-same-origin"
-          className="pointer-events-none absolute left-1/2 top-1/2 h-[720px] w-[1280px] max-w-none -translate-x-1/2 -translate-y-1/2 origin-center scale-[0.17] border-0"
-        />
-      </div>
+      <BannerPlaceholder
+        title={title}
+        heightClass={heightClass}
+        className={className}
+        importedPendingSetup={importedPendingSetup}
+        iconSrc={iconSrc}
+      />
     );
   }
 

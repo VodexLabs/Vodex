@@ -45,7 +45,8 @@ export function seedCreditsFromProfile(profile: Partial<Profile>): void {
   const payload: CanonicalCreditsPayload = {
     planId,
     build: bucketFromProfile(buildAvailable, buildAllowance, resetDate),
-    action: bucketFromProfile(actionAllowance, actionAllowance, resetDate),
+    /** Never seed action from plan allowance — real balance comes from action_credit_balances via lite sync. */
+    action: bucketFromProfile(0, actionAllowance, resetDate),
   };
   const state = useCreditsStore.getState();
   if (state.isConfirmed) return;

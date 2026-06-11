@@ -50,7 +50,7 @@ function planFallbackPayload(planId = "free"): CanonicalCreditsPayload {
   return {
     planId: plan,
     build: bucket(buildCap, buildCap),
-    action: bucket(actionCap, actionCap),
+    action: bucket(0, actionCap),
   };
 }
 

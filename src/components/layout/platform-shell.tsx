@@ -301,7 +301,10 @@ export function PlatformShell({
             }
           >
             <div className="flex-1">{children}</div>
-            {!isFullBleed && !isOnboarding && <DeferredFooter />}
+            {!isFullBleed &&
+              !isOnboarding &&
+              pathname !== "/projects" &&
+              !pathname.startsWith("/projects/") && <DeferredFooter />}
           </div>
         </main>
       </div>

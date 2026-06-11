@@ -125,6 +125,8 @@ export interface PreviewPanelProps {
   /** Live published URL (subdomain) — external open only when set. */
   publishedPublicUrl?: string | null;
   isPublished?: boolean;
+  previewShellVariant?: "default" | "github";
+  githubConnected?: boolean;
 }
 
 function isUnrenderableSrcDoc(doc: string | null | undefined): boolean {
@@ -176,6 +178,8 @@ export function PreviewPanel({
   isImportedZip = false,
   publishedPublicUrl = null,
   isPublished = false,
+  previewShellVariant = "default",
+  githubConnected = false,
 }: PreviewPanelProps) {
   const [viewport, setViewport] = React.useState<Viewport>("desktop");
   const [reloadKey, setReloadKey] = React.useState(0);
@@ -611,7 +615,9 @@ export function PreviewPanel({
     ],
   );
 
-  const showBuildShell = canonicalPreview.showBuildingShell;
+  const forcePreviewSurface =
+    artifactPreviewReady && Boolean(lockedMountSrc ?? activeIframeSrc);
+  const showBuildShell = canonicalPreview.showBuildingShell && !forcePreviewSurface;
   const showArtifact = hasPreviewArtifact && !showBuildShell;
   const showRuntimeOverlay = showArtifact && canonicalPreview.showRuntimeOverlay;
   const showEmbedFallback = showArtifact && embedBlocked && !hasInline && !canonicalPreview.showErrorPanel;
@@ -902,6 +908,8 @@ export function PreviewPanel({
           <BuildPreviewSurface
             state={shellState}
             appName={appName}
+            variant={githubConnected ? previewShellVariant : "default"}
+            githubPhase={artifactPreviewReady ? "success" : "fetching"}
             currentStep={
               generationContinuing
                 ? "Preview not available yet — generation is still continuing."
@@ -1260,7 +1268,8 @@ export function PreviewPanel({
                       setOverlayVisible(false);
                       setIframeLoading(false);
                     }}
-                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
+                    referrerPolicy="no-referrer"
                   />
                 </div>
               </div>

@@ -2949,6 +2949,20 @@ export function ImmersiveWorkspace({
         effectiveProject?.published_subdomain?.trim()),
   );
 
+  const githubConnected = React.useMemo(() => {
+    const meta =
+      effectiveProject?.metadata &&
+      typeof effectiveProject.metadata === "object" &&
+      !Array.isArray(effectiveProject.metadata)
+        ? (effectiveProject.metadata as Record<string, unknown>)
+        : {};
+    return Boolean(
+      meta.github_repo ||
+        meta.github_connected === true ||
+        (typeof meta.github_login === "string" && meta.github_login.trim()),
+    );
+  }, [effectiveProject?.metadata]);
+
   const appBuildTruth = React.useMemo(() => {
     const meta =
       effectiveProject?.metadata &&
@@ -3983,6 +3997,8 @@ export function ImmersiveWorkspace({
                 isImportedZip={isImportedZipProject}
                 publishedPublicUrl={publishedPublicUrl}
                 isPublished={isPublishedApp}
+                githubConnected={githubConnected}
+                previewShellVariant={githubConnected ? "github" : "default"}
                 editMode={mode === "edit"}
                 hasGenerated={
                   previewSrcRenderable ||

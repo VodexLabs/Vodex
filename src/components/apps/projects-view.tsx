@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { variants } from "@/lib/motion";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { refreshCredits } from "@/lib/stores/credits-store";
 import type { Project } from "@/lib/supabase/types";
 import { ZipImportWizard } from "@/components/apps/zip-import-wizard";
 import { ProjectIcon } from "@/components/projects/project-icon";
@@ -318,11 +319,21 @@ export function ProjectsView() {
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
   const [search, setSearch] = React.useState("");
 
-  React.useEffect(() => {
+  const resetAppsScroll = React.useCallback(() => {
+    if (typeof window === "undefined") return;
     const main = document.querySelector("main");
     main?.scrollTo({ top: 0, behavior: "auto" });
     window.scrollTo({ top: 0, behavior: "auto" });
   }, []);
+
+  React.useEffect(() => {
+    resetAppsScroll();
+  }, [resetAppsScroll]);
+
+  React.useEffect(() => {
+    if (!hasFetchedOnce || loading) return;
+    resetAppsScroll();
+  }, [hasFetchedOnce, loading, resetAppsScroll]);
 
   React.useEffect(() => {
     const section = searchParams.get("section");
@@ -334,6 +345,11 @@ export function ProjectsView() {
   const [sort, setSort] = React.useState<"updated" | "name">("updated");
   const [view, setView] = React.useState<"grid" | "list">("grid");
   const [showImport, setShowImport] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!showImport) return;
+    void refreshCredits({ force: true, reason: "manual" });
+  }, [showImport]);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const lastLoadRef = React.useRef(0);
   const projectsRef = React.useRef(projects);
@@ -508,7 +524,7 @@ export function ProjectsView() {
       variants={variants.staggerContainer}
       initial="hidden"
       animate="show"
-      className="dashboard-shell space-y-5 overflow-x-hidden pb-10 safe-area-pad-b"
+      className="dashboard-shell space-y-5 overflow-x-hidden pb-6 safe-area-pad-b"
     >
       {/* Header */}
       <motion.div variants={variants.fadeUp} className="flex flex-wrap items-center gap-2 overflow-x-hidden sm:gap-3">
