@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { downloadPreviewArtifactFile } from "@/lib/imports/preview-artifact-storage";
 import { sanitizePreviewBootstrapState } from "@/lib/preview/preview-bootstrap-sanitizer";
 import { scanBootstrapLeaksDetailed } from "@/lib/preview/preview-bootstrap-sanitizer";
+import { prependPreviewAuthCompatToJs } from "@/lib/preview/inject-preview-auth-compat";
 import { rewriteForeignSupabaseStorageUrls } from "@/lib/preview/preview-external-asset-rewrite";
 
 export const PREVIEW_TEXT_ASSET_EXT =
@@ -24,15 +25,28 @@ export function isPreviewTextAssetPath(relativePath: string, contentType?: strin
   );
 }
 
+function isPreviewJsAssetPath(relativePath: string, contentType?: string): boolean {
+  const lower = relativePath.toLowerCase();
+  if (/\.(m?js|cjs)$/i.test(lower)) return true;
+  if (!contentType) return false;
+  return contentType.toLowerCase().includes("javascript");
+}
+
 export function sanitizeServedPreviewAssetText(
   text: string,
   projectId: string,
   virtualRoute = "/",
+  relativePath?: string,
+  contentType?: string,
 ): string {
   const sanitized = sanitizePreviewBootstrapState(text, projectId, virtualRoute, {
     rewriteAssetUrls: false,
   });
-  return rewriteForeignSupabaseStorageUrls(sanitized);
+  let out = rewriteForeignSupabaseStorageUrls(sanitized);
+  if (relativePath && isPreviewJsAssetPath(relativePath, contentType)) {
+    out = prependPreviewAuthCompatToJs(out);
+  }
+  return out;
 }
 
 export async function loadSanitizedPreviewArtifactAsset(input: {
@@ -54,7 +68,13 @@ export async function loadSanitizedPreviewArtifactAsset(input: {
   }
 
   const raw = file.data.toString("utf8");
-  const sanitized = sanitizeServedPreviewAssetText(raw, input.projectId, input.virtualRoute ?? "/");
+  const sanitized = sanitizeServedPreviewAssetText(
+    raw,
+    input.projectId,
+    input.virtualRoute ?? "/",
+    input.relativePath,
+    file.contentType,
+  );
   const leaks = scanBootstrapLeaksDetailed(sanitized, input.projectId, {
     excludePlatformInjections: false,
     file: input.relativePath,

@@ -47,6 +47,10 @@ function suggestFixes(input: PreviewIncidentPromptInput): string[] {
   if (s.firstRuntimeError) {
     if (/createClient is not defined/i.test(s.firstRuntimeError)) {
       fixes.push("Inject Supabase createClient shim in preview-runtime HTML (base44-lovable-adapter).");
+    } else if (/redirectToLogin is not a function/i.test(s.firstRuntimeError)) {
+      fixes.push(
+        "Add Base44 auth.redirectToLogin to preview shim (inject-preview-auth-compat.ts, base44-lovable-adapter.ts) and patch served JS chunks.",
+      );
     } else {
       fixes.push(`Fix runtime error in imported bundle: ${s.firstRuntimeError}`);
     }

@@ -4,6 +4,7 @@ import { injectPreviewRouterShim } from "@/lib/preview/inject-preview-router-shi
 import { buildInternalPreviewHtmlUrl } from "@/lib/preview/internal-preview-url";
 import { stripPreviewPlatformPathsFromText } from "@/lib/preview/strip-preview-platform-paths";
 import { sanitizePreviewDocument } from "@/lib/preview/preview-html-sanitizer";
+import { injectPreviewAuthCompat } from "@/lib/preview/inject-preview-auth-compat";
 import { injectPreviewBootAudit } from "@/lib/preview/inject-preview-boot-audit";
 import { rewriteForeignSupabaseStorageUrls } from "@/lib/preview/preview-external-asset-rewrite";
 import { stripIframeBlockingMetaFromHtml } from "@/lib/preview/preview-iframe-embed-headers";
@@ -79,6 +80,8 @@ export function rewritePreviewArtifactHtml(
   out = injectPreviewInnerWatchdog(out);
   out = stripIframeBlockingMetaFromHtml(out);
   out = injectPreviewBootAudit(out);
+  /** Auth compat last — prepends first in <head> so it runs before module bundles. */
+  out = injectPreviewAuthCompat(out);
   return sanitizePreviewDocument(out);
 }
 

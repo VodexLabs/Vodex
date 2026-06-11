@@ -57,8 +57,18 @@ export function analyzeLegacyAdapter(
   if(typeof window!=="undefined"){
     window.__VODEX_PREVIEW__=true;
     window.__BASE44_PREVIEW_MOCK__=true;
-    function vodexMockSupabaseClient(){
-      var chain=function(){
+    function vodexNavigateLogin(){
+      warn("auth.redirectToLogin -> virtual /login");
+      try{
+        if(window.__VODEX_VIRTUAL_PATH__!==undefined){
+          window.__VODEX_VIRTUAL_PATH__="/login";
+          history.replaceState({__vodex:"/login"},"","/");
+          window.dispatchEvent(new PopStateEvent("popstate"));
+        }else{window.postMessage({type:"vodex:navigate",path:"/login"},"*");}
+      }catch(e){}
+      return Promise.resolve({ok:true});
+    }
+    function vodexQueryChain(){
         var q={};
         q.select=function(){return q;};
         q.insert=function(){return q;};
@@ -72,16 +82,23 @@ export function analyzeLegacyAdapter(
         q.maybeSingle=function(){return Promise.resolve({data:null,error:null});};
         q.then=function(fn){return Promise.resolve({data:[],error:null}).then(fn);};
         return q;
-      };
+    }
+    function vodexMockSupabaseClient(){
       return {
         auth:{
-          getSession:function(){return Promise.resolve({data:{session:null},error:null});},
+          getSession:function(){return Promise.resolve({data:{session:{user:mockUser}},error:null});},
           getUser:function(){return Promise.resolve({data:{user:mockUser},error:null});},
-          onAuthStateChange:function(){return {data:{subscription:{unsubscribe:function(){}}}};},
+          onAuthStateChange:function(cb){try{if(cb)cb("SIGNED_IN",{user:mockUser});}catch(e){}return {data:{subscription:{unsubscribe:function(){}}}};},
           signInWithPassword:function(){return Promise.resolve({data:{user:mockUser,session:{user:mockUser}},error:null});},
-          signOut:function(){return Promise.resolve({error:null});}
+          signOut:function(){return Promise.resolve({error:null});},
+          redirectToLogin:vodexNavigateLogin,
+          redirectToSignup:vodexNavigateLogin,
+          login:vodexNavigateLogin,
+          requireAuth:function(){return Promise.resolve(mockUser);},
+          me:function(){return Promise.resolve(mockUser);},
+          logout:function(){return Promise.resolve();}
         },
-        from:function(){return chain();},
+        from:function(){return vodexQueryChain();},
         storage:{from:function(){return {
           upload:function(){return Promise.resolve({data:null,error:null});},
           getPublicUrl:function(){return {data:{publicUrl:PLACEHOLDER_IMG}};},
@@ -89,8 +106,17 @@ export function analyzeLegacyAdapter(
         };}}
       };
     }
+    function vodexMockBase44Client(){
+      var c=vodexMockSupabaseClient();
+      c.entities=new Proxy({},{get:function(){return vodexQueryChain();}});
+      c.functions={invoke:function(){return Promise.resolve({data:{},error:null});}};
+      return c;
+    }
     if(typeof window.createClient!=="function"){
       window.createClient=vodexMockSupabaseClient;
+    }
+    if(typeof window.createBase44Client!=="function"){
+      window.createBase44Client=vodexMockBase44Client;
     }
     try{
       if(!window.localStorage.getItem("sb-preview-auth")){
@@ -255,11 +281,13 @@ export function sanitizeBase44LegacyContent(content: string): string {
     /import\s+[^;]+from\s+['"]@base44\/sdk['"]\s*;?/g,
     "// vodex: removed @base44/sdk import\n",
   );
+  const previewAuthMock =
+    "{ redirectToLogin: async () => { try { window.__VODEX_VIRTUAL_PATH__ = '/login'; history.replaceState({}, '', '/'); window.dispatchEvent(new PopStateEvent('popstate')); } catch (e) {} return Promise.resolve(); }, getUser: async () => ({ data: { user: { id: 'preview-user', email: 'preview@vodex.dev' } } }), getSession: async () => ({ data: { session: { user: { id: 'preview-user' } } } }), onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }) }";
   out = out.replace(
     /import\s*\(\s*['"]@base44\/sdk['"]\s*\)/g,
-    "Promise.resolve({ auth: { getUser: () => ({ data: { user: { id: 'preview-user' } } }) } })",
+    `Promise.resolve({ auth: ${previewAuthMock} })`,
   );
-  out = out.replace(/createBase44Client\s*\([^)]*\)/g, "({ auth: { getUser: async () => ({ data: { user: { id: 'preview-user', email: 'preview@vodex.dev' } } }) } })");
+  out = out.replace(/createBase44Client\s*\([^)]*\)/g, `({ auth: ${previewAuthMock} })`);
   out = rewriteForeignSupabaseStorageUrls(out);
   return out;
 }
