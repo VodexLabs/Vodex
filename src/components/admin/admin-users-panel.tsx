@@ -48,6 +48,7 @@ import { truncateIdentityId } from "@/lib/identity/dreamos-identity";
 
 import { logUiAction } from "@/lib/diagnostics/dreamos-logger";
 import { parseCreditAmountInput } from "@/lib/credits/parse-credit-amount";
+import { ADMIN_ACTION_CREDIT_BALANCE_MAX } from "@/lib/admin/admin-credit-limits";
 type PlanFilter = "all" | AdminUserListRow["plan_id"];
 
 type StatusFilter = "all" | "active" | "suspended";
@@ -59,9 +60,12 @@ function adminCreditCap(
   if (kind === "build") {
     return user.build_credits_cap ?? user.monthly_token_limit + Math.max(user.bonus_credits, 0);
   }
-  return (
+  const planCap =
     user.action_credits_cap ??
-    user.action_credits_plan_allowance + Math.max(user.action_credits_bonus, 0)
+    user.action_credits_plan_allowance + Math.max(user.action_credits_bonus, 0);
+  return Math.min(
+    ADMIN_ACTION_CREDIT_BALANCE_MAX,
+    Math.max(planCap, user.action_credits_remaining),
   );
 }
 
@@ -134,6 +138,15 @@ function UserDetailDrawer({
 
     tokenLedger: unknown[];
 
+    creditGifts: Array<{
+      id: string;
+      at: string;
+      kind: "build" | "action";
+      amount: number;
+      label: string;
+      reason: string | null;
+    }>;
+
   } | null>(null);
 
   const [loading, setLoading] = React.useState(true);
@@ -197,6 +210,8 @@ function UserDetailDrawer({
             buildJobs: json.buildJobs ?? [],
 
             tokenLedger: json.tokenLedger ?? [],
+
+            creditGifts: json.creditGifts ?? [],
 
           });
 
@@ -689,6 +704,8 @@ function UserDetailDrawer({
 
                 min="0.1"
 
+                max={ADMIN_ACTION_CREDIT_BALANCE_MAX}
+
                 placeholder="Add Action Credits"
 
                 value={actionAmount}
@@ -737,6 +754,8 @@ function UserDetailDrawer({
                 step="0.1"
 
                 min="0"
+
+                max={ADMIN_ACTION_CREDIT_BALANCE_MAX}
 
                 value={actionBalance}
 
@@ -914,6 +933,24 @@ function UserDetailDrawer({
               <p>Build jobs: {(detail?.buildJobs ?? []).length} rows</p>
 
               <p>Credit ledger: {(detail?.tokenLedger ?? []).length} rows</p>
+
+              {(detail?.creditGifts ?? []).length > 0 ? (
+                <div className="mt-3 rounded-lg border border-border bg-background/60 p-2">
+                  <p className="mb-2 text-[11px] font-semibold text-foreground">Recent credit gifts</p>
+                  <ul className="max-h-36 space-y-1 overflow-y-auto">
+                    {(detail?.creditGifts ?? []).map((gift) => (
+                      <li key={gift.id} className="flex items-start justify-between gap-2 text-[10px]">
+                        <span className="text-muted-foreground">
+                          {new Date(gift.at).toLocaleString()} · {gift.kind === "build" ? "Build" : "Action"}
+                        </span>
+                        <span className="shrink-0 font-medium text-foreground">
+                          +{gift.amount.toLocaleString()} ({gift.label})
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
 
             </div>
 

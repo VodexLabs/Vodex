@@ -1,4 +1,4 @@
-import { PlatformShell } from "@/components/layout/platform-shell";
+import { AuthenticatedPlatformPage } from "@/components/layout/authenticated-platform-page";
 import { PublicMarketingShell } from "@/components/marketing/public-marketing-shell";
 import { PricingView } from "@/components/pricing/pricing-view";
 import { getServerSessionUser } from "@/lib/auth/session";
@@ -11,11 +11,9 @@ export async function PricingPageShell() {
 
   if (user) {
     return (
-      <PlatformShell homeSessionFromServer>
-        <div data-testid="app-pricing-page">
-          <PricingView />
-        </div>
-      </PlatformShell>
+      <AuthenticatedPlatformPage testId="app-pricing-page">
+        <PricingView />
+      </AuthenticatedPlatformPage>
     );
   }
 

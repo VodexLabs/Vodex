@@ -7,6 +7,7 @@ import {
   revenueMultiplierFromCharge,
   userCreditsToRevenueUsd,
 } from "@/lib/billing/pricing-config";
+import { resolveRowProviderCostUsd } from "@/lib/credits/usage-cost";
 
 function rangeToSince(range: string): string {
   const ms =
@@ -102,6 +103,35 @@ export async function GET(request: Request) {
     .gte("created_at", since)
     .limit(300);
 
+  const { data: allUsageRows } = await admin
+    .from("ai_usage_logs")
+    .select(
+      "model_id, mode, tokens_input, tokens_output, tokens_charged, metadata, status, provider_cost_usd, created_at",
+    )
+    .gte("created_at", since)
+    .limit(5000);
+
+  let allProviderSpendUsd = 0;
+  let allUsageRequestCount = 0;
+  for (const row of (allUsageRows ?? []) as Array<{
+    model_id?: string;
+    mode?: string;
+    tokens_input?: number | null;
+    tokens_output?: number | null;
+    tokens_charged?: number | null;
+    metadata?: Record<string, unknown> | null;
+    provider_cost_usd?: number | null;
+  }>) {
+    allUsageRequestCount += 1;
+    allProviderSpendUsd += resolveRowProviderCostUsd({
+      modelId: row.model_id ?? "unknown",
+      mode: row.mode ?? "unknown",
+      tokensInput: row.tokens_input,
+      tokensOutput: row.tokens_output,
+      metadata: row.metadata ?? null,
+    });
+  }
+
   const usageRows = (usage ?? []) as Array<{
     operation_type?: string;
     metadata?: { cache_hit?: boolean };
@@ -149,7 +179,7 @@ export async function GET(request: Request) {
       at: r.created_at as string | undefined,
     }));
 
-  const totalRequests = filtered.length + failedCharges.length;
+  const totalRequests = Math.max(allUsageRequestCount, filtered.length + failedCharges.length);
   const failedChargeCount = failedCharges.length;
 
   const { count: paddleCompletedPayments } = await admin
@@ -188,7 +218,9 @@ export async function GET(request: Request) {
     metricsDisclaimer:
       "Credit usage (USD) is estimated from consumed credits in generation_cost_audits — not confirmed Paddle checkout revenue. Paddle sales appear only after transaction.completed webhooks.",
     totalInternalCostCredits: totalInternal,
-    providerSpendUsd: Math.round(totalProvider * 10000) / 10000,
+    providerSpendUsd: Math.round(allProviderSpendUsd * 10000) / 10000,
+    providerSpendFromAuditsUsd: Math.round(totalProvider * 10000) / 10000,
+    allGenerationsCounted: allUsageRequestCount,
     avgRevenueMultiplier: count > 0 ? multiplierSum / count : 3,
     avgGrossMargin: count > 0 ? marginSum / count : 2 / 3,
     reservedCredits: filtered.reduce((s, r) => s + (r.reserved_user_credits ?? 0), 0),

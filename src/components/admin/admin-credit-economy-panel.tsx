@@ -32,6 +32,8 @@ type EconomyRow = {
   reservedCredits?: number;
   refundedCredits?: number;
   providerSpendUsd?: number;
+  providerSpendFromAuditsUsd?: number;
+  allGenerationsCounted?: number;
   cacheHitRate?: number;
   estimatedTokensSaved?: number;
   byOperation?: Record<string, number>;
@@ -192,14 +194,25 @@ export function AdminCreditEconomyPanel() {
                     : "—"
               }
             />
-            <StatCard icon={PiggyBank} label="Provider spend" value={data?.providerSpendUsd != null ? `$${data.providerSpendUsd}` : "—"} />
+            <StatCard
+              icon={PiggyBank}
+              label="Provider spend (all generations)"
+              value={data?.providerSpendUsd != null ? `$${data.providerSpendUsd}` : "—"}
+            />
             <StatCard icon={Activity} label="Avg multiplier" value={data?.avgRevenueMultiplier != null ? `${data.avgRevenueMultiplier.toFixed(2)}×` : "—"} />
             <StatCard icon={Coins} label="Gross margin" value={marginPct != null ? `${marginPct}%` : "—"} />
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Requests {data?.totalRequests ?? 0} · Failed charges {data?.failedChargeCount ?? 0} · Reserved{" "}
-            {data?.reservedCredits ?? 0} · Refunded {data?.refundedCredits ?? 0} · Cache hit{" "}
+            Requests {data?.totalRequests ?? 0}
+            {typeof data?.allGenerationsCounted === "number"
+              ? ` (${data.allGenerationsCounted} logged in ai_usage_logs)`
+              : ""}{" "}
+            · Failed charges {data?.failedChargeCount ?? 0} · Reserved {data?.reservedCredits ?? 0} · Refunded{" "}
+            {data?.refundedCredits ?? 0} · Cache hit{" "}
             {data?.cacheHitRate != null ? `${Math.round(data.cacheHitRate * 100)}%` : "—"}
+            {typeof data?.providerSpendFromAuditsUsd === "number"
+              ? ` · Charged-only audit spend $${data.providerSpendFromAuditsUsd}`
+              : ""}
           </p>
           {data?.failedCharges && data.failedCharges.length > 0 ? (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">

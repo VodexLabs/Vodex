@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
-import { PlatformShell } from "@/components/layout/platform-shell";
+import { AuthenticatedPlatformPage } from "@/components/layout/authenticated-platform-page";
 import { PublicMarketingShell } from "@/components/marketing/public-marketing-shell";
 import { getServerSessionUser } from "@/lib/auth/session";
 
@@ -13,7 +13,7 @@ export async function LegalDocumentShell({ children }: { children: React.ReactNo
 
   if (user) {
     return (
-      <PlatformShell homeSessionFromServer>
+      <AuthenticatedPlatformPage>
         <div className="mx-auto w-full max-w-3xl">
           <Link
             href="/help/docs/policies"
@@ -24,7 +24,7 @@ export async function LegalDocumentShell({ children }: { children: React.ReactNo
           </Link>
           {children}
         </div>
-      </PlatformShell>
+      </AuthenticatedPlatformPage>
     );
   }
 

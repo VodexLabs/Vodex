@@ -57,6 +57,41 @@ export function analyzeLegacyAdapter(
   if(typeof window!=="undefined"){
     window.__VODEX_PREVIEW__=true;
     window.__BASE44_PREVIEW_MOCK__=true;
+    function vodexMockSupabaseClient(){
+      var chain=function(){
+        var q={};
+        q.select=function(){return q;};
+        q.insert=function(){return q;};
+        q.update=function(){return q;};
+        q.delete=function(){return q;};
+        q.eq=function(){return q;};
+        q.is=function(){return q;};
+        q.order=function(){return q;};
+        q.limit=function(){return q;};
+        q.single=function(){return Promise.resolve({data:null,error:null});};
+        q.maybeSingle=function(){return Promise.resolve({data:null,error:null});};
+        q.then=function(fn){return Promise.resolve({data:[],error:null}).then(fn);};
+        return q;
+      };
+      return {
+        auth:{
+          getSession:function(){return Promise.resolve({data:{session:null},error:null});},
+          getUser:function(){return Promise.resolve({data:{user:mockUser},error:null});},
+          onAuthStateChange:function(){return {data:{subscription:{unsubscribe:function(){}}}};},
+          signInWithPassword:function(){return Promise.resolve({data:{user:mockUser,session:{user:mockUser}},error:null});},
+          signOut:function(){return Promise.resolve({error:null});}
+        },
+        from:function(){return chain();},
+        storage:{from:function(){return {
+          upload:function(){return Promise.resolve({data:null,error:null});},
+          getPublicUrl:function(){return {data:{publicUrl:PLACEHOLDER_IMG}};},
+          download:function(){return Promise.resolve({data:null,error:null});}
+        };}}
+      };
+    }
+    if(typeof window.createClient!=="function"){
+      window.createClient=vodexMockSupabaseClient;
+    }
     try{
       if(!window.localStorage.getItem("sb-preview-auth")){
         window.localStorage.setItem("sb-preview-auth","1");

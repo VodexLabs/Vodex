@@ -6,6 +6,7 @@ import { scheduleDiscordRoleSync } from "@/lib/integrations/server/sync-discord-
 import type { AdminActionPayload } from "@/lib/admin/otp-confirmation";
 import type { PlanId } from "@/lib/supabase/types";
 import { roundCreditOneDecimal } from "@/lib/credits/parse-credit-amount";
+import { clampAdminActionCreditBalance } from "@/lib/admin/admin-credit-limits";
 
 export async function executeAdminAction(input: {
   adminUser: { id: string; email?: string | null };
@@ -125,7 +126,9 @@ export async function executeAdminAction(input: {
         {
           p_admin_id: adminId,
           p_user_id: targetUserId,
-          p_amount: roundCreditOneDecimal(input.payload.amount),
+          p_amount: clampAdminActionCreditBalance(
+            roundCreditOneDecimal(input.payload.amount),
+          ),
           p_reason: input.payload.reason,
         } as never,
       );
@@ -143,7 +146,9 @@ export async function executeAdminAction(input: {
         {
           p_admin_id: adminId,
           p_user_id: targetUserId,
-          p_balance: roundCreditOneDecimal(input.payload.balance),
+          p_balance: clampAdminActionCreditBalance(
+            roundCreditOneDecimal(input.payload.balance),
+          ),
           p_reason: input.payload.reason,
         } as never,
       );

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { ContactPageContent } from "@/components/marketing/contact-page-content";
 import { PublicMarketingShell } from "@/components/marketing/public-marketing-shell";
-import { PlatformShell } from "@/components/layout/platform-shell";
+import { AuthenticatedPlatformPage } from "@/components/layout/authenticated-platform-page";
 import { getServerSessionUser } from "@/lib/auth/session";
 
 export const metadata: Metadata = {
@@ -18,9 +18,9 @@ export default async function ContactPage() {
 
   if (user) {
     return (
-      <PlatformShell homeSessionFromServer>
+      <AuthenticatedPlatformPage>
         <ContactPageContent embedded />
-      </PlatformShell>
+      </AuthenticatedPlatformPage>
     );
   }
 
