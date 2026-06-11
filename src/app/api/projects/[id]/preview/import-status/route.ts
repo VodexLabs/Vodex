@@ -8,6 +8,7 @@ import { loadPreviewRuntimeStatus } from "@/lib/preview/load-preview-runtime-sta
 import {
   buildInternalPreviewHtmlUrl,
   normalizeStoredPreviewUrl,
+  persistCanonicalPreviewRuntimeUrl,
 } from "@/lib/preview/internal-preview-url";
 
 export const dynamic = "force-dynamic";
@@ -71,7 +72,14 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     admin,
   });
 
-  if (!previewUrl && runtime.previewRenderable && runtime.jobId) {
+  if (runtime.jobId && admin) {
+    previewUrl = await persistCanonicalPreviewRuntimeUrl({
+      projectId,
+      artifactBuildId: runtime.jobId,
+      currentPreviewUrl: previewUrl ?? project.preview_url,
+      admin,
+    });
+  } else if (!previewUrl && runtime.previewRenderable && runtime.jobId) {
     previewUrl = buildInternalPreviewHtmlUrl({
       projectId,
       artifactBuildId: runtime.jobId,

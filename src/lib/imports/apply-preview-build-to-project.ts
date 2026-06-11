@@ -1,7 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ImportPreviewDiagnostics } from "@/lib/imports/import-diagnostics";
 import { lifecyclePatch } from "@/lib/projects/project-lifecycle";
-import { tryNormalizeInternalPreviewUrl } from "@/lib/preview/internal-preview-url";
+import {
+  canonicalPreviewRuntimeUrl,
+  tryNormalizeInternalPreviewUrl,
+} from "@/lib/preview/internal-preview-url";
 
 export async function applyPreviewBuildToProject(input: {
   writer: SupabaseClient;
@@ -34,7 +37,9 @@ export async function applyPreviewBuildToProject(input: {
       : {};
 
   const normalizedPreviewUrl = input.diagnostics.previewRenderable
-    ? tryNormalizeInternalPreviewUrl(input.diagnostics.previewUrl)
+    ? input.diagnostics.jobId
+      ? canonicalPreviewRuntimeUrl(input.projectId, input.diagnostics.jobId)
+      : tryNormalizeInternalPreviewUrl(input.diagnostics.previewUrl)
     : null;
 
   await input.writer

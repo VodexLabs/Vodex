@@ -3963,7 +3963,7 @@ export function ImmersiveWorkspace({
                   effectiveProjectId ? () => void handleRepairPreviewState() : undefined
                 }
                 previewStateRepairing={previewStateRepairing}
-                showPreviewDebug
+                showPreviewDebug={process.env.NEXT_PUBLIC_PREVIEW_DEBUG === "true"}
                 appName={effectiveProject?.name ?? null}
                 buildActive={buildActive && !previewReadyForUi}
                 thinking={(buildActive || (isBusy && !previewReadyForUi)) && !hardImportedPreviewReady}

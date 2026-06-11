@@ -140,10 +140,38 @@ export function buildVirtualPreviewRuntimeUrl(input: {
           .map((seg) => encodeURIComponent(seg))
           .join("/");
   const base = `${VIRTUAL_PREVIEW_PREFIX}${encodeURIComponent(input.projectId)}/${encodeURIComponent(input.artifactBuildId)}${pathSeg ? `/${pathSeg}` : ""}`;
-  if (input.cacheBust != null && input.cacheBust !== "") {
-    return `${base}?v=${encodeURIComponent(String(input.cacheBust))}`;
+  const bust = input.cacheBust;
+  if (bust != null && bust !== "" && bust !== 0 && bust !== "0") {
+    return `${base}?v=${encodeURIComponent(String(bust))}`;
   }
   return base;
+}
+
+/** Canonical builder iframe mount URL for a stored artifact build. */
+export function canonicalPreviewRuntimeUrl(projectId: string, artifactBuildId: string): string {
+  return buildVirtualPreviewRuntimeUrl({ projectId, artifactBuildId, route: "/" });
+}
+
+/** Persist preview-runtime URL when DB still has legacy preview-html paths. */
+export async function persistCanonicalPreviewRuntimeUrl(input: {
+  projectId: string;
+  artifactBuildId: string;
+  currentPreviewUrl: string | null | undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: { from: (table: string) => any } | null;
+}): Promise<string> {
+  const canonical = canonicalPreviewRuntimeUrl(input.projectId, input.artifactBuildId);
+  const current = input.currentPreviewUrl?.trim() ?? "";
+  const needsUpdate =
+    !current ||
+    current.includes("/preview-html") ||
+    !current.includes("/preview-runtime/") ||
+    current !== canonical;
+  if (needsUpdate && input.admin) {
+    await input.admin.from("projects").update({ preview_url: canonical }).eq("id", input.projectId);
+    return canonical;
+  }
+  return current || canonical;
 }
 
 export function isVirtualPreviewRuntimePath(url: string): boolean {
@@ -159,8 +187,9 @@ export function buildInternalPreviewHtmlUrl(input: {
 }): string {
   const params = new URLSearchParams();
   params.set("format", "frame");
-  if (input.cacheBust != null && input.cacheBust !== "") {
-    params.set("v", String(input.cacheBust));
+  const bust = input.cacheBust;
+  if (bust != null && bust !== "" && bust !== 0 && bust !== "0") {
+    params.set("v", String(bust));
   }
   if (input.artifactBuildId) {
     params.set("artifact", input.artifactBuildId);

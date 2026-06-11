@@ -7,8 +7,8 @@ import { loadLatestPreviewDiagnostics } from "@/lib/imports/runtime-build-runner
 import { loadPreviewRuntimeStatus } from "@/lib/preview/load-preview-runtime-status";
 import {
   buildInternalPreviewHtmlUrl,
-  buildVirtualPreviewRuntimeUrl,
   normalizeStoredPreviewUrl,
+  persistCanonicalPreviewRuntimeUrl,
 } from "@/lib/preview/internal-preview-url";
 
 export const dynamic = "force-dynamic";
@@ -70,17 +70,16 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
   });
 
   if (artifactId) {
-    const canonical = buildVirtualPreviewRuntimeUrl({
+    const before = previewUrl;
+    previewUrl = await persistCanonicalPreviewRuntimeUrl({
       projectId,
       artifactBuildId: artifactId,
-      route: "/",
-      cacheBust: artifactId,
+      currentPreviewUrl: previewUrl ?? project.preview_url,
+      admin,
     });
-    if (!previewUrl || !previewUrl.includes("/preview-runtime/")) {
-      previewUrl = canonical;
-      await admin.from("projects").update({ preview_url: canonical }).eq("id", projectId);
+    if (previewUrl !== before) {
       repaired = true;
-      patches.preview_url = canonical;
+      patches.preview_url = previewUrl;
     }
   } else if (!previewUrl && diagnostics?.previewRenderable) {
     previewUrl = buildInternalPreviewHtmlUrl({ projectId });

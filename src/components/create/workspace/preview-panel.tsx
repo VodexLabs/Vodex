@@ -189,34 +189,6 @@ export function PreviewPanel({
 
   const effectivePreviewPath = urlResolution?.normalizedPreviewUrl ?? url;
 
-  // Route changes navigate inside the iframe — iframe src stays on preview root.
-
-  React.useEffect(() => {
-    setIframeError(false);
-    setIframeLoaded(false);
-    setInnerRouteError(null);
-    setLoadingExceeded60s(false);
-    if (url || srcDoc) {
-      setIframeLoading(true);
-      setLoadingStartedAt(Date.now());
-    } else {
-      setLoadingStartedAt(null);
-    }
-  }, [url, srcDoc, reloadKey, urlResolution?.artifactId]);
-
-  React.useEffect(() => {
-    const onMessage = (event: MessageEvent) => {
-      if (!isPreviewInnerRouteErrorMessage(event.data)) return;
-      const frameWin = iframeRef.current?.contentWindow;
-      if (frameWin && event.source !== frameWin) return;
-      if (!frameWin && event.origin !== window.location.origin) return;
-      setInnerRouteError(event.data);
-      setIframeLoading(false);
-    };
-    window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, []);
-
   const hasInline = !!srcDoc?.trim() && !isUnrenderableSrcDoc(srcDoc);
   const resolvedPreviewUrl = React.useMemo(() => {
     if (hasInline) return null;
@@ -252,17 +224,61 @@ export function PreviewPanel({
     }
   }, [url, hasInline, urlResolution]);
 
+  const iframeMountSrc = React.useMemo(() => {
+    if (!resolvedPreviewUrl) return null;
+    const route = previewRoute ?? urlResolution?.route ?? "/";
+    if (!isPreviewAuthSystemRoute(route)) return resolvedPreviewUrl;
+    try {
+      const u = new URL(
+        resolvedPreviewUrl,
+        typeof window !== "undefined" ? window.location.origin : "https://vodex.dev",
+      );
+      u.searchParams.set("route", route);
+      return u.href;
+    } catch {
+      return resolvedPreviewUrl;
+    }
+  }, [resolvedPreviewUrl, previewRoute, urlResolution?.route]);
+
+  // Route changes navigate inside the iframe — iframe src stays on preview root.
+
   React.useEffect(() => {
-    if (hasInline || !resolvedPreviewUrl) {
+    setIframeError(false);
+    setIframeLoaded(false);
+    setInnerRouteError(null);
+    setLoadingExceeded60s(false);
+    if (url || srcDoc) {
+      setIframeLoading(true);
+      setLoadingStartedAt(Date.now());
+    } else {
+      setLoadingStartedAt(null);
+    }
+  }, [url, srcDoc, reloadKey, urlResolution?.artifactId, iframeMountSrc]);
+
+  React.useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (!isPreviewInnerRouteErrorMessage(event.data)) return;
+      const frameWin = iframeRef.current?.contentWindow;
+      if (frameWin && event.source !== frameWin) return;
+      if (!frameWin && event.origin !== window.location.origin) return;
+      setInnerRouteError(event.data);
+      setIframeLoading(false);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
+  React.useEffect(() => {
+    if (hasInline || !iframeMountSrc) {
       setIframeHeaderProbe(null);
       return;
     }
     let cancelled = false;
     void (async () => {
       try {
-        let res = await fetch(resolvedPreviewUrl, { method: "HEAD", credentials: "include" });
+        let res = await fetch(iframeMountSrc, { method: "HEAD", credentials: "include" });
         if (res.status === 405 || res.status === 501) {
-          res = await fetch(resolvedPreviewUrl, {
+          res = await fetch(iframeMountSrc, {
             method: "GET",
             credentials: "include",
             headers: { Range: "bytes=0-0" },
@@ -282,7 +298,7 @@ export function PreviewPanel({
     return () => {
       cancelled = true;
     };
-  }, [resolvedPreviewUrl, hasInline, reloadKey]);
+  }, [iframeMountSrc, hasInline, reloadKey]);
 
   React.useEffect(() => {
     setBootAuditEvents([]);
@@ -320,43 +336,11 @@ export function PreviewPanel({
   }, [iframeDomKey]);
 
   React.useEffect(() => {
-    if (hasInline || !resolvedPreviewUrl) return;
+    if (!iframeLoaded || hasInline || !iframeMountSrc) return;
     const route = previewRoute ?? urlResolution?.route ?? "/";
-    const iframe = iframeRef.current;
-    if (!iframe) return;
-
-    if (isPreviewAuthSystemRoute(route)) {
-      const authUrl = new URL(resolvedPreviewUrl, window.location.origin);
-      authUrl.searchParams.set("route", route);
-      const target = authUrl.href;
-      if (iframe.src !== target) {
-        iframe.src = target;
-        setIframeLoading(true);
-        setIframeLoaded(false);
-      }
-      return;
-    }
-
-    const current = new URL(iframe.src || resolvedPreviewUrl, window.location.origin);
-    if (current.searchParams.has("route")) {
-      if (iframe.src !== resolvedPreviewUrl) {
-        iframe.src = resolvedPreviewUrl;
-        setIframeLoading(true);
-        setIframeLoaded(false);
-      }
-      return;
-    }
-
-    if (!iframeLoaded) return;
-    navigatePreviewIframe(iframe, route);
-  }, [
-    previewRoute,
-    urlResolution?.route,
-    iframeLoaded,
-    hasInline,
-    resolvedPreviewUrl,
-    iframeDomKey,
-  ]);
+    if (isPreviewAuthSystemRoute(route)) return;
+    navigatePreviewIframe(iframeRef.current, route);
+  }, [previewRoute, urlResolution?.route, iframeLoaded, hasInline, iframeMountSrc]);
 
   const previewUrlInvalid = Boolean(
     (effectivePreviewPath || urlResolution?.selectedPreviewUrl) && !hasInline && !resolvedPreviewUrl,
@@ -1117,7 +1101,7 @@ export function PreviewPanel({
                 <iframe
                     ref={iframeRef}
                     key={iframeDomKey}
-                    src={hasInline ? undefined : resolvedPreviewUrl ?? undefined}
+                    src={hasInline ? undefined : iframeMountSrc ?? undefined}
                     srcDoc={hasInline ? (srcDoc ?? undefined) : undefined}
                     title={appName ?? "App preview"}
                     className="h-full w-full flex-1 border-0"
@@ -1165,30 +1149,7 @@ export function PreviewPanel({
           visible={showPreviewDebug}
         />
 
-        {showPreviewDebug && previewDiagnostics && (showIframe || previewUrlInvalid) ? (
-          <div
-            data-testid="preview-diagnostics"
-            data-preview-source={previewDiagnostics.source}
-            data-preview-route={previewDiagnostics.selected_route}
-            data-preview-artifact={previewDiagnostics.artifactId ?? ""}
-            data-preview-was-normalized={previewDiagnostics.wasNormalized ? "true" : "false"}
-            data-preview-was-rejected={previewDiagnostics.wasRejected ? "true" : "false"}
-            className="absolute bottom-1 left-2 right-2 z-30 rounded-lg bg-background/92 px-2.5 py-1.5 text-[9px] font-mono text-muted-foreground ring-1 ring-accent/20 backdrop-blur-sm"
-          >
-            <p className="truncate">
-              <span className="font-semibold text-foreground">{previewDiagnostics.source}</span>
-              {" · "}
-              route={previewDiagnostics.selected_route}
-              {previewDiagnostics.artifactId ? ` · artifact=${previewDiagnostics.artifactId.slice(0, 8)}…` : ""}
-              {previewDiagnostics.wasNormalized ? " · normalized" : ""}
-              {previewDiagnostics.wasRejected ? ` · rejected:${previewDiagnostics.rejectReason}` : ""}
-            </p>
-            <p className="truncate opacity-80" title={previewDiagnostics.iframeSrc ?? undefined}>
-              iframe: {previewDiagnostics.iframeSrc ?? "—"}
-              {iframeHeaderProbe?.reason ? ` · ${iframeHeaderProbe.reason}` : ""}
-            </p>
-          </div>
-        ) : previewDiagnostics ? (
+        {previewDiagnostics ? (
           <div
             data-testid="preview-diagnostics"
             data-preview-source={previewDiagnostics.source}

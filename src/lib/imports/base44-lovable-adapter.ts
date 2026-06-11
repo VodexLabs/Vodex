@@ -62,18 +62,74 @@ export function analyzeLegacyAdapter(
       }
     }catch(e){}
     var origFetch=window.fetch;
+    function jsonResponse(body){
+      return Promise.resolve(new Response(JSON.stringify(body),{status:200,headers:{"Content-Type":"application/json"}}));
+    }
+    function pathOf(url){
+      if(!url||typeof url!=="string")return"";
+      try{return new URL(url,window.location.origin).pathname;}catch(e){
+        var p=String(url).split("?")[0];
+        return p.startsWith("/")?p:"/"+p;
+      }
+    }
+    function mockPreviewApi(url,init){
+      var path=pathOf(url);
+      if(!path)return null;
+      if(path==="/me"||path.endsWith("/me"))return jsonResponse({data:mockUser,user:mockUser,session:{user:mockUser}});
+      if(/\\/batch(\\?|$|\\/)/i.test(path))return jsonResponse({data:[],results:[],ok:true});
+      if(path==="/null"||path.endsWith("/null"))return jsonResponse({data:null,ok:true});
+      if(/getRipoAssetPublic|RipoAsset|AssetPublic/i.test(path))return jsonResponse({data:[],items:[],ok:true});
+      if(/\\/auth\\/|\\/login|\\/signup/i.test(path)&&(!init||!init.method||init.method==="GET"))return jsonResponse({data:mockUser,user:mockUser});
+      if(/\\/entities\\/|\\/records\\/|\\/invoke/i.test(path))return jsonResponse({data:[],ok:true});
+      return null;
+    }
     window.fetch=function(input,init){
       var url=typeof input==="string"?input:(input&&input.url)||"";
+      var mocked=mockPreviewApi(url,init);
+      if(mocked)return mocked;
       if(/base44\\.dev|\\/api\\/base44|functions\\.invoke/i.test(url)){
         warn("Mocked Base44 API: "+url);
-        return Promise.resolve(new Response(JSON.stringify({data:[],ok:true,user:mockUser,session:{user:mockUser}}),{status:200,headers:{"Content-Type":"application/json"}}));
+        return jsonResponse({data:[],ok:true,user:mockUser,session:{user:mockUser}});
       }
       if(/supabase\\.co\\/auth|\\/rest\\/v1\\//i.test(url)&&init&&init.method&&init.method!=="GET"){
         warn("Blocked mutating Supabase call in preview: "+url);
-        return Promise.resolve(new Response(JSON.stringify({data:null}),{status:200,headers:{"Content-Type":"application/json"}}));
+        return jsonResponse({data:null});
       }
       return origFetch.apply(this,arguments);
     };
+    try{
+      var OrigXHR=window.XMLHttpRequest;
+      function MockXHR(){
+        var xhr=new OrigXHR();
+        var _open=xhr.open.bind(xhr);
+        var _send=xhr.send.bind(xhr);
+        var _url="";
+        var _method="GET";
+        xhr.open=function(method,url){
+          _method=method||"GET";
+          _url=typeof url==="string"?url:"";
+          return _open.apply(xhr,arguments);
+        };
+        xhr.send=function(body){
+          var mocked=mockPreviewApi(_url,{method:_method,body:body});
+          if(mocked){
+            mocked.then(function(res){return res.text();}).then(function(text){
+              Object.defineProperty(xhr,"status",{value:200});
+              Object.defineProperty(xhr,"readyState",{value:4});
+              Object.defineProperty(xhr,"responseText",{value:text});
+              Object.defineProperty(xhr,"response",{value:text});
+              if(xhr.onreadystatechange)xhr.onreadystatechange();
+              xhr.dispatchEvent(new Event("load"));
+            }).catch(function(){_send(body);});
+            return;
+          }
+          return _send(body);
+        };
+        return xhr;
+      }
+      MockXHR.prototype=OrigXHR.prototype;
+      window.XMLHttpRequest=MockXHR;
+    }catch(e){}
     var blockBase44Nav=function(u){
       if(typeof u!=="string")return false;
       if(/base44\\.dev|base44\\.app/i.test(u)){
