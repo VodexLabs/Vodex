@@ -9,6 +9,14 @@ import {
 import { mergePreviewIframeEmbedHeaders } from "@/lib/preview/preview-iframe-embed-headers";
 import { resolvePreviewAppIconUrl } from "@/lib/preview/resolve-preview-app-icon-url";
 import { buildPreviewRuntimeAuthUrlBootstrapScript } from "@/lib/preview/preview-runtime-auth-url-script";
+import {
+  previewOAuthProviderIconHtml,
+  previewOAuthProviderLabel,
+} from "@/lib/preview/preview-oauth-provider-icons";
+import {
+  resolvePreviewPostAuthRoute,
+  routesFromProjectMetadata,
+} from "@/lib/preview/route-discovery";
 
 type AuthPageKind = "login" | "signup" | "forgot" | "callback";
 
@@ -27,6 +35,7 @@ export function buildPreviewAuthPageHtml(input: {
   settings: AppAuthSettings;
   projectId: string;
   artifactId: string;
+  postAuthRoute: string;
 }): string {
   const kind = pageKind(input.route);
   const initialView =
@@ -43,6 +52,10 @@ export function buildPreviewAuthPageHtml(input: {
 
   const oauthProvidersJson = JSON.stringify(providers);
   const emailEnabled = input.settings.email_password_enabled;
+
+  const oauthIconsJson = JSON.stringify(
+    Object.fromEntries(providers.map((p) => [p, previewOAuthProviderIconHtml(p)])),
+  );
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -73,8 +86,8 @@ body{
   background:var(--bg);border:1px solid var(--border);box-shadow:var(--shadow);
 }
 .brand{display:flex;flex-direction:column;align-items:center;text-align:center;margin-bottom:22px}
-.brand-icon,.brand-fallback{width:72px;height:72px;border-radius:20px}
-.brand-icon{object-fit:cover;border:1px solid var(--border);box-shadow:0 8px 20px rgba(15,23,42,.08)}
+.brand-icon,.brand-fallback{width:72px;height:72px;border-radius:12px}
+.brand-icon{object-fit:contain;background:#fff;border:1px solid var(--border);box-shadow:0 8px 20px rgba(15,23,42,.08)}
 .brand-fallback{
   display:none;align-items:center;justify-content:center;font-weight:800;font-size:28px;
   background:linear-gradient(135deg,var(--accent),#4d8dff);color:#fff;
@@ -94,6 +107,7 @@ h1{font-size:1.45rem;font-weight:700;margin:14px 0 4px;letter-spacing:-.02em;col
   transition:border-color .15s,background .15s,box-shadow .15s;
 }
 .oauth:hover{border-color:#cbd5e1;background:var(--surface);box-shadow:0 2px 8px rgba(15,23,42,.04)}
+.oauth-icon{flex-shrink:0;display:block}
 .divider{display:flex;align-items:center;gap:12px;margin:18px 0;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;font-weight:600}
 .divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--border)}
 .field{margin-bottom:12px}
@@ -176,6 +190,9 @@ h1{font-size:1.45rem;font-weight:700;margin:14px 0 4px;letter-spacing:-.02em;col
 (function(){
   var mockUser={id:"preview-user",email:"preview@vodex.dev",user_metadata:{full_name:"Preview User"}};
   var providers=${oauthProvidersJson};
+  var oauthIcons=${oauthIconsJson};
+  var oauthLabels=${JSON.stringify(Object.fromEntries(providers.map((p) => [p, previewOAuthProviderLabel(p)])))};
+  var postAuthRoute=${JSON.stringify(input.postAuthRoute)};
   var titles={login:{h:"Welcome back",s:"Sign in to continue"},signup:{h:"Create your account",s:"Join in seconds"},forgot:{h:"Reset password",s:"We'll email you a secure link"},"forgot-sent":{h:"Check your email",s:"Reset link sent"},"callback":{h:"Signing in…",s:"One moment"}};
   function showErr(msg){var el=document.getElementById("vx-error");if(!el)return;el.textContent=msg;el.classList.add("show");setTimeout(function(){el.classList.remove("show");},5000);}
   function previewRuntimeBase(){
@@ -194,9 +211,12 @@ h1{font-size:1.45rem;font-weight:700;margin:14px 0 4px;letter-spacing:-.02em;col
     var home=previewAppHomeUrl();
     if(!home){showErr("Could not return to the app preview.");return;}
     var u=user||mockUser;
+    var route=postAuthRoute||"/";
     try{localStorage.setItem("sb-preview-auth","1");localStorage.setItem("vodex-preview-session",JSON.stringify(u));}catch(e){}
-    try{parent.postMessage({type:"vodex-preview-route",path:"/"},"*");}catch(e){}
-    window.location.replace(home);
+    try{sessionStorage.setItem("vodex-preview-post-auth-route",route);}catch(e){}
+    try{parent.postMessage({type:"vodex-preview-route",path:route},"*");}catch(e){}
+    var sep=home.indexOf("?")>=0?"&":"?";
+    window.location.replace(home+sep+"route="+encodeURIComponent(route));
   }
   function setView(name){
     document.querySelectorAll(".view").forEach(function(v){v.classList.remove("active");});
@@ -212,7 +232,9 @@ h1{font-size:1.45rem;font-weight:700;margin:14px 0 4px;letter-spacing:-.02em;col
   function oauthBtn(p){
     var b=document.createElement("button");
     b.type="button";b.className="oauth";b.dataset.provider=p;
-    b.innerHTML='Continue with '+p.charAt(0).toUpperCase()+p.slice(1);
+    var icon=oauthIcons[p]||"";
+    var label=oauthLabels[p]||(p.charAt(0).toUpperCase()+p.slice(1));
+    b.innerHTML=icon+'<span>Continue with '+label+"</span>";
     b.addEventListener("click",function(){finish();});
     return b;
   }
@@ -267,9 +289,11 @@ export async function resolvePreviewAuthPageHtml(
 
   const settings = (authRow ?? {
     email_password_enabled: true,
-    google_enabled: true,
+    google_enabled: false,
     github_enabled: false,
     apple_enabled: false,
+    microsoft_enabled: false,
+    facebook_enabled: false,
     oauth_mode: "vodex_managed",
   }) as AppAuthSettings;
 
@@ -282,6 +306,9 @@ export async function resolvePreviewAuthPageHtml(
     metadata: projectMeta,
   });
 
+  const routePaths = routesFromProjectMetadata(projectMeta);
+  const postAuthRoute = resolvePreviewPostAuthRoute(routePaths);
+
   return buildPreviewAuthPageHtml({
     appName: displayName,
     iconUrl: resolvedIcon,
@@ -289,6 +316,7 @@ export async function resolvePreviewAuthPageHtml(
     settings,
     projectId,
     artifactId,
+    postAuthRoute,
   });
 }
 

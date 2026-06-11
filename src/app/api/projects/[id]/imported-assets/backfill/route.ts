@@ -5,6 +5,7 @@ import {
   importPreviewArtifactBinaryAssets,
   importZipBinaryAssets,
 } from "@/lib/import/import-zip-binary-assets";
+import { persistImportedAppIconFromZip } from "@/lib/import/persist-imported-app-icon";
 import { ZIP_IMPORT_BUCKET } from "@/lib/import/zip-storage";
 
 /** Re-extract binary assets from stored ZIP archive and/or built preview artifact. */
@@ -52,6 +53,7 @@ export async function POST(
     imported?.source_archive_path ??
     (typeof importedMeta.storage_path === "string" ? importedMeta.storage_path : null);
 
+  let zipBuffer: Buffer | null = null;
   if (archivePath) {
     const { data: blob, error: dlErr } = await admin.storage
       .from(ZIP_IMPORT_BUCKET)
@@ -59,16 +61,46 @@ export async function POST(
     if (dlErr || !blob) {
       zipResult.errors.push(dlErr?.message ?? "ZIP archive not found in storage");
     } else {
-      const buf = Buffer.from(await blob.arrayBuffer());
+      zipBuffer = Buffer.from(await blob.arrayBuffer());
       zipResult = await importZipBinaryAssets({
         admin,
-        zipBuffer: buf,
+        zipBuffer,
         userId: user.id,
         projectId,
       });
     }
   } else {
     zipResult.errors.push("No imported_projects archive row for this project");
+  }
+
+  let iconPersist: { icon_url: string | null; icon_path: string | null } = {
+    icon_url: null,
+    icon_path: null,
+  };
+  if (zipBuffer) {
+    const metaIconPath =
+      typeof meta.icon_path === "string" ? meta.icon_path : null;
+    iconPersist = await persistImportedAppIconFromZip({
+      admin,
+      userId: user.id,
+      projectId,
+      zipBuffer,
+      preferredPath: metaIconPath,
+    });
+    if (iconPersist.icon_url || iconPersist.icon_path) {
+      await supabase
+        .from("projects")
+        .update({
+          ...(iconPersist.icon_url ? { icon_url: iconPersist.icon_url } : {}),
+          metadata: {
+            ...meta,
+            icon_path: iconPersist.icon_path ?? metaIconPath,
+            icon_source: iconPersist.icon_url ? "imported_binary" : meta.icon_source,
+          },
+        } as never)
+        .eq("id", projectId)
+        .eq("owner_id", user.id);
+    }
   }
 
   let artifactResult = { imported: 0, skipped: 0, errors: [] as string[] };
@@ -92,6 +124,7 @@ export async function POST(
     from_zip: zipResult.imported,
     from_artifact: artifactResult.imported,
     skipped: zipResult.skipped + artifactResult.skipped,
+    icon_url: iconPersist.icon_url,
     errors,
   });
 }

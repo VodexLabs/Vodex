@@ -27,6 +27,7 @@ const BINARY_EXT = new Set([
   "wav",
   "pdf",
   "json",
+  "ripo",
 ]);
 
 const LOTTIE_PATH_RE = /lottie|animation|ripo|motion|splash|welcome|loader/i;
@@ -50,6 +51,7 @@ const MIME: Record<string, string> = {
   wav: "audio/wav",
   pdf: "application/pdf",
   json: "application/json",
+  ripo: "application/json",
 };
 
 const MEDIA_BUCKET = "media";
@@ -77,7 +79,13 @@ function safeStorageName(relativePath: string): string {
 
 function isImportableAssetPath(relativePath: string, ext: string): boolean {
   if (BINARY_EXT.has(ext)) {
-    if (ext === "json") return LOTTIE_PATH_RE.test(relativePath);
+    if (ext === "json" || ext === "ripo") {
+      return (
+        LOTTIE_PATH_RE.test(relativePath) ||
+        /^public\/.+\.(json|ripo)$/i.test(relativePath) ||
+        /\/assets\/.+\.(json|ripo)$/i.test(relativePath)
+      );
+    }
     return true;
   }
   return false;

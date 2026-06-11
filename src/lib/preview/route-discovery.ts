@@ -170,3 +170,68 @@ export function discoverImportedAppRoutes(files: BuildFile[]): PreviewRouteEntry
 export function routePathsFromDiscovery(files: BuildFile[]): string[] {
   return discoverImportedAppRoutes(files).map((r) => r.path);
 }
+
+const WELCOME_LIKE = /^\/(?:welcome|splash|onboarding|intro|landing)?$/i;
+
+const POST_AUTH_ROUTE_PREFS = [
+  "/home",
+  "/dashboard",
+  "/app",
+  "/main",
+  "/feed",
+  "/recipes",
+  "/browse",
+  "/discover",
+  "/library",
+  "/menu",
+  "/explore",
+  "/today",
+  "/inbox",
+];
+
+function normalizeRoutePath(path: string): string {
+  const p = path.trim();
+  if (!p || p === "/") return "/";
+  return p.startsWith("/") ? p.replace(/\/+$/, "") || "/" : `/${p.replace(/\/+$/, "")}`;
+}
+
+/** First sensible in-app route after preview login — skips welcome/auth gates. */
+export function resolvePreviewPostAuthRoute(paths: string[]): string {
+  const normalized = [...new Set(paths.map(normalizeRoutePath))];
+
+  for (const pref of POST_AUTH_ROUTE_PREFS) {
+    if (normalized.includes(pref)) return pref;
+  }
+
+  const candidate = normalized.find(
+    (p) =>
+      p !== "/" &&
+      !WELCOME_LIKE.test(p) &&
+      !isAuthRoute(p) &&
+      !/\/welcome|splash|onboarding|intro|landing/i.test(p),
+  );
+
+  return candidate ?? "/";
+}
+
+export function routesFromProjectMetadata(meta: Record<string, unknown> | null | undefined): string[] {
+  if (!meta) return [];
+  if (Array.isArray(meta.discovered_routes)) {
+    return meta.discovered_routes.filter((p): p is string => typeof p === "string" && p.trim().length > 0);
+  }
+  const manifest = meta.route_manifest;
+  if (manifest && typeof manifest === "object" && !Array.isArray(manifest)) {
+    const paths = (manifest as { paths?: unknown }).paths;
+    if (Array.isArray(paths)) {
+      return paths.filter((p): p is string => typeof p === "string" && p.trim().length > 0);
+    }
+  }
+  const importMeta = meta.import;
+  if (importMeta && typeof importMeta === "object" && !Array.isArray(importMeta)) {
+    const routes = (importMeta as { routes?: unknown }).routes;
+    if (Array.isArray(routes)) {
+      return routes.filter((p): p is string => typeof p === "string" && p.trim().length > 0);
+    }
+  }
+  return [];
+}

@@ -44,6 +44,7 @@ import {
   mergeRouteManifestIntoMetadata,
 } from "@/lib/preview/imported-app-route-manifest";
 import { importZipBinaryAssets } from "@/lib/import/import-zip-binary-assets";
+import { persistImportedAppIconFromZip } from "@/lib/import/persist-imported-app-icon";
 
 export const runtime = "nodejs";
 
@@ -349,6 +350,38 @@ export async function POST(req: Request) {
     userId: user.id,
     projectId,
   });
+
+  const iconPersist = await persistImportedAppIconFromZip({
+    admin,
+    userId: user.id,
+    projectId,
+    zipBuffer: buf,
+    preferredPath: icon.path ?? null,
+  });
+
+  if (iconPersist.icon_url || iconPersist.icon_path) {
+    const { data: current } = await supabase
+      .from("projects")
+      .select("metadata")
+      .eq("id", projectId)
+      .single();
+    const prevMeta =
+      current?.metadata && typeof current.metadata === "object" && !Array.isArray(current.metadata)
+        ? (current.metadata as Record<string, unknown>)
+        : {};
+    await supabase
+      .from("projects")
+      .update({
+        ...(iconPersist.icon_url ? { icon_url: iconPersist.icon_url } : {}),
+        metadata: {
+          ...prevMeta,
+          icon_source: icon.source,
+          icon_path: iconPersist.icon_path ?? icon.path ?? prevMeta.icon_path ?? null,
+        },
+      } as never)
+      .eq("id", projectId)
+      .eq("owner_id", user.id);
+  }
 
   const { error: importedErr } = await supabase.from("imported_projects").insert({
     user_id: user.id,

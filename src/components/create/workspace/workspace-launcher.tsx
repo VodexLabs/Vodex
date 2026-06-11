@@ -51,6 +51,7 @@ import {
   type IntegrationPreset,
 } from "@/components/create/workspace/workspace-integrations-modal";
 import { VodexBrandIcon } from "@/components/brand/vodex-brand-icon";
+import { projectIconSrc } from "@/lib/projects/ensure-project-icon";
 import { resolveWorkspaceDisplayName } from "@/lib/profile/default-workspace-name";
 import { toast } from "@/lib/toast";
 
@@ -60,10 +61,12 @@ export type LauncherProject = {
   id: string;
   name: string;
   icon_url: string | null;
+  icon_svg?: string | null;
   gradient: string;
   preview_url: string | null;
   metadata: unknown;
   status?: string | null;
+  updated_at?: string | null;
 };
 
 interface PlatformDropdownProps {
@@ -342,7 +345,10 @@ export function WorkspaceLauncher({
 
   const appTitle = project?.name ?? "New build";
   const showAppMenu = Boolean(project?.id);
-  const showAppIcon = Boolean(project?.icon_url?.trim());
+  const appIconSrc = project?.id
+    ? projectIconSrc(project.id, project.icon_svg, project.icon_url, project.updated_at)
+    : null;
+  const showAppIcon = Boolean(appIconSrc);
   const [publishReady, setPublishReady] = React.useState(false);
   const [publishPhase, setPublishPhase] = React.useState<PublishUiPhase>("idle");
   const [publishedUrl, setPublishedUrl] = React.useState<string | null>(null);
@@ -499,7 +505,7 @@ export function WorkspaceLauncher({
             <VodexBrandIcon variant="create" className="opacity-95 transition group-hover:opacity-100" />
           </button>
 
-          {showAppMenu && showAppIcon && project?.icon_url ? (
+          {showAppMenu && showAppIcon && appIconSrc ? (
             <button
               ref={appRef}
               type="button"
@@ -511,7 +517,7 @@ export function WorkspaceLauncher({
               aria-label={`${appTitle} app menu`}
               aria-expanded={appMenuOpen}
             >
-              <Image src={project.icon_url} alt="" width={36} height={36} className="size-full object-cover" unoptimized />
+              <Image src={appIconSrc} alt="" width={36} height={36} className="size-full object-contain p-0.5" unoptimized />
             </button>
           ) : null}
 

@@ -226,6 +226,17 @@ export function PreviewPanel({
     setLiveDiagSnapshot(liveDiagnosticsRef.current.snapshot());
   }, [projectId, reloadKey]);
 
+  const assetBackfillRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!projectId) return;
+    if (assetBackfillRef.current === projectId) return;
+    assetBackfillRef.current = projectId;
+    void fetch(`/api/projects/${projectId}/imported-assets/backfill`, {
+      method: "POST",
+      credentials: "include",
+    }).catch(() => {});
+  }, [projectId]);
+
   React.useEffect(() => {
     const detach = liveDiagnosticsRef.current.attachWindow();
     return detach;

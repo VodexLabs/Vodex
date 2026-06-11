@@ -1563,7 +1563,7 @@ export function ImmersiveWorkspace({
       const { data, error: qErr } = await supabase
         .from("projects")
         .select(
-          "id, name, preview_url, icon_url, gradient, status, framework, custom_domain, is_public, metadata, published_subdomain, app_name, build_status, short_description, category, icon_svg",
+          "id, name, preview_url, icon_url, gradient, status, framework, custom_domain, is_public, metadata, published_subdomain, app_name, build_status, short_description, category, icon_svg, updated_at",
         )
         .eq("id", id)
         .maybeSingle();
@@ -3290,10 +3290,12 @@ export function ImmersiveWorkspace({
                   name: effectiveProject.name,
                 }),
                 icon_url: effectiveProject.icon_url,
+                icon_svg: (effectiveProject as { icon_svg?: string | null }).icon_svg ?? null,
                 gradient: effectiveProject.gradient,
                 preview_url: effectiveProject.preview_url,
                 metadata: effectiveProject.metadata,
                 status: effectiveProject.status,
+                updated_at: (effectiveProject as { updated_at?: string | null }).updated_at ?? null,
               }
             : null
         }

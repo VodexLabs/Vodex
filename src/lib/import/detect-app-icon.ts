@@ -15,9 +15,18 @@ const ICON_PATH_PREFS = [
 
 export type DetectedAppIcon = {
   svg: string;
-  source: "imported_svg" | "manifest" | "initials";
+  source: "imported_svg" | "imported_binary" | "manifest" | "initials";
   path?: string;
 };
+
+const BINARY_ICON_PATH_PREFS = [
+  "public/favicon.png",
+  "public/favicon.ico",
+  "public/icon.png",
+  "public/apple-touch-icon.png",
+  "favicon.png",
+  "favicon.ico",
+];
 
 function normalizeSvg(content: string): string | null {
   const t = content.trim();
@@ -45,6 +54,27 @@ function iconFromManifest(files: ZipImportFile[]): DetectedAppIcon | null {
   return null;
 }
 
+function iconFromBinaryPath(files: ZipImportFile[], appName: string): DetectedAppIcon | null {
+  for (const pref of BINARY_ICON_PATH_PREFS) {
+    const hit = files.find((f) => f.path.toLowerCase() === pref);
+    if (hit) {
+      return { svg: buildInitialsIconSvg(appName), source: "imported_binary", path: hit.path };
+    }
+  }
+
+  const binaryHit = files.find(
+    (f) =>
+      /\.(png|ico|webp|jpg|jpeg)$/i.test(f.path) &&
+      /(?:favicon|icon|logo|apple-touch)/i.test(f.path) &&
+      /(?:^public\/|^src\/assets\/|^assets\/)/i.test(f.path),
+  );
+  if (binaryHit) {
+    return { svg: buildInitialsIconSvg(appName), source: "imported_binary", path: binaryHit.path };
+  }
+
+  return null;
+}
+
 /** Pick best SVG icon from imported text files, else deterministic initials. */
 export function detectAppIconFromImport(files: ZipImportFile[], appName: string): DetectedAppIcon {
   for (const pref of ICON_PATH_PREFS) {
@@ -68,6 +98,9 @@ export function detectAppIconFromImport(files: ZipImportFile[], appName: string)
 
   const fromManifest = iconFromManifest(files);
   if (fromManifest) return fromManifest;
+
+  const fromBinary = iconFromBinaryPath(files, appName);
+  if (fromBinary) return fromBinary;
 
   return { svg: buildInitialsIconSvg(appName), source: "initials" };
 }

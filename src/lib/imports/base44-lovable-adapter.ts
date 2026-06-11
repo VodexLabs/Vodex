@@ -152,13 +152,27 @@ export function analyzeLegacyAdapter(
         var pid=window.__VODEX_PROJECT_ID__;
         if(pid){
           var q=String(url).split("?")[1]||"";
-          var nameMatch=q.match(/(?:name|asset|id|key|file|path)=([^&]+)/i)||path.match(/([^/?]+)(?:\\?|$)/);
+          var nameMatch=q.match(/(?:name|asset|id|key|file|path)=([^&]+)/i)||String(url).match(/([^/?]+\\.(?:json|ripo|lottie))(?:\\?|$)/i)||path.match(/([^/?]+)(?:\\?|$)/);
           var assetName=nameMatch?decodeURIComponent(nameMatch[1]):"";
           return origFetch("/api/projects/"+pid+"/imported-assets/lookup?name="+encodeURIComponent(assetName),{credentials:"include"})
             .then(function(r){return r.ok?r.json():{data:null};})
             .then(function(j){
-              var url=j&&j.public_url||j&&j.url||(j&&j.data&&j.data.public_url);
-              if(url)return jsonResponse({data:j.data||j,items:j.items||[j.data||j],ok:true,url:url,public_url:url,animation_url:url,src:url});
+              var mediaUrl=j&&j.public_url||j&&j.url||(j&&j.data&&j.data.public_url);
+              if(mediaUrl){
+                return origFetch(mediaUrl,{credentials:"include"}).then(function(res){
+                  if(!res.ok)return jsonResponse({data:j.data||j,items:j.items||[j.data||j],ok:true,url:mediaUrl,public_url:mediaUrl,animation_url:mediaUrl,src:mediaUrl});
+                  return res.text().then(function(body){
+                    try{
+                      var parsed=JSON.parse(body);
+                      return jsonResponse({data:parsed,items:[parsed],ok:true,url:mediaUrl,public_url:mediaUrl,animation_url:mediaUrl,src:mediaUrl});
+                    }catch(e){
+                      return new Response(body,{status:200,headers:{"Content-Type":res.headers.get("Content-Type")||"application/json"}});
+                    }
+                  });
+                }).catch(function(){
+                  return jsonResponse({data:j.data||j,items:j.items||[j.data||j],ok:true,url:mediaUrl,public_url:mediaUrl,animation_url:mediaUrl,src:mediaUrl});
+                });
+              }
               return jsonResponse({data:j&&j.data?j.data:j,items:j&&j.items?j.items:[],ok:true});
             })
             .catch(function(){return jsonResponse({data:[],items:[],ok:true});});
@@ -166,7 +180,7 @@ export function analyzeLegacyAdapter(
         return jsonResponse({data:[],items:[],ok:true});
       }
       if(/\\/auth\\/|\\/oauth\\/|loginWithGoogle|signInWithGoogle/i.test(path)&&(!init||!init.method||init.method==="GET"||init.method==="POST")){
-        var loginUrl=previewAuthUrl();
+        var loginUrl=__vodexResolveLoginUrl();
         if(loginUrl)return jsonResponse({url:loginUrl,redirect_url:loginUrl,authorization_url:loginUrl,ok:true});
         return jsonResponse({data:mockUser,user:mockUser});
       }
@@ -176,6 +190,10 @@ export function analyzeLegacyAdapter(
     }
     window.fetch=function(input,init){
       var url=typeof input==="string"?input:(input&&input.url)||"";
+      if(typeof url==="string"&&(/ripo\\.ai|getRipoAssetPublic|\\.ripo(\\?|$)|lottiefiles\\.com\\/packages/i.test(url)||/ripo|lottie|animation/i.test(url)&&!/preview-runtime/i.test(url))){
+        var externalRipo=mockPreviewApi(url,init);
+        if(externalRipo)return externalRipo;
+      }
       var mocked=mockPreviewApi(url,init);
       if(mocked)return mocked;
       if(/base44\\.dev|\\/api\\/base44|functions\\.invoke/i.test(url)){
@@ -184,7 +202,7 @@ export function analyzeLegacyAdapter(
           if(ripoMock)return ripoMock;
         }
         if(/\\/auth\\/|\\/oauth\\/|loginWithGoogle|signInWithGoogle/i.test(url)){
-          var loginUrl=previewAuthUrl();
+          var loginUrl=__vodexResolveLoginUrl();
           if(loginUrl)return jsonResponse({url:loginUrl,redirect_url:loginUrl,ok:true});
         }
         warn("Mocked Base44 API: "+url);

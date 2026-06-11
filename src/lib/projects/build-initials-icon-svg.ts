@@ -13,7 +13,7 @@ export function buildInitialsIconSvg(title: string): string {
       <stop offset="100%" style="stop-color:${c2}"/>
     </linearGradient>
   </defs>
-  <circle cx="64" cy="64" r="64" fill="url(#g)"/>
+  <rect width="128" height="128" rx="20" ry="20" fill="url(#g)"/>
   <text x="64" y="78" text-anchor="middle" font-family="system-ui,Segoe UI,sans-serif" font-size="52" font-weight="700" fill="#ffffff">${ch}</text>
 </svg>`;
 }
