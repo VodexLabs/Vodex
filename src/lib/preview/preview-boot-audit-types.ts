@@ -76,6 +76,21 @@ export function isIgnorablePreviewAssetLoadFailure(
   return false;
 }
 
+/** True when iframe reported ready and enough bundles transferred — ignore remount noise. */
+export function previewBootSucceeded(
+  events: PreviewBootAuditPayload[],
+  opts?: { iframeRemountCount?: number },
+): boolean {
+  const summary = summarizeBootAudit(events, opts);
+  const sawReady = events.some((ev) => ev.phase === "ready");
+  return (
+    sawReady &&
+    summary.loadedCount >= 3 &&
+    summary.failedCount === 0 &&
+    !summary.firstRuntimeError
+  );
+}
+
 export function summarizeBootAudit(
   events: PreviewBootAuditPayload[],
   opts?: { iframeRemountCount?: number },
@@ -119,20 +134,34 @@ export function summarizeBootAudit(
     (r) => r.transferSize === 0 && r.duration === 0,
   ).length;
 
+  const bootHealthy = sawReady && loadedCount >= 3 && failedCount === 0 && !firstRuntimeError;
+  const remounts = opts?.iframeRemountCount ?? 0;
+  const cancelledRatio =
+    scriptResources.length > 0 ? cancelledOrIncompleteCount / scriptResources.length : 0;
+
   let bootFailureReason: string | null = null;
   if (firstRuntimeError) {
     bootFailureReason = `Script runtime error: ${firstRuntimeError}`;
-  } else if (
-    firstFailedAssetUrl &&
-    !(sawReady && loadedCount >= 3 && isIgnorablePreviewAssetLoadFailure(firstFailedAssetUrl))
-  ) {
-    bootFailureReason = `Asset failed to load: ${firstFailedAssetUrl}`;
-  } else if ((opts?.iframeRemountCount ?? 0) > 1 && cancelledOrIncompleteCount > 0) {
-    bootFailureReason = "Assets cancelled — iframe remounted before boot completed";
-  } else if (cancelledOrIncompleteCount > 0 && loadedCount === 0) {
-    bootFailureReason = "Assets cancelled or loaded from wrong path";
-  } else if (serviceWorkerCount != null && serviceWorkerCount > 0) {
-    bootFailureReason = `Service worker interference (${serviceWorkerCount} registration(s))`;
+  } else if (!bootHealthy) {
+    if (
+      firstFailedAssetUrl &&
+      !isIgnorablePreviewAssetLoadFailure(firstFailedAssetUrl)
+    ) {
+      bootFailureReason = `Asset failed to load: ${firstFailedAssetUrl}`;
+    } else if (remounts > 1 && cancelledOrIncompleteCount > 0 && loadedCount < 3) {
+      bootFailureReason = "Assets cancelled — iframe remounted before boot completed";
+    } else if (
+      remounts > 1 &&
+      cancelledRatio > 0.6 &&
+      loadedCount < 3 &&
+      !sawReady
+    ) {
+      bootFailureReason = "Assets cancelled — iframe remounted before boot completed";
+    } else if (cancelledOrIncompleteCount > 0 && loadedCount === 0) {
+      bootFailureReason = "Assets cancelled or loaded from wrong path";
+    } else if (serviceWorkerCount != null && serviceWorkerCount > 0) {
+      bootFailureReason = `Service worker interference (${serviceWorkerCount} registration(s))`;
+    }
   }
 
   return {

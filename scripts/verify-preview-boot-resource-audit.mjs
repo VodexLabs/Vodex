@@ -24,6 +24,10 @@ assert(rewrite.includes("injectPreviewBootAudit"), "rewrite wires audit");
 assert(panel.includes("isPreviewBootAuditMessage"), "panel handles audit messages");
 assert(types.includes("summarizeBootAudit"), "audit summarizer exists");
 assert(types.includes("isIgnorablePreviewAssetLoadFailure"), "ignorable asset filter exists");
+assert(types.includes("previewBootSucceeded"), "healthy boot gate exists");
 assert(audit.includes("ignorableAssetFailure"), "iframe audit filters route-root false positives");
+
+const prompt = fs.readFileSync(path.join(root, "src/lib/preview/build-preview-incident-prompt.ts"), "utf8");
+assert(prompt.includes("buildPreviewIncidentPrompt"), "full incident prompt builder exists");
 
 console.log("✓ verify:preview-boot-resource-audit");

@@ -4,11 +4,20 @@ import * as React from "react";
 import { AlertTriangle, Copy, RefreshCw } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
-import type { PreviewBootAuditSummary } from "@/lib/preview/preview-boot-audit-types";
+import type {
+  PreviewBootAuditPayload,
+  PreviewBootAuditSummary,
+} from "@/lib/preview/preview-boot-audit-types";
+import {
+  buildPreviewIncidentPrompt,
+  type PreviewIncidentPromptInput,
+} from "@/lib/preview/build-preview-incident-prompt";
 
 export type PreviewBootFailurePanelProps = {
   summary: PreviewBootAuditSummary;
   iframeUrl: string | null;
+  incidentInput?: Omit<PreviewIncidentPromptInput, "bootAudit" | "liveSnapshot"> | null;
+  bootEvents?: PreviewBootAuditPayload[];
   className?: string;
   onRetryLoad?: () => void;
   onDismiss?: () => void;
@@ -18,6 +27,8 @@ export function PreviewBootFailurePanel({
   summary,
   iframeUrl,
   className,
+  incidentInput,
+  bootEvents,
   onRetryLoad,
   onDismiss,
 }: PreviewBootFailurePanelProps) {
@@ -39,6 +50,18 @@ export function PreviewBootFailurePanel({
         2,
       ),
     [summary, iframeUrl],
+  );
+
+  const fullPrompt = React.useMemo(
+    () =>
+      buildPreviewIncidentPrompt({
+        ...(incidentInput ?? {}),
+        bootAudit: summary,
+        bootEvents: bootEvents ?? [],
+        iframeUrl,
+        liveSnapshot: null,
+      }),
+    [incidentInput, summary, bootEvents, iframeUrl],
   );
 
   return (
@@ -92,15 +115,27 @@ export function PreviewBootFailurePanel({
         <button
           type="button"
           onClick={() => {
+            void navigator.clipboard.writeText(fullPrompt).then(
+              () => toast.success("Copied full debug prompt"),
+              () => toast.error("Could not copy"),
+            );
+          }}
+          className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[12px] font-semibold text-white"
+        >
+          <Copy className="size-3.5" strokeWidth={1.75} />
+          Copy full debug prompt
+        </button>
+        <button
+          type="button"
+          onClick={() => {
             void navigator.clipboard.writeText(details).then(
-              () => toast.success("Copied boot diagnostics"),
+              () => toast.success("Copied JSON summary"),
               () => toast.error("Could not copy"),
             );
           }}
           className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-semibold ring-1 ring-border"
         >
-          <Copy className="size-3.5" strokeWidth={1.75} />
-          Copy technical details
+          Copy JSON
         </button>
         {onDismiss ? (
           <button

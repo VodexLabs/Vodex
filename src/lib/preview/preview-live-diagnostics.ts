@@ -1,3 +1,5 @@
+import { isIgnorablePreviewAssetLoadFailure } from "@/lib/preview/preview-boot-audit-types";
+
 /** Live preview blocker detector — surfaces console, network, and boot audit signals. */
 
 export type PreviewLiveDiagnosticEntry = {
@@ -82,11 +84,15 @@ export function createPreviewLiveDiagnostics(): {
       const data = ev.data as Record<string, unknown> | null;
       if (!data || data.type !== "vodex-preview-boot-audit") return;
       const phase = String(data.phase ?? "");
-      if (phase === "asset-error" || phase === "runtime-error") {
+      if (phase === "asset-error") {
+        const url = String(data.failedAssetUrl ?? "");
+        if (isIgnorablePreviewAssetLoadFailure(url, String(data.failedAssetTag ?? ""))) return;
+        push({ kind: "boot", level: "error", message: url || phase, detail: phase });
+      } else if (phase === "runtime-error") {
         push({
           kind: "boot",
           level: "error",
-          message: String(data.errorMessage ?? data.failedAssetUrl ?? phase),
+          message: String(data.errorMessage ?? phase),
           detail: phase,
         });
       } else if (phase === "ready") {

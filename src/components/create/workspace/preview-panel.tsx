@@ -55,10 +55,12 @@ import { resolvePreviewState } from "@/lib/preview/resolve-preview-state";
 import {
   isIgnorablePreviewAssetLoadFailure,
   isPreviewBootAuditMessage,
+  previewBootSucceeded,
   summarizeBootAudit,
   type PreviewBootAuditPayload,
   type PreviewBootAuditSummary,
 } from "@/lib/preview/preview-boot-audit-types";
+import type { PreviewIncidentPromptInput } from "@/lib/preview/build-preview-incident-prompt";
 import { PreviewBootFailurePanel } from "@/components/preview/preview-boot-failure-panel";
 import { postPreviewIframeDeepClean } from "@/lib/preview/post-preview-iframe-deep-clean";
 import { extractArtifactIdFromRuntimeUrl } from "@/lib/preview/preview-external-asset-rewrite";
@@ -666,6 +668,43 @@ export function PreviewPanel({
     ],
   );
 
+  const previewBootHealthy = React.useMemo(
+    () => previewBootSucceeded(bootAuditEvents, { iframeRemountCount: iframeMountCount }),
+    [bootAuditEvents, iframeMountCount],
+  );
+
+  const previewIncidentInput = React.useMemo((): Omit<
+    PreviewIncidentPromptInput,
+    "liveSnapshot"
+  > => ({
+    projectId: projectId ?? null,
+    artifactId: urlResolution?.artifactId ?? runtimeArtifactId ?? null,
+    previewRoute: previewRoute ?? urlResolution?.route ?? null,
+    iframeUrl: resolvedPreviewUrl ?? null,
+    canonicalState: canonicalPreview.state,
+    embedBlocked,
+    embedBlockReason,
+    iframeMountCount,
+    bootAudit: bootAuditSummary,
+    bootEvents: bootAuditEvents,
+    urlResolution: urlResolution ?? null,
+    runtimePreviewRenderable: runtimeStatus?.previewRenderable ?? null,
+    jobStatus: runtimeStatus?.jobStatus ?? null,
+  }), [
+    projectId,
+    urlResolution,
+    runtimeArtifactId,
+    previewRoute,
+    resolvedPreviewUrl,
+    canonicalPreview.state,
+    embedBlocked,
+    embedBlockReason,
+    iframeMountCount,
+    bootAuditSummary,
+    bootAuditEvents,
+    runtimeStatus,
+  ]);
+
   const forcePreviewSurface =
     artifactPreviewReady && Boolean(lockedMountSrc ?? activeIframeSrc);
   const showBuildShell = canonicalPreview.showBuildingShell && !forcePreviewSurface;
@@ -714,12 +753,20 @@ export function PreviewPanel({
     canonicalPreview.state !== "inner_route_error";
   const showBootFailure =
     !bootFailureDismissed &&
+    !previewBootHealthy &&
     canonicalPreview.state === "ready" &&
     showIframeSurface &&
     Boolean(bootAuditSummary.bootFailureReason) &&
     !overlayVisible &&
-    (bootAuditEvents.some((e) => e.phase === "asset-error" || e.phase === "runtime-error") ||
-      bootAuditEvents.filter((e) => e.phase === "snapshot").length >= 2);
+    (bootAuditEvents.some(
+      (e) =>
+        e.phase === "runtime-error" ||
+        (e.phase === "asset-error" &&
+          e.failedAssetUrl &&
+          !isIgnorablePreviewAssetLoadFailure(e.failedAssetUrl, e.failedAssetTag ?? null)),
+    ) ||
+      (bootAuditSummary.loadedCount < 3 &&
+        bootAuditEvents.filter((e) => e.phase === "snapshot").length >= 2));
 
   React.useEffect(() => {
     const shouldLog =
@@ -1242,6 +1289,8 @@ export function PreviewPanel({
             <PreviewBootFailurePanel
               summary={bootAuditSummary}
               iframeUrl={resolvedPreviewUrl}
+              incidentInput={previewIncidentInput}
+              bootEvents={bootAuditEvents}
               onRetryLoad={() => {
                 setBootFailureDismissed(false);
                 setBootAuditEvents([]);
@@ -1366,6 +1415,7 @@ export function PreviewPanel({
           iframeUrl={resolvedPreviewUrl}
           canonicalState={canonicalPreview.state}
           loadingMs={iframeLoaded ? 0 : previewLoadingMs}
+          incidentInput={previewIncidentInput}
         />
 
         <PreviewDebugDrawer
