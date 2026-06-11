@@ -7,7 +7,18 @@ export function buildPreviewVirtualHistoryScript(initialRoute: string): string {
   if (/api\/projects\//i.test(route)) route = "/";
 
   return `(function(){
-  var LOCK=location.pathname+location.search;
+  if(!window.__VODEX_PREVIEW_ACTIVE__){
+    var path=location.pathname||'';
+    var PH=('preview'+'-'+'html');
+    var AP=('api/'+'projects/');
+    var AAP=('/'+'api/'+'projects/');
+    var RT=('/'+'preview-runtime/');
+    var onProxy=path.indexOf(AAP)>=0&&path.indexOf(PH)>=0;
+    var onRuntime=path.indexOf(RT)===0;
+    var orig=window.__VODEX_PREVIEW_ORIGINAL_URL__||'';
+    if(!onProxy&&!onRuntime&&orig.indexOf(RT)<0&&orig.indexOf(PH)<0)return;
+  }
+  var LOCK='/';
   var virtualPath=${JSON.stringify(route)};
   var PH=('preview'+'-'+'html');
   var AP=('api/'+'projects/');
@@ -16,6 +27,7 @@ export function buildPreviewVirtualHistoryScript(initialRoute: string): string {
   var RTP=('preview'+'-'+'runtime');
   window.__VODEX_PREVIEW_ACTIVE__=true;
   window.__VODEX_VIRTUAL_PATH__=virtualPath;
+  try{history.replaceState({__vodex:virtualPath},'',LOCK+(location.search||''));}catch(e){}
   if('serviceWorker' in navigator){
     try{
       navigator.serviceWorker.getRegistrations().then(function(regs){regs.forEach(function(r){r.unregister();});});

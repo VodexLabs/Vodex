@@ -30,7 +30,14 @@ export function buildPrehydrationLocationRewriteScript(virtualRoute: string): st
   window.__VODEX_PREVIEW_LOCATION_REWRITTEN__=true;
   window.__VODEX_PREVIEW_ACTIVE__=true;
   window.__VODEX_VIRTUAL_PATH__=route;
-  var LOCK=location.pathname+location.search;
+  var LOCK='/';
+  try{history.replaceState({__vodex:route,vodexPreview:1},'',LOCK+(location.search||''));}catch(e){}
+  if('serviceWorker' in navigator){
+    try{
+      navigator.serviceWorker.getRegistrations().then(function(regs){regs.forEach(function(r){r.unregister();});});
+      navigator.serviceWorker.register=function(){return Promise.resolve({scope:'',active:null,installing:null,waiting:null,updateViaCache:'none',unregister:function(){return Promise.resolve(true);},addEventListener:function(){},removeEventListener:function(){},dispatchEvent:function(){return true;}});};
+    }catch(e){}
+  }
   function normPath(p){if(!p)return'/';p=String(p).split('?')[0].split('#')[0];if(!p.startsWith('/'))p='/'+p;return p;}
   function isPlatform(p){
     if(!p||typeof p!=='string')return false;
@@ -111,6 +118,16 @@ export function buildPrehydrationLocationRewriteScript(virtualRoute: string): st
         return oh.call(this);
       },configurable:true});
     }
+    var _assign=location.assign.bind(location);
+    location.assign=function(url){
+      if(typeof url==='string'&&isPlatform(url)){window.__VODEX_VIRTUAL_PATH__='/';try{history.replaceState({__vodex:'/'},'',LOCK+(location.search||''));}catch(e){}return;}
+      _assign(url);
+    };
+    var _locReplace=location.replace.bind(location);
+    location.replace=function(url){
+      if(typeof url==='string'&&isPlatform(url)){window.__VODEX_VIRTUAL_PATH__='/';try{history.replaceState({__vodex:'/'},'',LOCK+(location.search||''));}catch(e){}return;}
+      _locReplace(url);
+    };
   }catch(e){}
   patchNextDataEl();
   if(typeof MutationObserver!=='undefined'&&document.documentElement){
@@ -118,7 +135,6 @@ export function buildPrehydrationLocationRewriteScript(virtualRoute: string): st
       new MutationObserver(function(){patchNextDataEl();}).observe(document.documentElement,{childList:true,subtree:true});
     }catch(e){}
   }
-  try{history.replaceState({__vodex:route},'',LOCK);}catch(e){}
   try{
     window.addEventListener('message',function(e){
       if(!e.data||e.data.type!=='vodex-preview-deep-clean')return;

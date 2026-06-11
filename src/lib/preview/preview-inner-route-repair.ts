@@ -14,6 +14,9 @@ import {
 import { rewritePreviewArtifactHtml } from "@/lib/preview/rewrite-preview-artifact-html";
 import { runProjectPreviewBuild } from "@/lib/imports/run-project-preview-build";
 import { TEXT_ARTIFACT_EXT } from "@/lib/preview/preview-path-leak-scanner";
+import { PREVIEW_TEXT_ASSET_EXT } from "@/lib/preview/serve-preview-artifact-asset";
+import { buildVirtualPreviewRuntimeUrl } from "@/lib/preview/internal-preview-url";
+import { isZipImportProject } from "@/lib/projects/imported-project-state";
 
 async function listArtifactFiles(
   admin: SupabaseClient,
@@ -121,8 +124,10 @@ export async function repairPreviewInnerRoute(input: {
   }
 
   let sanitizedFiles = 0;
+  const textExt = (rel: string) => TEXT_ARTIFACT_EXT.test(rel) || PREVIEW_TEXT_ASSET_EXT.test(rel);
+
   for (const rel of files) {
-    if (!TEXT_ARTIFACT_EXT.test(rel)) continue;
+    if (!textExt(rel)) continue;
     const file = await downloadPreviewArtifactFile({
       admin: input.admin,
       artifactPath: input.artifactPath,
@@ -130,9 +135,8 @@ export async function repairPreviewInnerRoute(input: {
     });
     if (!file) continue;
     const text = file.data.toString("utf8");
-    const isJs = /\.m?js$/i.test(rel);
     const stripped = sanitizePreviewBootstrapState(text, input.projectId, "/", {
-      rewriteAssetUrls: !isJs,
+      rewriteAssetUrls: false,
     });
     if (stripped === text) continue;
     const storagePath = `${input.artifactPath}/${rel}`;
@@ -150,6 +154,58 @@ export async function repairPreviewInnerRoute(input: {
       };
     }
     sanitizedFiles += 1;
+  }
+
+  const { data: proj } = await input.writer
+    .from("projects")
+    .select("metadata, preview_url")
+    .eq("id", input.projectId)
+    .maybeSingle();
+
+  const meta =
+    proj?.metadata && typeof proj.metadata === "object" && !Array.isArray(proj.metadata)
+      ? (proj.metadata as Record<string, unknown>)
+      : {};
+
+  const artifactId = input.artifactPath.split("/").filter(Boolean).pop() ?? null;
+  const importedZip = isZipImportProject(meta);
+
+  if (importedZip && artifactId) {
+    const verification = await verifyStoredArtifactBootstrapClean({
+      admin: input.admin,
+      projectId: input.projectId,
+      artifactPath: input.artifactPath,
+    });
+
+    const canonicalUrl = buildVirtualPreviewRuntimeUrl({
+      projectId: input.projectId,
+      artifactBuildId: artifactId,
+      route: "/",
+    });
+
+    await input.writer
+      .from("projects")
+      .update({
+        preview_url: canonicalUrl,
+        metadata: {
+          ...meta,
+          preview_renderable: true,
+          preview_ready: true,
+          preview_honest: true,
+          continuing_generation_needed: false,
+        },
+      })
+      .eq("id", input.projectId);
+
+    return {
+      ok: true,
+      sanitizedFiles,
+      verified: verification.ok,
+      verification,
+      message: verification.ok
+        ? `Sanitized ${sanitizedFiles} stored artifact file(s); preview ready at ${canonicalUrl}`
+        : `Sanitized ${sanitizedFiles} file(s); ${verification.unsafeCount} leak(s) remain — clear cache and reload`,
+    };
   }
 
   const { diagnostics, jobId } = await runProjectPreviewBuild({
