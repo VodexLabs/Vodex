@@ -1,5 +1,6 @@
 import type { ZipImportFile } from "@/lib/import/zip-file-validator";
 import type { FrameworkDetection } from "@/lib/imports/framework-detector";
+import { rewriteForeignSupabaseStorageUrls } from "@/lib/preview/preview-external-asset-rewrite";
 
 export type LegacyAdapterInfo = {
   platform: "base44" | "lovable" | "bolt" | "v0" | null;
@@ -61,6 +62,16 @@ export function analyzeLegacyAdapter(
         window.localStorage.setItem("sb-preview-auth","1");
       }
     }catch(e){}
+    var PLACEHOLDER_IMG="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+    document.addEventListener("error",function(ev){
+      var t=ev.target;
+      if(!t||t.tagName!=="IMG")return;
+      var src=t.getAttribute("src")||"";
+      if(!/supabase\\.co\\/storage/i.test(src))return;
+      if(t.getAttribute("data-vodex-placeholder"))return;
+      t.setAttribute("data-vodex-placeholder","1");
+      t.src=PLACEHOLDER_IMG;
+    },true);
     var origFetch=window.fetch;
     function jsonResponse(body){
       return Promise.resolve(new Response(JSON.stringify(body),{status:200,headers:{"Content-Type":"application/json"}}));
@@ -90,6 +101,13 @@ export function analyzeLegacyAdapter(
       if(/base44\\.dev|\\/api\\/base44|functions\\.invoke/i.test(url)){
         warn("Mocked Base44 API: "+url);
         return jsonResponse({data:[],ok:true,user:mockUser,session:{user:mockUser}});
+      }
+      if(/supabase\\.co\\/storage\\/v1\\//i.test(url)){
+        if(/\\.(png|jpe?g|gif|webp|svg|ico)(\\?|$)/i.test(url)){
+          var placeholder="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+          return Promise.resolve(new Response(placeholder,{status:200,headers:{"Content-Type":"image/gif"}}));
+        }
+        return jsonResponse({data:null,ok:true});
       }
       if(/supabase\\.co\\/auth|\\/rest\\/v1\\//i.test(url)&&init&&init.method&&init.method!=="GET"){
         warn("Blocked mutating Supabase call in preview: "+url);
@@ -207,6 +225,7 @@ export function sanitizeBase44LegacyContent(content: string): string {
     "Promise.resolve({ auth: { getUser: () => ({ data: { user: { id: 'preview-user' } } }) } })",
   );
   out = out.replace(/createBase44Client\s*\([^)]*\)/g, "({ auth: { getUser: async () => ({ data: { user: { id: 'preview-user', email: 'preview@vodex.dev' } } }) } })");
+  out = rewriteForeignSupabaseStorageUrls(out);
   return out;
 }
 
@@ -217,7 +236,7 @@ export function sanitizeBase44ImportFiles(files: ZipImportFile[]): {
   const modifiedPaths: string[] = [];
   const next = files.map((f) => {
     if (!/\.(tsx?|jsx?|ts|js|html|env|json)$/i.test(f.path)) return f;
-    if (!/base44|@base44|BASE44_/i.test(f.content)) return f;
+    if (!/base44|@base44|BASE44_|supabase\.co\/storage/i.test(f.content)) return f;
     const content = sanitizeBase44LegacyContent(f.content);
     if (content === f.content) return f;
     modifiedPaths.push(f.path);

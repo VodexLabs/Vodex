@@ -5,6 +5,7 @@ import { buildInternalPreviewHtmlUrl } from "@/lib/preview/internal-preview-url"
 import { stripPreviewPlatformPathsFromText } from "@/lib/preview/strip-preview-platform-paths";
 import { sanitizePreviewDocument } from "@/lib/preview/preview-html-sanitizer";
 import { injectPreviewBootAudit } from "@/lib/preview/inject-preview-boot-audit";
+import { rewriteForeignSupabaseStorageUrls } from "@/lib/preview/preview-external-asset-rewrite";
 import { stripIframeBlockingMetaFromHtml } from "@/lib/preview/preview-iframe-embed-headers";
 import {
   buildPreviewRuntimeAssetUrl,
@@ -71,6 +72,7 @@ export function rewritePreviewArtifactHtml(
   });
 
   out = rewriteAbsoluteVodexLinksInHtml(out);
+  out = rewriteForeignSupabaseStorageUrls(out);
   /** Router shim first, prehydration last — last prepend wins first execution in <head>. */
   out = injectPreviewRouterShim(out, routePath);
   out = injectPreviewPrehydrationLocationRewrite(out, routePath);

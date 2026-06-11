@@ -164,6 +164,8 @@ import {
   isZipImportProject,
   readImportMeta,
 } from "@/lib/projects/imported-project-state";
+import { readLifecycleFromMetadata } from "@/lib/projects/project-lifecycle";
+import { resolveDisplayPublicUrl } from "@/lib/publish/publish-display-url";
 import { extractFencedCode, stripFencedCodeForChat, parseFencedFiles } from "@/lib/creation/extract-fenced-code";
 import { submitDebug, uiSubmitLog } from "@/lib/dev/submit-debug";
 import { useComposerClickCapture } from "@/lib/dev/composer-click-capture";
@@ -2937,6 +2939,16 @@ export function ImmersiveWorkspace({
 
   const previewReadyForUi = previewSrcRenderable || hardImportedPreviewReady;
 
+  const publishedPublicUrl = React.useMemo(
+    () => (effectiveProject ? resolveDisplayPublicUrl(effectiveProject) : null),
+    [effectiveProject],
+  );
+  const isPublishedApp = Boolean(
+    publishedPublicUrl &&
+      (readLifecycleFromMetadata(effectiveProject?.metadata).lifecycle_status === "published" ||
+        effectiveProject?.published_subdomain?.trim()),
+  );
+
   const appBuildTruth = React.useMemo(() => {
     const meta =
       effectiveProject?.metadata &&
@@ -3969,6 +3981,8 @@ export function ImmersiveWorkspace({
                 thinking={(buildActive || (isBusy && !previewReadyForUi)) && !hardImportedPreviewReady}
                 isBusy={isBusy}
                 isImportedZip={isImportedZipProject}
+                publishedPublicUrl={publishedPublicUrl}
+                isPublished={isPublishedApp}
                 editMode={mode === "edit"}
                 hasGenerated={
                   previewSrcRenderable ||

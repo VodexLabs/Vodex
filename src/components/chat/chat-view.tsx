@@ -549,9 +549,6 @@ export function ChatView() {
   const switchingConvRef = React.useRef(false);
   const streamConvRef = React.useRef<string | null>(null);
 
-  /** Per-conversation chat session — switching conv resets stream state and reloads from cache/API. */
-  const chatSessionKey = activeConvId ?? "new-chat";
-
   const histById = React.useMemo(() => new Map(history.map((m) => [m.id, m])), [history]);
 
   const discussModelRef = React.useRef(effectiveDiscussModel);
@@ -592,7 +589,7 @@ export function ChatView() {
   );
 
   const { messages, sendMessage, regenerate, status, error, setMessages, clearError } = useChat({
-    id: `dream-ai-chat-${chatSessionKey}`,
+    id: "dream-ai-chat-discuss",
     transport,
     onError: (err) => {
       pendingAttachmentIdsRef.current = [];
@@ -620,6 +617,11 @@ export function ChatView() {
   }, [isSending, preflightState, isBusy, status]);
   const lastMessage = messages[messages.length - 1];
   const showStreamLoader = isBusy && (!lastMessage || lastMessage.role === "user");
+
+  const readBrowserConversationId = React.useCallback((): string | null => {
+    if (typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search).get("c");
+  }, []);
 
   const updateChatUrl = React.useCallback((conversationId: string | null) => {
     const params = new URLSearchParams(
@@ -655,20 +657,21 @@ export function ChatView() {
   );
 
   React.useEffect(() => {
-    const fromUrl = searchParams?.get("c");
+    const fromUrl = searchParams?.get("c") ?? readBrowserConversationId();
     if (!userId) return;
     if (isBusy || submitInFlightRef.current) return;
     if (fromUrl && fromUrl !== activeConvId) {
       switchConversation(fromUrl);
       return;
     }
-    if (!fromUrl && activeConvId) {
+    const browserConvId = readBrowserConversationId();
+    if (!fromUrl && !browserConvId && activeConvId) {
       setActiveConvId(null);
       convRef.current = null;
       streamConvRef.current = null;
       if (!isBusy && !submitInFlightRef.current) setMessages([]);
     }
-  }, [searchParams, userId, activeConvId, isBusy, switchConversation, setMessages]);
+  }, [searchParams, userId, activeConvId, isBusy, switchConversation, setMessages, readBrowserConversationId]);
 
   const trimmedInput = input.trim();
   const submitDisabledReason = !trimmedInput ? "empty" : isBusy || isSending ? "busy" : null;
@@ -942,6 +945,7 @@ export function ChatView() {
       convRef.current = pre.conversationId;
       setActiveConvId(pre.conversationId);
       streamConvRef.current = pre.conversationId;
+      updateChatUrl(pre.conversationId);
       if (!hadConv) {
         const stub: Conversation = {
           id: pre.conversationId,
@@ -1016,6 +1020,7 @@ export function ChatView() {
     clearError,
     sendMessage,
     setConversations,
+    updateChatUrl,
   ]);
 
   const runSendRef = React.useRef(runSend);
@@ -1161,8 +1166,9 @@ export function ChatView() {
               <div
                 key={conv.id}
                 className={cn(
-                  "group flex items-start gap-1 px-2 py-1.5 transition hover:bg-surface",
-                  activeConvId === conv.id && "bg-surface",
+                  "group flex items-start gap-1 rounded-lg px-2 py-1.5 transition hover:bg-surface/80",
+                  activeConvId === conv.id &&
+                    "bg-background shadow-[var(--shadow-xs)] ring-1 ring-border/60",
                 )}
               >
                 {renamingId === conv.id ? (
@@ -1280,8 +1286,9 @@ export function ChatView() {
                       setMobileConvOpen(false);
                     }}
                     className={cn(
-                      "w-full px-3 py-2.5 text-left transition hover:bg-surface",
-                      activeConvId === conv.id && "bg-surface",
+                      "w-full rounded-lg px-3 py-2.5 text-left transition hover:bg-surface/80",
+                      activeConvId === conv.id &&
+                        "bg-background shadow-[var(--shadow-xs)] ring-1 ring-border/60",
                     )}
                   >
                     <p className="truncate text-[12.5px] font-medium text-foreground">{conv.title}</p>

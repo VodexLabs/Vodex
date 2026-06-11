@@ -58,6 +58,7 @@ import {
 } from "@/lib/preview/preview-boot-audit-types";
 import { PreviewBootFailurePanel } from "@/components/preview/preview-boot-failure-panel";
 import { postPreviewIframeDeepClean } from "@/lib/preview/post-preview-iframe-deep-clean";
+import { extractArtifactIdFromRuntimeUrl } from "@/lib/preview/preview-external-asset-rewrite";
 
 type Viewport = "desktop" | "tablet" | "mobile";
 
@@ -121,6 +122,9 @@ export interface PreviewPanelProps {
   onRefreshRuntimeStatus?: () => void;
   isBusy?: boolean;
   isImportedZip?: boolean;
+  /** Live published URL (subdomain) — external open only when set. */
+  publishedPublicUrl?: string | null;
+  isPublished?: boolean;
 }
 
 function isUnrenderableSrcDoc(doc: string | null | undefined): boolean {
@@ -170,6 +174,8 @@ export function PreviewPanel({
   onRefreshRuntimeStatus,
   isBusy = false,
   isImportedZip = false,
+  publishedPublicUrl = null,
+  isPublished = false,
 }: PreviewPanelProps) {
   const [viewport, setViewport] = React.useState<Viewport>("desktop");
   const [reloadKey, setReloadKey] = React.useState(0);
@@ -245,7 +251,10 @@ export function PreviewPanel({
   }, [resolvedPreviewUrl]);
 
   const runtimeArtifactId =
-    urlResolution?.artifactId ?? stableArtifactIdRef.current;
+    urlResolution?.artifactId ??
+    stableArtifactIdRef.current ??
+    extractArtifactIdFromRuntimeUrl(candidateMountSrc) ??
+    extractArtifactIdFromRuntimeUrl(url);
 
   if (candidateMountSrc) {
     const isPreviewPath =
@@ -279,8 +288,12 @@ export function PreviewPanel({
     }
   }, [lockedMountSrc, previewRoute, urlResolution?.route]);
 
-  if (urlResolution?.artifactId && !stableArtifactIdRef.current) {
-    stableArtifactIdRef.current = urlResolution.artifactId;
+  if (!stableArtifactIdRef.current) {
+    stableArtifactIdRef.current =
+      urlResolution?.artifactId ??
+      extractArtifactIdFromRuntimeUrl(lockedMountSrc) ??
+      extractArtifactIdFromRuntimeUrl(candidateMountSrc) ??
+      null;
   }
 
   const iframeReloadKey = React.useMemo(
@@ -699,14 +712,28 @@ export function PreviewPanel({
         ? "compiling"
         : "building"
       : "idle";
+  const livePublicUrl =
+    isPublished && publishedPublicUrl?.trim() ? publishedPublicUrl.trim() : null;
+
   const displayHost = hasInline
     ? "live preview (generated)"
-    : hasPreviewArtifact && url
+    : livePublicUrl
       ? (() => {
-          try { return new URL(url).host; }
-          catch { return url; }
+          try {
+            return new URL(livePublicUrl).host;
+          } catch {
+            return livePublicUrl;
+          }
         })()
-      : "preview";
+      : hasPreviewArtifact && url
+        ? (() => {
+            try {
+              return new URL(url).host;
+            } catch {
+              return url;
+            }
+          })()
+        : "preview";
 
   return (
     <div
@@ -802,17 +829,30 @@ export function PreviewPanel({
           </button>
         ) : null}
 
-        {/* Open in new tab */}
-        {hasPreviewArtifact && (resolvedPreviewUrl ?? url) && (
-          <a
-            href={resolvedPreviewUrl ?? url!}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Open in new tab"
-            className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition hover:bg-surface hover:text-foreground"
-          >
-            <ExternalLink className="size-3" strokeWidth={1.7} />
-          </a>
+        {/* Open live published app — blocked until first publish */}
+        {hasPreviewArtifact && (
+          livePublicUrl ? (
+            <a
+              href={livePublicUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open live app"
+              title="Open published app"
+              className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition hover:bg-surface hover:text-foreground"
+            >
+              <ExternalLink className="size-3" strokeWidth={1.7} />
+            </a>
+          ) : (
+            <button
+              type="button"
+              disabled
+              aria-label="Publish to open live app"
+              title="Publish your app first to open the live subdomain"
+              className="flex size-6 cursor-not-allowed items-center justify-center rounded-md text-muted-foreground/40"
+            >
+              <ExternalLink className="size-3" strokeWidth={1.7} />
+            </button>
+          )
         )}
       </div>
 
@@ -988,14 +1028,14 @@ export function PreviewPanel({
                 preview repair.
               </p>
               <div className="flex flex-wrap justify-center gap-2">
-                {url ? (
+                {livePublicUrl ? (
                   <a
-                    href={url}
+                    href={livePublicUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[12px] font-semibold text-white"
                   >
-                    Open preview in new tab
+                    Open live app
                     <ExternalLink className="size-3.5" strokeWidth={2} />
                   </a>
                 ) : null}

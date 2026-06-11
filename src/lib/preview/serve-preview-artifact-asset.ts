@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { downloadPreviewArtifactFile } from "@/lib/imports/preview-artifact-storage";
 import { sanitizePreviewBootstrapState } from "@/lib/preview/preview-bootstrap-sanitizer";
 import { scanBootstrapLeaksDetailed } from "@/lib/preview/preview-bootstrap-sanitizer";
+import { rewriteForeignSupabaseStorageUrls } from "@/lib/preview/preview-external-asset-rewrite";
 
 export const PREVIEW_TEXT_ASSET_EXT =
   /\.(html?|js|mjs|cjs|css|json|txt|rsc|map|webmanifest|xml)$/i;
@@ -28,9 +29,10 @@ export function sanitizeServedPreviewAssetText(
   projectId: string,
   virtualRoute = "/",
 ): string {
-  return sanitizePreviewBootstrapState(text, projectId, virtualRoute, {
+  const sanitized = sanitizePreviewBootstrapState(text, projectId, virtualRoute, {
     rewriteAssetUrls: false,
   });
+  return rewriteForeignSupabaseStorageUrls(sanitized);
 }
 
 export async function loadSanitizedPreviewArtifactAsset(input: {
