@@ -190,7 +190,7 @@ export function resolvePreviewIframeUrl(input: {
     normalizedPreviewUrl = buildVirtualPreviewRuntimeUrl({
       projectId: input.projectId,
       artifactBuildId: artifactId,
-      route,
+      route: "/",
       cacheBust: cacheBust ?? undefined,
     });
     source = "rebuilt_canonical";

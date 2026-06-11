@@ -48,7 +48,15 @@ export function buildPreviewBootAuditScript(): string {
     var _locReplace=location.replace.bind(location);
     location.replace=function(u){reportNav("replace",u);return _locReplace(u);};
   }catch(e){}
-  snapshotResources();
+  function signalReady(){
+    post("ready",{});
+    snapshotResources();
+  }
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",signalReady,{once:true});
+  }else{
+    signalReady();
+  }
   setTimeout(snapshotResources,1500);
   setTimeout(snapshotResources,5000);
   setTimeout(snapshotResources,12000);

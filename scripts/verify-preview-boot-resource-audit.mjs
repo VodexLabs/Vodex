@@ -16,6 +16,7 @@ const panel = fs.readFileSync(path.join(root, "src/components/create/workspace/p
 const types = fs.readFileSync(path.join(root, "src/lib/preview/preview-boot-audit-types.ts"), "utf8");
 
 assert(audit.includes("vodex-preview-boot-audit"), "audit postMessage type");
+assert(audit.includes('post("ready"'), "audit signals ready on DOMContentLoaded");
 assert(audit.includes("getEntriesByType"), "resource performance audit");
 assert(audit.includes("serviceWorker"), "SW audit");
 assert(audit.includes("pushState"), "navigation audit");

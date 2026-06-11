@@ -2831,13 +2831,13 @@ export function ImmersiveWorkspace({
     const generatedFallback = projectPreviewFrameUrl(
       effectiveProjectId,
       previewCacheBust,
-      previewRoute,
+      "/",
       previewArtifactId,
     );
     const routeSwitcherUrl = projectPreviewFrameUrl(
       effectiveProjectId,
       previewCacheBust,
-      previewRoute,
+      "/",
       previewArtifactId,
     );
     return resolvePreviewIframeUrl({
@@ -2864,7 +2864,8 @@ export function ImmersiveWorkspace({
     projectDataRefresh,
   ]);
 
-  const previewFrameUrl = previewUrlResolution?.normalizedPreviewUrl ?? null;
+  /** Stable mount URL only — route navigation uses postMessage, not URL churn. */
+  const previewFrameUrl = previewUrlResolution?.iframeSrc ?? previewUrlResolution?.normalizedPreviewUrl ?? null;
 
   const refreshPreviewRuntime = React.useCallback(() => {
     if (!effectiveProjectId) return;

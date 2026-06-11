@@ -186,6 +186,7 @@ export function PreviewPanel({
   const [iframeMountCount, setIframeMountCount] = React.useState(0);
   const [bootFailureDismissed, setBootFailureDismissed] = React.useState(false);
   const iframeRef = React.useRef<HTMLIFrameElement>(null);
+  const lastNavigatedRouteRef = React.useRef<string | null>(null);
 
   const effectivePreviewPath = urlResolution?.normalizedPreviewUrl ?? url;
 
@@ -240,20 +241,40 @@ export function PreviewPanel({
     }
   }, [resolvedPreviewUrl, previewRoute, urlResolution?.route]);
 
+  const iframeDomKey = React.useMemo(
+    () =>
+      previewIframeDomKey({
+        projectId: projectId ?? "unknown",
+        artifactId: urlResolution?.artifactId ?? null,
+        reloadKey,
+      }),
+    [projectId, urlResolution?.artifactId, reloadKey],
+  );
+
+  const iframeLoadKey = React.useMemo(
+    () => `${iframeDomKey}::${iframeMountSrc ?? "inline"}`,
+    [iframeDomKey, iframeMountSrc],
+  );
+
   // Route changes navigate inside the iframe — iframe src stays on preview root.
+
+  React.useEffect(() => {
+    lastNavigatedRouteRef.current = null;
+  }, [iframeLoadKey]);
 
   React.useEffect(() => {
     setIframeError(false);
     setIframeLoaded(false);
     setInnerRouteError(null);
     setLoadingExceeded60s(false);
-    if (url || srcDoc) {
+    if (iframeMountSrc || srcDoc) {
       setIframeLoading(true);
       setLoadingStartedAt(Date.now());
     } else {
+      setIframeLoading(false);
       setLoadingStartedAt(null);
     }
-  }, [url, srcDoc, reloadKey, urlResolution?.artifactId, iframeMountSrc]);
+  }, [iframeLoadKey, srcDoc]);
 
   React.useEffect(() => {
     const onMessage = (event: MessageEvent) => {
@@ -311,6 +332,11 @@ export function PreviewPanel({
       const frameWin = iframeRef.current?.contentWindow;
       if (frameWin && event.source !== frameWin) return;
       setBootAuditEvents((prev) => [...prev.slice(-80), event.data]);
+      if (event.data.phase === "ready" || event.data.phase === "snapshot") {
+        setIframeLoading(false);
+        setIframeLoaded(true);
+        setIframeError(false);
+      }
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
@@ -321,16 +347,6 @@ export function PreviewPanel({
     [bootAuditEvents, iframeMountCount],
   );
 
-  const iframeDomKey = React.useMemo(
-    () =>
-      previewIframeDomKey({
-        projectId: projectId ?? "unknown",
-        artifactId: urlResolution?.artifactId ?? null,
-        reloadKey,
-      }),
-    [projectId, urlResolution?.artifactId, reloadKey],
-  );
-
   React.useEffect(() => {
     setIframeMountCount((c) => c + 1);
   }, [iframeDomKey]);
@@ -339,8 +355,29 @@ export function PreviewPanel({
     if (!iframeLoaded || hasInline || !iframeMountSrc) return;
     const route = previewRoute ?? urlResolution?.route ?? "/";
     if (isPreviewAuthSystemRoute(route)) return;
+    if (lastNavigatedRouteRef.current === route) return;
+    lastNavigatedRouteRef.current = route;
     navigatePreviewIframe(iframeRef.current, route);
   }, [previewRoute, urlResolution?.route, iframeLoaded, hasInline, iframeMountSrc]);
+
+  React.useEffect(() => {
+    if (!iframeLoading || hasInline || !iframeMountSrc) return;
+    const checkReady = () => {
+      try {
+        const doc = iframeRef.current?.contentDocument;
+        if (doc?.readyState === "complete") {
+          setIframeLoading(false);
+          setIframeLoaded(true);
+          setIframeError(false);
+        }
+      } catch {
+        /* same-origin only */
+      }
+    };
+    checkReady();
+    const interval = window.setInterval(checkReady, 500);
+    return () => window.clearInterval(interval);
+  }, [iframeLoading, iframeMountSrc, hasInline]);
 
   const previewUrlInvalid = Boolean(
     (effectivePreviewPath || urlResolution?.selectedPreviewUrl) && !hasInline && !resolvedPreviewUrl,
@@ -355,14 +392,12 @@ export function PreviewPanel({
 
   React.useEffect(() => {
     if (!iframeLoading) return;
-    if (previewPreparing) return;
-    const timeoutMs = isArtifactUrl ? 120_000 : 45_000;
+    const timeoutMs = isArtifactUrl ? 30_000 : 18_000;
     const t = window.setTimeout(() => {
       setIframeLoading(false);
-      setIframeError(true);
     }, timeoutMs);
     return () => window.clearTimeout(t);
-  }, [iframeLoading, reloadKey, url, srcDoc, previewPreparing, isArtifactUrl]);
+  }, [iframeLoading, iframeLoadKey, isArtifactUrl]);
 
   const rawBlocked =
     Boolean(

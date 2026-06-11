@@ -10,7 +10,7 @@ export type PreviewBootResourceEntry = {
 
 export type PreviewBootAuditPayload = {
   type: "vodex-preview-boot-audit";
-  phase: "snapshot" | "asset-error" | "runtime-error" | "navigation" | "serviceworker";
+  phase: "snapshot" | "ready" | "asset-error" | "runtime-error" | "navigation" | "serviceworker";
   resources?: PreviewBootResourceEntry[];
   failedAssetUrl?: string;
   failedAssetTag?: string;
