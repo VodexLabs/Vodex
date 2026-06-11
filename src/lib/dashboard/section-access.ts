@@ -24,7 +24,8 @@ export type DashboardSectionId =
   | "logs"
   | "api"
   | "settings"
-  | "secrets";
+  | "secrets"
+  | "storage";
 
 type ProjectAccessInput = {
   status?: string | null;
@@ -53,6 +54,7 @@ const PRE_PUBLISH_UNLOCKED: DashboardSectionId[] = [
   "overview",
   "settings",
   "secrets",
+  "storage",
   "integrations",
   "mobile",
   "preview",

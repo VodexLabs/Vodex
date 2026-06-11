@@ -12,6 +12,7 @@ export const DASHBOARD_NAV: DashboardNavItem[] = [
   { id: "analytics", label: "Analytics" },
   { id: "users", label: "Users" },
   { id: "data", label: "Data" },
+  { id: "storage", label: "Storage" },
   { id: "domains", label: "Domains" },
   { id: "integrations", label: "Integrations" },
   { id: "secrets", label: "Secrets" },

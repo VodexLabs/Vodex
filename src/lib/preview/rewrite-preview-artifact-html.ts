@@ -5,6 +5,7 @@ import { buildInternalPreviewHtmlUrl } from "@/lib/preview/internal-preview-url"
 import { stripPreviewPlatformPathsFromText } from "@/lib/preview/strip-preview-platform-paths";
 import { sanitizePreviewDocument } from "@/lib/preview/preview-html-sanitizer";
 import { injectPreviewAuthCompat } from "@/lib/preview/inject-preview-auth-compat";
+import { injectPreviewProjectContext } from "@/lib/preview/inject-preview-project-context";
 import { injectPreviewBootAudit } from "@/lib/preview/inject-preview-boot-audit";
 import { rewriteForeignSupabaseStorageUrls } from "@/lib/preview/preview-external-asset-rewrite";
 import { stripIframeBlockingMetaFromHtml } from "@/lib/preview/preview-iframe-embed-headers";
@@ -82,6 +83,7 @@ export function rewritePreviewArtifactHtml(
   out = injectPreviewBootAudit(out);
   /** Auth compat last — prepends first in <head> so it runs before module bundles. */
   out = injectPreviewAuthCompat(out);
+  out = injectPreviewProjectContext(out, projectId);
   return sanitizePreviewDocument(out);
 }
 

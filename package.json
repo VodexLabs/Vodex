@@ -1772,6 +1772,7 @@
     "debug:zip-preview-artifact": "npx tsx scripts/debug-zip-preview-artifact.ts",
     "debug:preview-build-jobs-schema": "node scripts/verify-p1329-production.mjs rebuild-preview-artifact-schema",
     "rebuild:preview-artifact": "npx tsx scripts/rebuild-preview-artifact.ts",
+    "backfill:zip-imported-assets": "npx tsx scripts/backfill-zip-imported-assets.ts",
     "verify:rebuild-preview-artifact-schema": "node scripts/verify-p1329-production.mjs rebuild-preview-artifact-schema",
     "verify:preview-no-platform-path-leak": "node scripts/verify-p1329-production.mjs preview-no-platform-path-leak",
     "verify:preview-client-url-source": "node scripts/verify-preview-client-url.mjs preview-client-url-source",

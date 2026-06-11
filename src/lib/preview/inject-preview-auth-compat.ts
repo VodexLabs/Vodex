@@ -6,8 +6,18 @@ export function buildPreviewAuthCompatScript(): string {
   window.__VODEX_AUTH_COMPAT__=true;
   var warn=function(m){try{console.warn("[Vodex preview]",m);}catch(e){}};
   var mockUser={id:"preview-user",email:"preview@vodex.dev",user_metadata:{full_name:"Preview User"}};
+  function previewAuthed(){try{return localStorage.getItem("sb-preview-auth")==="1";}catch(e){return false;}}
+  function previewAuthUrl(){
+    try{
+      var m=window.location.pathname.match(/^(\\/preview-runtime\\/[^/]+\\/[^/]+)/);
+      if(m)return m[1]+"/login";
+    }catch(e){}
+    return null;
+  }
   function navLogin(){
-    warn("auth.redirectToLogin -> virtual /login");
+    warn("auth -> Vodex preview login");
+    var authUrl=previewAuthUrl();
+    if(authUrl){window.location.href=authUrl;return Promise.resolve({ok:true});}
     try{
       if(window.__VODEX_VIRTUAL_PATH__!==undefined){
         window.__VODEX_VIRTUAL_PATH__="/login";
@@ -19,17 +29,27 @@ export function buildPreviewAuthCompatScript(): string {
     }catch(e){}
     return Promise.resolve({ok:true});
   }
+  function navSignup(){
+    var authUrl=previewAuthUrl();
+    if(authUrl){window.location.href=authUrl.replace(/\\/login$/,"/signup");return Promise.resolve({ok:true});}
+    return navLogin();
+  }
   function enrichAuth(auth){
     if(!auth||typeof auth!=="object")return auth;
-    var names=["redirectToLogin","redirectToSignup","login","signIn","signUp","requireAuth"];
+    var names=["redirectToLogin","login","signIn","requireAuth"];
     for(var i=0;i<names.length;i++){
       if(typeof auth[names[i]]!=="function")auth[names[i]]=navLogin;
     }
-    if(typeof auth.me!=="function")auth.me=function(){return Promise.resolve(mockUser);};
-    if(typeof auth.logout!=="function")auth.logout=function(){return Promise.resolve();};
-    if(typeof auth.getUser!=="function")auth.getUser=function(){return Promise.resolve({data:{user:mockUser},error:null});};
-    if(typeof auth.getSession!=="function")auth.getSession=function(){return Promise.resolve({data:{session:{user:mockUser}},error:null});};
-    if(typeof auth.onAuthStateChange!=="function")auth.onAuthStateChange=function(cb){try{if(cb)cb("SIGNED_IN",{user:mockUser});}catch(e){}return {data:{subscription:{unsubscribe:function(){}}}};};
+    if(typeof auth.redirectToSignup!=="function")auth.redirectToSignup=navSignup;
+    if(typeof auth.signUp!=="function")auth.signUp=navSignup;
+    if(typeof auth.signInWithOAuth!=="function")auth.signInWithOAuth=function(){return navLogin();};
+    if(typeof auth.signInWithPopup!=="function")auth.signInWithPopup=function(){return navLogin();};
+    if(typeof auth.signInWithOtp!=="function")auth.signInWithOtp=function(){return Promise.resolve({data:{user:mockUser,session:{user:mockUser}},error:null});};
+    if(typeof auth.me!=="function")auth.me=function(){return Promise.resolve(previewAuthed()?mockUser:null);};
+    if(typeof auth.logout!=="function")auth.logout=function(){try{localStorage.removeItem("sb-preview-auth");}catch(e){}return Promise.resolve();};
+    if(typeof auth.getUser!=="function")auth.getUser=function(){return Promise.resolve({data:{user:previewAuthed()?mockUser:null},error:null});};
+    if(typeof auth.getSession!=="function")auth.getSession=function(){return Promise.resolve({data:{session:previewAuthed()?{user:mockUser}:null},error:null});};
+    if(typeof auth.onAuthStateChange!=="function")auth.onAuthStateChange=function(cb){try{if(cb)cb(previewAuthed()?"SIGNED_IN":"SIGNED_OUT",previewAuthed()?{user:mockUser}:null);}catch(e){}return {data:{subscription:{unsubscribe:function(){}}}};};
     if(typeof auth.signOut!=="function")auth.signOut=function(){return Promise.resolve({error:null});};
   }
   window.__vodexEnrichAuth=enrichAuth;

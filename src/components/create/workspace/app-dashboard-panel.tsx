@@ -77,6 +77,7 @@ import { PublishVisibilitySettings } from "@/components/settings/publish-visibil
 import { DashboardSectionNav, type DashboardPanelSection } from "@/components/dashboard/dashboard-section-nav";
 import { OverviewDashboardPanel } from "@/components/dashboard/overview-dashboard-panel";
 import { CodeDashboardPanel } from "@/components/dashboard/code-dashboard-panel";
+import { StorageDashboardPanel } from "@/components/dashboard/storage-dashboard-panel";
 import { AppSettingsDashboardPanel } from "@/components/dashboard/app-settings-dashboard-panel";
 import { AppTemplateSettingsPanel } from "@/components/templates/app-template-settings-panel";
 import {
@@ -721,6 +722,16 @@ export function AppDashboardPanel({
         return (
           <SectionCard title="App data">
             <DataDashboardPanel projectId={projectId} />
+          </SectionCard>
+        );
+      case "storage":
+        return (
+          <SectionCard title="Storage & assets">
+            <p className="mb-4 text-[12px] text-muted-foreground">
+              Images, fonts, animations, and files imported from ZIP archives or uploaded manually.
+              Preview uses these assets for Ripo animations and media.
+            </p>
+            <StorageDashboardPanel projectId={projectId} />
           </SectionCard>
         );
       case "analytics":

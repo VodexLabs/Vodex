@@ -57,8 +57,17 @@ export function analyzeLegacyAdapter(
   if(typeof window!=="undefined"){
     window.__VODEX_PREVIEW__=true;
     window.__BASE44_PREVIEW_MOCK__=true;
+    function previewAuthUrl(){
+      try{
+        var m=window.location.pathname.match(/^(\\/preview-runtime\\/[^/]+\\/[^/]+)/);
+        if(m)return m[1]+"/login";
+      }catch(e){}
+      return null;
+    }
     function vodexNavigateLogin(){
-      warn("auth.redirectToLogin -> virtual /login");
+      warn("auth -> Vodex preview login");
+      var authUrl=previewAuthUrl();
+      if(authUrl){window.location.href=authUrl;return Promise.resolve({ok:true});}
       try{
         if(window.__VODEX_VIRTUAL_PATH__!==undefined){
           window.__VODEX_VIRTUAL_PATH__="/login";
@@ -67,6 +76,9 @@ export function analyzeLegacyAdapter(
         }else{window.postMessage({type:"vodex:navigate",path:"/login"},"*");}
       }catch(e){}
       return Promise.resolve({ok:true});
+    }
+    function vodexPreviewAuthed(){
+      try{return localStorage.getItem("sb-preview-auth")==="1";}catch(e){return false;}
     }
     function vodexQueryChain(){
         var q={};
@@ -86,17 +98,19 @@ export function analyzeLegacyAdapter(
     function vodexMockSupabaseClient(){
       return {
         auth:{
-          getSession:function(){return Promise.resolve({data:{session:{user:mockUser}},error:null});},
-          getUser:function(){return Promise.resolve({data:{user:mockUser},error:null});},
-          onAuthStateChange:function(cb){try{if(cb)cb("SIGNED_IN",{user:mockUser});}catch(e){}return {data:{subscription:{unsubscribe:function(){}}}};},
-          signInWithPassword:function(){return Promise.resolve({data:{user:mockUser,session:{user:mockUser}},error:null});},
-          signOut:function(){return Promise.resolve({error:null});},
+          getSession:function(){return Promise.resolve({data:{session:vodexPreviewAuthed()?{user:mockUser}:null},error:null});},
+          getUser:function(){return Promise.resolve({data:{user:vodexPreviewAuthed()?mockUser:null},error:null});},
+          onAuthStateChange:function(cb){try{if(cb)cb(vodexPreviewAuthed()?"SIGNED_IN":"SIGNED_OUT",vodexPreviewAuthed()?{user:mockUser}:null);}catch(e){}return {data:{subscription:{unsubscribe:function(){}}}};},
+          signInWithPassword:function(){try{localStorage.setItem("sb-preview-auth","1");}catch(e){}return Promise.resolve({data:{user:mockUser,session:{user:mockUser}},error:null});},
+          signInWithOAuth:function(){return vodexNavigateLogin();},
+          signInWithPopup:function(){return vodexNavigateLogin();},
+          signOut:function(){try{localStorage.removeItem("sb-preview-auth");localStorage.removeItem("vodex-preview-session");}catch(e){}return Promise.resolve({error:null});},
           redirectToLogin:vodexNavigateLogin,
           redirectToSignup:vodexNavigateLogin,
           login:vodexNavigateLogin,
-          requireAuth:function(){return Promise.resolve(mockUser);},
-          me:function(){return Promise.resolve(mockUser);},
-          logout:function(){return Promise.resolve();}
+          requireAuth:function(){if(!vodexPreviewAuthed())return vodexNavigateLogin();return Promise.resolve(mockUser);},
+          me:function(){return Promise.resolve(vodexPreviewAuthed()?mockUser:null);},
+          logout:function(){try{localStorage.removeItem("sb-preview-auth");}catch(e){}return Promise.resolve();}
         },
         from:function(){return vodexQueryChain();},
         storage:{from:function(){return {
@@ -118,11 +132,6 @@ export function analyzeLegacyAdapter(
     if(typeof window.createBase44Client!=="function"){
       window.createBase44Client=vodexMockBase44Client;
     }
-    try{
-      if(!window.localStorage.getItem("sb-preview-auth")){
-        window.localStorage.setItem("sb-preview-auth","1");
-      }
-    }catch(e){}
     var PLACEHOLDER_IMG="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
     document.addEventListener("error",function(ev){
       var t=ev.target;
@@ -150,7 +159,19 @@ export function analyzeLegacyAdapter(
       if(path==="/me"||path.endsWith("/me"))return jsonResponse({data:mockUser,user:mockUser,session:{user:mockUser}});
       if(/\\/batch(\\?|$|\\/)/i.test(path))return jsonResponse({data:[],results:[],ok:true});
       if(path==="/null"||path.endsWith("/null"))return jsonResponse({data:null,ok:true});
-      if(/getRipoAssetPublic|RipoAsset|AssetPublic/i.test(path))return jsonResponse({data:[],items:[],ok:true});
+      if(/getRipoAssetPublic|RipoAsset|AssetPublic/i.test(path)){
+        var pid=window.__VODEX_PROJECT_ID__;
+        if(pid){
+          var q=String(url).split("?")[1]||"";
+          var nameMatch=q.match(/(?:name|asset|id|key)=([^&]+)/i)||path.match(/([^/]+)$/);
+          var assetName=nameMatch?decodeURIComponent(nameMatch[1]):"";
+          return origFetch("/api/projects/"+pid+"/imported-assets/lookup?name="+encodeURIComponent(assetName))
+            .then(function(r){return r.ok?r.json():{data:null};})
+            .then(function(j){return jsonResponse(j&&j.data?j:{data:j,items:j?[j]:[],ok:true,url:j&&j.public_url});})
+            .catch(function(){return jsonResponse({data:[],items:[],ok:true});});
+        }
+        return jsonResponse({data:[],items:[],ok:true});
+      }
       if(/\\/auth\\/|\\/login|\\/signup/i.test(path)&&(!init||!init.method||init.method==="GET"))return jsonResponse({data:mockUser,user:mockUser});
       if(/\\/entities\\/|\\/records\\/|\\/invoke/i.test(path))return jsonResponse({data:[],ok:true});
       return null;
@@ -209,26 +230,20 @@ export function analyzeLegacyAdapter(
       MockXHR.prototype=OrigXHR.prototype;
       window.XMLHttpRequest=MockXHR;
     }catch(e){}
-    var blockBase44Nav=function(u){
+    var blockExternalAuthNav=function(u){
       if(typeof u!=="string")return false;
-      if(/base44\\.dev|base44\\.app/i.test(u)){
-        warn("Blocked Base44 navigation: "+u);
-        try{
-          if(window.__VODEX_VIRTUAL_PATH__!==undefined){
-            window.__VODEX_VIRTUAL_PATH__="/login";
-            history.replaceState({__vodex:"/login"},"","/");
-            window.dispatchEvent(new PopStateEvent("popstate"));
-          }else{window.postMessage({type:"vodex:navigate",path:"/login"},"*");}
-        }catch(e){}
+      if(/base44\\.dev|base44\\.app|accounts\\.google\\.com|google\\.com\\/o\\/oauth|oauth\\.google|appleid\\.apple\\.com/i.test(u)){
+        warn("Blocked external auth navigation: "+u);
+        vodexNavigateLogin();
         return true;
       }
       return false;
     };
     try{
       var _assign=location.assign.bind(location);
-      location.assign=function(u){if(blockBase44Nav(String(u)))return;return _assign(u);};
+      location.assign=function(u){if(blockExternalAuthNav(String(u)))return;return _assign(u);};
       var _replace=location.replace.bind(location);
-      location.replace=function(u){if(blockBase44Nav(String(u)))return;return _replace(u);};
+      location.replace=function(u){if(blockExternalAuthNav(String(u)))return;return _replace(u);};
     }catch(e){}
   }
   try{

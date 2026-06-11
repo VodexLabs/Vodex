@@ -43,6 +43,7 @@ import {
   buildImportedRouteManifest,
   mergeRouteManifestIntoMetadata,
 } from "@/lib/preview/imported-app-route-manifest";
+import { importZipBinaryAssets } from "@/lib/import/import-zip-binary-assets";
 
 export const runtime = "nodejs";
 
@@ -342,6 +343,13 @@ export async function POST(req: Request) {
     });
   }
 
+  const binaryImport = await importZipBinaryAssets({
+    admin,
+    zipBuffer: buf,
+    userId: user.id,
+    projectId,
+  });
+
   const { error: importedErr } = await supabase.from("imported_projects").insert({
     user_id: user.id,
     project_id: projectId,
@@ -354,6 +362,8 @@ export async function POST(req: Request) {
       quality_score: validation.qualityScore,
       routes: validation.routes,
       scan_stats: extracted.stats,
+      imported_binary_assets: binaryImport.imported,
+      skipped_binary_assets: binaryImport.skipped,
     } as Json,
   });
   if (importedErr) {
