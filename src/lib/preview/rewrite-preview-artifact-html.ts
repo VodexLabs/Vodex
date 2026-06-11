@@ -7,7 +7,6 @@ import { sanitizePreviewDocument } from "@/lib/preview/preview-html-sanitizer";
 import { injectPreviewBootAudit } from "@/lib/preview/inject-preview-boot-audit";
 import { stripIframeBlockingMetaFromHtml } from "@/lib/preview/preview-iframe-embed-headers";
 import {
-  buildPreviewRuntimeAssetBase,
   buildPreviewRuntimeAssetUrl,
 } from "@/lib/preview/preview-runtime-asset-url";
 
@@ -51,23 +50,9 @@ export function rewritePreviewArtifactHtml(
       version: assetVersion,
     });
 
-  const baseHref = buildPreviewRuntimeAssetBase({
-    projectId,
-    artifactBuildId,
-  });
-
   let out = stripPreviewPlatformPathsFromText(html, projectId, { virtualRoute: routePath });
 
-  if (!/<base\s/i.test(out)) {
-    const baseTag = `<base href="${baseHref}" />`;
-    if (/<head[^>]*>/i.test(out)) {
-      out = out.replace(/<head[^>]*>/i, (m) => `${m}${baseTag}`);
-    } else {
-      out = baseTag + out;
-    }
-  } else {
-    out = out.replace(/<base\s[^>]*href=["'][^"']*["'][^>]*\/?>/gi, `<base href="${baseHref}" />`);
-  }
+  out = out.replace(/<base\s[^>]*href=["'][^"']*["'][^>]*\/?>/gi, "");
 
   /** Rewrite legacy preview-assets API URLs to canonical preview-runtime asset paths. */
   out = out.replace(
@@ -86,8 +71,9 @@ export function rewritePreviewArtifactHtml(
   });
 
   out = rewriteAbsoluteVodexLinksInHtml(out);
-  out = injectPreviewPrehydrationLocationRewrite(out, routePath);
+  /** Router shim first, prehydration last — last prepend wins first execution in <head>. */
   out = injectPreviewRouterShim(out, routePath);
+  out = injectPreviewPrehydrationLocationRewrite(out, routePath);
   out = injectPreviewInnerWatchdog(out);
   out = stripIframeBlockingMetaFromHtml(out);
   out = injectPreviewBootAudit(out);

@@ -1,7 +1,6 @@
 /**
  * FIRST executable script in served preview HTML — patches location before Next hydration.
  * Must not contain literal preview-html poison strings (built at runtime).
- * P1.3.38 — activates for preview-runtime virtual paths, not only legacy preview-html proxy.
  */
 export function buildPrehydrationLocationRewriteScript(virtualRoute: string): string {
   let route = virtualRoute.startsWith("/") ? virtualRoute : `/${virtualRoute}`;
@@ -9,8 +8,10 @@ export function buildPrehydrationLocationRewriteScript(virtualRoute: string): st
 
   return `(function(){
   var PH=('preview'+'-'+'html');
+  var AP=('api/'+'projects/');
   var AAP=('/'+'api/'+'projects/');
   var RT=('/'+'preview-runtime/');
+  var RTP=('preview'+'-'+'runtime');
   var params=new URLSearchParams(location.search);
   var route=${JSON.stringify(route)};
   var override=params.get('route');
@@ -32,13 +33,63 @@ export function buildPrehydrationLocationRewriteScript(virtualRoute: string): st
   var LOCK=location.pathname+location.search;
   function normPath(p){if(!p)return'/';p=String(p).split('?')[0].split('#')[0];if(!p.startsWith('/'))p='/'+p;return p;}
   function isPlatform(p){
+    if(!p||typeof p!=='string')return false;
     var s=normPath(p).toLowerCase();
     if(s.indexOf(AAP)>=0||s.indexOf(PH)>=0)return true;
     if(s.indexOf(RT)===0&&s.indexOf('/assets/')<0)return true;
-    var RTP=('preview'+'-'+'runtime/');
     if(s.indexOf(RTP)>=0&&s.indexOf('/assets/')<0)return true;
     return false;
   }
+  function poisonedText(s){
+    if(!s||typeof s!=='string')return false;
+    if(s.indexOf(RTP)>=0&&s.indexOf('/assets/')<0)return true;
+    if(s.indexOf(PH)>=0||s.indexOf(AP)>=0)return true;
+    return false;
+  }
+  function fixBootstrapValue(v){
+    if(typeof v==='string')return isPlatform(v)?route:v;
+    if(Array.isArray(v))return v.map(fixBootstrapValue);
+    if(v&&typeof v==='object'){
+      var o={};
+      for(var k in v)o[k]=fixBootstrapValue(v[k]);
+      return o;
+    }
+    return v;
+  }
+  function patchNextDataEl(){
+    try{
+      var el=document.getElementById('__NEXT_DATA__');
+      if(!el||!el.textContent)return;
+      var nd=JSON.parse(el.textContent);
+      nd=fixBootstrapValue(nd);
+      el.textContent=JSON.stringify(nd);
+    }catch(e){}
+  }
+  function hookNextF(arr){
+    if(!arr||typeof arr.push!=='function'||arr.__vodexHooked)return arr;
+    var _push=arr.push.bind(arr);
+    arr.push=function(item){
+      try{
+        var s=JSON.stringify(item);
+        if(poisonedText(s)){
+          try{item=JSON.parse(s.replace(new RegExp(RTP+'\\\\/[a-f0-9-]{36}\\\\/[a-f0-9-]{36}','gi'),'/'));}catch(e){return arr.length;}
+        }
+      }catch(e){}
+      return _push(item);
+    };
+    arr.__vodexHooked=true;
+    return arr;
+  }
+  try{
+    if(!window.__next_f)window.__next_f=[];
+    hookNextF(window.__next_f);
+    var _nf=window.__next_f;
+    Object.defineProperty(window,'__next_f',{
+      configurable:true,
+      get:function(){return _nf;},
+      set:function(v){_nf=hookNextF(v||[]);window.__next_f=_nf;}
+    });
+  }catch(e){}
   try{
     var d=Object.getOwnPropertyDescriptor(Location.prototype,'pathname');
     if(d&&d.get){
@@ -54,21 +105,19 @@ export function buildPrehydrationLocationRewriteScript(virtualRoute: string): st
       Object.defineProperty(Location.prototype,'href',{get:function(){
         if(window.__VODEX_PREVIEW_ACTIVE__){
           var p=window.__VODEX_VIRTUAL_PATH__||'/';
+          if(isPlatform(p))p='/';
           return location.origin+p+(location.search||'');
         }
         return oh.call(this);
       },configurable:true});
     }
   }catch(e){}
-  try{
-    var el=document.getElementById('__NEXT_DATA__');
-    if(el&&el.textContent){
-      var nd=JSON.parse(el.textContent);
-      function fix(v){return typeof v==='string'&&isPlatform(v)?route:v;}
-      nd.page=fix(nd.page);nd.asPath=fix(nd.asPath);nd.pathname=fix(nd.pathname);nd.url=fix(nd.url);
-      el.textContent=JSON.stringify(nd);
-    }
-  }catch(e){}
+  patchNextDataEl();
+  if(typeof MutationObserver!=='undefined'&&document.documentElement){
+    try{
+      new MutationObserver(function(){patchNextDataEl();}).observe(document.documentElement,{childList:true,subtree:true});
+    }catch(e){}
+  }
   try{history.replaceState({__vodex:route},'',LOCK);}catch(e){}
   try{
     window.addEventListener('message',function(e){

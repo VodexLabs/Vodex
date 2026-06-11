@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   PREVIEW_ARTIFACTS_BUCKET,
   downloadPreviewArtifactFile,
-} from "@/lib/imports/preview-artifact-writer";
+} from "@/lib/imports/preview-artifact-storage";
 import {
   assertPreviewBootstrapClean,
   countHydrationPathLeaks,
