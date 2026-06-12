@@ -6,6 +6,8 @@ import { injectPreviewShims, analyzeLegacyAdapter } from "@/lib/imports/base44-l
 import { detectImportedFramework } from "@/lib/imports/framework-detector";
 import { rewritePreviewArtifactHtml } from "@/lib/preview/rewrite-preview-artifact-html";
 import { assertPreviewBootstrapClean } from "@/lib/preview/preview-bootstrap-sanitizer";
+import { stripPreviewPlatformPathsFromText } from "@/lib/preview/strip-preview-platform-paths";
+import { sanitizePreviewDocument } from "@/lib/preview/preview-html-sanitizer";
 import { buildPreviewBootstrapLeakPanel } from "@/lib/preview/preview-bootstrap-leak-panel";
 import { mergePreviewIframeEmbedHeaders } from "@/lib/preview/preview-iframe-embed-headers";
 import { resolvePreviewAuthPageHtml, previewAuthHtmlHeaders } from "@/lib/preview/preview-auth-pages";
@@ -13,6 +15,8 @@ import {
   defaultPreviewShimHints,
   loadPreviewShimHints,
 } from "@/lib/preview/load-preview-shim-hints";
+import { routesFromProjectMetadata } from "@/lib/preview/route-discovery";
+import { resolvePreviewAppHomeRoute } from "@/lib/preview/preview-route-roles";
 
 export const dynamic = "force-dynamic";
 
@@ -94,10 +98,17 @@ export async function GET(
   const shimHints = await loadPreviewShimHints(supabase, projectId);
   const fw = detectImportedFramework(shimHints.length ? shimHints : defaultPreviewShimHints());
   const legacy = analyzeLegacyAdapter(shimHints.length ? shimHints : defaultPreviewShimHints(), fw);
+  const routePaths = routesFromProjectMetadata(meta);
+  const appHomeRoute = resolvePreviewAppHomeRoute(routePaths.length ? routePaths : ["/", "/home"]);
   let html = injectPreviewShims(file.data.toString("utf8"), legacy);
-  html = rewritePreviewArtifactHtml(html, projectId, artifactId, effectiveRoute);
+  html = rewritePreviewArtifactHtml(html, projectId, artifactId, effectiveRoute, undefined, appHomeRoute);
 
-  const bootstrapAssert = assertPreviewBootstrapClean(html, projectId);
+  let bootstrapAssert = assertPreviewBootstrapClean(html, projectId);
+  if (!bootstrapAssert.ok) {
+    html = stripPreviewPlatformPathsFromText(html, projectId, { virtualRoute: effectiveRoute });
+    html = sanitizePreviewDocument(html);
+    bootstrapAssert = assertPreviewBootstrapClean(html, projectId);
+  }
   if (!bootstrapAssert.ok) {
     const leakPanel = buildPreviewBootstrapLeakPanel({
       projectId,

@@ -5,6 +5,7 @@ import {
   PREVIEW_AUTH_NAV_FN,
   PREVIEW_AUTH_URL_RESOLVER_SNIPPET,
 } from "@/lib/preview/preview-runtime-auth-url-script";
+import { PREVIEW_WELCOME_ROUTE_SNIPPET } from "@/lib/preview/preview-welcome-route-script";
 
 export type LegacyAdapterInfo = {
   platform: "base44" | "lovable" | "bolt" | "v0" | null;
@@ -62,12 +63,13 @@ export function analyzeLegacyAdapter(
     window.__VODEX_PREVIEW__=true;
     window.__BASE44_PREVIEW_MOCK__=true;
     ${PREVIEW_AUTH_URL_RESOLVER_SNIPPET}
+    ${PREVIEW_WELCOME_ROUTE_SNIPPET}
     function vodexNavigateLogin(){
       __vodexGoLogin("base44 shim -> Vodex preview login");
       return Promise.resolve({ok:true});
     }
     function vodexPreviewAuthed(){
-      try{return localStorage.getItem("sb-preview-auth")==="1";}catch(e){return false;}
+      return __vodexPreviewAuthed();
     }
     function vodexQueryChain(){
         var q={};
@@ -97,7 +99,11 @@ export function analyzeLegacyAdapter(
           redirectToLogin:vodexNavigateLogin,
           redirectToSignup:vodexNavigateLogin,
           login:vodexNavigateLogin,
-          requireAuth:function(){if(!vodexPreviewAuthed())return vodexNavigateLogin();return Promise.resolve(mockUser);},
+          requireAuth:function(){
+            if(vodexPreviewAuthed())return Promise.resolve(mockUser);
+            if(__vodexIsWelcomeRoute())return Promise.reject(new Error("Authentication required"));
+            return vodexNavigateLogin();
+          },
           me:function(){return Promise.resolve(vodexPreviewAuthed()?mockUser:null);},
           logout:function(){try{localStorage.removeItem("sb-preview-auth");}catch(e){}return Promise.resolve();}
         },

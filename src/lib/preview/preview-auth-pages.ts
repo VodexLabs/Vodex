@@ -325,8 +325,6 @@ export async function resolvePreviewAuthPageHtml(
     oauth_mode: "vodex_managed",
   }) as AppAuthSettings;
 
-  if (!authEnabled(settings)) return null;
-
   const displayName = appName?.trim() || projectName?.trim() || "App";
   const resolvedIcon = resolvePreviewAppIconUrl({
     projectId,
@@ -336,6 +334,26 @@ export async function resolvePreviewAuthPageHtml(
 
   const routePaths = routesFromProjectMetadata(projectMeta);
   const postAuthRoute = resolvePreviewPostAuthRoute(routePaths);
+
+  if (!authEnabled(settings)) {
+    return buildPreviewAuthPageHtml({
+      appName: displayName,
+      iconUrl: resolvedIcon,
+      route,
+      settings: {
+        email_password_enabled: true,
+        google_enabled: false,
+        github_enabled: false,
+        apple_enabled: false,
+        microsoft_enabled: false,
+        facebook_enabled: false,
+        oauth_mode: "vodex_managed",
+      },
+      projectId,
+      artifactId,
+      postAuthRoute,
+    });
+  }
 
   return buildPreviewAuthPageHtml({
     appName: displayName,

@@ -6,14 +6,16 @@ import {
   PREVIEW_AUTH_URL_RESOLVER_SNIPPET,
   buildPreviewRuntimeAuthUrlBootstrapScript,
 } from "@/lib/preview/preview-runtime-auth-url-script";
+import { PREVIEW_WELCOME_ROUTE_SNIPPET } from "@/lib/preview/preview-welcome-route-script";
 
 export function buildPreviewAuthCompatScript(): string {
   return `(function(){
   if(window.__VODEX_AUTH_COMPAT__)return;
   window.__VODEX_AUTH_COMPAT__=true;
   ${PREVIEW_AUTH_URL_RESOLVER_SNIPPET}
+  ${PREVIEW_WELCOME_ROUTE_SNIPPET}
   var mockUser={id:"preview-user",email:"preview@vodex.dev",user_metadata:{full_name:"Preview User"}};
-  function previewAuthed(){try{return localStorage.getItem("sb-preview-auth")==="1";}catch(e){return false;}}
+  function previewAuthed(){return __vodexPreviewAuthed();}
   function navLogin(){
     if(previewAuthed()){
       try{
@@ -39,9 +41,15 @@ export function buildPreviewAuthCompatScript(): string {
     if(!auth||typeof auth!=="object")return auth;
     var names=["redirectToLogin","login","signIn","requireAuth"];
     for(var i=0;i<names.length;i++){
-      if(typeof auth[names[i]]!=="function"){
-        auth[names[i]]=function(){return previewAuthed()?Promise.resolve(mockUser):navLogin();};
-      }
+      (function(name){
+        if(typeof auth[name]!=="function"){
+          auth[name]=function(){
+            if(previewAuthed())return Promise.resolve(mockUser);
+            if(name==="requireAuth"&&__vodexIsWelcomeRoute())return Promise.reject(new Error("Authentication required"));
+            return navLogin();
+          };
+        }
+      })(names[i]);
     }
     if(typeof auth.redirectToSignup!=="function")auth.redirectToSignup=navSignup;
     if(typeof auth.signUp!=="function")auth.signUp=navSignup;

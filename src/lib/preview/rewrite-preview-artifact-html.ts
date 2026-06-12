@@ -46,6 +46,7 @@ export function rewritePreviewArtifactHtml(
   artifactBuildId: string,
   routePath = "/",
   assetVersion?: string | number | null,
+  appHomeRoute?: string | null,
 ): string {
   const assetUrl = (rel: string) =>
     buildPreviewRuntimeAssetUrl({
@@ -89,11 +90,11 @@ export function rewritePreviewArtifactHtml(
   out = injectPreviewInnerWatchdog(out);
   out = stripIframeBlockingMetaFromHtml(out);
   out = injectPreviewBootAudit(out);
-  out = injectPreviewPostAuthEnforcer(out);
+  out = injectPreviewPostAuthEnforcer(out, appHomeRoute ?? "/home");
   /** Auth compat last — prepends first in <head> so it runs before module bundles. */
   out = injectPreviewAuthCompat(out);
   /** Last prepend = first execution — runtime base must exist before auth shims. */
-  out = injectPreviewProjectContext(out, projectId, artifactBuildId);
+  out = injectPreviewProjectContext(out, projectId, artifactBuildId, appHomeRoute ?? undefined);
   return sanitizePreviewDocument(out);
 }
 

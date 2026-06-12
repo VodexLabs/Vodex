@@ -19,8 +19,12 @@ export function buildPrehydrationLocationRewriteScript(virtualRoute: string): st
   if(override){if(!override.startsWith('/'))override='/'+override;route=override;routeLocked=true;}
   if(!routeLocked){
     try{
-      var stored=sessionStorage.getItem('vodex-preview-post-auth-route');
-      if(stored){if(!stored.startsWith('/'))stored='/'+stored;route=stored;routeLocked=true;}
+      var authed=false;
+      try{authed=localStorage.getItem("sb-preview-auth")==="1";}catch(e){}
+      if(authed){
+        var stored=sessionStorage.getItem('vodex-preview-post-auth-route');
+        if(stored){if(!stored.startsWith('/'))stored='/'+stored;route=stored;routeLocked=true;}
+      }
     }catch(e){}
   }
   var path=location.pathname||'';
@@ -156,12 +160,15 @@ export function buildPrehydrationLocationRewriteScript(virtualRoute: string): st
           caches.keys().then(function(keys){keys.forEach(function(k){caches.delete(k);});});
         }
         try{
+          localStorage.removeItem("sb-preview-auth");
+          localStorage.removeItem("vodex-preview-session");
           for(var i=localStorage.length-1;i>=0;i--){
             var k=localStorage.key(i);
             if(k&&(k.indexOf('preview')>=0||k.indexOf('next')>=0||k.indexOf('workbox')>=0))localStorage.removeItem(k);
           }
         }catch(e){}
         try{
+          sessionStorage.removeItem("vodex-preview-post-auth-route");
           for(var j=sessionStorage.length-1;j>=0;j--){
             var sk=sessionStorage.key(j);
             if(sk&&(sk.indexOf('preview')>=0||sk.indexOf('next')>=0))sessionStorage.removeItem(sk);

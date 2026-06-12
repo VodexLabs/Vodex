@@ -25,8 +25,12 @@ export function buildPreviewVirtualHistoryScript(initialRoute: string): string {
   if(routeOverride){if(!routeOverride.startsWith('/'))routeOverride='/'+routeOverride;virtualPath=routeOverride;}
   else{
     try{
-      var stored=sessionStorage.getItem('vodex-preview-post-auth-route');
-      if(stored){virtualPath=stored.startsWith('/')?stored:'/'+stored;}
+      var authed=false;
+      try{authed=localStorage.getItem("sb-preview-auth")==="1";}catch(e){}
+      if(authed){
+        var stored=sessionStorage.getItem('vodex-preview-post-auth-route');
+        if(stored){virtualPath=stored.startsWith('/')?stored:'/'+stored;}
+      }
     }catch(e){}
   }
   var PH=('preview'+'-'+'html');

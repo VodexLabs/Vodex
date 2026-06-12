@@ -11,8 +11,12 @@ import { rewritePreviewArtifactHtml } from "@/lib/preview/rewrite-preview-artifa
 import { loadPreviewRuntimeStatus } from "@/lib/preview/load-preview-runtime-status";
 import { buildPreviewStatusHtml } from "@/lib/preview/preview-status-html";
 import { assertPreviewBootstrapClean } from "@/lib/preview/preview-bootstrap-sanitizer";
+import { stripPreviewPlatformPathsFromText } from "@/lib/preview/strip-preview-platform-paths";
+import { sanitizePreviewDocument } from "@/lib/preview/preview-html-sanitizer";
 import { buildPreviewBootstrapLeakPanel } from "@/lib/preview/preview-bootstrap-leak-panel";
 import { mergePreviewIframeEmbedHeaders } from "@/lib/preview/preview-iframe-embed-headers";
+import { routesFromProjectMetadata } from "@/lib/preview/route-discovery";
+import { resolvePreviewAppHomeRoute } from "@/lib/preview/preview-route-roles";
 
 export const dynamic = "force-dynamic";
 
@@ -130,9 +134,16 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
         shimHints.length ? shimHints : [{ path: "package.json", content: "{}", sizeBytes: 2 }],
       );
       const legacy = analyzeLegacyAdapter(shimHints, fw);
+      const routePaths = routesFromProjectMetadata(meta);
+      const appHomeRoute = resolvePreviewAppHomeRoute(routePaths.length ? routePaths : ["/", "/home"]);
       html = injectPreviewShims(file.data.toString("utf8"), legacy);
-      html = rewritePreviewArtifactHtml(html, projectId, buildId, previewRoute);
-      const bootstrapAssert = assertPreviewBootstrapClean(html, projectId);
+      html = rewritePreviewArtifactHtml(html, projectId, buildId, previewRoute, undefined, appHomeRoute);
+      let bootstrapAssert = assertPreviewBootstrapClean(html, projectId);
+      if (!bootstrapAssert.ok) {
+        html = stripPreviewPlatformPathsFromText(html, projectId, { virtualRoute: previewRoute });
+        html = sanitizePreviewDocument(html);
+        bootstrapAssert = assertPreviewBootstrapClean(html, projectId);
+      }
       if (!bootstrapAssert.ok && wantsHtmlFrame(req)) {
         const leakPanel = buildPreviewBootstrapLeakPanel({
           projectId,
