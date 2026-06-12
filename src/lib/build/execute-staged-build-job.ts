@@ -464,28 +464,35 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
     const generationBudget =
       "generationBudget" in pr ? pr.generationBudget : undefined;
     const minMeaningfulFiles = generationBudget?.minFiles ?? 35;
+    const genericBlock = genericScaffold.isGeneric;
+    const insufficientFiles =
+      saveableFileCount < MIN_RENDERABLE_FILES && totalRawFiles < MIN_RENDERABLE_FILES;
     const modelUnderproduced =
       isProductionBuildMode() &&
       totalRawFiles > 0 &&
       totalRawFiles < 12 &&
       saveableFileCount < minMeaningfulFiles;
-    const qualityBlocked =
+    const qualitySoftBlock =
       isProductionBuildMode() &&
-      (genericScaffold.isGeneric ||
-        modelUnderproduced ||
+      !genericBlock &&
+      !insufficientFiles &&
+      (modelUnderproduced ||
         (meaningfulReport != null && !meaningfulReport.passes) ||
         saveableFileCount < minMeaningfulFiles);
+    const qualityHardBlock = genericBlock || insufficientFiles;
+    const qualityBlocked = qualityHardBlock || qualitySoftBlock;
     if (genericScaffold.isGeneric) {
       allContractFailures.push(`generic_scaffold_detected:${genericScaffold.reasons.join(",")}`);
     }
     let buildSucceeded =
-      !qualityBlocked &&
+      !qualityHardBlock &&
       ((pr.ok && pr.buildContract.passed) ||
         canCompleteWithSavedFiles(saveableFileCount, allContractFailures, {
           genericScaffold: genericScaffold.isGeneric,
           minMeaningfulFiles: isProductionBuildMode() ? minMeaningfulFiles : undefined,
           qualityPasses: meaningfulReport?.passes,
-        }));
+        }) ||
+        qualitySoftBlock);
 
     const partialCreditStop =
       ("partialCreditStop" in pr && pr.partialCreditStop === true) ||
@@ -688,103 +695,6 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
         buildJobId: input.buildJobId,
         operationId: input.operationId,
         metadata: { stall_ms: BUILD_NO_FILE_STALL_MS },
-      });
-      buildFinishedSuccess = true;
-      return;
-    }
-
-    if (!buildSucceeded && qualityBlocked && (saveableFileCount > 0 || totalRawFiles > 0)) {
-      const blockReason = genericScaffold.isGeneric
-        ? "generic_scaffold_detected"
-        : modelUnderproduced
-          ? "model_underproduced"
-          : "quality_below_floor";
-      const draftSummary =
-        ("buildFinalSummary" in pr && typeof pr.buildFinalSummary === "string"
-          ? pr.buildFinalSummary
-          : null) ??
-        (blockReason === "quality_below_floor" || blockReason === "model_underproduced"
-          ? [
-              "Build paused — app is not ready yet",
-              "Build needs another generation pass before preview.",
-              "Some screens are still incomplete, so I'm continuing the build instead of showing a broken preview.",
-              "Continue generation",
-              "No credits were charged for this incomplete pass.",
-            ].join("\n")
-          : "Build paused — app is not ready yet. Continue generation to finish the app before preview.");
-
-      await clearGeneratedBuildFiles({
-        writer: input.writer,
-        projectId: input.projectId,
-        ownerId: input.userId,
-        buildJobId: input.buildJobId,
-        executionInstanceId: workerCtx.executionInstanceId,
-        context: "quality_blocked_failed_draft",
-      }).catch(() => undefined);
-
-      const { data: curProj } = await input.writer
-        .from("projects")
-        .select("metadata")
-        .eq("id", input.projectId)
-        .maybeSingle();
-      const prevProjMeta =
-        curProj?.metadata && typeof curProj.metadata === "object" && !Array.isArray(curProj.metadata)
-          ? (curProj.metadata as Record<string, unknown>)
-          : {};
-
-      await input.writer
-        .from("projects")
-        .update({
-          build_status: "needs_repair",
-          metadata: {
-            ...prevProjMeta,
-            failed_draft: true,
-            fallback_only: genericScaffold.isGeneric,
-            generic_scaffold_blocked: genericScaffold.isGeneric,
-            quality_score: meaningfulReport?.final_quality_score ?? pr.uiQualityScore,
-            file_count: 0,
-            memory_file_count: saveableFileCount,
-            continuing_generation_needed: true,
-            preview_blocked: true,
-          } as Json,
-        } as never)
-        .eq("id", input.projectId)
-        .eq("owner_id", input.userId);
-      await transitionBuildJobStatus(input.writer, {
-        jobId: input.buildJobId,
-        ctx: workerCtx,
-        toStatus: "failed",
-        reason: blockReason,
-      });
-      await persistAssistantBuildMessage(input.writer, eventCtx, {
-        message: draftSummary,
-        metadata: {
-          generic_scaffold: genericScaffold.isGeneric,
-          continuing_generation_needed: true,
-        },
-      });
-      await persistBuildJobEvent(input.writer, {
-        ...eventCtx,
-        type: "fixing_error",
-        title: "Build paused — app is not ready yet",
-        detail: draftSummary,
-        progressPercent: 100,
-        metadata: {
-          failure_kind:
-            blockReason === "quality_below_floor" || blockReason === "model_underproduced"
-              ? "quality_below_floor"
-              : "failed_after_generation",
-          block_reason: blockReason,
-          generic_scaffold: genericScaffold.isGeneric,
-          model_underproduced: modelUnderproduced,
-          file_count: 0,
-          files_persisted: 0,
-          failed_draft: true,
-          memory_file_count: saveableFileCount,
-          raw_file_count: totalRawFiles,
-          quality_score: meaningfulReport?.final_quality_score ?? pr.uiQualityScore,
-          model_id: pr.primaryModelId,
-        },
       });
       buildFinishedSuccess = true;
       return;
@@ -1298,20 +1208,15 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
       await persistAssistantBuildMessage(input.writer, eventCtx, {
         message:
           buildFinalSummary ??
-          `Build blocked — quality ${meaningfulQuality.final_quality_score}/${meaningfulQuality.min_required_score}. Preview not started.`,
-        metadata: { quality_blocked: true, preview_blocked: true },
+          `Early preview — quality ${meaningfulQuality.final_quality_score}/${meaningfulQuality.min_required_score}. Continue generation to finish remaining screens.`,
+        metadata: {
+          quality_warning: true,
+          meaningful_routes: meaningfulQuality.meaningful_routes,
+          placeholder_routes: meaningfulQuality.placeholder_routes,
+          continuing_generation_needed: qualitySoftBlock,
+        },
       });
-      await transitionBuildJobStatus(input.writer, {
-        jobId: input.buildJobId,
-        ctx: workerCtx,
-        toStatus: "failed",
-        reason: "quality_below_floor",
-      });
-      buildFinishedSuccess = true;
-      return;
-    }
-
-    if (meaningfulQuality && !meaningfulQuality.passes) {
+    } else if (meaningfulQuality && !meaningfulQuality.passes) {
       await persistAssistantBuildMessage(input.writer, eventCtx, {
         message: `Preview starting with quality warning — score ${meaningfulQuality.final_quality_score}/${meaningfulQuality.min_required_score}.`,
         metadata: {
@@ -1706,6 +1611,36 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
       workingFiles.length,
     );
 
+    if (qualitySoftBlock) {
+      const { data: curDraft } = await input.writer
+        .from("projects")
+        .select("metadata, preview_url")
+        .eq("id", input.projectId)
+        .maybeSingle();
+      const draftMeta =
+        curDraft?.metadata && typeof curDraft.metadata === "object" && !Array.isArray(curDraft.metadata)
+          ? (curDraft.metadata as Record<string, unknown>)
+          : {};
+      await input.writer
+        .from("projects")
+        .update({
+          build_status: previewLive ? "completed" : "needs_repair",
+          metadata: {
+            ...draftMeta,
+            continuing_generation_needed: true,
+            preview_blocked: false,
+            partial_draft_preview: true,
+            preview_renderable: previewLive,
+            preview_ready: previewLive,
+            preview_honest: previewLive,
+            file_count: fileGate.fileCount,
+            quality_score: meaningfulReport?.final_quality_score ?? pr.uiQualityScore,
+          } as Json,
+        } as never)
+        .eq("id", input.projectId)
+        .eq("owner_id", input.userId);
+    }
+
     const generationQualityReport =
       "generationQualityReport" in pr ? pr.generationQualityReport : undefined;
     const generationQualityPasses = generationQualityReport?.passes ?? false;
@@ -1719,11 +1654,13 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
       (canShowDone
         ? pr.meta?.summary?.trim() ||
           `Build complete — ${pr.appName} (${fileGate.fileCount} files).`
-        : generationQualityReport?.needsContinuation
-          ? `Build needs another generation pass — ${fileGate.fileCount} files saved so far.`
-          : richnessOk
-            ? `Build saved — continue generation to finish remaining screens (${fileGate.fileCount} files).`
-            : `Build paused — continue generation to finish the app (${fileGate.fileCount} files so far).`);
+        : qualitySoftBlock && previewLive
+          ? `Early preview is live — ${fileGate.fileCount} files saved. Continue generation to finish remaining screens.`
+          : generationQualityReport?.needsContinuation
+            ? `Build needs another generation pass — ${fileGate.fileCount} files saved so far.`
+            : richnessOk
+              ? `Build saved — continue generation to finish remaining screens (${fileGate.fileCount} files).`
+              : `Build paused — continue generation to finish the app (${fileGate.fileCount} files so far).`);
     await persistAssistantBuildMessage(input.writer, eventCtx, {
       message: doneSummary.slice(0, 280),
       progressPercent: 98,
@@ -1733,20 +1670,24 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
       type: "completed",
       title: canShowDone
         ? "Build complete"
-        : generationQualityReport?.needsContinuation
-          ? "Continuing generation needed"
-          : richnessOk
-            ? "Build saved — quality repair needed"
-            : "Draft saved",
+        : qualitySoftBlock && previewLive
+          ? "Early preview ready"
+          : generationQualityReport?.needsContinuation
+            ? "Continuing generation needed"
+            : richnessOk
+              ? "Build saved — quality repair needed"
+              : "Draft saved",
       detail: canShowDone
         ? routeVerified
           ? `Preview live · routes ${routeVerified.verifiedCount}/${routeVerified.totalCount}`
           : "Preview is live with rich dashboard UI."
-        : generationQualityReport?.needsContinuation
-          ? "More pages are needed before this app is complete."
-          : richnessOk
-            ? "Continue generation to finish remaining screens before preview."
-            : "Build needs another generation pass before preview.",
+        : qualitySoftBlock && previewLive
+          ? `${fileGate.fileCount} files saved — preview is live while generation continues.`
+          : generationQualityReport?.needsContinuation
+            ? "More pages are needed before this app is complete."
+            : richnessOk
+              ? "Continue generation to finish remaining screens before preview."
+              : "Build needs another generation pass before preview.",
       progressPercent: 100,
       metadata: {
         credits_charged: creditsCharged,

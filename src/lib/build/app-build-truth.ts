@@ -88,8 +88,8 @@ export function resolveAppBuildTruthFromFacts(input: AppBuildTruthFacts): AppBui
 
   const isBlocked =
     isIncompleteNewBuild ||
-    qualityBlocked ||
-    (continuingGenerationNeeded && dbAppFilesCount < MIN_RENDERABLE_FILES);
+    (qualityBlocked && dbAppFilesCount < MIN_RENDERABLE_FILES) ||
+    (continuingGenerationNeeded && dbAppFilesCount === 0);
 
   const previewSessionId = input.previewSessionId ?? null;
   const previewBuildJobId = input.previewBuildJobId ?? null;

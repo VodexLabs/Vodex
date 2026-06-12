@@ -40,7 +40,7 @@ export function writeBuildContinuationStatePatch(
       reason: state.reason,
     },
     continuing_generation_needed: true,
-    preview_blocked: true,
+    preview_blocked: false,
   };
 }
 
