@@ -14,6 +14,8 @@ export async function kickStagedBuildWorker(input: {
   projectId: string;
   buildJobId: string;
   requestUrl?: string;
+  /** When false (default), return after the run route accepts — do not wait for full build. */
+  waitForCompletion?: boolean;
 }): Promise<{ ok: boolean; error?: string }> {
   const secret = buildRunSecret();
   if (!secret) {
@@ -25,18 +27,29 @@ export async function kickStagedBuildWorker(input: {
     input.requestUrl,
   );
 
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${secret}`,
-        "Content-Type": "application/json",
-        "X-DreamOS-Build-Kick": "1",
-      },
-      body: JSON.stringify({ build_job_id: input.buildJobId }),
-      cache: "no-store",
-    });
+  const fetchPromise = fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${secret}`,
+      "Content-Type": "application/json",
+      "X-DreamOS-Build-Kick": "1",
+    },
+    body: JSON.stringify({ build_job_id: input.buildJobId }),
+    cache: "no-store",
+  });
 
+  if (!input.waitForCompletion) {
+    void fetchPromise.catch((err) => {
+      console.error("[kick-staged-build] fire_and_forget_failed", {
+        buildJobId: input.buildJobId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+    return { ok: true };
+  }
+
+  try {
+    const res = await fetchPromise;
     if (!res.ok && res.status !== 202) {
       const text = await res.text().catch(() => "");
       return {

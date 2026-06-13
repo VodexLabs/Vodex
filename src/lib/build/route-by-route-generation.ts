@@ -154,12 +154,15 @@ export async function runRouteByRouteGeneration(
   let timeoutState = createTimeoutStrategyState();
   timeoutState.strategy = "route_by_route";
 
+  let nextIndex = start;
+
   for (let i = start; i < chunks.length; i++) {
     if (shouldPauseAfterTimeout(timeoutState)) {
       input.onPaused(
         userMessageForTimeoutStrategy("paused"),
         timeoutState,
       );
+      nextIndex = i;
       break;
     }
 
@@ -240,6 +243,7 @@ export async function runRouteByRouteGeneration(
     } else if (files.length > 0) {
       input.onChunkComplete(index, total, chunk, 0);
     }
+    nextIndex = i + 1;
   }
 
   return {
@@ -250,6 +254,8 @@ export async function runRouteByRouteGeneration(
     chunksCompleted,
     inputTokens,
     outputTokens,
+    nextChunkIndex: nextIndex,
+    allChunksComplete: nextIndex >= total,
     timeoutState,
     paused: timeoutState.paused,
   };

@@ -59,7 +59,9 @@ import {
   callProviderWithModelHeartbeat,
   emitBuildHeartbeat,
 } from "@/lib/build/model-call-heartbeat";
-import { runChunkedFrontendGeneration } from "@/lib/build/chunked-generation-pipeline";
+import { runChunkedFrontendGeneration, GENERATION_CHUNKS } from "@/lib/build/chunked-generation-pipeline";
+import { shouldUseLongRunningBuildRoute } from "@/lib/build/kick-staged-build-worker";
+import { isServerlessHost } from "@/lib/imports/preview-build-queue";
 import { runRouteByRouteGeneration } from "@/lib/build/route-by-route-generation";
 import { CHUNK_MODEL_TIMEOUT_MS } from "@/lib/ai/provider-timeouts";
 import { buildDomainOpenerFromPrompt } from "@/lib/build/build-domain-narration";
@@ -263,6 +265,8 @@ export type StagedBuildResult = {
   buildFinalSummary?: string;
   modelFilesCount?: number;
   scaffoldFilesCount?: number;
+  /** Serverless chain — more generation chunks remain; worker should re-kick. */
+  chunkChainContinuation?: { nextChunkIndex: number; totalChunks: number };
 };
 
 type Writer = SupabaseClient<Database>;
@@ -510,9 +514,13 @@ export async function runStagedBuildPipeline(input: {
   /** Resume route-by-route continuation without replanning or identity. */
   resumeContinuation?: boolean;
   routeByRouteOnly?: boolean;
+  /** Resume chunked generation at this index (serverless auto-chain). */
+  generationChunkCursor?: number;
 }): Promise<StagedBuildResult> {
   const emit = input.onWorkflowEvent;
   const onFileCommitted = input.onFileCommitted;
+  const chunkCursor = Math.max(0, input.generationChunkCursor ?? 0);
+  const isChunkResume = chunkCursor > 0;
   const track = (
     events: WorkflowEvent[],
     type: WorkflowEventType,
@@ -688,8 +696,14 @@ export async function runStagedBuildPipeline(input: {
   });
   const pipelinePrompt = productIntel.executionPrompt;
   track(events, "planning", "Understanding product & workflows");
-  if (!input.resumeContinuation) {
+  if (!input.resumeContinuation && !isChunkResume) {
     trackAssistant(events, buildDomainOpenerFromPrompt(input.userPrompt), emit);
+  } else if (isChunkResume) {
+    trackAssistant(
+      events,
+      `Continuing generation — chunk ${chunkCursor + 1}/${GENERATION_CHUNKS.length}…`,
+      emit,
+    );
   } else {
     trackAssistant(events, "Continuing generation from where we left off — route-by-route.", emit);
     await input.writer
@@ -741,7 +755,7 @@ export async function runStagedBuildPipeline(input: {
   }
 
   let intakeResult: HugePromptIntakeResult | null = null;
-  if (input.resumeContinuation || knownArchetypeFastPath) {
+  if (input.resumeContinuation || isChunkResume || knownArchetypeFastPath) {
     intakeResult = buildIntakeFromPrompt(pipelinePrompt);
   } else {
     try {
@@ -818,7 +832,7 @@ export async function runStagedBuildPipeline(input: {
   let planJson = "";
   let planParsed = buildDeterministicPlanForArchetype(archetype, executionPrompt);
 
-  if (knownArchetypeFastPath || input.resumeContinuation) {
+  if (knownArchetypeFastPath || input.resumeContinuation || isChunkResume) {
     const det = buildDeterministicPlanForArchetype(archetype, executionPrompt);
     planParsed = det;
     planJson = deterministicPlanToJson(det);
@@ -831,7 +845,7 @@ export async function runStagedBuildPipeline(input: {
     track(events, "planning", "Designing routes and screens");
   }
 
-  if (!knownArchetypeFastPath && !input.resumeContinuation) {
+  if (!knownArchetypeFastPath && !input.resumeContinuation && !isChunkResume) {
     const planPrompt = buildPlanPrompt(executionPrompt, planContext, contextSlices);
     heavyBudget.record([planPrompt, BUILD_SYSTEM]);
     heavyBudget.assertWithinBudget();
@@ -898,7 +912,7 @@ export async function runStagedBuildPipeline(input: {
 
   if (input.buildTrace) traceBuildWorkerStage(input.buildTrace, "identity_started");
   let identityResult: AppIdentityResult;
-  if (input.resumeContinuation) {
+  if (input.resumeContinuation || isChunkResume) {
     const { data: resumeProj } = await input.writer
       .from("projects")
       .select("name")
@@ -1123,9 +1137,10 @@ export async function runStagedBuildPipeline(input: {
   const smokeBuild = isSmokeBuildMode();
   const scaffoldOpts = { allowFullScaffold: smokeBuild };
   const MIN_FULL_SCAFFOLD_FILES = 14;
-  let allFiles: BuildFile[] = input.resumeContinuation
-    ? await loadPersistedBuildFiles(input.writer, input.projectId)
-    : [];
+  let allFiles: BuildFile[] =
+    input.resumeContinuation || isChunkResume
+      ? await loadPersistedBuildFiles(input.writer, input.projectId)
+      : [];
 
   /** Smoke builds may skip the model; production always runs frontend_implementation for premium UI. */
   const scaffoldSufficient =
@@ -1183,7 +1198,7 @@ export async function runStagedBuildPipeline(input: {
         primaryModelId = feCall.result.spec.modelId;
         allFiles = await ingestChunk(feCall.result.text, allFiles);
       }
-    } else if (input.routeByRouteOnly || input.resumeContinuation) {
+    } else if (input.routeByRouteOnly || (input.resumeContinuation && !isChunkResume)) {
       trackAssistant(events, timeoutUserMessage("route_by_route"), emit);
       const contState = await loadContinuationMeta(input.writer, input.projectId);
       const rbr = await runRouteByRouteGeneration({
@@ -1227,6 +1242,13 @@ export async function runStagedBuildPipeline(input: {
         buildDomainOpenerFromPrompt(input.userPrompt),
         emit,
       );
+      const serverlessChain = shouldUseLongRunningBuildRoute() || isServerlessHost();
+      const chunksPerRun = Number(process.env.DREAMOS_CHUNKS_PER_RUN ?? 3);
+      const startChunk = chunkCursor;
+      const endChunk = serverlessChain
+        ? Math.min(startChunk + chunksPerRun, GENERATION_CHUNKS.length)
+        : GENERATION_CHUNKS.length;
+
       const chunked = await runChunkedFrontendGeneration({
         writer: input.writer,
         userId: input.userId,
@@ -1244,6 +1266,8 @@ export async function runStagedBuildPipeline(input: {
         routes: designBrief.routes ?? archetype.coreRoutes,
         initialFiles: allFiles,
         maxFiles: effectiveMaxFiles,
+        startChunkIndex: startChunk,
+        endChunkIndex: endChunk,
         ingestChunk,
         onChunkStart: (index, total, chunk, progressLine) => {
           setBuildPhase("model_generating", "writing", `Generation plan: ${progressLine}`, undefined, {
@@ -1290,6 +1314,49 @@ export async function runStagedBuildPipeline(input: {
       primaryModelId = chunked.modelId;
       allFiles = chunked.files;
       continuationAttemptsTotal += chunked.chunksRun;
+
+      if (!chunked.allChunksComplete && serverlessChain) {
+        const savedCount = filterRenderableBuildFiles(allFiles).length;
+        trackAssistant(
+          events,
+          `Checkpoint saved (${savedCount} files) — auto-continuing with chunk ${chunked.nextChunkIndex + 1}/${GENERATION_CHUNKS.length}…`,
+          emit,
+        );
+        return {
+          ok: true,
+          visibleText: `Build continuing automatically — ${savedCount} file(s) saved. Chunk ${chunked.nextChunkIndex + 1}/${GENERATION_CHUNKS.length} is next.`,
+          meta: null,
+          iconSvg,
+          iconUrl: identityResult.iconUrl,
+          appName,
+          files: allFiles,
+          events,
+          totalProviderCostUsd: accumulatedCost,
+          totalInputTokens: totalIn,
+          totalOutputTokens: totalOut,
+          primaryModelId,
+          complexity,
+          uiQualityScore: 0,
+          dashboardQualityScore: 0,
+          uiRichnessPasses: false,
+          buildContract: {
+            passed: false,
+            allowed: false,
+            failures: ["chunk_chain_in_progress"],
+            renderableCount: savedCount,
+            pageCount: savedCount,
+            uiQualityScore: 0,
+            previewReady: false,
+            userMessage: "Build continuing — more chunks queued.",
+          },
+          postBuildFailures: ["chunk_chain_in_progress"],
+          appArchetype: archetype.id,
+          chunkChainContinuation: {
+            nextChunkIndex: chunked.nextChunkIndex,
+            totalChunks: GENERATION_CHUNKS.length,
+          },
+        };
+      }
 
       const renderableAfterChunked = filterRenderableBuildFiles(allFiles).length;
       if (

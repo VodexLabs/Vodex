@@ -95,6 +95,8 @@ import {
 import { startValidationWatchdog } from "@/lib/build/validation-watchdog";
 import { BUILD_USER_TIMEOUT_MS } from "@/lib/build/build-step-ui";
 import { loadAllProjectAppFiles } from "@/lib/projects/load-all-app-files";
+import { kickStagedBuildWorker } from "@/lib/build/kick-staged-build-worker";
+import { persistBuildJobExecutionMeta } from "@/lib/build/resolve-staged-build-job-input";
 
 type Writer = SupabaseClient<Database>;
 
@@ -126,6 +128,7 @@ export type ExecuteStagedBuildJobInput = {
   blueprintBlock?: string;
   userSelectedModelId?: string | null;
   resumeContinuation?: boolean;
+  generationChunkCursor?: number;
 };
 
 async function chargeStagedBuildIfNeeded(input: {
@@ -343,7 +346,10 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
       buildTrace: trace,
       shouldStopForCredits: () => creditTracker.stop,
       resumeContinuation: input.resumeContinuation === true,
-      routeByRouteOnly: input.resumeContinuation === true,
+      routeByRouteOnly:
+        input.resumeContinuation === true &&
+        (input.generationChunkCursor == null || input.generationChunkCursor <= 0),
+      generationChunkCursor: input.generationChunkCursor,
       onWorkflowEvent: async (ev) => {
         lastActivityAt = Date.now();
         if (ev.type === "writing" || ev.meta?.filePath || ev.meta?.streamCategory === "file_created") {
@@ -501,6 +507,46 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
           errorMessage: undefined,
         };
       }
+    }
+
+    if ("chunkChainContinuation" in pr && pr.chunkChainContinuation) {
+      const next = pr.chunkChainContinuation.nextChunkIndex;
+      const total = pr.chunkChainContinuation.totalChunks;
+      await persistBuildJobExecutionMeta(input.writer, input.buildJobId, {
+        generationChunkCursor: next,
+      });
+      await persistAssistantBuildMessage(input.writer, eventCtx, {
+        message: pr.visibleText,
+        progressPercent: Math.min(95, Math.round((next / total) * 100)),
+        metadata: {
+          chunk_chain: true,
+          generation_chunk_cursor: next,
+          generation_chunk_total: total,
+        },
+      }).catch(() => undefined);
+      await persistBuildJobEvent(input.writer, {
+        ...eventCtx,
+        type: "planning_app",
+        title: `Auto-continuing — chunk ${next + 1}/${total}`,
+        detail: pr.visibleText,
+        progressPercent: Math.min(95, Math.round((next / total) * 100)),
+        metadata: {
+          stream_category: "phase_progress",
+          chunk_chain_kick: true,
+          generation_chunk_cursor: next,
+        },
+      }).catch(() => undefined);
+      const kick = await kickStagedBuildWorker({
+        projectId: input.projectId,
+        buildJobId: input.buildJobId,
+      });
+      if (!kick.ok) {
+        await persistAssistantBuildMessage(input.writer, eventCtx, {
+          message: `Could not auto-continue (${kick.error ?? "kick failed"}). Use Continue generation — ${filterRenderableBuildFiles(pr.files).length} files are saved.`,
+        }).catch(() => undefined);
+      }
+      await persistStage("build_pipeline_entered", `chunk_chain next=${next}/${total}`);
+      return;
     }
 
     const alreadyCharged = await hasSuccessfulChargeForOperation(

@@ -3,7 +3,7 @@ import type { ProviderCallInput } from "@/lib/ai/provider-call";
 import { FILE_PAYLOAD_RULE } from "@/lib/build/stage-prompts";
 import type { DesignBrief } from "@/lib/build/design-brief-generator";
 import { callChunkWithFailover, CHUNK_MODEL_TIMEOUT_MS } from "@/lib/build/chunked-model-call";
-import { SHELL_CHUNK_TIMEOUT_MS } from "@/lib/ai/provider-timeouts";
+import { SHELL_CHUNK_TIMEOUT_MS, ROUTE_CHUNK_TIMEOUT_MS } from "@/lib/ai/provider-timeouts";
 import type { TimedProviderResult } from "@/lib/build/timed-build-operations";
 import type { BuildFile } from "@/lib/build/generated-file-utils";
 import type { BuildWorkerTraceSnapshot } from "@/lib/build/build-worker-trace";
@@ -54,7 +54,21 @@ export type ChunkedGenerationResult = {
   chunksCompleted: number;
   inputTokens: number;
   outputTokens: number;
+  /** Next chunk index when stopped early (equals total when finished). */
+  nextChunkIndex: number;
+  allChunksComplete: boolean;
 };
+
+function chunkTimeoutMs(chunkId: GenerationChunkId): number {
+  if (chunkId === "generate_app_shell") return SHELL_CHUNK_TIMEOUT_MS;
+  if (
+    chunkId === "generate_route_pages_batch_1" ||
+    chunkId === "generate_route_pages_batch_2"
+  ) {
+    return ROUTE_CHUNK_TIMEOUT_MS;
+  }
+  return CHUNK_MODEL_TIMEOUT_MS;
+}
 
 type ChunkPromptCtx = {
   executionPrompt: string;
@@ -158,6 +172,10 @@ export type RunChunkedGenerationInput = {
   routes: string[];
   initialFiles: BuildFile[];
   maxFiles: number;
+  /** Inclusive start index in GENERATION_CHUNKS (for serverless chain resume). */
+  startChunkIndex?: number;
+  /** Exclusive end index — run chunks [start, end). Default: all chunks. */
+  endChunkIndex?: number;
   ingestChunk: (text: string, files: BuildFile[]) => Promise<BuildFile[]>;
   onChunkStart: (index: number, total: number, chunk: GenerationChunk, progressLine: string) => void;
   onChunkActiveWork: (line: string, meta: Record<string, unknown>) => void;
@@ -170,6 +188,8 @@ export async function runChunkedFrontendGeneration(
 ): Promise<ChunkedGenerationResult> {
   const chunks = GENERATION_CHUNKS;
   const total = chunks.length;
+  const start = Math.max(0, Math.min(input.startChunkIndex ?? 0, total));
+  const end = Math.max(start, Math.min(input.endChunkIndex ?? total, total));
   let files = [...input.initialFiles];
   let costUsd = 0;
   let modelId = input.userSelectedModelId ?? "automatic";
@@ -178,7 +198,7 @@ export async function runChunkedFrontendGeneration(
   let chunksRun = 0;
   let chunksCompleted = 0;
 
-  for (let i = 0; i < chunks.length; i++) {
+  for (let i = start; i < end; i++) {
     const chunk = chunks[i]!;
     const index = i + 1;
     const progressLine = formatChunkProgress(index, total, chunk.label);
@@ -205,18 +225,17 @@ export async function runChunkedFrontendGeneration(
       complexity: input.complexity,
       accumulatedCostUsd: input.accumulatedCostUsd + costUsd,
       userSelectedModelId: input.userSelectedModelId,
-      timeoutMs: chunk.id === "generate_app_shell" ? SHELL_CHUNK_TIMEOUT_MS : CHUNK_MODEL_TIMEOUT_MS,
+      timeoutMs: chunkTimeoutMs(chunk.id),
     };
 
-    const chunkTimeoutMs =
-      chunk.id === "generate_app_shell" ? SHELL_CHUNK_TIMEOUT_MS : CHUNK_MODEL_TIMEOUT_MS;
+    const chunkTimeout = chunkTimeoutMs(chunk.id);
 
     let result: TimedProviderResult = await callChunkWithFailover(callInput, {
       trace: input.buildTrace,
       chunk,
       chunkIndex: index,
       chunkTotal: total,
-      timeoutMs: chunkTimeoutMs,
+      timeoutMs: chunkTimeout,
       buildSmallerPrompt: () => buildSmallerChunkPrompt(chunk, promptCtx),
       onActiveWork: (line) => {
         input.onChunkActiveWork(line, {
@@ -277,5 +296,7 @@ export async function runChunkedFrontendGeneration(
     chunksCompleted,
     inputTokens,
     outputTokens,
+    nextChunkIndex: end,
+    allChunksComplete: end >= total,
   };
 }

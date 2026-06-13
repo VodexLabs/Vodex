@@ -118,6 +118,10 @@ export async function resolveStagedBuildJobInput(
         ? meta.user_selected_model_id
         : modelId) ?? null,
     resumeContinuation: meta.resume_continuation === true,
+    generationChunkCursor:
+      typeof meta.generation_chunk_cursor === "number"
+        ? meta.generation_chunk_cursor
+        : undefined,
   };
 }
 
@@ -130,6 +134,7 @@ export async function persistBuildJobExecutionMeta(
     quotedCreditsRequired?: number;
     userSelectedModelId?: string;
     resumeContinuation?: boolean;
+    generationChunkCursor?: number;
     operationId?: string;
   },
 ): Promise<void> {
@@ -159,6 +164,9 @@ export async function persistBuildJobExecutionMeta(
           : {}),
         ...(patch.resumeContinuation != null
           ? { resume_continuation: patch.resumeContinuation }
+          : {}),
+        ...(typeof patch.generationChunkCursor === "number"
+          ? { generation_chunk_cursor: patch.generationChunkCursor }
           : {}),
       } as Json,
     } as never)

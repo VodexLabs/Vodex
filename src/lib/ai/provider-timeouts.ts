@@ -1,5 +1,8 @@
 import type { RouteOperationContext } from "@/lib/ai/model-router";
 
+/** Route-page batches need longer than 25s on premium models (multiple pages per chunk). */
+export const ROUTE_CHUNK_TIMEOUT_MS = 90_000;
+
 /** No single chunked model call may wait longer than 25s without failover. */
 export const CHUNK_MODEL_TIMEOUT_MS = 25_000;
 
