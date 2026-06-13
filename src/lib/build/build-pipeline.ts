@@ -338,7 +338,7 @@ function mergeIncomingBuildFiles(
   const merged = new Map(existing.map((f) => [f.path, f]));
   for (const f of filterRenderableBuildFiles(incoming)) {
     const prev = merged.get(f.path);
-    const fileLineMeta = computeFileLineMeta(prev?.content, f.content);
+    const fileLineMeta = computeFileLineMeta(prev?.content, f.content, f.path);
     const path = f.path;
     const meta: WorkflowEventMeta = {
       filePath: path,

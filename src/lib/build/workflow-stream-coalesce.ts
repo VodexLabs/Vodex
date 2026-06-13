@@ -124,8 +124,16 @@ function rowToStreamEvent(row: BuildJobEventRow, terminal: boolean): AgentWorkfl
     metaAdded ??
     (newLineCount != null && (oldLineCount === 0 || oldLineCount == null) ? newLineCount : undefined);
   const removed = metaRemoved;
-  const deltaTotal = (added ?? 0) + (removed ?? 0);
-  const showLineDelta = deltaTotal >= 4 || (added ?? 0) >= 12;
+  const hasRealMeta =
+    typeof meta.fileLineMeta === "object" ||
+    (metaAdded != null && metaAdded > 0) ||
+    (metaRemoved != null && metaRemoved > 0);
+  const isPlaceholder =
+    meta.file_in_progress === true &&
+    !hasRealMeta &&
+    (added == null || added <= 1) &&
+    (removed == null || removed === 0);
+  const showLineDelta = hasRealMeta && !isPlaceholder && ((added ?? 0) + (removed ?? 0) > 0);
 
   const stepStatus =
     typeof meta.step_status === "string" ? meta.step_status : undefined;

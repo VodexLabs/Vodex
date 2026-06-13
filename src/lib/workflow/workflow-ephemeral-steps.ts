@@ -2,10 +2,10 @@ import type { AgentWorkflowEvent } from "@/lib/build/workflow-stream-types";
 import { modelStageActivityMessages } from "@/lib/build/live-build-activity";
 
 export const EPHEMERAL_BUILD_STEPS: readonly { title: string; stableKey: string; ms: number }[] = [
-  { title: "Mapping screens and navigation architecture", stableKey: "ephemeral:screens", ms: 700 },
-  { title: "Designing data model and core entities", stableKey: "ephemeral:layout", ms: 800 },
-  { title: "Planning route map and component boundaries", stableKey: "ephemeral:sections", ms: 900 },
-  { title: "Preparing preview-ready shell and polish targets", stableKey: "ephemeral:preview", ms: 1000 },
+  { title: "Reading request…", stableKey: "ephemeral:reading", ms: 500 },
+  { title: "Classifying app type…", stableKey: "ephemeral:classify", ms: 700 },
+  { title: "Planning screens…", stableKey: "ephemeral:screens", ms: 900 },
+  { title: "Choosing routes…", stableKey: "ephemeral:routes", ms: 1100 },
 ] as const;
 
 export function buildWorkOpenerFromPrompt(prompt: string): string {

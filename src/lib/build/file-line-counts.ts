@@ -1,5 +1,7 @@
 /** Line-count metadata for workflow file events — only when real content is available. */
 
+import { isGeneratedFileStub } from "@/lib/build/generated-file-stub";
+
 export type FileLineMeta = {
   added_lines: number;
   removed_lines: number;
@@ -19,8 +21,10 @@ function splitLines(text: string): string[] {
 export function computeFileLineMeta(
   oldContent: string | undefined,
   newContent: string | undefined,
+  path?: string,
 ): FileLineMeta | undefined {
   if (newContent == null || newContent === "") return undefined;
+  if (isGeneratedFileStub(newContent, path)) return undefined;
 
   const newLines = splitLines(newContent);
   const new_line_count = newLines.length;

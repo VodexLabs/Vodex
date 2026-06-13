@@ -31,7 +31,7 @@ export function LiveFileLineDelta({
         )}
         data-testid="live-file-line-delta"
       >
-        <span className="inline-block animate-pulse">writing…</span>
+        Preparing…
       </span>
     );
   }

@@ -18,6 +18,7 @@ import { classifyCreateIntent } from "@/lib/intent/create-intent-classifier";
 import { lifecyclePatch } from "@/lib/projects/project-lifecycle";
 import { resolveBuildCreditAllowance } from "@/lib/billing/partial-build-credits";
 import { UNTITLED_APP_NAME } from "@/lib/projects/provisional-app-name";
+import { validateBuildModelSelection } from "@/lib/ai/model-selection-honesty";
 
 const DEFAULT_MODEL_ID = "automatic";
 
@@ -294,6 +295,20 @@ export async function runAiPreflightServer(request: Request): Promise<PreflightS
     };
   }
 
+  const modelValidation = await validateBuildModelSelection({
+    modelId,
+    buildCreditsAvailable: buildAllowance?.balance ?? balance,
+  });
+  if (!modelValidation.ok) {
+    return {
+      ok: false,
+      status: modelValidation.code === "blocked_zero_credits" || modelValidation.code === "insufficient_tokens" ? 402 : 503,
+      error: modelValidation.error ?? "Selected model is unavailable.",
+      code: modelValidation.code,
+      hint: modelValidation.error,
+    };
+  }
+
   const admin = createServiceRoleClient();
   const writer = admin ?? supabase;
 
@@ -330,8 +345,7 @@ export async function runAiPreflightServer(request: Request): Promise<PreflightS
   }
   conversationId = conv.id;
 
-  const routed = routeModel(mapChatModeToTask(mode), modelId);
-  const billedModel = routed.modelId;
+  const routed = routeModel(mapChatModeToTask(mode), modelValidation.selectedModel);
 
   return {
     ok: true,
@@ -344,8 +358,8 @@ export async function runAiPreflightServer(request: Request): Promise<PreflightS
     partialBuildCredits: buildAllowance?.partial ?? false,
     creditsAvailable: buildAllowance?.balance ?? balance,
     creditsReserveAmount: buildAllowance?.reserveAmount,
-    modelId: billedModel,
-    provider: routed.provider,
-    routeReason: routed.routeReason,
+    modelId: modelValidation.selectedModel,
+    provider: modelValidation.provider === "none" ? routed.provider : modelValidation.provider,
+    routeReason: modelValidation.fallbackReason ?? routed.routeReason,
   };
 }

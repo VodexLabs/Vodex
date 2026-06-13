@@ -70,4 +70,5 @@ export function resolveBuildStepUiKind(input: {
   }
 }
 
-export const NO_FILES_YET_THRESHOLD_MS = 30_000;
+export const NO_FILES_YET_THRESHOLD_MS = 1_200_000;
+export const BUILD_USER_TIMEOUT_MS = 1_200_000;

@@ -670,19 +670,7 @@ export async function POST(request: Request) {
     balance = await fetchProfileBalance(writer, creditBillingTarget.billedUserId);
   }
 
-  let creditAwareRequestedModel = requestedModel;
-  if (requestedModel && !isAutomaticModelId(requestedModel)) {
-    const affordable = pickAffordableModelId(requestedModel, Math.floor(balance));
-    if (affordable.switched) {
-      creditAwareRequestedModel = affordable.modelId;
-      console.info("[ai-route] credit-aware model fallback", {
-        from: requestedModel,
-        to: affordable.modelId,
-        balance: Math.floor(balance),
-        reason: affordable.reason,
-      });
-    }
-  }
+  const creditAwareRequestedModel = requestedModel;
   if (
     creditAwareRequestedModel &&
     requestedModel &&

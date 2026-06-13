@@ -34,9 +34,7 @@ import {
   isModelAffordableForBuild,
   minBuildCreditsForModel,
   modelUnaffordableReason,
-  pickAffordableModelId,
 } from "@/lib/creation/model-credit-availability";
-import { toast } from "@/lib/toast";
 
 type ProviderAvailability = Record<string, "available" | "unavailable" | "coming_soon">;
 type ProviderUnavailableReasons = Record<string, string>;
@@ -479,32 +477,6 @@ export function ModelPicker({
     const id = setInterval(refreshProviderStatus, 60_000);
     return () => clearInterval(id);
   }, [open, refreshProviderStatus]);
-
-  React.useEffect(() => {
-    if (value === "automatic") return;
-    const m = CREATION_MODELS.find((x) => x.id === value);
-    if (!m) return;
-    const availability = modelAvailability(m, providerStatus, providerLoading, buildCreditsAvailable);
-    if (availability === "ok") return;
-
-    const fallback = pickAffordableModelId(value, buildCreditsAvailable);
-    if (fallback.switched) {
-      onChange(fallback.modelId);
-      const label =
-        fallback.modelId === "automatic"
-          ? "Automatic"
-          : (CREATION_MODELS.find((x) => x.id === fallback.modelId)?.name ?? fallback.modelId);
-      toast.info(
-        availability === "unavailable" && buildCreditsAvailable > 0
-          ? `Not enough build credits for ${m.name}. Switched to ${label}.`
-          : `${m.name} is unavailable. Switched to ${label}.`,
-      );
-      return;
-    }
-
-    onChange("automatic");
-    toast.info("Selected model is temporarily unavailable. Switched to Automatic.");
-  }, [providerStatus, value, onChange, buildCreditsAvailable, providerLoading]);
 
   const updatePos = React.useCallback(() => {
     if (!triggerRef.current) return;

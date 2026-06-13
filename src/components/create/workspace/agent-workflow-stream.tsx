@@ -29,6 +29,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { userMessageForPreviewFailure, isPreviewFailureCode } from "@/lib/preview/preview-failure-codes";
 import { MIN_RENDERABLE_FILES } from "@/lib/build/build-success-contract";
 import { resolveBuildTerminalTruth } from "@/lib/build/build-terminal-truth";
+import { LiveFileLineDelta } from "@/components/create/workspace/live-file-line-delta";
 import { DreamOSMessageShell } from "@/components/create/workspace/dreamos-message-shell";
 import { BuildFinalSummaryBlock } from "@/components/create/workspace/live-build-activity-panel";
 import {
@@ -39,7 +40,9 @@ import { BuildStepPhaseCard } from "@/components/create/workspace/build-step-pha
 import { BuildPhasedFilePanel } from "@/components/create/workspace/build-phased-file-panel";
 import { BuildNoFilesYetCard } from "@/components/create/workspace/build-no-files-yet-card";
 import { BuildActiveWorkChip } from "@/components/create/workspace/build-active-work-chip";
-import { NO_FILES_YET_THRESHOLD_MS } from "@/lib/build/build-step-ui";
+import { NO_FILES_YET_THRESHOLD_MS, BUILD_USER_TIMEOUT_MS } from "@/lib/build/build-step-ui";
+import { BuildWorkflowSections, groupFileEventsByPurpose } from "@/components/create/workspace/build-workflow-sections";
+import { useTypedText } from "@/hooks/use-typed-text";
 
 function isFileEvent(ev: AgentWorkflowEvent): boolean {
   return (
@@ -183,29 +186,59 @@ function FileChangeCard({ event }: { event: AgentWorkflowEvent }) {
   const isDelete = event.category === "file_deleted";
   const Icon = isDelete ? FileMinus : isCreate ? FilePlus : FilePen;
   const path = event.filePath!;
+  const parsedFromSubtitle = (() => {
+    const d = event.subtitle ?? "";
+    const m = d.match(/\+(\d+)\s*[-−](\d+)/);
+    if (!m) return {};
+    return { added: Number(m[1]), removed: Number(m[2]) };
+  })();
+  const addedLines = event.addedLines ?? parsedFromSubtitle.added;
+  const removedLines = event.removedLines ?? parsedFromSubtitle.removed;
   const fileActive = event.status === "active" && event.metadata?.file_in_progress !== false;
+  const preparing =
+    fileActive &&
+    (addedLines == null || addedLines === 0) &&
+    (removedLines == null || removedLines === 0);
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       className={cn(
-        "mr-6 flex max-w-md items-center gap-2 rounded-2xl bg-surface/90 px-3 py-2 sm:mr-10",
-        fileActive
-          ? "workflow-gold-border-active file-active-ring ring-1 ring-amber-400/55"
-          : "ring-1 ring-border/60",
+        "mr-6 overflow-visible p-0.5 sm:mr-10",
       )}
-      data-testid="workflow-file-card"
     >
-      <Icon className="size-3.5 shrink-0 text-accent/85" strokeWidth={1.75} />
-      <code className="min-w-0 flex-1 truncate font-mono text-[10.5px] text-foreground">{path}</code>
-      {!isDelete ? (
-        fileActive ? (
-          <span className="shrink-0 text-[10px] font-medium text-amber-600/90">Writing…</span>
-        ) : null
-      ) : null}
+      <div
+        className={cn(
+          "flex max-w-md items-center gap-2 rounded-2xl bg-surface/90 px-3 py-2",
+          fileActive
+            ? "workflow-gold-border-active file-active-ring ring-2 ring-amber-400/55"
+            : "ring-1 ring-border/60",
+        )}
+        data-testid="workflow-file-card"
+      >
+        <Icon className="size-3.5 shrink-0 text-accent/85" strokeWidth={1.75} />
+        <code className="min-w-0 flex-1 truncate font-mono text-[10.5px] text-foreground">{path}</code>
+        {!isDelete ? (
+          preparing ? (
+            <span className="shrink-0 text-[10px] font-medium text-muted-foreground">Preparing…</span>
+          ) : (
+            <LiveFileLineDelta
+              path={path}
+              active={fileActive}
+              added={addedLines}
+              removed={removedLines}
+            />
+          )
+        ) : null}
+      </div>
     </motion.div>
   );
+}
+
+function TypedNarrationLine({ text }: { text: string }) {
+  const visible = useTypedText(text, { cps: 48 });
+  return <WorkflowNarrationLine>{visible}</WorkflowNarrationLine>;
 }
 
 /** Plain narration line — matches Discuss/Build chat text (no pill background). */
@@ -608,8 +641,15 @@ export function AgentWorkflowStream({
     return ids;
   }, [progress.events]);
 
-  const buildHardTimeoutMs = 360_000;
+  const buildHardTimeoutMs = BUILD_USER_TIMEOUT_MS;
   const buildElapsedStalled = working && elapsedMs > buildHardTimeoutMs;
+
+  const ephemeralActionLine =
+    activeWorkLine ??
+    chunkProgressLine ??
+    (working && narrationTimeline.length === 0 ? currentNarrationLine : undefined);
+
+  const filePurposeGroups = groupFileEventsByPurpose(rawFileStreamEvents);
 
   return (
     <DreamOSMessageShell
@@ -631,10 +671,16 @@ export function AgentWorkflowStream({
       {narrationTimeline.length > 0 ? (
         <div className="space-y-2" data-testid="build-narration-timeline">
           {narrationTimeline.map((line) => (
-            <WorkflowNarrationLine key={line}>{line}</WorkflowNarrationLine>
+            <TypedNarrationLine key={line} text={line} />
           ))}
         </div>
       ) : null}
+
+      <BuildWorkflowSections
+        events={merged}
+        working={working}
+        ephemeralLine={working ? ephemeralActionLine : undefined}
+      />
 
       {working ? (
         <BuildStepPhaseCard
@@ -642,21 +688,38 @@ export function AgentWorkflowStream({
           working={working}
           paused={isBuildPaused}
           hasFiles={rawFileStreamEvents.length > 0 || streamFileCount > 0}
-          statusLine={narrationTimeline.length > 0 ? undefined : currentNarrationLine}
+          statusLine={undefined}
           chunkProgress={chunkProgressLine}
         />
       ) : null}
 
-      {showNoFilesYet && !buildElapsedStalled ? <BuildNoFilesYetCard /> : null}
-
       {buildElapsedStalled ? <BuildNoFilesYetCard variant="hard_timeout" /> : null}
 
-      <BuildPhasedFilePanel
-        working={working}
-        fileEvents={rawFileStreamEvents}
-        completedChunkIds={completedChunkIds}
-        renderFileCard={(ev) => <FileChangeCard event={ev} />}
-      />
+      {filePurposeGroups.length > 0 ? (
+        <div className="space-y-3 overflow-visible" data-testid="workflow-file-purpose-groups">
+          {filePurposeGroups.map((group) => (
+            <div key={group.id} className="overflow-visible">
+              <p className="mb-1 px-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                {group.label}
+              </p>
+              <ul className="space-y-1.5 overflow-visible">
+                {group.events.map((ev) => (
+                  <li key={ev.stableKey}>
+                    <FileChangeCard event={ev} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <BuildPhasedFilePanel
+          working={working}
+          fileEvents={rawFileStreamEvents}
+          completedChunkIds={completedChunkIds}
+          renderFileCard={(ev) => <FileChangeCard event={ev} />}
+        />
+      )}
 
       {working && activeWorkChipLine && activeWorkChipLine !== currentNarrationLine ? (
         <BuildActiveWorkChip line={activeWorkChipLine} />

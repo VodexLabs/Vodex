@@ -3,6 +3,12 @@ import type { Database, Json } from "@/lib/supabase/types";
 import { runStagedBuildPipeline } from "@/lib/build/build-pipeline";
 import { buildDomainOpenerFromPrompt } from "@/lib/build/build-domain-narration";
 import {
+  buildModelHonestyLogFields,
+  validateBuildModelSelection,
+} from "@/lib/ai/model-selection-honesty";
+import { evaluateProductionCompletionGate } from "@/lib/build/app-completion-gate";
+import { saveAppVersionSnapshot } from "@/lib/projects/app-version-history";
+import {
   calculateCreditsForStagedBuild,
   resolveStagedBuildChargeCredits,
 } from "@/lib/credits/credit-pricing";
@@ -285,6 +291,20 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
     await persistStage("worker_claimed");
     await persistStage("build_pipeline_entered");
     await persistStage("planning_app_started", "Organizing screens and features");
+    const modelValidation = await validateBuildModelSelection({
+      modelId: input.userSelectedModelId ?? input.modelId,
+      buildCreditsAvailable: input.reservedCredits ?? 999,
+    });
+    await persistBuildJobEvent(input.writer, {
+      ...eventCtx,
+      type: "planning_app",
+      title: "Build worker ready",
+      detail: modelValidation.honestDisplayName,
+      metadata: {
+        ...buildModelHonestyLogFields(modelValidation),
+        stream_category: "phase_started",
+      },
+    }).catch(() => undefined);
     const opener = input.resumeContinuation
       ? "Continuing generation from where we left off — route-by-route."
       : input.userPrompt?.trim()
@@ -484,6 +504,10 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
     if (genericScaffold.isGeneric) {
       allContractFailures.push(`generic_scaffold_detected:${genericScaffold.reasons.join(",")}`);
     }
+    const completionGate = evaluateProductionCompletionGate(pr.files, input.userPrompt ?? "");
+    if (completionGate.shouldContinue) {
+      allContractFailures.push(`completion_gate:${completionGate.domain ?? "app"}`);
+    }
     let buildSucceeded =
       !qualityHardBlock &&
       ((pr.ok && pr.buildContract.passed) ||
@@ -493,6 +517,18 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
           qualityPasses: meaningfulReport?.passes,
         }) ||
         qualitySoftBlock);
+
+    if (completionGate.shouldContinue && saveableFileCount > 0) {
+      buildSucceeded = qualitySoftBlock || saveableFileCount >= MIN_RENDERABLE_FILES;
+      await persistAssistantBuildMessage(input.writer, eventCtx, {
+        message: completionGate.userMessage || "Continuing app completion…",
+        metadata: {
+          continuing_generation_needed: true,
+          completion_gate: completionGate.domain,
+          missing: completionGate.missing,
+        },
+      }).catch(() => undefined);
+    }
 
     const partialCreditStop =
       ("partialCreditStop" in pr && pr.partialCreditStop === true) ||
@@ -832,7 +868,7 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
 
     const { data: projRow } = await input.writer
       .from("projects")
-      .select("metadata, app_name")
+      .select("metadata, app_name, workspace_id")
       .eq("id", input.projectId)
       .maybeSingle();
     const projMeta =
@@ -1208,21 +1244,17 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
       await persistAssistantBuildMessage(input.writer, eventCtx, {
         message:
           buildFinalSummary ??
-          `Early preview — quality ${meaningfulQuality.final_quality_score}/${meaningfulQuality.min_required_score}. Continue generation to finish remaining screens.`,
+          (completionGate.userMessage ||
+            "Continuing app completion — finishing remaining screens."),
         metadata: {
-          quality_warning: true,
-          meaningful_routes: meaningfulQuality.meaningful_routes,
-          placeholder_routes: meaningfulQuality.placeholder_routes,
-          continuing_generation_needed: qualitySoftBlock,
+          continuing_generation_needed: qualitySoftBlock || completionGate.shouldContinue,
         },
       });
     } else if (meaningfulQuality && !meaningfulQuality.passes) {
       await persistAssistantBuildMessage(input.writer, eventCtx, {
-        message: `Preview starting with quality warning — score ${meaningfulQuality.final_quality_score}/${meaningfulQuality.min_required_score}.`,
+        message: "Continuing app completion — finishing remaining screens.",
         metadata: {
-          quality_warning: true,
-          meaningful_routes: meaningfulQuality.meaningful_routes,
-          placeholder_routes: meaningfulQuality.placeholder_routes,
+          continuing_generation_needed: true,
         },
       });
     }
@@ -1611,7 +1643,7 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
       workingFiles.length,
     );
 
-    if (qualitySoftBlock) {
+    if (qualitySoftBlock || completionGate.shouldContinue) {
       const { data: curDraft } = await input.writer
         .from("projects")
         .select("metadata, preview_url")
@@ -1628,18 +1660,20 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
           metadata: {
             ...draftMeta,
             continuing_generation_needed: true,
+            completion_gate: completionGate.shouldContinue ? completionGate.domain : undefined,
             preview_blocked: false,
             partial_draft_preview: true,
             preview_renderable: previewLive,
             preview_ready: previewLive,
             preview_honest: previewLive,
             file_count: fileGate.fileCount,
-            quality_score: meaningfulReport?.final_quality_score ?? pr.uiQualityScore,
           } as Json,
         } as never)
         .eq("id", input.projectId)
         .eq("owner_id", input.userId);
     }
+
+    const completionBlocked = completionGate.shouldContinue;
 
     const generationQualityReport =
       "generationQualityReport" in pr ? pr.generationQualityReport : undefined;
@@ -1647,20 +1681,26 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
     const generationScore = generationQualityReport?.score ?? pr.uiQualityScore;
     const richnessOk = pr.uiRichnessPasses && pr.uiQualityScore >= 85;
     const canShowDone =
-      previewLive && richnessOk && pr.buildContract.previewReady && generationQualityPasses;
+      !completionBlocked &&
+      previewLive &&
+      richnessOk &&
+      pr.buildContract.previewReady &&
+      generationQualityPasses;
     const routeVerified = generationQualityReport?.routeConnectivity;
     const doneSummary =
       buildFinalSummary ??
       (canShowDone
         ? pr.meta?.summary?.trim() ||
           `Build complete — ${pr.appName} (${fileGate.fileCount} files).`
-        : qualitySoftBlock && previewLive
-          ? `Early preview is live — ${fileGate.fileCount} files saved. Continue generation to finish remaining screens.`
-          : generationQualityReport?.needsContinuation
-            ? `Build needs another generation pass — ${fileGate.fileCount} files saved so far.`
-            : richnessOk
-              ? `Build saved — continue generation to finish remaining screens (${fileGate.fileCount} files).`
-              : `Build paused — continue generation to finish the app (${fileGate.fileCount} files so far).`);
+        : completionBlocked
+          ? completionGate.userMessage || "Continuing app completion…"
+          : qualitySoftBlock && previewLive
+            ? `Early preview is live — ${fileGate.fileCount} files saved. Continue generation to finish remaining screens.`
+            : generationQualityReport?.needsContinuation
+              ? `Build needs another generation pass — ${fileGate.fileCount} files saved so far.`
+              : richnessOk
+                ? `Build saved — continue generation to finish remaining screens (${fileGate.fileCount} files).`
+                : `Build paused — continue generation to finish the app (${fileGate.fileCount} files so far).`);
     await persistAssistantBuildMessage(input.writer, eventCtx, {
       message: doneSummary.slice(0, 280),
       progressPercent: 98,
@@ -1670,24 +1710,28 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
       type: "completed",
       title: canShowDone
         ? "Build complete"
-        : qualitySoftBlock && previewLive
-          ? "Early preview ready"
-          : generationQualityReport?.needsContinuation
-            ? "Continuing generation needed"
-            : richnessOk
-              ? "Build saved — quality repair needed"
-              : "Draft saved",
+        : completionBlocked
+          ? "Continuing app completion"
+          : qualitySoftBlock && previewLive
+            ? "Early preview ready"
+            : generationQualityReport?.needsContinuation
+              ? "Continuing generation needed"
+              : richnessOk
+                ? "Build saved — quality repair needed"
+                : "Draft saved",
       detail: canShowDone
         ? routeVerified
           ? `Preview live · routes ${routeVerified.verifiedCount}/${routeVerified.totalCount}`
           : "Preview is live with rich dashboard UI."
-        : qualitySoftBlock && previewLive
-          ? `${fileGate.fileCount} files saved — preview is live while generation continues.`
-          : generationQualityReport?.needsContinuation
-            ? "More pages are needed before this app is complete."
-            : richnessOk
-              ? "Continue generation to finish remaining screens before preview."
-              : "Build needs another generation pass before preview.",
+        : completionBlocked
+          ? completionGate.userMessage || "Finishing screens, navigation, and data."
+          : qualitySoftBlock && previewLive
+            ? `${fileGate.fileCount} files saved — preview is live while generation continues.`
+            : generationQualityReport?.needsContinuation
+              ? "More pages are needed before this app is complete."
+              : richnessOk
+                ? "Continue generation to finish remaining screens before preview."
+                : "Build needs another generation pass before preview.",
       progressPercent: 100,
       metadata: {
         credits_charged: creditsCharged,
@@ -1697,10 +1741,55 @@ export async function executeStagedBuildJob(input: ExecuteStagedBuildJobInput): 
         source_integrity_ok: postPreview.sourceIntegrity.sourceIntegrityOk,
         preview_renderable: previewLive,
         ui_richness_passes: richnessOk,
-        ui_quality_score: pr.uiQualityScore,
+        continuing_generation_needed: completionBlocked || qualitySoftBlock,
         ready_reason: previewLive ? "source_integrity_ok_preview_live" : "preview_pending",
       },
     });
+
+    if (fileGate.fileCount > 0) {
+      const versionMode = completionBlocked
+        ? "build_continuing"
+        : canShowDone
+          ? "build_completed"
+          : qualitySoftBlock
+            ? "build_paused"
+            : "build_completed";
+      const versionStatus = completionBlocked || qualitySoftBlock ? "paused_partial" : "completed";
+      await saveAppVersionSnapshot({
+        admin: input.writer,
+        projectId: input.projectId,
+        ownerId: input.userId,
+        workspaceId:
+          typeof projRow?.workspace_id === "string" ? projRow.workspace_id : null,
+        createdBy: input.userId,
+        mode: versionMode,
+        summary: (input.userPrompt ?? "").slice(0, 120) || `${fileGate.fileCount} files`,
+        files: workingFiles,
+        changedPaths: pr.files.map((f) => f.path).slice(0, 200),
+      }).catch(() => null);
+
+      const { data: curForLive } = await input.writer
+        .from("projects")
+        .select("metadata")
+        .eq("id", input.projectId)
+        .maybeSingle();
+      const liveMeta =
+        curForLive?.metadata && typeof curForLive.metadata === "object" && !Array.isArray(curForLive.metadata)
+          ? (curForLive.metadata as Record<string, unknown>)
+          : {};
+      await input.writer
+        .from("projects")
+        .update({
+          metadata: {
+            ...liveMeta,
+            live_version_status: versionStatus,
+            last_build_model: pr.primaryModelId,
+            last_build_prompt: input.userPrompt?.slice(0, 500) ?? null,
+          } as Json,
+        } as never)
+        .eq("id", input.projectId)
+        .eq("owner_id", input.userId);
+    }
 
     await logServerOperation({
       writer: input.writer,

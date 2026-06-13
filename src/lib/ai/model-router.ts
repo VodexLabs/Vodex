@@ -17,8 +17,6 @@ import {
   pickAutomaticImplementationModelId,
 } from "@/lib/ai/resolve-automatic-model";
 import {
-  ensureUiImplementationModelId,
-  isUiBuildCapableModelId,
   pickUiImplementationModelId,
 } from "@/lib/ai/ui-implementation-model";
 
@@ -171,18 +169,10 @@ export function routeOperation(ctx: RouteOperationContext): RoutedModelSpec {
   }
 
   if (ctx.requestedModelId && !isAutomaticModelId(ctx.requestedModelId)) {
-    const ultraIds = ["claude-opus-4.7", "claude-opus-4-6", "gpt-5.5", "gpt-5.4", "gemini-3.1-pro"];
+    const ultraIds = ["claude-opus-4.7", "claude-opus-4-6", "gpt-5.5"];
     let requested = ctx.requestedModelId;
     if (ultraIds.includes(requested) && !isDreamosOwnerEmail(ctx.ownerEmail)) {
       requested = pickUiImplementationModelId(complexity, ctx.ownerEmail);
-    }
-    if (
-      (ctx.operationType === "frontend_implementation" ||
-        ctx.operationType === "backend_implementation" ||
-        ctx.operationType === "code_repair_hard") &&
-      !isUiBuildCapableModelId(requested)
-    ) {
-      requested = ensureUiImplementationModelId(null, complexity, ctx.ownerEmail);
     }
     const selected = userSelectedSpec(ctx.operationType, requested, complexity);
     if (selected) return selected;

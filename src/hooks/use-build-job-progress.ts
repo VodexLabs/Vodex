@@ -31,7 +31,9 @@ function isPausedContinuationTerminal(e: BuildJobEventRow): boolean {
 export function useBuildJobProgress(
   job: { jobId: string; eventsUrl: string } | null,
   onTerminal?: (state: BuildJobPollState) => void,
+  options?: { networkOnline?: boolean },
 ) {
+  const networkOnline = options?.networkOnline ?? true;
   const [state, setState] = React.useState<BuildJobPollState | null>(null);
 
   React.useEffect(() => {
@@ -51,6 +53,25 @@ export function useBuildJobProgress(
     };
 
     const poll = async () => {
+      if (!networkOnline) {
+        setState((prev) =>
+          prev
+            ? { ...prev, reconnecting: true, error: null, done: false }
+            : {
+                jobId: job.jobId,
+                eventsUrl: job.eventsUrl,
+                status: "starting",
+                events: [],
+                latest: null,
+                progressPercent: 1,
+                error: null,
+                done: false,
+                reconnecting: true,
+              },
+        );
+        schedule(1500);
+        return;
+      }
       const url = afterCursor
         ? `${job.eventsUrl}?after=${encodeURIComponent(afterCursor)}`
         : job.eventsUrl;
@@ -242,7 +263,7 @@ export function useBuildJobProgress(
       cancelled = true;
       if (pollTimer) clearTimeout(pollTimer);
     };
-  }, [job?.jobId, job?.eventsUrl, onTerminal]);
+  }, [job?.jobId, job?.eventsUrl, onTerminal, networkOnline]);
 
   return state;
 }

@@ -22,6 +22,7 @@ import {
   Smartphone,
   ChevronDown,
   MessageSquare,
+  Square,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -88,6 +89,7 @@ import {
   userFacingPartialBuildStartMessage,
 } from "@/lib/billing/partial-build-credits";
 import { useBuildJobProgress, type BuildJobPollState } from "@/hooks/use-build-job-progress";
+import { useBuilderOffline, queueComposerDraft } from "@/hooks/use-builder-offline";
 import { enqueueAsyncBuild } from "@/lib/create/async-build-client";
 import { classifyBuildIntent, shouldStartBuildPipeline } from "@/lib/ai/build-intent-classifier";
 import {
@@ -753,6 +755,7 @@ export function ImmersiveWorkspace({
   const streamActiveRef = React.useRef(false);
   const [streamActive, setStreamActive] = React.useState(false);
   const buildJobActiveRef = React.useRef(false);
+  const { online: builderOnline, pausedLabel: builderOfflineLabel } = useBuilderOffline();
   const [activeBuildJob, setActiveBuildJob] = React.useState<{
     jobId: string;
     eventsUrl: string;
@@ -1306,6 +1309,7 @@ export function ImmersiveWorkspace({
       },
       [applyTerminalBuildSummary, clearBuildJob, projectFiles.length, setMessages, supabase, uid],
     ),
+    { networkOnline: builderOnline },
   );
 
   React.useEffect(() => {
@@ -1519,6 +1523,23 @@ export function ImmersiveWorkspace({
     buildStarting ||
     preflightState === "pending" ||
     postBuildActive;
+  const canStopActiveJob =
+    isBusy && !composerHasText && !composerDomHasText && Boolean(activeBuildJob?.jobId || isStreaming);
+
+  const handleStopActiveJob = React.useCallback(async () => {
+    try {
+      stop();
+    } catch {
+      /* ignore */
+    }
+    const pid = effectiveProjectId;
+    const jid = activeBuildJob?.jobId;
+    if (pid && jid) {
+      await fetch(`/api/projects/${pid}/build-jobs/${jid}/cancel`, { method: "POST" }).catch(() => undefined);
+    }
+    buildJobActiveRef.current = false;
+    setBuildStarting(false);
+  }, [activeBuildJob?.jobId, effectiveProjectId, stop]);
 
   React.useEffect(() => {
     const pid = effectiveProjectId;
@@ -3740,7 +3761,12 @@ export function ImmersiveWorkspace({
               mobilePanel !== "chat" && "max-lg:hidden",
             )}
           >
-            {(buildStarting || isStreaming) && (
+            {!builderOnline && builderOfflineLabel ? (
+              <p className="mb-1.5 px-1 text-[10px] font-medium text-amber-700" data-testid="builder-offline-banner">
+                {builderOfflineLabel}
+              </p>
+            ) : null}
+            {(buildStarting || isStreaming) && builderOnline && (
               <p className="mb-1.5 px-1 text-[10px] text-muted-foreground" data-testid="composer-status-hint">
                 {buildStrategy === "plan_first" && !blueprintApproved
                   ? "Planning…"
@@ -3828,6 +3854,7 @@ export function ImmersiveWorkspace({
                 value={composerLiveText}
                 onChange={(e) => {
                   applyComposerText(e.target.value);
+                  if (!builderOnline) queueComposerDraft(effectiveProjectId, e.target.value);
                   submitDebug("create", "input changed", { len: e.target.value.length });
                 }}
                 onInput={(e) => applyComposerText(e.currentTarget.value)}
@@ -3893,8 +3920,9 @@ export function ImmersiveWorkspace({
                   data-dom-len={domLen}
                   data-state-len={stateLen}
                   data-live-len={liveLen}
-                  disabled={!canSendPrompt}
+                  disabled={canStopActiveJob ? false : !canSendPrompt}
                   onPointerDownCapture={() => {
+                    if (canStopActiveJob) return;
                     setDebugClicked(true);
                     setSubmitStatusLabel("Pointer down detected");
                     uiSubmitLog("create-ui", "build pointer down");
@@ -3904,6 +3932,12 @@ export function ImmersiveWorkspace({
                     setSubmitStatusLabel("Click detected");
                   }}
                   onClick={(e) => {
+                    if (canStopActiveJob) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      void handleStopActiveJob();
+                      return;
+                    }
                     syncFromDom();
                     const text = resolveComposerPromptText();
                     if (!composerHasMeaningfulText(text)) {
@@ -3922,10 +3956,13 @@ export function ImmersiveWorkspace({
                   }}
                   className={cn(
                     "relative z-[60] ml-auto flex min-h-[36px] items-center gap-1.5 rounded-lg px-3 text-[12px] font-semibold transition",
-                    !canSendPrompt
+                    canStopActiveJob
+                      ? "cursor-pointer bg-rose-500/90 text-white hover:bg-rose-500"
+                      : !canSendPrompt
                       ? "cursor-not-allowed bg-muted/60 text-muted-foreground opacity-50"
                       : "pointer-events-auto cursor-pointer active:scale-[0.98]",
-                    canSendPrompt &&
+                    !canStopActiveJob &&
+                      canSendPrompt &&
                       (buildJobActive
                         ? "bg-muted/80 text-muted-foreground"
                         : mode === "build"
@@ -3933,12 +3970,19 @@ export function ImmersiveWorkspace({
                           : "bg-accent text-white hover:bg-accent/90"),
                   )}
                 >
-                  {showQueueAffordance ? (
+                  {canStopActiveJob ? (
+                    <>
+                      <Square className="size-3.5 fill-current" strokeWidth={0} />
+                      Stop
+                    </>
+                  ) : showQueueAffordance ? (
                     <Loader2 className="size-3.5 animate-spin" />
                   ) : (
                     <ArrowUp className="size-3.5" strokeWidth={2.25} />
                   )}
-                  {showQueueAffordance
+                  {canStopActiveJob
+                    ? null
+                    : showQueueAffordance
                     ? queueCount > 0
                       ? `Queue (${queueCount})`
                       : "Queue"
